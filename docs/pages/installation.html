@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Installation - Visit Dzaleka Documentation</title>
+    <link rel="stylesheet" href="../styles/docs.css">
+</head>
+
+<body>
+    <div class="doc-content">
+        <div class="breadcrumb">
+            <a href="../index.html">Docs</a>
+            <span>/</span>
+            <span>Getting Started</span>
+            <span>/</span>
+            <span>Installation</span>
+        </div>
+
+        <h1>Installation</h1>
+
+        <p>This guide walks you through setting up Visit Dzaleka on your local development environment.</p>
+
+        <h2>Prerequisites</h2>
+
+        <p>Before installing, ensure you have the following installed:</p>
+
+        <table class="docs-table">
+            <thead>
+                <tr>
+                    <th>Requirement</th>
+                    <th>Version</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Node.js</td>
+                    <td>≥ 18.0.0</td>
+                    <td>LTS version recommended</td>
+                </tr>
+                <tr>
+                    <td>npm</td>
+                    <td>≥ 8.0.0</td>
+                    <td>Comes with Node.js</td>
+                </tr>
+                <tr>
+                    <td>PostgreSQL</td>
+                    <td>≥ 14.0</td>
+                    <td>Or use Supabase/Neon cloud database</td>
+                </tr>
+                <tr>
+                    <td>Git</td>
+                    <td>Latest</td>
+                    <td>For cloning the repository</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Installation Steps</h2>
+
+        <div class="steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h4>Clone the Repository</h4>
+                    <p>Download the source code from GitHub:</p>
+                    <pre><code>git clone https://github.com/your-org/DzalekaVisit.git
+cd DzalekaVisit</code></pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h4>Install Dependencies</h4>
+                    <p>Install all required npm packages:</p>
+                    <pre><code>npm install</code></pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h4>Configure Environment Variables</h4>
+                    <p>Create a <code>.env</code> file in the project root with the following variables:</p>
+                    <pre><code># Database connection
+DATABASE_URL="postgresql://user:password@host:5432/dbname"
+
+# Session secret (generate a random string)
+SESSION_SECRET="your-super-secret-session-key"
+
+# Email service (Resend)
+RESEND_API_KEY="re_xxxxxxxxxxxxx"
+
+# Application URL
+APP_URL="http://localhost:5000"</code></pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h4>Set Up the Database</h4>
+                    <p>Push the database schema using Drizzle:</p>
+                    <pre><code>npm run db:push</code></pre>
+                    <p>Alternatively, run the SQL migration files directly:</p>
+                    <pre><code># In your PostgreSQL client or Supabase SQL Editor
+# Run: supabase-schema.sql
+# Then: migration_complete.sql</code></pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">5</div>
+                <div class="step-content">
+                    <h4>Start the Development Server</h4>
+                    <p>Launch the application in development mode:</p>
+                    <pre><code>npm run dev</code></pre>
+                    <p>The application will be available at <code>http://localhost:5000</code></p>
+                </div>
+            </div>
+        </div>
+
+        <h2>Database Setup Options</h2>
+
+        <h3>Option A: Supabase (Recommended)</h3>
+        <ol>
+            <li>Create a free account at <a href="https://supabase.com" target="_blank">supabase.com</a></li>
+            <li>Create a new project</li>
+            <li>Go to Settings → Database → Connection String</li>
+            <li>Copy the URI and add it to your <code>.env</code> file</li>
+            <li>Run the SQL files in the SQL Editor</li>
+        </ol>
+
+        <h3>Option B: Local PostgreSQL</h3>
+        <pre><code># Create the database
+createdb dzaleka_visit
+
+# Connect and run migrations
+psql dzaleka_visit < supabase-schema.sql
+psql dzaleka_visit < migration_complete.sql</code></pre>
+
+        <h2>Verify Installation</h2>
+        <p>After starting the development server, verify the installation:</p>
+        <ol>
+            <li>Open <a href="http://localhost:5000">http://localhost:5000</a> in your browser</li>
+            <li>You should see the login page</li>
+            <li>Check the terminal for any error messages</li>
+        </ol>
+
+        <div class="callout callout-success">
+            <strong>Success!</strong> If you see the login page, your installation is complete. Proceed to the Quick
+            Start guide to create your first admin account.
+        </div>
+
+        <h2>Production Build</h2>
+        <p>To create a production build:</p>
+        <pre><code># Build the application
+npm run build
+
+# Start in production mode
+npm start</code></pre>
+
+        <h2>Common Issues</h2>
+
+        <h3>Database Connection Errors</h3>
+        <p>If you see "connection refused" errors:</p>
+        <ul>
+            <li>Verify your <code>DATABASE_URL</code> is correct</li>
+            <li>Ensure PostgreSQL is running</li>
+            <li>Check if the database exists</li>
+            <li>For Supabase, check if connection pooling is enabled</li>
+        </ul>
+
+        <h3>Port Already in Use</h3>
+        <p>If port 5000 is already in use:</p>
+        <pre><code># Find what's using the port
+lsof -i :5000
+
+# Kill the process or use a different port
+PORT=3000 npm run dev</code></pre>
+
+        <div class="next-page">
+            <a href="quick-start.html" class="next-link">
+                <span>Next: Quick Start</span>
+                <span class="arrow">→</span>
+            </a>
+        </div>
+    </div>
+<script src="../scripts/docs.js"></script></body>
+
+</html>

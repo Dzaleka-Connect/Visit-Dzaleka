@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Start - Visit Dzaleka Documentation</title>
+    <link rel="stylesheet" href="../styles/docs.css">
+</head>
+
+<body>
+    <div class="doc-content">
+        <div class="breadcrumb">
+            <a href="../index.html">Docs</a>
+            <span>/</span>
+            <span>Getting Started</span>
+            <span>/</span>
+            <span>Quick Start</span>
+        </div>
+
+        <h1>Quick Start Guide</h1>
+
+        <p>This guide will help you get up and running with Visit Dzaleka in minutes.</p>
+
+        <h2>1. Create an Admin Account</h2>
+
+        <p>After installation, the first step is to create an administrator account. Since there are no users initially,
+            you'll need to create the first user via the API or database.</p>
+
+        <div class="callout callout-info">
+            <strong>Note:</strong> In a production environment, you would typically seed the database with an initial
+            admin user.
+        </div>
+
+        <h3>Using the API (Development Mode)</h3>
+        <p>You can use the registration endpoint to create your first user:</p>
+
+        <pre><code>curl -X POST http://localhost:5000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@dzaleka.com",
+    "password": "securePassword123",
+    "firstName": "Admin",
+    "lastName": "User"
+  }'</code></pre>
+
+        <p>By default, new registrations are assigned the <code>visitor</code> role. You'll need to upgrade this user to
+            <code>admin</code> in the database.</p>
+
+        <h3>Upgrading to Admin Role</h3>
+        <p>Run the following SQL command in your database:</p>
+        <pre><code>UPDATE users SET role = 'admin' WHERE email = 'admin@dzaleka.com';</code></pre>
+
+        <h2>2. Log In to the Dashboard</h2>
+
+        <ol>
+            <li>Navigate to <code>http://localhost:5000</code></li>
+            <li>Enter your email and password</li>
+            <li>Click <strong>Login</strong></li>
+        </ol>
+
+        <p>Upon successful login, you will be redirected to the Admin Dashboard.</p>
+
+        <h2>3. Configure System Settings</h2>
+
+        <p>Before managing bookings, configure the basic system settings:</p>
+
+        <ol>
+            <li>Go to <strong>Settings</strong> in the sidebar</li>
+            <li>Review the <strong>Pricing Configuration</strong></li>
+            <li>Set up <strong>Email Templates</strong> under Operations</li>
+        </ol>
+
+        <h2>4. Set Up Camp Zones</h2>
+
+        <p>Define the areas within the camp that visitors can tour:</p>
+
+        <ol>
+            <li>Navigate to <strong>Zones & POI</strong></li>
+            <li>Click <strong>Add Zone</strong></li>
+            <li>Create zones like "Market Area", "Community Center", "Education Hub"</li>
+            <li>Add <strong>Points of Interest</strong> to each zone</li>
+        </ol>
+
+        <h2>5. Onboard Guides</h2>
+
+        <p>Add tour guides to the system:</p>
+
+        <ol>
+            <li>Navigate to <strong>Guides</strong></li>
+            <li>Click <strong>Add Guide</strong></li>
+            <li>Enter guide details (Name, Phone, Languages)</li>
+            <li>Set their availability and payment preferences</li>
+        </ol>
+
+        <h2>6. Create a Test Booking</h2>
+
+        <p>Verify the system is working by creating a manual booking:</p>
+
+        <ol>
+            <li>Go to <strong>Bookings</strong></li>
+            <li>Click <strong>New Booking</strong></li>
+            <li>Fill in visitor details and tour preferences</li>
+            <li>Submit the booking</li>
+        </ol>
+
+        <p>You should see the new booking in the "Pending" list.</p>
+
+        <h2>Next Steps</h2>
+
+        <div class="feature-grid">
+            <a href="dashboard.html" class="feature-card" style="text-decoration: none; color: inherit;">
+                <div class="feature-icon">📊</div>
+                <h3>Explore Dashboard</h3>
+                <p>Learn about the analytics and stats available to you.</p>
+            </a>
+
+            <a href="bookings.html" class="feature-card" style="text-decoration: none; color: inherit;">
+                <div class="feature-icon">📅</div>
+                <h3>Manage Bookings</h3>
+                <p>Learn how to process, confirm, and complete bookings.</p>
+            </a>
+        </div>
+
+        <div class="next-page">
+            <a href="dashboard.html" class="next-link">
+                <span>Next: Dashboard Overview</span>
+                <span class="arrow">→</span>
+            </a>
+        </div>
+    </div>
+<script src="../scripts/docs.js"></script></body>
+
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management - Visit Dzaleka Documentation</title>
+    <link rel="stylesheet" href="../styles/docs.css">
+</head>
+
+<body>
+    <div class="doc-content">
+        <div class="breadcrumb">
+            <a href="../index.html">Docs</a>
+            <span>/</span>
+            <span>User Guide</span>
+            <span>/</span>
+            <span>Users</span>
+        </div>
+
+        <h1>User Management</h1>
+
+        <p>Admins can manage system users, assign roles, and control access permissions.</p>
+
+        <h2>User Roles</h2>
+        <table class="docs-table">
+            <thead>
+                <tr>
+                    <th>Role</th>
+                    <th>Access Level</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="badge role-admin">Admin</span></td>
+                    <td>Full system access. Can manage users, settings, and all modules.</td>
+                </tr>
+                <tr>
+                    <td><span class="badge role-coordinator">Coordinator</span></td>
+                    <td>Can manage bookings, guides, and view reports. No access to system settings or user management.
+                    </td>
+                </tr>
+                <tr>
+                    <td><span class="badge role-guide">Guide</span></td>
+                    <td>Can view assigned tours and update their own profile/availability.</td>
+                </tr>
+                <tr>
+                    <td><span class="badge role-security">Security</span></td>
+                    <td>Access to Check-in/out and Incident reporting only.</td>
+                </tr>
+                <tr>
+                    <td><span class="badge role-visitor">Visitor</span></td>
+                    <td>Can only view and manage their own bookings.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Managing Users</h2>
+
+        <h3>Creating a User</h3>
+        <ol>
+            <li>Navigate to <strong>Users</strong>.</li>
+            <li>Click <strong>Add User</strong>.</li>
+            <li>Enter email, password, and personal details.</li>
+            <li>Select the appropriate <strong>Role</strong>.</li>
+            <li>Click <strong>Create User</strong>.</li>
+        </ol>
+
+        <h3>Editing a User</h3>
+        <ul>
+            <li><strong>Change Role</strong>: Promote or demote a user's access level.</li>
+            <li><strong>Deactivate</strong>: Disable a user account without deleting data.</li>
+            <li><strong>Reset Password</strong>: Trigger a password reset email.</li>
+        </ul>
+
+        <div class="next-page">
+            <a href="settings.html" class="next-link">
+                <span>Next: Settings</span>
+                <span class="arrow">→</span>
+            </a>
+        </div>
+    </div>
+<script src="../scripts/docs.js"></script></body>
+
+</html>

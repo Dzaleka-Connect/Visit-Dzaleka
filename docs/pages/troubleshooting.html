@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Troubleshooting - Visit Dzaleka Documentation</title>
+    <link rel="stylesheet" href="../styles/docs.css">
+</head>
+
+<body>
+    <div class="doc-content">
+        <div class="breadcrumb">
+            <a href="../index.html">Docs</a>
+            <span>/</span>
+            <span>Reference</span>
+            <span>/</span>
+            <span>Troubleshooting</span>
+        </div>
+
+        <h1>Troubleshooting</h1>
+
+        <p>Common issues and their solutions.</p>
+
+        <h2>Database Connection Issues</h2>
+        <div class="callout callout-error">
+            <strong>Error:</strong> <code>Connection refused</code> or
+            <code>terminating connection due to administrator command</code>
+        </div>
+        <p><strong>Solution:</strong></p>
+        <ul>
+            <li>Check if your IP is allowed in the database provider's settings (e.g., Supabase/Neon).</li>
+            <li>Verify the <code>DATABASE_URL</code> in your <code>.env</code> file.</li>
+            <li>If using a local DB, ensure the PostgreSQL service is running.</li>
+        </ul>
+
+        <h2>Session Errors</h2>
+        <div class="callout callout-error">
+            <strong>Error:</strong> <code>Error: secret option required for sessions</code>
+        </div>
+        <p><strong>Solution:</strong></p>
+        <ul>
+            <li>Ensure <code>SESSION_SECRET</code> is defined in your <code>.env</code> file.</li>
+        </ul>
+
+        <h2>Build Failures</h2>
+        <div class="callout callout-error">
+            <strong>Error:</strong> <code>TypeScript error: Property 'x' does not exist on type 'y'</code>
+        </div>
+        <p><strong>Solution:</strong></p>
+        <ul>
+            <li>Run <code>npm run check</code> to identify all type errors.</li>
+            <li>Ensure your local schema matches the database schema.</li>
+        </ul>
+
+        <div class="next-page">
+            <a href="changelog.html" class="next-link">
+                <span>Next: Changelog</span>
+                <span class="arrow">→</span>
+            </a>
+        </div>
+    </div>
+<script src="../scripts/docs.js"></script></body>
+
+</html>

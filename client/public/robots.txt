@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /users
+Disallow: /revenue
+Disallow: /email-history
+Disallow: /audit-logs
+
+Sitemap: https://visit.dzaleka.com/sitemap.xml

@@ -1,0 +1,124 @@
+import { Switch, Route } from "wouter";
+import { queryClient } from "./lib/queryClient";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { HelmetProvider } from "react-helmet-async";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/notification-bell";
+import { useAuth } from "@/hooks/useAuth";
+import NotFound from "@/pages/not-found";
+import AuthPage from "@/pages/auth";
+import ResetPassword from "@/pages/reset-password";
+import VerifyEmail from "@/pages/verify-email";
+import Dashboard from "@/pages/dashboard";
+import Bookings from "@/pages/bookings";
+import MyBookings from "@/pages/my-bookings";
+import Guides from "@/pages/guides";
+import CalendarPage from "@/pages/calendar";
+import GuidePerformance from "@/pages/guide-performance";
+import Zones from "@/pages/zones";
+import Security from "@/pages/security";
+import UsersPage from "@/pages/users";
+import Settings from "@/pages/settings";
+import Profile from "@/pages/profile";
+import EmailHistory from "@/pages/email-history";
+import EmailSettings from "@/pages/email-settings";
+import Revenue from "@/pages/revenue";
+import AuditLogs from "@/pages/audit-logs";
+import Visitors from "@/pages/visitors";
+import Landing from "@/pages/landing";
+
+function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
+  const style = {
+    "--sidebar-width": "16rem",
+    "--sidebar-width-icon": "3rem",
+  };
+
+  return (
+    <SidebarProvider style={style as React.CSSProperties}>
+      <div className="flex h-screen w-full">
+        <AppSidebar />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <header className="sticky top-0 z-40 flex h-14 items-center justify-between gap-4 border-b bg-background px-4">
+            <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+              <ThemeToggle />
+            </div>
+          </header>
+          <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        </div>
+      </div>
+    </SidebarProvider>
+  );
+}
+
+function Router() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Switch>
+        <Route path="/landing" component={Landing} />
+        <Route path="/reset-password" component={ResetPassword} />
+        <Route path="/verify-email" component={VerifyEmail} />
+        <Route path="/" component={AuthPage} />
+        <Route component={AuthPage} />
+      </Switch>
+    );
+  }
+
+  return (
+    <AuthenticatedLayout>
+      <Switch>
+        <Route path="/" component={Dashboard} />
+        <Route path="/bookings" component={Bookings} />
+        <Route path="/my-bookings" component={MyBookings} />
+        <Route path="/calendar" component={CalendarPage} />
+        <Route path="/guide-performance" component={GuidePerformance} />
+        <Route path="/guides" component={Guides} />
+        <Route path="/zones" component={Zones} />
+        <Route path="/security" component={Security} />
+        <Route path="/users" component={UsersPage} />
+        <Route path="/settings" component={Settings} />
+        <Route path="/profile" component={Profile} />
+        <Route path="/email-history" component={EmailHistory} />
+        <Route path="/email-settings" component={EmailSettings} />
+        <Route path="/revenue" component={Revenue} />
+        <Route path="/visitors" component={Visitors} />
+        <Route path="/audit-logs" component={AuditLogs} />
+        <Route path="/landing" component={Landing} />
+        <Route component={NotFound} />
+      </Switch>
+    </AuthenticatedLayout>
+  );
+}
+
+function App() {
+  return (
+    <HelmetProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </HelmetProvider>
+  );
+}
+
+export default App;

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Environment Variables - Visit Dzaleka Documentation</title>
+    <link rel="stylesheet" href="../styles/docs.css">
+</head>
+
+<body>
+    <div class="doc-content">
+        <div class="breadcrumb">
+            <a href="../index.html">Docs</a>
+            <span>/</span>
+            <span>Reference</span>
+            <span>/</span>
+            <span>Environment</span>
+        </div>
+
+        <h1>Environment Variables</h1>
+
+        <p>Configuration variables for the <code>.env</code> file.</p>
+
+        <table class="docs-table">
+            <thead>
+                <tr>
+                    <th>Variable</th>
+                    <th>Required</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>DATABASE_URL</code></td>
+                    <td>Yes</td>
+                    <td>PostgreSQL connection string (e.g., <code>postgresql://user:pass@host/db</code>)</td>
+                </tr>
+                <tr>
+                    <td><code>SESSION_SECRET</code></td>
+                    <td>Yes</td>
+                    <td>Secret key for signing session cookies. Use a long random string.</td>
+                </tr>
+                <tr>
+                    <td><code>RESEND_API_KEY</code></td>
+                    <td>No</td>
+                    <td>API key for Resend email service. Required for sending emails.</td>
+                </tr>
+                <tr>
+                    <td><code>NODE_ENV</code></td>
+                    <td>No</td>
+                    <td><code>development</code> or <code>production</code>. Defaults to development.</td>
+                </tr>
+                <tr>
+                    <td><code>PORT</code></td>
+                    <td>No</td>
+                    <td>Server port. Defaults to 5000.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="next-page">
+            <a href="troubleshooting.html" class="next-link">
+                <span>Next: Troubleshooting</span>
+                <span class="arrow">→</span>
+            </a>
+        </div>
+    </div>
+<script src="../scripts/docs.js"></script></body>
+
+</html>

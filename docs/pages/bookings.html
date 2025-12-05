@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Managing Bookings - Visit Dzaleka Documentation</title>
+    <link rel="stylesheet" href="../styles/docs.css">
+</head>
+
+<body>
+    <div class="doc-content">
+        <div class="breadcrumb">
+            <a href="../index.html">Docs</a>
+            <span>/</span>
+            <span>User Guide</span>
+            <span>/</span>
+            <span>Bookings</span>
+        </div>
+
+        <h1>Managing Bookings</h1>
+
+        <p>The Bookings module is the core of the Visit Dzaleka system, allowing you to manage the entire lifecycle of a
+            tour reservation.</p>
+
+        <h2>Booking Lifecycle</h2>
+
+        <div class="steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h4>Pending</h4>
+                    <p>New booking request received. Requires review and confirmation.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h4>Confirmed</h4>
+                    <p>Booking approved. Guide assigned (optional but recommended).</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h4>In Progress</h4>
+                    <p>Visitor has checked in and the tour is currently happening.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h4>Completed</h4>
+                    <p>Tour finished successfully. Visitor has checked out.</p>
+                </div>
+            </div>
+        </div>
+
+        <h2>Creating a Booking</h2>
+        <p>Admins and Coordinators can create bookings manually:</p>
+        <ol>
+            <li>Navigate to the <strong>Bookings</strong> page.</li>
+            <li>Click the <strong>New Booking</strong> button.</li>
+            <li>Fill in the visitor details (Name, Email, Phone).</li>
+            <li>Select tour preferences (Date, Time, Group Size, Tour Type).</li>
+            <li>Click <strong>Create Booking</strong>.</li>
+        </ol>
+
+        <h2>Managing Existing Bookings</h2>
+
+        <h3>Filtering and Search</h3>
+        <p>Use the toolbar to find specific bookings:</p>
+        <ul>
+            <li><strong>Search</strong>: Find by visitor name or email.</li>
+            <li><strong>Status Filter</strong>: View only Pending, Confirmed, etc.</li>
+            <li><strong>Date Range</strong>: View bookings for a specific period.</li>
+        </ul>
+
+        <h3>Booking Actions</h3>
+        <p>Click the actions menu (three dots) on any booking row to:</p>
+        <ul>
+            <li><strong>View Details</strong>: See full booking information.</li>
+            <li><strong>Edit</strong>: Modify booking details.</li>
+            <li><strong>Confirm/Cancel</strong>: Change booking status.</li>
+            <li><strong>Assign Guide</strong>: Select a guide for the tour.</li>
+        </ul>
+
+        <h2>Record Past Visit</h2>
+        <p>To log a visit that has already occurred (for record-keeping):</p>
+        <ol>
+            <li>Click <strong>Record Past Visit</strong> on the Bookings page.</li>
+            <li>Enter all visit details including the completed date.</li>
+            <li>The booking will be created with "Completed" status automatically.</li>
+        </ol>
+
+        <h2>Exporting Data</h2>
+        <p>You can export booking data for external analysis:</p>
+        <ol>
+            <li>Filter the list to show the data you want to export.</li>
+            <li>Click the <strong>Export CSV</strong> button.</li>
+            <li>The file will download automatically.</li>
+        </ol>
+
+        <div class="next-page">
+            <a href="guides.html" class="next-link">
+                <span>Next: Guide Management</span>
+                <span class="arrow">→</span>
+            </a>
+        </div>
+    </div>
+<script src="../scripts/docs.js"></script></body>
+
+</html>

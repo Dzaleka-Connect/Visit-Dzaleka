@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Reference - Visit Dzaleka Documentation</title>
+    <link rel="stylesheet" href="../styles/docs.css">
+</head>
+
+<body>
+    <div class="doc-content">
+        <div class="breadcrumb">
+            <a href="../index.html">Docs</a>
+            <span>/</span>
+            <span>Developer Guide</span>
+            <span>/</span>
+            <span>API Reference</span>
+        </div>
+
+        <h1>API Reference</h1>
+
+        <p>The Visit Dzaleka API is a RESTful interface built with Express.js. All endpoints are prefixed with
+            <code>/api</code>.</p>
+
+        <h2>Authentication</h2>
+
+        <div class="api-endpoint">
+            <span class="api-method post">POST</span>
+            <span class="api-path">/api/auth/login</span>
+            <p>Authenticate a user and create a session.</p>
+        </div>
+
+        <div class="api-endpoint">
+            <span class="api-method post">POST</span>
+            <span class="api-path">/api/auth/logout</span>
+            <p>Destroy the current session.</p>
+        </div>
+
+        <div class="api-endpoint">
+            <span class="api-method get">GET</span>
+            <span class="api-path">/api/user</span>
+            <p>Get the currently authenticated user.</p>
+        </div>
+
+        <h2>Bookings</h2>
+
+        <div class="api-endpoint">
+            <span class="api-method get">GET</span>
+            <span class="api-path">/api/bookings</span>
+            <p>List all bookings. Supports filtering by status and date.</p>
+        </div>
+
+        <div class="api-endpoint">
+            <span class="api-method post">POST</span>
+            <span class="api-path">/api/bookings</span>
+            <p>Create a new booking request.</p>
+        </div>
+
+        <div class="api-endpoint">
+            <span class="api-method patch">PATCH</span>
+            <span class="api-path">/api/bookings/:id/status</span>
+            <p>Update booking status (e.g., confirm, cancel).</p>
+        </div>
+
+        <h2>Guides</h2>
+
+        <div class="api-endpoint">
+            <span class="api-method get">GET</span>
+            <span class="api-path">/api/guides</span>
+            <p>List all guides.</p>
+        </div>
+
+        <div class="api-endpoint">
+            <span class="api-method post">POST</span>
+            <span class="api-path">/api/guides</span>
+            <p>Create a new guide profile.</p>
+        </div>
+
+        <div class="api-endpoint">
+            <span class="api-method get">GET</span>
+            <span class="api-path">/api/stats/guide-performance</span>
+            <p>Get performance metrics for guides.</p>
+        </div>
+
+        <h2>Zones</h2>
+
+        <div class="api-endpoint">
+            <span class="api-method get">GET</span>
+            <span class="api-path">/api/zones</span>
+            <p>List all camp zones.</p>
+        </div>
+
+        <div class="api-endpoint">
+            <span class="api-method post">POST</span>
+            <span class="api-path">/api/zones</span>
+            <p>Create a new zone.</p>
+        </div>
+
+        <div class="next-page">
+            <a href="database.html" class="next-link">
+                <span>Next: Database Schema</span>
+                <span class="arrow">→</span>
+            </a>
+        </div>
+    </div>
+<script src="../scripts/docs.js"></script></body>
+
+</html>

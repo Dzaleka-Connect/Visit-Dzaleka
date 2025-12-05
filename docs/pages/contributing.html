@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contributing - Visit Dzaleka Documentation</title>
+    <link rel="stylesheet" href="../styles/docs.css">
+</head>
+
+<body>
+    <div class="doc-content">
+        <div class="breadcrumb">
+            <a href="../index.html">Docs</a>
+            <span>/</span>
+            <span>Developer Guide</span>
+            <span>/</span>
+            <span>Contributing</span>
+        </div>
+
+        <h1>Contributing Guide</h1>
+
+        <p>Thank you for your interest in contributing to Visit Dzaleka! As an open-source project, we welcome
+            contributions from the community to help improve the visitor management system for Dzaleka Refugee Camp.</p>
+
+        <h2>Getting Started</h2>
+
+        <ol>
+            <li><strong>Fork the repository</strong> on GitHub</li>
+            <li><strong>Clone your fork</strong> locally</li>
+            <li><strong>Create a new branch</strong> for your feature or fix:
+                <code>git checkout -b feature/amazing-feature</code></li>
+            <li><strong>Install dependencies</strong>: <code>npm install</code></li>
+            <li><strong>Start development server</strong>: <code>npm run dev</code></li>
+        </ol>
+
+        <h2>Development Guidelines</h2>
+
+        <h3>Code Style</h3>
+        <ul>
+            <li>We use <strong>TypeScript</strong> for type safety. Avoid using <code>any</code> whenever possible.</li>
+            <li>Follow the existing project structure and naming conventions.</li>
+            <li>Use <strong>Tailwind CSS</strong> for styling. Avoid writing custom CSS unless absolutely necessary.
+            </li>
+            <li>Ensure all components are responsive and accessible.</li>
+        </ul>
+
+        <h3>Database Changes</h3>
+        <p>If your change involves the database schema:</p>
+        <ol>
+            <li>Modify <code>shared/schema.ts</code> to define the new tables or columns.</li>
+            <li>Generate a migration or update the schema using Drizzle Kit.</li>
+            <li>Include any necessary SQL migration files in your PR.</li>
+        </ol>
+
+        <h3>Adding New Features</h3>
+        <p>When adding a new feature:</p>
+        <ol>
+            <li><strong>Plan</strong>: Create a brief design doc or issue describing the feature.</li>
+            <li><strong>Backend</strong>: Implement the API endpoints in <code>server/routes.ts</code> and database
+                logic in <code>server/storage.ts</code>.</li>
+            <li><strong>Frontend</strong>: Create the UI components in <code>client/src/components</code> and pages in
+                <code>client/src/pages</code>.</li>
+            <li><strong>Test</strong>: Verify the feature works as expected and handles edge cases.</li>
+        </ol>
+
+        <h2>Pull Request Process</h2>
+
+        <ol>
+            <li>Push your changes to your fork.</li>
+            <li>Submit a Pull Request to the main repository.</li>
+            <li>Provide a clear description of the changes and the problem they solve.</li>
+            <li>Include screenshots or videos for UI changes.</li>
+            <li>Wait for review and address any feedback.</li>
+        </ol>
+
+        <h2>Community & Support</h2>
+        <p>If you have questions or need help, please open an issue on GitHub or join our community discussions.</p>
+
+        <div class="callout callout-success">
+            <strong>Tip:</strong> Check the "Good First Issue" label on GitHub for beginner-friendly tasks to get
+            started with!
+        </div>
+    </div>
+<script src="../scripts/docs.js"></script></body>
+
+</html>

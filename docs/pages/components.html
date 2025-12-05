@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UI Components - Visit Dzaleka Documentation</title>
+    <link rel="stylesheet" href="../styles/docs.css">
+</head>
+
+<body>
+    <div class="doc-content">
+        <div class="breadcrumb">
+            <a href="../index.html">Docs</a>
+            <span>/</span>
+            <span>Developer Guide</span>
+            <span>/</span>
+            <span>Components</span>
+        </div>
+
+        <h1>UI Components</h1>
+
+        <p>Visit Dzaleka uses <strong>shadcn/ui</strong>, a collection of re-usable components built with Radix UI and
+            Tailwind CSS.</p>
+
+        <h2>Core Components</h2>
+        <p>Components are located in <code>client/src/components/ui</code>.</p>
+
+        <h3>Button</h3>
+        <pre><code>import { Button } from "@/components/ui/button"
+
+<Button variant="default">Click me</Button>
+<Button variant="outline">Secondary</Button>
+<Button variant="ghost">Ghost</Button></code></pre>
+
+        <h3>Card</h3>
+        <pre><code>import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
+<Card>
+  <CardHeader>
+    <CardTitle>Card Title</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <p>Card content goes here.</p>
+  </CardContent>
+</Card></code></pre>
+
+        <h3>Dialog (Modal)</h3>
+        <pre><code>import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+
+<Dialog>
+  <DialogTrigger>Open</DialogTrigger>
+  <DialogContent>
+    <h2>Modal Content</h2>
+  </DialogContent>
+</Dialog></code></pre>
+
+        <h2>Custom Components</h2>
+        <p>Application-specific components located in <code>client/src/components</code>.</p>
+
+        <h3>StatCard</h3>
+        <p>Displays a dashboard statistic with an icon and trend indicator.</p>
+        <pre><code><StatCard
+  title="Total Revenue"
+  value="MWK 500,000"
+  icon={DollarSign}
+  trend="+12%"
+/></code></pre>
+
+        <h3>StatusBadge</h3>
+        <p>Displays a colored badge for booking statuses.</p>
+        <pre><code><StatusBadge status="confirmed" /></code></pre>
+
+        <div class="next-page">
+            <a href="contributing.html" class="next-link">
+                <span>Next: Contributing</span>
+                <span class="arrow">→</span>
+            </a>
+        </div>
+    </div>
+<script src="../scripts/docs.js"></script></body>
+
+</html>

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLI Commands - Visit Dzaleka Documentation</title>
+    <link rel="stylesheet" href="../styles/docs.css">
+</head>
+
+<body>
+    <div class="doc-content">
+        <div class="breadcrumb">
+            <a href="../index.html">Docs</a>
+            <span>/</span>
+            <span>Reference</span>
+            <span>/</span>
+            <span>CLI</span>
+        </div>
+
+        <h1>CLI Commands</h1>
+
+        <p>Available npm scripts for development and maintenance.</p>
+
+        <h2>Development</h2>
+
+        <h3><code>npm run dev</code></h3>
+        <p>Starts the development server with hot reloading.</p>
+        <ul>
+            <li>Frontend: Vite dev server</li>
+            <li>Backend: tsx watch mode</li>
+            <li>URL: http://localhost:5000</li>
+        </ul>
+
+        <h3><code>npm run build</code></h3>
+        <p>Builds the application for production.</p>
+        <ul>
+            <li>Compiles TypeScript</li>
+            <li>Bundles frontend assets with Vite</li>
+            <li>Bundles backend with esbuild</li>
+            <li>Output: <code>dist/</code> directory</li>
+        </ul>
+
+        <h3><code>npm start</code></h3>
+        <p>Starts the production server from the <code>dist/</code> directory.</p>
+
+        <h2>Database</h2>
+
+        <h3><code>npm run db:push</code></h3>
+        <p>Pushes schema changes to the database using Drizzle Kit.</p>
+        <div class="callout callout-warning">
+            <strong>Warning:</strong> This may modify your database schema. Always backup production data first.
+        </div>
+
+        <h3><code>npm run check</code></h3>
+        <p>Runs TypeScript type checking across the entire project.</p>
+
+        <div class="next-page">
+            <a href="environment.html" class="next-link">
+                <span>Next: Environment Variables</span>
+                <span class="arrow">→</span>
+            </a>
+        </div>
+    </div>
+<script src="../scripts/docs.js"></script></body>
+
+</html>

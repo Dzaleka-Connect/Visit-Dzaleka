@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email System - Visit Dzaleka Documentation</title>
+    <link rel="stylesheet" href="../styles/docs.css">
+</head>
+
+<body>
+    <div class="doc-content">
+        <div class="breadcrumb">
+            <a href="../index.html">Docs</a>
+            <span>/</span>
+            <span>User Guide</span>
+            <span>/</span>
+            <span>Email</span>
+        </div>
+
+        <h1>Email System</h1>
+
+        <p>Visit Dzaleka includes a robust email notification system powered by Resend to keep visitors and staff
+            informed.</p>
+
+        <h2>Email Templates</h2>
+        <p>Admins can manage email templates via the <strong>Email Templates</strong> page.</p>
+
+        <h3>Available Templates</h3>
+        <p>The system sends the following automated emails:</p>
+        <ul>
+            <li><strong>Booking Confirmation</strong>: Sent to visitor when a booking request is received (Pending).
+            </li>
+            <li><strong>Status Update</strong>: Sent when booking status changes (Confirmed, Cancelled, Completed).</li>
+            <li><strong>Guide Assignment</strong>: Sent to visitor when a guide is assigned to their tour.</li>
+            <li><strong>Check-In Notification</strong>: Sent to visitor upon successful security check-in.</li>
+            <li><strong>Password Reset</strong>: Sent to users requesting a password reset.</li>
+        </ul>
+
+        <h3>Template Variables</h3>
+        <p>Each template uses specific variables to personalize the content:</p>
+
+        <h4>Booking Confirmation</h4>
+        <ul>
+            <li><code>visitorName</code> - Name of the visitor</li>
+            <li><code>bookingReference</code> - Unique booking ID</li>
+            <li><code>visitDate</code> & <code>visitTime</code> - Scheduled date and time</li>
+            <li><code>tourType</code> - Type of tour selected</li>
+            <li><code>numberOfPeople</code> - Group size</li>
+            <li><code>totalAmount</code> - Calculated cost</li>
+            <li><code>meetingPoint</code> - (Optional) Selected meeting location</li>
+        </ul>
+
+        <h4>Status Update</h4>
+        <ul>
+            <li><code>newStatus</code> - The updated status (Confirmed, Completed, Cancelled)</li>
+            <li><code>adminNotes</code> - (Optional) Message from the administrator</li>
+            <li><em>Includes all Booking Confirmation variables</em></li>
+        </ul>
+
+        <h4>Guide Assignment</h4>
+        <ul>
+            <li><code>guideName</code> - Name of the assigned guide</li>
+            <li><code>guidePhone</code> - Contact number for the guide</li>
+            <li><em>Includes all Booking Confirmation variables</em></li>
+        </ul>
+
+        <h4>Check-In Notification</h4>
+        <ul>
+            <li><code>checkInTime</code> - Timestamp of check-in</li>
+            <li><code>guideName</code> - (Optional) Name of the guide meeting the visitor</li>
+        </ul>
+
+        <h2>Notifications</h2>
+        <p>The system automatically sends emails for:</p>
+        <ul>
+            <li>New booking requests (to Coordinators)</li>
+            <li>Booking status updates (to Visitor)</li>
+            <li>Guide assignments (to Guide)</li>
+            <li>Password resets (to User)</li>
+        </ul>
+
+        <div class="next-page">
+            <a href="reports.html" class="next-link">
+                <span>Next: Reports & Analytics</span>
+                <span class="arrow">→</span>
+            </a>
+        </div>
+    </div>
+    <script src="../scripts/docs.js"></script>
+</body>
+
+</html>

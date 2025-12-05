@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Architecture Overview - Visit Dzaleka Documentation</title>
+    <link rel="stylesheet" href="../styles/docs.css">
+</head>
+
+<body>
+    <div class="doc-content">
+        <div class="breadcrumb">
+            <a href="../index.html">Docs</a>
+            <span>/</span>
+            <span>Developer Guide</span>
+            <span>/</span>
+            <span>Architecture</span>
+        </div>
+
+        <h1>Architecture Overview</h1>
+
+        <p>Visit Dzaleka follows a modern, monolithic architecture designed for simplicity, type safety, and
+            performance. The application is built as a Single Page Application (SPA) served by an Express.js backend.
+        </p>
+
+        <h2>High-Level Architecture</h2>
+
+        <div class="feature-grid">
+            <div class="feature-card">
+                <h3>Frontend (Client)</h3>
+                <p>React 18 SPA built with Vite, using TanStack Query for state management and wouter for routing.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Backend (Server)</h3>
+                <p>Node.js/Express REST API handling business logic, authentication, and database interactions.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Database</h3>
+                <p>PostgreSQL with Drizzle ORM for type-safe schema definition and queries.</p>
+            </div>
+        </div>
+
+        <h2>Directory Structure</h2>
+
+        <div class="file-tree">
+            <div class="folder">/client</div>
+            <div class="folder"> /src</div>
+            <div class="folder"> /components</div>
+            <div class="file"> /ui # Reusable UI components (shadcn/ui)</div>
+            <div class="file"> app-sidebar.tsx</div>
+            <div class="folder"> /hooks # Custom React hooks</div>
+            <div class="folder"> /lib # Utilities and helpers</div>
+            <div class="folder"> /pages # Route components</div>
+            <div class="file"> bookings.tsx</div>
+            <div class="file"> dashboard.tsx</div>
+            <div class="file"> guides.tsx</div>
+            <div class="file"> App.tsx # Main application component & routing</div>
+            <div class="file"> main.tsx # Entry point</div>
+            <div class="folder">/server</div>
+            <div class="file"> auth.ts # Authentication logic</div>
+            <div class="file"> index.ts # Server entry point</div>
+            <div class="file"> routes.ts # API route definitions</div>
+            <div class="file"> storage.ts # Database interface</div>
+            <div class="folder">/shared</div>
+            <div class="file"> schema.ts # Shared Drizzle schema & types</div>
+        </div>
+
+        <h2>Key Architectural Decisions</h2>
+
+        <h3>1. Type Safety</h3>
+        <p>We use <strong>TypeScript</strong> throughout the entire stack. The database schema is defined in
+            <code>shared/schema.ts</code> using Drizzle ORM, which generates types that are used by both the frontend
+            and backend. This ensures that API responses and database queries are fully typed and synchronized.</p>
+
+        <h3>2. State Management</h3>
+        <p>The frontend uses <strong>TanStack Query (React Query)</strong> for server state management. This handles
+            caching, loading states, and data synchronization, eliminating the need for complex global state managers
+            like Redux for data fetching.</p>
+
+        <h3>3. Authentication</h3>
+        <p>Authentication is session-based using <code>express-session</code> with a PostgreSQL store
+            (`connect-pg-simple`). Passwords are hashed using <code>bcrypt</code>. The <code>isAuthenticated</code> and
+            <code>requireRole</code> middleware protect API endpoints.</p>
+
+        <h3>4. UI Component System</h3>
+        <p>The UI is built using <strong>shadcn/ui</strong>, which provides accessible, unstyled components based on
+            Radix UI primitives, styled with Tailwind CSS. This allows for a consistent, professional design with full
+            customization capabilities.</p>
+
+        <h2>Data Flow</h2>
+
+        <div class="steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h4>User Interaction</h4>
+                    <p>User interacts with a React component (e.g., submits a booking form).</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h4>API Request</h4>
+                    <p>The component triggers a mutation via React Query, sending a request to the Express API.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h4>Validation & Logic</h4>
+                    <p>The server validates the request using Zod schemas (shared with client) and checks permissions.
+                    </p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h4>Database Operation</h4>
+                    <p>Drizzle ORM executes the SQL query against the PostgreSQL database.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">5</div>
+                <div class="step-content">
+                    <h4>Response & Update</h4>
+                    <p>The server responds with the updated data. React Query updates the cache and triggers a UI
+                        re-render.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="next-page">
+            <a href="database.html" class="next-link">
+                <span>Next: Database Schema</span>
+                <span class="arrow">→</span>
+            </a>
+        </div>
+    </div>
+<script src="../scripts/docs.js"></script></body>
+
+</html>

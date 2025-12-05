@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Schema - Visit Dzaleka Documentation</title>
+    <link rel="stylesheet" href="../styles/docs.css">
+</head>
+
+<body>
+    <div class="doc-content">
+        <div class="breadcrumb">
+            <a href="../index.html">Docs</a>
+            <span>/</span>
+            <span>Developer Guide</span>
+            <span>/</span>
+            <span>Database</span>
+        </div>
+
+        <h1>Database Schema</h1>
+
+        <p>The application uses PostgreSQL with Drizzle ORM. The schema is defined in <code>shared/schema.ts</code>.</p>
+
+        <h2>Core Tables</h2>
+
+        <h3>users</h3>
+        <p>Stores system users and authentication details.</p>
+        <ul>
+            <li><code>id</code>: UUID (PK)</li>
+            <li><code>email</code>: String (Unique)</li>
+            <li><code>password</code>: String (Hashed)</li>
+            <li><code>role</code>: Enum (admin, coordinator, guide, security, visitor)</li>
+        </ul>
+
+        <h3>bookings</h3>
+        <p>Stores tour reservations.</p>
+        <ul>
+            <li><code>id</code>: UUID (PK)</li>
+            <li><code>visitorName</code>: String</li>
+            <li><code>visitDate</code>: Date</li>
+            <li><code>status</code>: Enum (pending, confirmed, in_progress, completed, cancelled)</li>
+            <li><code>guideId</code>: UUID (FK to guides)</li>
+        </ul>
+
+        <h3>guides</h3>
+        <p>Stores tour guide profiles.</p>
+        <ul>
+            <li><code>id</code>: UUID (PK)</li>
+            <li><code>firstName</code>: String</li>
+            <li><code>lastName</code>: String</li>
+            <li><code>availableDays</code>: Array&lt;String&gt;</li>
+            <li><code>totalEarnings</code>: Integer</li>
+        </ul>
+
+        <h3>zones</h3>
+        <p>Stores camp areas.</p>
+        <ul>
+            <li><code>id</code>: UUID (PK)</li>
+            <li><code>name</code>: String</li>
+            <li><code>description</code>: Text</li>
+        </ul>
+
+        <h2>Enums</h2>
+        <p>The schema uses PostgreSQL enums for type safety:</p>
+        <ul>
+            <li><code>user_role</code>: admin, coordinator, guide, security, visitor</li>
+            <li><code>booking_status</code>: pending, confirmed, in_progress, completed, cancelled</li>
+            <li><code>payment_method</code>: cash, airtel_money, tnm_mpamba</li>
+            <li><code>group_size</code>: individual, small_group, large_group, custom</li>
+        </ul>
+
+        <div class="next-page">
+            <a href="components.html" class="next-link">
+                <span>Next: UI Components</span>
+                <span class="arrow">→</span>
+            </a>
+        </div>
+    </div>
+<script src="../scripts/docs.js"></script></body>
+
+</html>
