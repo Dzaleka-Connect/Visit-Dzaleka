@@ -1,6 +1,7 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile } from "fs/promises";
+import { rm, readFile, readdir } from "fs/promises";
+import { join } from "path";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -59,6 +60,18 @@ async function buildAll() {
     external: externals,
     logLevel: "info",
   });
+
+  console.log("Build complete. Checking dist directory...");
+  try {
+    const distFiles = await readdir("dist");
+    console.log("dist contents:", distFiles);
+    if (distFiles.includes("public")) {
+        const publicFiles = await readdir("dist/public");
+        console.log("dist/public contents:", publicFiles);
+    }
+  } catch (e) {
+    console.error("Error checking dist directory:", e);
+  }
 }
 
 buildAll().catch((err) => {
