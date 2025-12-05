@@ -609,8 +609,8 @@ export default function Bookings() {
 
   return (
     <div className="space-y-6">
-      <SEO 
-        title="Book a Tour" 
+      <SEO
+        title="Book a Tour"
         description="Schedule your visit to Dzaleka. Choose your tour type, group size, and preferred guide."
       />
       <div className="flex flex-col gap-2">
@@ -709,7 +709,7 @@ export default function Bookings() {
             )}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             size="icon"
@@ -722,7 +722,7 @@ export default function Bookings() {
             variant="outline"
             onClick={() => {
               if (!filteredBookings || filteredBookings.length === 0) return;
-              
+
               // Define CSV headers
               const headers = [
                 "Reference",
@@ -763,7 +763,7 @@ export default function Bookings() {
 
               // Combine headers and rows
               const csvContent = [headers.join(","), ...rows].join("\n");
-              
+
               // Create download link
               const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
               const url = URL.createObjectURL(blob);
@@ -850,187 +850,189 @@ export default function Bookings() {
             />
           </CardContent>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox
-                    checked={filteredBookings?.length > 0 && selectedBookingIds.size === filteredBookings?.length}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setSelectedBookingIds(new Set(filteredBookings?.map(b => b.id) || []));
-                      } else {
-                        setSelectedBookingIds(new Set());
-                      }
-                    }}
-                  />
-                </TableHead>
-                <TableHead>Visitor</TableHead>
-                <TableHead>Date & Time</TableHead>
-                <TableHead>Group</TableHead>
-                <TableHead>Tour Type</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Guide</TableHead>
-                <TableHead className="w-12"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredBookings.map((booking) => (
-                <TableRow
-                  key={booking.id}
-                  className="hover-elevate"
-                  data-testid={`booking-row-${booking.id}`}
-                >
-                  <TableCell>
+          <div className="overflow-x-auto w-full">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">
                     <Checkbox
-                      checked={selectedBookingIds.has(booking.id)}
+                      checked={filteredBookings?.length > 0 && selectedBookingIds.size === filteredBookings?.length}
                       onCheckedChange={(checked) => {
-                        const newSet = new Set(selectedBookingIds);
                         if (checked) {
-                          newSet.add(booking.id);
+                          setSelectedBookingIds(new Set(filteredBookings?.map(b => b.id) || []));
                         } else {
-                          newSet.delete(booking.id);
+                          setSelectedBookingIds(new Set());
                         }
-                        setSelectedBookingIds(newSet);
                       }}
                     />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{booking.visitorName}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {booking.visitorEmail}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span>{formatDate(booking.visitDate)}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {formatTime(booking.visitTime)}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="capitalize">
-                      {booking.numberOfPeople}{" "}
-                      {booking.numberOfPeople === 1 ? "person" : "people"}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="capitalize">
-                      {getTourTypeName(booking.tourType)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    {formatCurrency(booking.totalAmount || 0)}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={booking.status || "pending"} />
-                  </TableCell>
-                  <TableCell>
-                    {booking.guide ? (
-                      <span className="text-sm">
-                        {booking.guide.firstName} {booking.guide.lastName}
-                      </span>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">
-                        Unassigned
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          data-testid={`button-actions-${booking.id}`}
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => handleViewDetails(booking)}
-                        >
-                          <Eye className="mr-2 h-4 w-4" />
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleAssignGuide(booking)}
-                        >
-                          <UserPlus className="mr-2 h-4 w-4" />
-                          Assign Guide
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleSendEmail(booking)}
-                        >
-                          <Mail className="mr-2 h-4 w-4" />
-                          Send Email
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {booking.status === "pending" && (
-                          <DropdownMenuItem
-                            onClick={() =>
-                              updateStatusMutation.mutate({
-                                id: booking.id,
-                                status: "confirmed",
-                              })
-                            }
-                          >
-                            <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
-                            Confirm Booking
-                          </DropdownMenuItem>
-                        )}
-                        {booking.status === "confirmed" && (
-                          <DropdownMenuItem
-                            onClick={() =>
-                              updateStatusMutation.mutate({
-                                id: booking.id,
-                                status: "completed",
-                              })
-                            }
-                          >
-                            <CheckCircle className="mr-2 h-4 w-4 text-blue-600" />
-                            Mark Completed
-                          </DropdownMenuItem>
-                        )}
-                        {booking.status !== "cancelled" && (
-                          <DropdownMenuItem
-                            onClick={() =>
-                              updateStatusMutation.mutate({
-                                id: booking.id,
-                                status: "cancelled",
-                              })
-                            }
-                            className="text-destructive"
-                          >
-                            <XCircle className="mr-2 h-4 w-4" />
-                            Cancel Booking
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        {booking.status === "confirmed" && !booking.checkInTime && (
-                          <DropdownMenuItem onClick={() => checkInMutation.mutate(booking.id)}>
-                            <UserCheck className="mr-2 h-4 w-4 text-green-600" />
-                            Check In
-                          </DropdownMenuItem>
-                        )}
-                        {booking.checkInTime && !booking.checkOutTime && (
-                          <DropdownMenuItem onClick={() => checkOutMutation.mutate(booking.id)}>
-                            <LogOut className="mr-2 h-4 w-4 text-orange-600" />
-                            Check Out
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+                  </TableHead>
+                  <TableHead>Visitor</TableHead>
+                  <TableHead>Date & Time</TableHead>
+                  <TableHead>Group</TableHead>
+                  <TableHead>Tour Type</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Guide</TableHead>
+                  <TableHead className="w-12"></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredBookings.map((booking) => (
+                  <TableRow
+                    key={booking.id}
+                    className="hover-elevate"
+                    data-testid={`booking-row-${booking.id}`}
+                  >
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedBookingIds.has(booking.id)}
+                        onCheckedChange={(checked) => {
+                          const newSet = new Set(selectedBookingIds);
+                          if (checked) {
+                            newSet.add(booking.id);
+                          } else {
+                            newSet.delete(booking.id);
+                          }
+                          setSelectedBookingIds(newSet);
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{booking.visitorName}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {booking.visitorEmail}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span>{formatDate(booking.visitDate)}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {formatTime(booking.visitTime)}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="capitalize">
+                        {booking.numberOfPeople}{" "}
+                        {booking.numberOfPeople === 1 ? "person" : "people"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="capitalize">
+                        {getTourTypeName(booking.tourType)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {formatCurrency(booking.totalAmount || 0)}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={booking.status || "pending"} />
+                    </TableCell>
+                    <TableCell>
+                      {booking.guide ? (
+                        <span className="text-sm">
+                          {booking.guide.firstName} {booking.guide.lastName}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">
+                          Unassigned
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            data-testid={`button-actions-${booking.id}`}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => handleViewDetails(booking)}
+                          >
+                            <Eye className="mr-2 h-4 w-4" />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleAssignGuide(booking)}
+                          >
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Assign Guide
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleSendEmail(booking)}
+                          >
+                            <Mail className="mr-2 h-4 w-4" />
+                            Send Email
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          {booking.status === "pending" && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                updateStatusMutation.mutate({
+                                  id: booking.id,
+                                  status: "confirmed",
+                                })
+                              }
+                            >
+                              <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
+                              Confirm Booking
+                            </DropdownMenuItem>
+                          )}
+                          {booking.status !== "completed" && booking.status !== "cancelled" && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                updateStatusMutation.mutate({
+                                  id: booking.id,
+                                  status: "completed",
+                                })
+                              }
+                            >
+                              <CheckCircle className="mr-2 h-4 w-4 text-blue-600" />
+                              Mark Completed
+                            </DropdownMenuItem>
+                          )}
+                          {booking.status !== "cancelled" && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                updateStatusMutation.mutate({
+                                  id: booking.id,
+                                  status: "cancelled",
+                                })
+                              }
+                              className="text-destructive"
+                            >
+                              <XCircle className="mr-2 h-4 w-4" />
+                              Cancel Booking
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          {booking.status === "confirmed" && !booking.checkInTime && (
+                            <DropdownMenuItem onClick={() => checkInMutation.mutate(booking.id)}>
+                              <UserCheck className="mr-2 h-4 w-4 text-green-600" />
+                              Check In
+                            </DropdownMenuItem>
+                          )}
+                          {booking.checkInTime && !booking.checkOutTime && (
+                            <DropdownMenuItem onClick={() => checkOutMutation.mutate(booking.id)}>
+                              <LogOut className="mr-2 h-4 w-4 text-orange-600" />
+                              Check Out
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </Card>
 

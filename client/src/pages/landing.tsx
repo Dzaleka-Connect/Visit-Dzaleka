@@ -18,58 +18,66 @@ import {
 import { Link } from "wouter";
 import { useState } from "react";
 import { SEO } from "@/components/seo";
+import { useQuery } from "@tanstack/react-query";
 
 const features = [
   {
     icon: Calendar,
-    title: "Smart Scheduling",
-    description:
+    key: "feature_1",
+    defaultTitle: "Smart Scheduling",
+    defaultDesc:
       "Book your visit in seconds with our real-time availability system. No more back-and-forth emails.",
   },
   {
     icon: Users,
-    title: "Expert Guides",
-    description:
+    key: "feature_2",
+    defaultTitle: "Expert Guides",
+    defaultDesc:
       "Connect with verified local guides who know the camp's history, culture, and hidden gems.",
   },
   {
     icon: Globe,
-    title: "Cultural Exchange",
-    description:
+    key: "feature_3",
+    defaultTitle: "Cultural Exchange",
+    defaultDesc:
       "Experience the diverse cultures of Dzaleka through food, art, and music tours.",
   },
   {
     icon: Shield,
-    title: "Safe & Secure",
-    description:
+    key: "feature_4",
+    defaultTitle: "Safe & Secure",
+    defaultDesc:
       "All visits are coordinated with camp security protocols for a safe and respectful experience.",
   },
 ];
 
 const stats = [
-  { value: "55k+", label: "Residents" },
-  { value: "100+", label: "Entrepreneurs" },
-  { value: "15+", label: "Nationalities" },
-  { value: "4.9", label: "Visitor Rating" },
+  { value: "55k+", defaultLabel: "Residents" },
+  { value: "100+", defaultLabel: "Entrepreneurs" },
+  { value: "15+", defaultLabel: "Nationalities" },
+  { value: "4.9", defaultLabel: "Visitor Rating" },
 ];
 
 const testimonials = [
   {
-    quote: "An eye-opening experience that changed my perspective completely. The guides are incredibly knowledgeable and welcoming.",
-    author: "Sarah Jenkins",
-    role: "International Visitor",
+    key: "testimonial_1",
+    defaultQuote: "An eye-opening experience that changed my perspective completely. The guides are incredibly knowledgeable and welcoming.",
+    defaultAuthor: "Sarah Jenkins",
+    defaultRole: "International Visitor",
     rating: 5
   },
   {
-    quote: "The booking process was seamless, and the tour was well-organized. It's amazing to see the creativity and resilience here.",
-    author: "David Mwale",
-    role: "Local Tourist",
+    key: "testimonial_2",
+    defaultQuote: "The booking process was seamless, and the tour was well-organized. It's amazing to see the creativity and resilience here.",
+    defaultAuthor: "David Mwale",
+    defaultRole: "Local Tourist",
     rating: 5
   },
   {
-    quote: "A unique opportunity to learn about the resilience and creativity within the camp. The art market is a must-visit.",
-    author: "Elena Rodriguez",
-    role: "NGO Worker",
+    key: "testimonial_3",
+    defaultQuote: "A unique opportunity to learn about the resilience and creativity within the camp. The art market is a must-visit.",
+    defaultAuthor: "Elena Rodriguez",
+    defaultRole: "NGO Worker",
     rating: 5
   }
 ];
@@ -100,11 +108,16 @@ const pricing = [
 
 export default function Landing() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { data: content } = useQuery<Record<string, string>>({
+    queryKey: ["/api/content"],
+  });
+
+  const getContent = (key: string, fallback: string) => content?.[key] || fallback;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <SEO 
-        title="Experience Dzaleka Refugee Camp" 
+      <SEO
+        title="Experience Dzaleka Refugee Camp"
         description="Book guided tours, meet local artists, and experience the vibrant culture of Dzaleka Refugee Camp. Secure, organized, and impactful visits."
         ogImage="https://services.dzaleka.com/images/Visit_Dzaleka.png"
       />
@@ -169,21 +182,17 @@ export default function Landing() {
               </Badge>
 
               <h1 className="mb-6 text-4xl font-extrabold tracking-tight md:text-6xl lg:text-7xl">
-                Discover the Spirit of <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/60">
-                  Dzaleka Refugee Camp
-                </span>
+                {getContent("hero_title", "Discover the Spirit of Dzaleka Refugee Camp")}
               </h1>
 
               <p className="mb-10 text-lg text-muted-foreground md:text-xl max-w-2xl mx-auto leading-relaxed">
-                Join us for an immersive cultural journey. Meet resilient artists,
-                entrepreneurs, and community leaders building a vibrant future against all odds.
+                {getContent("hero_subtitle", "Join us for an immersive cultural journey. Meet resilient artists, entrepreneurs, and community leaders building a vibrant future against all odds.")}
               </p>
 
               <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
                 <Button size="lg" className="h-12 px-8 text-base shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all" asChild>
                   <Link href="/auth">
-                    Book Your Visit
+                    {getContent("hero_cta", "Book Your Visit")}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
@@ -205,13 +214,13 @@ export default function Landing() {
 
               {/* Stats Grid */}
               <div className="mt-20 grid grid-cols-2 gap-8 md:grid-cols-4 border-y border-border/50 bg-background/50 backdrop-blur-sm py-8">
-                {stats.map((stat) => (
-                  <div key={stat.label} className="text-center">
+                {stats.map((stat, index) => (
+                  <div key={stat.value} className="text-center">
                     <div className="text-3xl font-bold text-foreground md:text-4xl tracking-tight">
                       {stat.value}
                     </div>
                     <div className="mt-1 text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                      {stat.label}
+                      {getContent(`stats_label_${index + 1}`, stat.defaultLabel)}
                     </div>
                   </div>
                 ))}
@@ -234,15 +243,17 @@ export default function Landing() {
             </div>
 
             <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
-              {features.map((feature) => (
-                <Card key={feature.title} className="border-none shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              {features.map((feature, index) => (
+                <Card key={feature.key} className="border-none shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                   <CardContent className="p-6">
                     <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                       <feature.icon className="h-7 w-7" />
                     </div>
-                    <h3 className="mb-3 text-xl font-semibold">{feature.title}</h3>
+                    <h3 className="mb-3 text-xl font-semibold">
+                      {getContent(`feature_${index + 1}_title`, feature.defaultTitle)}
+                    </h3>
                     <p className="text-muted-foreground leading-relaxed">
-                      {feature.description}
+                      {getContent(`feature_${index + 1}_desc`, feature.defaultDesc)}
                     </p>
                   </CardContent>
                 </Card>
@@ -256,11 +267,10 @@ export default function Landing() {
           <div className="container mx-auto px-4">
             <div className="mb-16 text-center max-w-3xl mx-auto">
               <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
-                Transparent Pricing
+                {getContent("pricing_title", "Transparent Pricing")}
               </h2>
               <p className="text-lg text-muted-foreground">
-                Choose the package that fits your group size. All proceeds support
-                the guides and community development projects.
+                {getContent("pricing_desc", "Choose the package that fits your group size. All proceeds support the guides and community development projects.")}
               </p>
             </div>
 
@@ -317,22 +327,22 @@ export default function Landing() {
             </div>
 
             <div className="grid gap-8 md:grid-cols-3">
-              {testimonials.map((testimonial, i) => (
-                <Card key={i} className="border-none shadow-sm bg-background">
+              {testimonials.map((testimonial, index) => (
+                <Card key={testimonial.key} className="border-none shadow-sm bg-background">
                   <CardContent className="p-8">
                     <div className="mb-6 text-primary">
                       <Quote className="h-8 w-8 opacity-50" />
                     </div>
                     <p className="mb-6 text-lg italic text-muted-foreground">
-                      "{testimonial.quote}"
+                      "{getContent(`testimonial_${index + 1}_quote`, testimonial.defaultQuote)}"
                     </p>
                     <div className="flex items-center gap-4">
                       <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
-                        {testimonial.author[0]}
+                        {getContent(`testimonial_${index + 1}_author`, testimonial.defaultAuthor)[0]}
                       </div>
                       <div>
-                        <div className="font-semibold">{testimonial.author}</div>
-                        <div className="text-sm text-muted-foreground">{testimonial.role}</div>
+                        <div className="font-semibold">{getContent(`testimonial_${index + 1}_author`, testimonial.defaultAuthor)}</div>
+                        <div className="text-sm text-muted-foreground">{getContent(`testimonial_${index + 1}_role`, testimonial.defaultRole)}</div>
                       </div>
                       <div className="ml-auto flex gap-0.5">
                         {[...Array(testimonial.rating)].map((_, i) => (
@@ -352,10 +362,10 @@ export default function Landing() {
           <div className="absolute inset-0 bg-primary/5" />
           <div className="container relative mx-auto px-4 text-center">
             <h2 className="mb-6 text-3xl font-bold tracking-tight md:text-4xl">
-              Ready to Plan Your Visit?
+              {getContent("cta_title", "Ready to Plan Your Visit?")}
             </h2>
             <p className="mb-8 text-lg text-muted-foreground max-w-2xl mx-auto">
-              Create an account to check availability, book your tour, and manage your itinerary.
+              {getContent("cta_desc", "Create an account to check availability, book your tour, and manage your itinerary.")}
             </p>
             <Button size="lg" className="h-12 px-8 text-base" asChild>
               <Link href="/auth">
@@ -377,7 +387,7 @@ export default function Landing() {
                 <span className="font-bold text-lg">Dzaleka Visit</span>
               </div>
               <p className="text-muted-foreground max-w-xs">
-                Connecting visitors with the vibrant community of Dzaleka Refugee Camp through guided tours and cultural exchange.
+                {getContent("footer_description", "Connecting visitors with the vibrant community of Dzaleka Refugee Camp through guided tours and cultural exchange.")}
               </p>
             </div>
             <div>
@@ -392,8 +402,8 @@ export default function Landing() {
             <div>
               <h4 className="font-semibold mb-4">Contact</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>visit@dzaleka.com</li>
-                <li>+265 123 456 789</li>
+                <li>{getContent("footer_contact_email", "visit@dzaleka.com")}</li>
+                <li>{getContent("footer_contact_phone", "+265 123 456 789")}</li>
                 <li>Dowa District, Malawi</li>
               </ul>
             </div>

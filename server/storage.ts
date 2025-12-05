@@ -37,6 +37,14 @@ import {
   type NotificationType,
   type EmailTemplate,
   type InsertEmailTemplate,
+  type ContentBlock,
+  type InsertContentBlock,
+  type AllowedIp,
+  type InsertAllowedIp,
+  type LoginHistory,
+  type InsertLoginHistory,
+  type UserInvite,
+  type InsertUserInvite,
 } from "@shared/schema";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import crypto from "crypto";
@@ -250,6 +258,30 @@ export interface IStorage {
   getEmailTemplate(id: string): Promise<EmailTemplate | undefined>;
   updateEmailTemplate(id: string, template: Partial<EmailTemplate>): Promise<EmailTemplate | undefined>;
   toggleEmailTemplateStatus(id: string, isActive: boolean): Promise<EmailTemplate | undefined>;
+
+  // CMS Operations
+  getContentBlocks(): Promise<ContentBlock[]>;
+  getContentBlock(key: string): Promise<ContentBlock | undefined>;
+  updateContentBlock(key: string, value: string, userId: string): Promise<ContentBlock | undefined>;
+
+  // IP Whitelist Operations
+  getAllowedIps(): Promise<AllowedIp[]>;
+  createAllowedIp(ip: InsertAllowedIp): Promise<AllowedIp>;
+  deleteAllowedIp(id: string): Promise<void>;
+  checkIpAllowed(ip: string): Promise<boolean>;
+
+  // Login History Operations
+  getLoginHistory(limit?: number): Promise<LoginHistory[]>;
+  getUserLoginHistory(userId: string, limit?: number): Promise<LoginHistory[]>;
+  createLoginRecord(record: InsertLoginHistory): Promise<LoginHistory>;
+
+  // User Invite Operations
+  getInvites(): Promise<UserInvite[]>;
+  getInviteByToken(token: string): Promise<UserInvite | undefined>;
+  getInviteByEmail(email: string): Promise<UserInvite | undefined>;
+  createInvite(invite: InsertUserInvite): Promise<UserInvite>;
+  acceptInvite(id: string): Promise<UserInvite | undefined>;
+  deleteInvite(id: string): Promise<void>;
 }
 
 export class SupabaseStorage implements IStorage {
@@ -1293,6 +1325,187 @@ export class SupabaseStorage implements IStorage {
       .select()
       .single();
     return this.handleOptionalResponse(data, error);
+  }
+
+  // CMS Operations
+  async getContentBlocks(): Promise<ContentBlock[]> {
+    const { data, error } = await this.supabase
+      .from("content_blocks")
+      .select("*");
+    return this.handleResponse(data, error);
+  }
+
+  async getContentBlock(key: string): Promise<ContentBlock | undefined> {
+    const { data, error } = await this.supabase
+      .from("content_blocks")
+      .select("*")
+      .eq("key", key)
+      .single();
+    if (error && error.code === 'PGRST116') return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async updateContentBlock(key: string, value: string, userId: string): Promise<ContentBlock | undefined> {
+    // Check if exists
+    const existing = await this.getContentBlock(key);
+
+    if (existing) {
+      const { data, error } = await this.supabase
+        .from("content_blocks")
+        .update({ value, last_updated_by: userId, updated_at: new Date() })
+        .eq("key", key)
+        .select()
+        .single();
+      return this.handleOptionalResponse(data, error);
+    } else {
+      // Insert new (fallback if migration didn't run for some keys)
+      const { data, error } = await this.supabase
+        .from("content_blocks")
+        .insert({
+          section: "general", // Default section if creating dynamically
+          key,
+          value,
+          last_updated_by: userId
+        })
+        .select()
+        .single();
+      return this.handleResponse(data, error);
+    }
+  }
+
+  // IP Whitelist Operations
+  async getAllowedIps(): Promise<AllowedIp[]> {
+    const { data, error } = await this.supabase
+      .from("allowed_ips")
+      .select("*")
+      .order("created_at", { ascending: false });
+    return this.handleResponse(data, error);
+  }
+
+  async createAllowedIp(ip: InsertAllowedIp): Promise<AllowedIp> {
+    const snakeData = transformToSnake(ip);
+    const { data, error } = await this.supabase
+      .from("allowed_ips")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async deleteAllowedIp(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("allowed_ips")
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+  }
+
+  async checkIpAllowed(ip: string): Promise<boolean> {
+    const { count, error } = await this.supabase
+      .from("allowed_ips")
+      .select("*", { count: "exact", head: true });
+
+    if (error) throw error;
+
+    // If whitelist is empty, allow all
+    if (count === 0) return true;
+
+    // Check if IP is in whitelist
+    const { data } = await this.supabase
+      .from("allowed_ips")
+      .select("*")
+      .eq("ip_address", ip)
+      .single();
+
+    return !!data;
+  }
+
+  // Login History Operations
+  async getLoginHistory(limit: number = 100): Promise<LoginHistory[]> {
+    const { data, error } = await this.supabase
+      .from("login_history")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    return this.handleResponse(data, error);
+  }
+
+  async getUserLoginHistory(userId: string, limit: number = 50): Promise<LoginHistory[]> {
+    const { data, error } = await this.supabase
+      .from("login_history")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    return this.handleResponse(data, error);
+  }
+
+  async createLoginRecord(record: InsertLoginHistory): Promise<LoginHistory> {
+    const snakeData = transformToSnake(record);
+    const { data, error } = await this.supabase
+      .from("login_history")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  // User Invite Operations
+  async getInvites(): Promise<UserInvite[]> {
+    const { data, error } = await this.supabase
+      .from("user_invites")
+      .select("*")
+      .order("created_at", { ascending: false });
+    return this.handleResponse(data, error);
+  }
+
+  async getInviteByToken(token: string): Promise<UserInvite | undefined> {
+    const { data, error } = await this.supabase
+      .from("user_invites")
+      .select("*")
+      .eq("invite_token", token)
+      .single();
+    if (error && error.code === 'PGRST116') return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async getInviteByEmail(email: string): Promise<UserInvite | undefined> {
+    const { data, error } = await this.supabase
+      .from("user_invites")
+      .select("*")
+      .eq("email", email)
+      .is("accepted_at", null)
+      .single();
+    if (error && error.code === 'PGRST116') return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createInvite(invite: InsertUserInvite): Promise<UserInvite> {
+    const snakeData = transformToSnake(invite);
+    const { data, error } = await this.supabase
+      .from("user_invites")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async acceptInvite(id: string): Promise<UserInvite | undefined> {
+    const { data, error } = await this.supabase
+      .from("user_invites")
+      .update({ accepted_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async deleteInvite(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("user_invites")
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
   }
 }
 

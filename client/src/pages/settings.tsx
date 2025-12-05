@@ -6,6 +6,8 @@ import {
   Lock,
   Loader2,
   Bell,
+  Database,
+  Download,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -212,6 +214,28 @@ export default function Settings() {
               </CardHeader>
               <CardContent>
                 <NotificationSender />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5" />
+                  Data Management
+                </CardTitle>
+                <CardDescription>
+                  Export system data for backup or analysis purposes.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium">System Backup</h4>
+                  <p className="text-sm text-muted-foreground">Download a JSON export of Users, Bookings, Guides, and Zones.</p>
+                </div>
+                <Button variant="outline" onClick={() => window.open("/api/admin/export-data", "_blank")}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Export Data
+                </Button>
               </CardContent>
             </Card>
 

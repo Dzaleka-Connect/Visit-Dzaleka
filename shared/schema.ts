@@ -641,3 +641,111 @@ export type IncidentSeverity = "low" | "medium" | "high" | "critical";
 export type IncidentStatus = "reported" | "investigating" | "resolved" | "closed";
 export type AuditAction = "create" | "update" | "delete" | "login" | "logout" | "check_in" | "check_out" | "verify";
 export type NotificationType = "booking_created" | "booking_confirmed" | "booking_cancelled" | "booking_completed" | "guide_assigned" | "check_in" | "check_out" | "payment_received" | "payment_verified" | "system";
+
+// Content Management System (CMS)
+export const contentBlocks = pgTable("content_blocks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  section: varchar("section").notNull(), // e.g., "hero", "features", "pricing"
+  key: varchar("key").notNull().unique(), // e.g., "hero_title", "hero_subtitle"
+  value: text("value").notNull(),
+  type: varchar("type").default("text"), // text, image_url, json
+  lastUpdatedBy: varchar("last_updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const contentBlocksRelations = relations(contentBlocks, ({ one }) => ({
+  updater: one(users, {
+    fields: [contentBlocks.lastUpdatedBy],
+    references: [users.id],
+  }),
+}));
+
+export const insertContentBlockSchema = createInsertSchema(contentBlocks).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type ContentBlock = typeof contentBlocks.$inferSelect;
+export type InsertContentBlock = z.infer<typeof insertContentBlockSchema>;
+
+// IP Whitelist
+export const allowedIps = pgTable("allowed_ips", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ipAddress: varchar("ip_address").notNull().unique(),
+  description: text("description"),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const allowedIpsRelations = relations(allowedIps, ({ one }) => ({
+  creator: one(users, {
+    fields: [allowedIps.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export const insertAllowedIpSchema = createInsertSchema(allowedIps).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type AllowedIp = typeof allowedIps.$inferSelect;
+export type InsertAllowedIp = z.infer<typeof insertAllowedIpSchema>;
+
+// Login History - tracks all login attempts
+export const loginHistory = pgTable("login_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"),
+  email: varchar("email").notNull(),
+  ipAddress: varchar("ip_address"),
+  userAgent: text("user_agent"),
+  deviceType: varchar("device_type"), // 'desktop', 'mobile', 'tablet'
+  browser: varchar("browser"),
+  os: varchar("os"),
+  success: boolean("success").notNull().default(false),
+  failureReason: varchar("failure_reason"), // 'invalid_password', 'account_disabled', 'user_not_found'
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const loginHistoryRelations = relations(loginHistory, ({ one }) => ({
+  user: one(users, {
+    fields: [loginHistory.userId],
+    references: [users.id],
+  }),
+}));
+
+export const insertLoginHistorySchema = createInsertSchema(loginHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type LoginHistory = typeof loginHistory.$inferSelect;
+export type InsertLoginHistory = z.infer<typeof insertLoginHistorySchema>;
+
+// User Invites - tracks pending invitations
+export const userInvites = pgTable("user_invites", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email").notNull(),
+  role: varchar("role").default("visitor"),
+  inviteToken: varchar("invite_token").notNull().unique(),
+  invitedBy: varchar("invited_by"),
+  expiresAt: timestamp("expires_at").notNull(),
+  acceptedAt: timestamp("accepted_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const userInvitesRelations = relations(userInvites, ({ one }) => ({
+  inviter: one(users, {
+    fields: [userInvites.invitedBy],
+    references: [users.id],
+  }),
+}));
+
+export const insertUserInviteSchema = createInsertSchema(userInvites).omit({
+  id: true,
+  acceptedAt: true,
+  createdAt: true,
+});
+
+export type UserInvite = typeof userInvites.$inferSelect;
+export type InsertUserInvite = z.infer<typeof insertUserInviteSchema>;

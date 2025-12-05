@@ -128,7 +128,7 @@ export default function AuditLogs() {
                             className="py-12"
                         />
                     ) : (
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto w-full">
                             <Table>
                                 <TableHeader>
                                     <TableRow>

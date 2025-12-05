@@ -581,9 +581,10 @@ export default function UsersPage() {
               className="py-8"
             />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
+            <div className="overflow-x-auto w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
                   <TableHead>User</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
@@ -722,6 +723,7 @@ export default function UsersPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

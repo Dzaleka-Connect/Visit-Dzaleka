@@ -1,4 +1,4 @@
-// Resend email integration for Dzaleka Online Services
+// Resend email integration for Visit Dzaleka
 import { Resend } from 'resend';
 
 // Reply-to email addresses
@@ -134,6 +134,70 @@ interface CheckInNotificationData {
   guideName?: string;
 }
 
+interface InvitationData {
+  email: string;
+  role: string;
+  inviteUrl: string;
+  inviterName?: string;
+}
+
+// Send user invitation email
+export async function sendInvitationEmail(data: InvitationData): Promise<boolean> {
+  const resendClient = getResendClient();
+  if (!resendClient) return false;
+
+  const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #0284C7 0%, #0369a1 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
+            <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">You've Been Invited!</p>
+          </div>
+          
+          <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+            <p>Hello,</p>
+            <p>You have been invited to join the Visit Dzaleka platform as a <strong>${data.role}</strong>.</p>
+            
+            ${data.inviterName ? `<p>Invitation sent by: <strong>${data.inviterName}</strong></p>` : ''}
+            
+            <p>Please click the button below to accept your invitation and set up your password:</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${data.inviteUrl}" style="display: inline-block; background: #0284C7; color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                Accept Invitation
+              </a>
+            </div>
+            
+            <p style="font-size: 14px; color: #6b7280;">
+              This link is valid for 24 hours. If you were not expecting this invitation, please ignore this email.
+            </p>
+          </div>
+          
+          <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
+            <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">
+              © ${new Date().getFullYear()} Dzaleka Online Services
+            </p>
+          </div>
+        </body>
+      </html>
+    `;
+
+  const result = await sendEmailWithRetry({
+    from: resendClient.fromEmail,
+    replyTo: resendClient.replyTo,
+    to: data.email,
+    subject: 'You have been invited to Visit Dzaleka',
+    html
+  });
+
+  return result.success;
+}
+
 // Format currency for email display
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-MW', {
@@ -158,7 +222,7 @@ export async function sendBookingConfirmation(data: BookingConfirmationData): Pr
       </head>
       <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #0284C7 0%, #0369a1 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-          <h1 style="color: white; margin: 0; font-size: 24px;">Dzaleka Online Services</h1>
+          <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
           <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Booking Confirmation</p>
         </div>
         
@@ -247,7 +311,7 @@ export async function sendStatusUpdate(data: StatusUpdateData): Promise<boolean>
     },
     completed: {
       title: 'Tour Completed',
-      message: 'Thank you for taking a tour with Dzaleka Online Services. We hope you had a meaningful and inspiring experience.',
+      message: 'Thank you for taking a tour with Visit Dzaleka. We hope you had a meaningful and inspiring experience.',
       color: '#3b82f6'
     },
     cancelled: {
@@ -292,7 +356,7 @@ export async function sendStatusUpdate(data: StatusUpdateData): Promise<boolean>
         </head>
         <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="background: linear-gradient(135deg, #0284C7 0%, #0369a1 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">Dzaleka Online Services</h1>
+            <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
           </div>
           
           <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
@@ -366,7 +430,7 @@ export async function sendGuideAssignment(data: GuideAssignmentData): Promise<bo
         </head>
         <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="background: linear-gradient(135deg, #0284C7 0%, #0369a1 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">Dzaleka Online Services</h1>
+            <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
             <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Guide Assigned</p>
           </div>
           
@@ -519,7 +583,7 @@ export async function sendCustomEmail(data: CustomEmailData): Promise<boolean> {
         </head>
         <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="background: linear-gradient(135deg, #0284C7 0%, #0369a1 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">Dzaleka Online Services</h1>
+            <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
           </div>
           
           <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
@@ -533,7 +597,7 @@ export async function sendCustomEmail(data: CustomEmailData): Promise<boolean> {
             <p style="margin-top: 30px; color: #6b7280;">
               Best regards,<br>
               <strong>${data.senderName}</strong><br>
-              Dzaleka Online Services Team
+              Visit Dzaleka Team
             </p>
             ` : ''}
           </div>
@@ -572,7 +636,7 @@ export async function sendPasswordReset(data: PasswordResetData): Promise<boolea
         </head>
         <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="background: linear-gradient(135deg, #0284C7 0%, #0369a1 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">Dzaleka Online Services</h1>
+            <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
             <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Password Reset Request</p>
           </div>
           
@@ -610,7 +674,7 @@ export async function sendPasswordReset(data: PasswordResetData): Promise<boolea
     from: resendClient.fromEmail,
     replyTo: resendClient.replyTo,
     to: data.userEmail,
-    subject: 'Password Reset Request - Dzaleka Online Services',
+    subject: 'Password Reset Request - Visit Dzaleka',
     html
   });
 

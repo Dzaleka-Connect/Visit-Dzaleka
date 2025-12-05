@@ -111,6 +111,12 @@ const operationsItems: NavItem[] = [
     roles: ["admin", "coordinator", "security"],
   },
   {
+    title: "Security Admin",
+    url: "/security-admin",
+    icon: Shield,
+    roles: ["admin"],
+  },
+  {
     title: "Email History",
     url: "/email-history",
     icon: Mail,
@@ -135,6 +141,12 @@ const adminItems: NavItem[] = [
     title: "User Management",
     url: "/users",
     icon: UserCog,
+    roles: ["admin"],
+  },
+  {
+    title: "Content Management",
+    url: "/cms",
+    icon: FileText,
     roles: ["admin"],
   },
   {
@@ -190,7 +202,7 @@ export function AppSidebar() {
             <span className="text-sm font-semibold text-sidebar-foreground">
               Visit Dzaleka
             </span>
-            <span className="text-xs text-muted-foreground">Admin Dashboard</span>
+            <span className="text-xs text-muted-foreground">Dashboard</span>
           </div>
         </Link>
       </SidebarHeader>

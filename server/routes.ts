@@ -10,6 +10,7 @@ import {
   insertMeetingPointSchema,
   insertIncidentSchema,
   insertBookingCompanionSchema,
+  insertAllowedIpSchema,
   type UserRole,
 } from "@shared/schema";
 import { z } from "zod";
@@ -19,7 +20,8 @@ import {
   sendCustomEmail,
   sendGuideAssignment,
   sendCheckInNotification,
-  sendPasswordReset
+  sendPasswordReset,
+  sendInvitationEmail
 } from "./email";
 import {
   notifyBookingCreated,
@@ -132,6 +134,28 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // IP Whitelist Middleware
+  app.use("/api", async (req, res, next) => {
+    // Skip for public endpoints if needed, but generally IP whitelist protects everything API related
+    // Except maybe webhooks if they come from external services (Stripe etc).
+    // For now, we apply to all /api
+
+    try {
+      const ip = req.ip || req.socket.remoteAddress || "";
+      const isAllowed = await storage.checkIpAllowed(ip);
+
+      if (!isAllowed) {
+        console.warn(`Blocked access from unauthorized IP: ${ip}`);
+        return res.status(403).json({ message: "Access denied: Unauthorized IP address" });
+      }
+      next();
+    } catch (error) {
+      console.error("IP Check error:", error);
+      // Fail open or closed? Fail open for now to avoid accidental lockout during setup
+      next();
+    }
+  });
+
   // Admin: Send custom notification to specific users or all users
   app.post("/api/notifications/send", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
@@ -237,23 +261,80 @@ export async function registerRoutes(
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = loginSchema.parse(req.body);
+      const userAgent = req.get("user-agent") || "";
+      const ipAddress = req.ip || req.socket.remoteAddress || "";
+
+      // Parse user agent for device info
+      const deviceType = /mobile/i.test(userAgent) ? "mobile" :
+        /tablet/i.test(userAgent) ? "tablet" : "desktop";
+      const browserMatch = userAgent.match(/(Chrome|Firefox|Safari|Edge|Opera|MSIE|Trident)[\/\s]?(\d+)/i);
+      const browser = browserMatch ? browserMatch[1] : "Unknown";
+      const osMatch = userAgent.match(/(Windows|Mac|Linux|Android|iOS|iPhone|iPad)/i);
+      const os = osMatch ? osMatch[1] : "Unknown";
 
       // Find user by email
       const user = await storage.getUserByEmail(email);
       if (!user || !user.password) {
+        // Record failed login attempt
+        await storage.createLoginRecord({
+          userId: null,
+          email,
+          ipAddress,
+          userAgent,
+          deviceType,
+          browser,
+          os,
+          success: false,
+          failureReason: "user_not_found"
+        });
         return res.status(401).json({ message: "Invalid email or password" });
       }
 
       // Check if user is active
       if (!user.isActive) {
+        await storage.createLoginRecord({
+          userId: user.id,
+          email,
+          ipAddress,
+          userAgent,
+          deviceType,
+          browser,
+          os,
+          success: false,
+          failureReason: "account_disabled"
+        });
         return res.status(403).json({ message: "Account is deactivated" });
       }
 
       // Verify password
       const isValid = await verifyPassword(password, user.password);
       if (!isValid) {
+        await storage.createLoginRecord({
+          userId: user.id,
+          email,
+          ipAddress,
+          userAgent,
+          deviceType,
+          browser,
+          os,
+          success: false,
+          failureReason: "invalid_password"
+        });
         return res.status(401).json({ message: "Invalid email or password" });
       }
+
+      // Record successful login
+      await storage.createLoginRecord({
+        userId: user.id,
+        email,
+        ipAddress,
+        userAgent,
+        deviceType,
+        browser,
+        os,
+        success: true,
+        failureReason: null
+      });
 
       // Set session userId 
       req.session.userId = user.id;
@@ -2467,7 +2548,494 @@ export async function registerRoutes(
     }
   });
 
+  // =====================
+  // CMS Routes
+  // =====================
 
+  app.get("/api/content", async (req, res) => {
+    try {
+      const content = await storage.getContentBlocks();
+      // Convert array to object key-value pairs for easier frontend consumption
+      const contentMap = content.reduce((acc: Record<string, string>, item) => {
+        acc[item.key] = item.value;
+        return acc;
+      }, {});
+      res.json(contentMap);
+    } catch (error) {
+      console.error("Error fetching content:", error);
+      res.status(500).json({ message: "Failed to fetch content" });
+    }
+  });
+
+  app.put("/api/content", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const { updates } = req.body; // Expecting object { key: value }
+      const userId = req.session.userId!;
+
+      if (!updates || typeof updates !== 'object') {
+        return res.status(400).json({ message: "Invalid updates format" });
+      }
+
+      const results = [];
+      for (const [key, value] of Object.entries(updates)) {
+        if (typeof value === 'string') {
+          const result = await storage.updateContentBlock(key, value, userId);
+          results.push(result);
+        }
+      }
+
+      await createAuditLog(userId, "update", "cms", "content_blocks", null, { updatedKeys: Object.keys(updates) }, req);
+
+      res.json({ success: true, updated: results.length });
+    } catch (error) {
+      console.error("Error updating content:", error);
+      res.status(500).json({ message: "Failed to update content" });
+    }
+  });
+
+  // =====================
+  // Backup & Export Routes
+  // =====================
+
+  app.get("/api/admin/export-data", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const [users, bookings, guides, zones] = await Promise.all([
+        storage.getUsers(),
+        storage.getBookings(),
+        storage.getGuides(),
+        storage.getZones()
+      ]);
+
+      const exportData = {
+        timestamp: new Date().toISOString(),
+        users,
+        bookings,
+        guides,
+        zones
+      };
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename=system-backup-${new Date().toISOString().split('T')[0]}.json`);
+      res.json(exportData);
+    } catch (error) {
+      console.error("Error exporting data:", error);
+      res.status(500).json({ message: "Failed to export data" });
+    }
+  });
+
+  // =====================
+  // Advanced Reporting Routes
+  // =====================
+
+  app.get("/api/reports/payouts", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const bookings = await storage.getBookings();
+      const guides = await storage.getGuides();
+
+      // Debug logging
+      console.log(`[Payouts] Total bookings: ${bookings.length}`);
+      console.log(`[Payouts] Total guides: ${guides.length}`);
+
+      const completedBookings = bookings.filter(b => b.status === 'completed');
+      console.log(`[Payouts] Completed bookings: ${completedBookings.length}`);
+
+      const bookingsWithGuides = completedBookings.filter(b => b.assignedGuideId);
+      console.log(`[Payouts] Completed bookings with assigned guides: ${bookingsWithGuides.length}`);
+
+      if (completedBookings.length > 0) {
+        console.log(`[Payouts] Sample completed booking:`, {
+          id: completedBookings[0].id,
+          status: completedBookings[0].status,
+          assignedGuideId: completedBookings[0].assignedGuideId,
+          paymentStatus: completedBookings[0].paymentStatus,
+          totalAmount: completedBookings[0].totalAmount
+        });
+      }
+
+      if (guides.length > 0) {
+        console.log(`[Payouts] Sample guide:`, {
+          id: guides[0].id,
+          userId: guides[0].userId,
+          name: `${guides[0].firstName} ${guides[0].lastName}`
+        });
+      }
+
+      // Calculate payouts based on completed bookings
+      // Assuming standard split: Guide gets 80%, Platform gets 20% (configurable later)
+      const GUIDE_SHARE_PERCENTAGE = 0.8;
+
+      const payouts = guides.map(guide => {
+        // Get all completed bookings for this guide (regardless of payment status)
+        // Check both guide.id and guide.userId since assignedGuideId could be either
+        const guideBookings = bookings.filter(b =>
+          b.status === 'completed' &&
+          (b.assignedGuideId === guide.id || b.assignedGuideId === guide.userId)
+        );
+
+        // Separate by payment status
+        const paidBookings = guideBookings.filter(b => b.paymentStatus === 'paid');
+        const pendingBookings = guideBookings.filter(b => b.paymentStatus === 'pending');
+
+        const paidRevenue = paidBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+        const pendingRevenue = pendingBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+        const totalRevenue = paidRevenue + pendingRevenue;
+
+        const guideShare = Math.round(paidRevenue * GUIDE_SHARE_PERCENTAGE);
+        const platformShare = paidRevenue - guideShare;
+
+        return {
+          guideId: guide.id,
+          guideName: `${guide.firstName} ${guide.lastName}`,
+          completedTours: guideBookings.length,
+          paidTours: paidBookings.length,
+          pendingTours: pendingBookings.length,
+          totalRevenue,
+          paidRevenue,
+          pendingRevenue,
+          guideShare, // Only calculated on paid revenue
+          platformShare
+        };
+      }).filter(p => p.completedTours > 0); // Show anyone with completed tours
+
+      console.log(`[Payouts] Guides with completed tours: ${payouts.length}`);
+
+      res.json(payouts);
+    } catch (error) {
+      console.error("Error calculating payouts:", error);
+      res.status(500).json({ message: "Failed to calculate payouts" });
+    }
+  });
+
+  // =====================
+  // User Invitation
+  // =====================
+
+  app.post("/api/auth/invite", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    try {
+      const { email, role, firstName, lastName } = req.body;
+
+      if (!email || !role || !firstName || !lastName) {
+        return res.status(400).json({ message: "All fields are required" });
+      }
+
+      // Check if user exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ message: "User already exists" });
+      }
+
+      // Create user with random password
+      const tempPassword = crypto.randomBytes(16).toString("hex");
+      const hashedPassword = await hashPassword(tempPassword);
+
+      const user = await storage.createUser(email, hashedPassword, firstName, lastName, role);
+
+      // Generate reset token
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      const resetTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      await storage.setPasswordResetToken(user.id, resetToken, resetTokenExpiry);
+
+      // Send invitation email
+      const inviteUrl = `${req.protocol}://${req.get("host")}/reset-password?token=${resetToken}`;
+      const inviter = await storage.getUser(req.session.userId);
+
+      await sendInvitationEmail({
+        email,
+        role,
+        inviteUrl,
+        inviterName: inviter ? `${inviter.firstName} ${inviter.lastName}` : "Administrator"
+      });
+
+      await createAuditLog(req.session.userId, "create", "user_invite", user.id, null, { email, role }, req);
+
+      res.json({ success: true, message: "Invitation sent successfully" });
+    } catch (error) {
+      console.error("Error sending invitation:", error);
+      res.status(500).json({ message: "Failed to send invitation" });
+    }
+  });
+
+  // =====================
+  // Security Routes
+  // =====================
+
+  // Get all login history (admin only)
+  app.get("/api/security/login-history", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const loginHistory = await storage.getLoginHistory(limit);
+      res.json(loginHistory);
+    } catch (error) {
+      console.error("Error fetching login history:", error);
+      res.status(500).json({ message: "Failed to fetch login history" });
+    }
+  });
+
+  // Get login history for specific user (admin only)
+  app.get("/api/users/:id/login-history", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const loginHistory = await storage.getUserLoginHistory(req.params.id, limit);
+      res.json(loginHistory);
+    } catch (error) {
+      console.error("Error fetching user login history:", error);
+      res.status(500).json({ message: "Failed to fetch login history" });
+    }
+  });
+
+  // IP Whitelist CRUD
+  app.get("/api/security/ip-whitelist", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const ips = await storage.getAllowedIps();
+      res.json(ips);
+    } catch (error) {
+      console.error("Error fetching allowed IPs:", error);
+      res.status(500).json({ message: "Failed to fetch allowed IPs" });
+    }
+  });
+
+  app.post("/api/security/ip-whitelist", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    try {
+      const ipData = insertAllowedIpSchema.parse({
+        ...req.body,
+        createdBy: req.session.userId
+      });
+
+      const allowedIp = await storage.createAllowedIp(ipData);
+
+      await createAuditLog(req.session.userId, "create", "ip_whitelist", allowedIp.id, null, { ip: allowedIp.ipAddress }, req);
+
+      res.json(allowedIp);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Invalid data", errors: error.errors });
+      } else {
+        console.error("Error adding allowed IP:", error);
+        res.status(500).json({ message: "Failed to add IP" });
+      }
+    }
+  });
+
+  app.delete("/api/security/ip-whitelist/:id", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    try {
+      await storage.deleteAllowedIp(req.params.id);
+      await createAuditLog(req.session.userId, "delete", "ip_whitelist", req.params.id, null, null, req);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error removing allowed IP:", error);
+      res.status(500).json({ message: "Failed to remove IP" });
+    }
+  });
+
+  // =====================
+  // User Invites Routes
+  // =====================
+
+  // Get all invites (admin only)
+  app.get("/api/invites", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const invites = await storage.getInvites();
+      res.json(invites);
+    } catch (error) {
+      console.error("Error fetching invites:", error);
+      res.status(500).json({ message: "Failed to fetch invites" });
+    }
+  });
+
+  // Create new invite and send email (admin only)
+  app.post("/api/invites", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    try {
+      const { email, role } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ message: "User with this email already exists" });
+      }
+
+      // Check if there's already a pending invite for this email
+      const existingInvite = await storage.getInviteByEmail(email);
+      if (existingInvite) {
+        return res.status(400).json({ message: "An invitation is already pending for this email" });
+      }
+
+      // Generate invite token
+      const inviteToken = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      // Create invite
+      const invite = await storage.createInvite({
+        email,
+        role: role || "visitor",
+        inviteToken,
+        invitedBy: req.session.userId,
+        expiresAt
+      });
+
+      // Send invitation email
+      const inviteUrl = `${req.protocol}://${req.get("host")}/accept-invite?token=${inviteToken}`;
+      const currentUser = await storage.getUser(req.session.userId);
+      const inviterName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Admin";
+
+      try {
+        await sendInvitationEmail({
+          email,
+          role: role || "visitor",
+          inviteUrl,
+          inviterName
+        });
+      } catch (emailError) {
+        console.error("Failed to send invitation email:", emailError);
+        // Don't fail the request if email fails
+      }
+
+      await createAuditLog(req.session.userId, "create", "user_invite", invite.id, null, { email, role }, req);
+
+      res.json({ success: true, invite });
+    } catch (error) {
+      console.error("Error creating invite:", error);
+      res.status(500).json({ message: "Failed to create invitation" });
+    }
+  });
+
+  // Resend invite (admin only)
+  app.post("/api/invites/:id/resend", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    try {
+      const invites = await storage.getInvites();
+      const invite = invites.find(i => i.id === req.params.id);
+
+      if (!invite) {
+        return res.status(404).json({ message: "Invite not found" });
+      }
+
+      if (invite.acceptedAt) {
+        return res.status(400).json({ message: "Invite has already been accepted" });
+      }
+
+      // Generate new token and extend expiry
+      const newToken = crypto.randomBytes(32).toString("hex");
+      const newExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+      // Delete old invite and create new one
+      await storage.deleteInvite(invite.id);
+      const newInvite = await storage.createInvite({
+        email: invite.email,
+        role: invite.role || "visitor",
+        inviteToken: newToken,
+        invitedBy: req.session.userId,
+        expiresAt: newExpiry
+      });
+
+      // Send invitation email
+      const inviteUrl = `${req.protocol}://${req.get("host")}/accept-invite?token=${newToken}`;
+      const currentUser = await storage.getUser(req.session.userId);
+      const inviterName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Admin";
+
+      try {
+        await sendInvitationEmail({
+          email: invite.email,
+          role: invite.role || "visitor",
+          inviteUrl,
+          inviterName
+        });
+      } catch (emailError) {
+        console.error("Failed to send invitation email:", emailError);
+      }
+
+      res.json({ success: true, invite: newInvite });
+    } catch (error) {
+      console.error("Error resending invite:", error);
+      res.status(500).json({ message: "Failed to resend invitation" });
+    }
+  });
+
+  // Delete invite (admin only)
+  app.delete("/api/invites/:id", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    try {
+      await storage.deleteInvite(req.params.id);
+      await createAuditLog(req.session.userId, "delete", "user_invite", req.params.id, null, null, req);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting invite:", error);
+      res.status(500).json({ message: "Failed to delete invitation" });
+    }
+  });
+
+  // Accept invite and register (public endpoint)
+  app.post("/api/auth/accept-invite", async (req, res) => {
+    try {
+      const { token, password, firstName, lastName } = req.body;
+
+      if (!token || !password || !firstName || !lastName) {
+        return res.status(400).json({ message: "Token, password, first name, and last name are required" });
+      }
+
+      if (password.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters" });
+      }
+
+      // Find invite by token
+      const invite = await storage.getInviteByToken(token);
+      if (!invite) {
+        return res.status(400).json({ message: "Invalid or expired invitation token" });
+      }
+
+      // Check if expired
+      if (new Date() > new Date(invite.expiresAt)) {
+        return res.status(400).json({ message: "Invitation has expired. Please request a new one." });
+      }
+
+      // Check if already accepted
+      if (invite.acceptedAt) {
+        return res.status(400).json({ message: "Invitation has already been used." });
+      }
+
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(invite.email);
+      if (existingUser) {
+        return res.status(400).json({ message: "An account with this email already exists." });
+      }
+
+      // Create user
+      const hashedPassword = await hashPassword(password);
+      const user = await storage.createUser(
+        invite.email,
+        hashedPassword,
+        firstName,
+        lastName,
+        invite.role as any || "visitor"
+      );
+
+      // Mark invite as accepted
+      await storage.acceptInvite(invite.id);
+
+      // Regenerate session for security
+      await new Promise<void>((resolve, reject) => {
+        req.session.regenerate((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      // Set session after regeneration
+      req.session.userId = user.id;
+
+      // Audit log
+      await createAuditLog(user.id, "create", "user", user.id, null, { email: invite.email, role: invite.role }, req);
+
+      // Return user without password
+      const { password: _, ...safeUser } = user;
+      res.status(201).json(safeUser);
+    } catch (error) {
+      console.error("Accept invite error:", error);
+      res.status(500).json({ message: "Failed to accept invitation" });
+    }
+  });
 
   return httpServer;
 }
+

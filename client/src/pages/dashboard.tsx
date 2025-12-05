@@ -20,6 +20,7 @@ import {
   Send,
   Loader2,
   XCircle,
+  Globe,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -128,7 +129,7 @@ function AdminDashboard() {
   });
 
   const queryClientDashboard = useQueryClient();
-  
+
   const quickConfirmMutation = useMutation({
     mutationFn: async (bookingId: string) => {
       await apiRequest(`/api/bookings/${bookingId}/status`, {
@@ -171,7 +172,7 @@ function AdminDashboard() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Admin Dashboard</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">
           Full system overview and management controls.
         </p>
@@ -297,7 +298,7 @@ function AdminDashboard() {
             ) : (
               <div className="space-y-4">
                 {recentBookings.slice(0, 5).map((booking) => (
-                  <div key={booking.id} className="flex items-center gap-4" data-testid={`booking-row-${booking.id}`}>
+                  <div key={booking.id} className="flex flex-wrap items-center gap-4" data-testid={`booking-row-${booking.id}`}>
                     <Avatar className="h-10 w-10">
                       <AvatarFallback className="bg-primary/10 text-primary text-sm">
                         {booking.visitorName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
@@ -837,8 +838,8 @@ function GuideDashboard() {
                     </div>
                   </div>
                   {tour.status === "confirmed" && (
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       data-testid={`start-tour-${tour.id}`}
                       onClick={() => startTourMutation.mutate(tour.id)}
                       disabled={startTourMutation.isPending}
@@ -850,9 +851,9 @@ function GuideDashboard() {
                     </Button>
                   )}
                   {tour.status === "in_progress" && (
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
+                    <Button
+                      size="sm"
+                      variant="outline"
                       data-testid={`complete-tour-${tour.id}`}
                       onClick={() => completeTourMutation.mutate(tour.id)}
                       disabled={completeTourMutation.isPending}
@@ -1110,6 +1111,10 @@ function VisitorDashboard() {
     queryKey: ["/api/zones"],
   });
 
+  const { data: meetingPoints } = useQuery<{ id: string; name: string; address?: string }[]>({
+    queryKey: ["/api/meeting-points"],
+  });
+
   const updatePaymentMutation = useMutation({
     mutationFn: async ({ bookingId, paymentStatus }: { bookingId: string; paymentStatus: string }) => {
       return apiRequest("PATCH", `/api/bookings/${bookingId}/visitor-payment`, { paymentStatus });
@@ -1137,6 +1142,7 @@ function VisitorDashboard() {
   });
 
   const [selectedRating, setSelectedRating] = useState<{ bookingId: string; rating: number } | null>(null);
+  const [showAllPastVisits, setShowAllPastVisits] = useState(false);
 
   const handleRateGuide = (bookingId: string, rating: number) => {
     rateGuideMutation.mutate({ bookingId, rating });
@@ -1173,6 +1179,21 @@ function VisitorDashboard() {
       .map(id => zones.find(z => z.id === id)?.name)
       .filter(Boolean)
       .join(", ");
+  };
+
+  const getMeetingPointName = (meetingPointId: string | null | undefined) => {
+    if (!meetingPointId) return null;
+    if (meetingPoints) {
+      const mp = meetingPoints.find(p => p.id === meetingPointId);
+      if (mp) return mp.name;
+    }
+    // Fallback for common meeting points
+    const fallbacks: Record<string, string> = {
+      "main_gate": "Main Gate Entrance",
+      "community_center": "Community Center",
+      "market_entrance": "Market Entrance"
+    };
+    return fallbacks[meetingPointId] || "Meeting Point";
   };
 
   if (isLoading) {
@@ -1246,6 +1267,8 @@ function VisitorDashboard() {
                 const guideName = getGuideName(booking.assignedGuideId);
                 const guidePhone = getGuidePhone(booking.assignedGuideId);
                 const zoneNames = getZoneNames(booking.selectedZones as string[]);
+                const meetingPointName = getMeetingPointName(booking.meetingPointId);
+                const isConfirmed = booking.status === "confirmed";
 
                 return (
                   <div key={booking.id} className="rounded-lg border p-4 space-y-3">
@@ -1307,6 +1330,42 @@ function VisitorDashboard() {
                       </div>
                     )}
 
+                    {/* Meeting Point */}
+                    {meetingPointName && (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                        <MapPin className="h-4 w-4 text-blue-600" />
+                        <span className="text-sm text-blue-700 dark:text-blue-400">
+                          <strong>Meeting Point:</strong> {meetingPointName}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Special Requests */}
+                    {booking.specialRequests && (
+                      <div className="p-2 rounded-lg bg-muted/50 border">
+                        <div className="text-xs font-medium text-muted-foreground mb-1">Your Special Requests:</div>
+                        <div className="text-sm">{booking.specialRequests}</div>
+                      </div>
+                    )}
+
+                    {/* Check-in Instructions for Confirmed Bookings */}
+                    {isConfirmed && (
+                      <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                          <div className="text-sm text-amber-800 dark:text-amber-300">
+                            <strong>Check-in Instructions:</strong>
+                            <ul className="mt-1 ml-4 list-disc text-xs space-y-1">
+                              <li>Arrive 10 minutes before your scheduled time</li>
+                              <li>Bring a valid ID for verification</li>
+                              <li>Meet your guide at the designated meeting point</li>
+                              <li>Contact your guide if running late</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Payment Toggle */}
                     {booking.paymentStatus !== "paid" && (
                       <div className="flex justify-end pt-2 border-t">
@@ -1359,12 +1418,25 @@ function VisitorDashboard() {
 
       {completedBookings.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Past Visits</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-4">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-lg font-semibold">Past Visits</CardTitle>
+              <Badge variant="secondary">{completedBookings.length}</Badge>
+            </div>
+            {completedBookings.length > 3 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAllPastVisits(!showAllPastVisits)}
+              >
+                {showAllPastVisits ? "Show Less" : "View All"}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {completedBookings.slice(0, 3).map((booking) => (
+              {(showAllPastVisits ? completedBookings : completedBookings.slice(0, 3)).map((booking) => (
                 <div key={booking.id} className="rounded-lg border p-3 space-y-2">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
@@ -1379,9 +1451,14 @@ function VisitorDashboard() {
                         )}
                       </div>
                     </div>
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      Completed
-                    </Badge>
+                    <div className="text-right">
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        Completed
+                      </Badge>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {formatCurrency(booking.totalAmount || 0)}
+                      </div>
+                    </div>
                   </div>
                   {/* Rating UI */}
                   {booking.assignedGuideId && (
@@ -1418,23 +1495,45 @@ function VisitorDashboard() {
           <CardTitle className="text-lg font-semibold">Explore Dzaleka</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
-              <a href="https://services.dzaleka.com/visit/" target="_blank" rel="noopener noreferrer">
-                <BookOpen className="h-5 w-5 text-primary" />
-                <div className="text-left">
-                  <div className="font-medium">Book a Tour</div>
-                  <div className="text-xs text-muted-foreground">Schedule your visit</div>
-                </div>
-              </a>
-            </Button>
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
-              <a href="https://services.dzaleka.com" target="_blank" rel="noopener noreferrer">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-primary/30 hover:border-primary hover:bg-primary/5" asChild>
+              <a href="https://services.dzaleka.com/visit/travel-guide/" target="_blank" rel="noopener noreferrer">
                 <MapPin className="h-5 w-5 text-primary" />
                 <div className="text-left">
-                  <div className="font-medium">Learn About Dzaleka</div>
-                  <div className="text-xs text-muted-foreground">Discover our community</div>
+                  <div className="font-medium">Travel Guide</div>
+                  <div className="text-xs text-muted-foreground">Getting to Dzaleka</div>
                 </div>
+                <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
+              </a>
+            </Button>
+            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-amber-500/30 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20" asChild>
+              <a href="https://services.dzaleka.com/visit/guidelines/" target="_blank" rel="noopener noreferrer">
+                <Shield className="h-5 w-5 text-amber-600" />
+                <div className="text-left">
+                  <div className="font-medium">Visitor Guidelines</div>
+                  <div className="text-xs text-muted-foreground">What to know before you go</div>
+                </div>
+                <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
+              </a>
+            </Button>
+            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-purple-500/30 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20" asChild>
+              <a href="https://services.dzaleka.com/dzaleka-time-capsule/" target="_blank" rel="noopener noreferrer">
+                <Clock className="h-5 w-5 text-purple-600" />
+                <div className="text-left">
+                  <div className="font-medium">Time Capsule</div>
+                  <div className="text-xs text-muted-foreground">Dzaleka's history & stories</div>
+                </div>
+                <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
+              </a>
+            </Button>
+            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-blue-500/30 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20" asChild>
+              <a href="https://services.dzaleka.com" target="_blank" rel="noopener noreferrer">
+                <Globe className="h-5 w-5 text-blue-600" />
+                <div className="text-left">
+                  <div className="font-medium">Dzaleka Online Services</div>
+                  <div className="text-xs text-muted-foreground">Full platform & resources</div>
+                </div>
+                <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
               </a>
             </Button>
           </div>

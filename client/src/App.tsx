@@ -30,6 +30,9 @@ import Revenue from "@/pages/revenue";
 import AuditLogs from "@/pages/audit-logs";
 import Visitors from "@/pages/visitors";
 import Landing from "@/pages/landing";
+import CMSPage from "@/pages/cms";
+import SecurityAdmin from "@/pages/security-admin";
+import AcceptInvite from "@/pages/accept-invite";
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const style = {
@@ -76,6 +79,7 @@ function Router() {
         <Route path="/landing" component={Landing} />
         <Route path="/reset-password" component={ResetPassword} />
         <Route path="/verify-email" component={VerifyEmail} />
+        <Route path="/accept-invite" component={AcceptInvite} />
         <Route path="/" component={AuthPage} />
         <Route component={AuthPage} />
       </Switch>
@@ -101,6 +105,8 @@ function Router() {
         <Route path="/revenue" component={Revenue} />
         <Route path="/visitors" component={Visitors} />
         <Route path="/audit-logs" component={AuditLogs} />
+        <Route path="/cms" component={CMSPage} />
+        <Route path="/security-admin" component={SecurityAdmin} />
         <Route path="/landing" component={Landing} />
         <Route component={NotFound} />
       </Switch>
