@@ -26,6 +26,9 @@ export async function createApp() {
   const app = express();
   const httpServer = createServer(app);
 
+  // Trust proxy is required for secure cookies to work behind Netlify's load balancer
+  app.set('trust proxy', 1);
+
   // Security headers
   app.use(helmet({
     contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
@@ -117,7 +120,7 @@ export async function createApp() {
       cookie: {
         secure: isProduction,
         httpOnly: true,
-        sameSite: isProduction ? 'strict' : 'lax',
+        sameSite: 'lax',
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
       },
     })
