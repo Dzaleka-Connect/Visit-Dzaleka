@@ -1,3 +1,4 @@
+/// <reference path="./types.d.ts" />
 import type { Express, Request, Response, NextFunction } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
@@ -215,6 +216,21 @@ export async function registerRoutes(
       res.status(500).json({ message: "Failed to send notifications" });
     }
   });
+
+  // Debug endpoint to check session status (safe to have in production, doesn't expose sensitive data)
+  app.get("/api/auth/session-status", (req, res) => {
+    res.json({
+      hasSession: !!req.session,
+      hasUserId: !!req.session?.userId,
+      sessionId: req.sessionID ? req.sessionID.substring(0, 8) + '...' : null,
+      cookieSettings: {
+        secure: req.session?.cookie?.secure,
+        sameSite: req.session?.cookie?.sameSite,
+        httpOnly: req.session?.cookie?.httpOnly,
+      },
+    });
+  });
+
   // Email/Password Registration
   app.post("/api/auth/register", async (req, res) => {
     try {
@@ -586,7 +602,7 @@ export async function registerRoutes(
       }
 
       // Verify current password
-      const validPassword = await comparePassword(currentPassword, user.password);
+      const validPassword = await verifyPassword(currentPassword, user.password);
       if (!validPassword) {
         return res.status(400).json({ message: "Current password is incorrect" });
       }
@@ -2356,6 +2372,7 @@ export async function registerRoutes(
           recipientEmail,
           subject,
           message,
+          templateType: "custom",
           status: "sent",
         });
         res.json({ success: true, message: "Email sent successfully" });
@@ -2366,6 +2383,7 @@ export async function registerRoutes(
           recipientEmail,
           subject,
           message,
+          templateType: "custom",
           status: "failed",
         });
         res.status(500).json({ message: "Failed to send email" });

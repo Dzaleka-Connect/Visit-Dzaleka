@@ -71,6 +71,7 @@ export const REFERRAL_SOURCES = [
 export const STATUS_COLORS = {
   pending: { bg: "bg-yellow-100", text: "text-yellow-800", dark: "dark:bg-yellow-900/30 dark:text-yellow-400" },
   confirmed: { bg: "bg-green-100", text: "text-green-800", dark: "dark:bg-green-900/30 dark:text-green-400" },
+  in_progress: { bg: "bg-purple-100", text: "text-purple-800", dark: "dark:bg-purple-900/30 dark:text-purple-400" },
   completed: { bg: "bg-blue-100", text: "text-blue-800", dark: "dark:bg-blue-900/30 dark:text-blue-400" },
   cancelled: { bg: "bg-red-100", text: "text-red-800", dark: "dark:bg-red-900/30 dark:text-red-400" },
 } as const;
@@ -118,7 +119,14 @@ export function formatDate(date: string | Date): string {
 }
 
 // Format time
-export function formatTime(time: string): string {
+export function formatTime(time: string | Date): string {
+  if (time instanceof Date) {
+    return new Intl.DateTimeFormat("en-GB", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(time);
+  }
   const [hours, minutes] = time.split(":");
   const hour = parseInt(hours, 10);
   const ampm = hour >= 12 ? "PM" : "AM";

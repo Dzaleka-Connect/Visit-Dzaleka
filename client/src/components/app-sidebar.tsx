@@ -117,7 +117,7 @@ const operationsItems: NavItem[] = [
     roles: ["admin"],
   },
   {
-    title: "Email History",
+    title: "Send Email",
     url: "/email-history",
     icon: Mail,
     roles: ["admin", "coordinator"],

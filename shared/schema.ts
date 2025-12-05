@@ -316,12 +316,17 @@ export const zoneVisits = pgTable("zone_visits", {
 // Email Log table for tracking sent emails
 export const emailLogs = pgTable("email_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sentBy: varchar("sent_by").notNull(),
+  sentBy: varchar("sent_by"),
   recipientName: varchar("recipient_name"),
   recipientEmail: varchar("recipient_email").notNull(),
   subject: varchar("subject").notNull(),
-  message: text("message").notNull(),
-  status: varchar("status").default("sent"),
+  message: text("message"),
+  templateType: varchar("template_type").default("custom"), // 'booking_confirmation', 'password_reset', 'invitation', 'custom', etc.
+  status: varchar("status").default("sent"), // 'sent', 'failed', 'pending'
+  errorMessage: text("error_message"),
+  relatedEntityType: varchar("related_entity_type"), // 'booking', 'user', 'guide', etc.
+  relatedEntityId: varchar("related_entity_id"),
+  metadata: jsonb("metadata").default({}),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

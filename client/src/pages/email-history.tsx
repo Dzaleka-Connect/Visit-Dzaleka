@@ -29,7 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { EmailLog } from "@shared/schema";
 
-export default function EmailHistory() {
+export default function SendEmail() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedEmail, setSelectedEmail] = useState<EmailLog | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
@@ -110,8 +110,8 @@ export default function EmailHistory() {
     return (
       <div className="space-y-6">
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold tracking-tight">Email History</h1>
-          <p className="text-muted-foreground">View all sent emails.</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Send Email</h1>
+          <p className="text-muted-foreground">Compose and send emails.</p>
         </div>
         <Card>
           <CardContent className="py-8">
@@ -127,9 +127,9 @@ export default function EmailHistory() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Email History</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Send Email</h1>
         <p className="text-muted-foreground">
-          Track all emails sent from the system.
+          Compose emails and view sent history.
         </p>
       </div>
 

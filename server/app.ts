@@ -111,17 +111,22 @@ export async function createApp() {
   app.use("/api/auth/forgot-password", authLimiter);
   app.use("/api", apiLimiter);
 
+  // Debug session store type
+  console.log(`[Session] Using ${isProduction && process.env.DATABASE_URL ? 'PostgreSQL' : 'Memory'} session store`);
+
   app.use(
     session({
       store: sessionStore,
       secret: process.env.SESSION_SECRET || "supersecretdevkey",
       resave: false,
       saveUninitialized: false,
+      name: 'dzaleka.sid', // Custom session cookie name
       cookie: {
-        secure: isProduction,
+        secure: isProduction, // true for HTTPS
         httpOnly: true,
-        sameSite: 'lax',
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        sameSite: isProduction ? 'none' : 'lax', // 'none' allows cross-site cookies (requires secure: true)
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        domain: process.env.COOKIE_DOMAIN || undefined, // Set to your domain in production if needed
       },
     })
   );

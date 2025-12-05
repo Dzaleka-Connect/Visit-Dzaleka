@@ -105,10 +105,7 @@ function AdminDashboard() {
 
   const sendEmailMutation = useMutation({
     mutationFn: async (data: typeof emailForm) => {
-      const response = await apiRequest("/api/send-email", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      const response = await apiRequest("POST", "/api/send-email", data);
       return response;
     },
     onSuccess: () => {
@@ -132,10 +129,7 @@ function AdminDashboard() {
 
   const quickConfirmMutation = useMutation({
     mutationFn: async (bookingId: string) => {
-      await apiRequest(`/api/bookings/${bookingId}/status`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: "confirmed" }),
-      });
+      await apiRequest("PATCH", `/api/bookings/${bookingId}/status`, { status: "confirmed" });
     },
     onSuccess: () => {
       queryClientDashboard.invalidateQueries({ queryKey: ["/api/bookings/recent"] });

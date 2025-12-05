@@ -17,6 +17,8 @@ import {
     Smartphone,
     Tablet,
     AlertTriangle,
+    Send,
+    MailOpen,
 } from "lucide-react";
 import {
     Card,
@@ -103,6 +105,21 @@ interface UserInvite {
     createdAt: string;
 }
 
+interface EmailLog {
+    id: string;
+    sentBy: string | null;
+    recipientName: string | null;
+    recipientEmail: string;
+    subject: string;
+    message: string | null;
+    templateType: string | null;
+    status: string | null;
+    errorMessage: string | null;
+    relatedEntityType: string | null;
+    relatedEntityId: string | null;
+    createdAt: string;
+}
+
 export default function SecurityAdmin() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -121,6 +138,9 @@ export default function SecurityAdmin() {
     // Login History Filter
     const [historyFilter, setHistoryFilter] = useState<"all" | "success" | "failed">("all");
 
+    // Email Filter
+    const [emailFilter, setEmailFilter] = useState<"all" | "sent" | "failed">("all");
+
     // Queries
     const { data: allowedIps, isLoading: ipsLoading } = useQuery<AllowedIp[]>({
         queryKey: ["/api/security/ip-whitelist"],
@@ -132,6 +152,10 @@ export default function SecurityAdmin() {
 
     const { data: invites, isLoading: invitesLoading } = useQuery<UserInvite[]>({
         queryKey: ["/api/invites"],
+    });
+
+    const { data: emailLogs, isLoading: emailLogsLoading } = useQuery<EmailLog[]>({
+        queryKey: ["/api/email-logs"],
     });
 
     // Mutations
@@ -206,10 +230,30 @@ export default function SecurityAdmin() {
         },
     });
 
+    const retryEmailMutation = useMutation({
+        mutationFn: async (id: string) => {
+            await apiRequest("POST", `/api/email-logs/${id}/retry`);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/email-logs"] });
+            toast({ title: "Email Resent", description: "The email has been resent successfully." });
+        },
+        onError: (error: Error) => {
+            toast({ title: "Error", description: error.message || "Failed to resend email.", variant: "destructive" });
+        },
+    });
+
     // Filter login history
     const filteredHistory = loginHistory?.filter(entry => {
         if (historyFilter === "success") return entry.success;
         if (historyFilter === "failed") return !entry.success;
+        return true;
+    });
+
+    // Filter email logs
+    const filteredEmails = emailLogs?.filter(entry => {
+        if (emailFilter === "sent") return entry.status === "sent";
+        if (emailFilter === "failed") return entry.status === "failed";
         return true;
     });
 
@@ -245,7 +289,7 @@ export default function SecurityAdmin() {
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="ip-whitelist" className="flex items-center gap-2">
                         <Wifi className="h-4 w-4" />
                         IP Whitelist
@@ -253,6 +297,10 @@ export default function SecurityAdmin() {
                     <TabsTrigger value="login-history" className="flex items-center gap-2">
                         <History className="h-4 w-4" />
                         Login History
+                    </TabsTrigger>
+                    <TabsTrigger value="email-history" className="flex items-center gap-2">
+                        <MailOpen className="h-4 w-4" />
+                        Email History
                     </TabsTrigger>
                     <TabsTrigger value="invites" className="flex items-center gap-2">
                         <UserPlus className="h-4 w-4" />
@@ -477,6 +525,120 @@ export default function SecurityAdmin() {
                                                     {entry.browser || "Unknown"} / {entry.os || "Unknown"}
                                                 </TableCell>
                                                 <TableCell>{format(new Date(entry.createdAt), "MMM d, yyyy HH:mm")}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* Email History Tab */}
+                <TabsContent value="email-history" className="space-y-4">
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle>Email History</CardTitle>
+                                <CardDescription>
+                                    View all emails sent by the system
+                                </CardDescription>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant={emailFilter === "all" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setEmailFilter("all")}
+                                >
+                                    All
+                                </Button>
+                                <Button
+                                    variant={emailFilter === "sent" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setEmailFilter("sent")}
+                                >
+                                    <CheckCircle className="mr-1 h-3 w-3" />
+                                    Sent
+                                </Button>
+                                <Button
+                                    variant={emailFilter === "failed" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setEmailFilter("failed")}
+                                >
+                                    <XCircle className="mr-1 h-3 w-3" />
+                                    Failed
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            {emailLogsLoading ? (
+                                <div className="flex items-center justify-center py-8">
+                                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                                </div>
+                            ) : filteredEmails?.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-8 text-center">
+                                    <MailOpen className="h-12 w-12 text-muted-foreground mb-4" />
+                                    <p className="text-lg font-medium">No emails sent</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        Emails sent by the system will appear here.
+                                    </p>
+                                </div>
+                            ) : (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Status</TableHead>
+                                            <TableHead>Recipient</TableHead>
+                                            <TableHead>Subject</TableHead>
+                                            <TableHead>Type</TableHead>
+                                            <TableHead>Sent</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {filteredEmails?.map((email) => (
+                                            <TableRow key={email.id}>
+                                                <TableCell>
+                                                    {email.status === "sent" ? (
+                                                        <Badge variant="default" className="bg-green-500">
+                                                            <CheckCircle className="mr-1 h-3 w-3" />
+                                                            Sent
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="destructive">
+                                                            <XCircle className="mr-1 h-3 w-3" />
+                                                            Failed
+                                                        </Badge>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div>
+                                                        <div className="font-medium">{email.recipientName || "-"}</div>
+                                                        <div className="text-xs text-muted-foreground">{email.recipientEmail}</div>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="max-w-[200px] truncate" title={email.subject}>
+                                                    {email.subject}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline" className="capitalize">
+                                                        {email.templateType?.replace(/_/g, " ") || "custom"}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell>{format(new Date(email.createdAt), "MMM d, yyyy HH:mm")}</TableCell>
+                                                <TableCell className="text-right">
+                                                    {email.status === "failed" && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => retryEmailMutation.mutate(email.id)}
+                                                            disabled={retryEmailMutation.isPending}
+                                                            title="Retry sending"
+                                                        >
+                                                            <RefreshCw className={`h-4 w-4 ${retryEmailMutation.isPending ? "animate-spin" : ""}`} />
+                                                        </Button>
+                                                    )}
+                                                </TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
