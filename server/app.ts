@@ -124,7 +124,7 @@ export async function createApp() {
       cookie: {
         secure: isProduction, // true for HTTPS
         httpOnly: true,
-        sameSite: isProduction ? 'none' : 'lax', // 'none' allows cross-site cookies (requires secure: true)
+        sameSite: 'lax', // 'lax' is safer and works well for SPA
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         domain: process.env.COOKIE_DOMAIN || undefined, // Set to your domain in production if needed
       },
