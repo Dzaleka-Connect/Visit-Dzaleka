@@ -62,6 +62,8 @@ export async function createApp() {
     message: { message: "Too many login attempts. Please try again in 15 minutes." },
     standardHeaders: true,
     legacyHeaders: false,
+    validate: false, // Disable validation for serverless
+    keyGenerator: (req) => req.ip || req.headers['x-forwarded-for']?.toString() || 'unknown',
   });
 
   // General API rate limiter
@@ -71,6 +73,8 @@ export async function createApp() {
     message: { message: "Too many requests. Please slow down." },
     standardHeaders: true,
     legacyHeaders: false,
+    validate: false, // Disable validation for serverless
+    keyGenerator: (req) => req.ip || req.headers['x-forwarded-for']?.toString() || 'unknown',
   });
 
   // Session store - Use PostgreSQL in production, Memory in development
