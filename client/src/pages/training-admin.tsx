@@ -10,8 +10,20 @@ import {
     Check,
     X,
     GripVertical,
+    Users,
+    Award,
+    TrendingUp,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -44,10 +56,18 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { SEO } from "@/components/seo";
-import type { TrainingModule } from "@shared/schema";
+import type { TrainingModule, Guide } from "@shared/schema";
+
+interface GuideTrainingStats {
+    guide: Guide;
+    completed: number;
+    total: number;
+    percentage: number;
+}
 
 const CATEGORIES = [
     "About Dzaleka",
@@ -68,6 +88,7 @@ interface ModuleFormData {
     estimatedMinutes: number;
     sortOrder: number;
     isRequired: boolean;
+    targetAudience: "guide" | "visitor" | "both";
 }
 
 const defaultFormData: ModuleFormData = {
@@ -79,6 +100,7 @@ const defaultFormData: ModuleFormData = {
     estimatedMinutes: 15,
     sortOrder: 0,
     isRequired: true,
+    targetAudience: "both",
 };
 
 export default function TrainingAdmin() {
@@ -90,6 +112,10 @@ export default function TrainingAdmin() {
 
     const { data: modules, isLoading } = useQuery<TrainingModule[]>({
         queryKey: ["/api/training/modules"],
+    });
+
+    const { data: guidesStats } = useQuery<GuideTrainingStats[]>({
+        queryKey: ["/api/training/guides-stats"],
     });
 
     const createMutation = useMutation({
@@ -150,6 +176,7 @@ export default function TrainingAdmin() {
             estimatedMinutes: module.estimatedMinutes || 15,
             sortOrder: module.sortOrder || 0,
             isRequired: module.isRequired ?? true,
+            targetAudience: (module.targetAudience as "guide" | "visitor" | "both") || "both",
         });
     };
 
@@ -246,239 +273,372 @@ export default function TrainingAdmin() {
                 </Card>
             </div>
 
-            {/* Module List by Category */}
-            {Object.entries(groupedModules).map(([category, categoryModules]) => (
-                <Card key={category}>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <BookOpen className="h-5 w-5 text-primary" />
-                            {category}
-                            <Badge variant="outline">{categoryModules.length}</Badge>
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-3">
-                            {categoryModules.map((module) => (
-                                <div
-                                    key={module.id}
-                                    className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
-                                >
-                                    <div className="flex items-center gap-3 flex-1">
-                                        <GripVertical className="h-4 w-4 text-muted-foreground" />
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-medium">{module.title}</span>
-                                                {module.isRequired && (
-                                                    <Badge variant="secondary" className="text-xs">Required</Badge>
-                                                )}
+            <Tabs defaultValue="content" className="space-y-6">
+                <TabsList>
+                    <TabsTrigger value="content">Content Manager</TabsTrigger>
+                    <TabsTrigger value="progress">Guide Progress</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="progress" className="space-y-6">
+                    {/* Guide Training Progress */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Users className="h-5 w-5 text-primary" />
+                                Guide Training Progress
+                            </CardTitle>
+                            <CardDescription>Track which guides have completed their training</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {guidesStats && guidesStats.length > 0 ? (
+                                <div className="space-y-6">
+                                    {/* Summary stats */}
+                                    <div className="grid gap-4 md:grid-cols-4">
+                                        <Card>
+                                            <CardContent className="p-4">
+                                                <div className="text-2xl font-bold">{guidesStats.length}</div>
+                                                <p className="text-sm text-muted-foreground">Total Guides</p>
+                                            </CardContent>
+                                        </Card>
+                                        <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+                                            <CardContent className="p-4">
+                                                <div className="text-2xl font-bold text-green-600">
+                                                    {guidesStats.filter(g => g.percentage === 100).length}
+                                                </div>
+                                                <p className="text-sm text-muted-foreground">Fully Trained</p>
+                                            </CardContent>
+                                        </Card>
+                                        <Card className="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+                                            <CardContent className="p-4">
+                                                <div className="text-2xl font-bold text-amber-600">
+                                                    {guidesStats.filter(g => g.percentage > 0 && g.percentage < 100).length}
+                                                </div>
+                                                <p className="text-sm text-muted-foreground">In Progress</p>
+                                            </CardContent>
+                                        </Card>
+                                        <Card className="bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
+                                            <CardContent className="p-4">
+                                                <div className="text-2xl font-bold text-red-600">
+                                                    {guidesStats.filter(g => g.percentage === 0).length}
+                                                </div>
+                                                <p className="text-sm text-muted-foreground">Not Started</p>
+                                            </CardContent>
+                                        </Card>
+                                    </div>
+
+                                    {/* Guide progress table */}
+                                    <div className="rounded-md border overflow-x-auto">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Guide Name</TableHead>
+                                                    <TableHead className="text-center">Completed</TableHead>
+                                                    <TableHead className="text-center">Total Required</TableHead>
+                                                    <TableHead className="text-center">Progress</TableHead>
+                                                    <TableHead className="text-right">Status</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {guidesStats.map((stat) => (
+                                                    <TableRow key={stat.guide.id}>
+                                                        <TableCell className="font-medium">
+                                                            {stat.guide.firstName} {stat.guide.lastName}
+                                                        </TableCell>
+                                                        <TableCell className="text-center">
+                                                            <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
+                                                                {stat.completed}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell className="text-center text-muted-foreground">
+                                                            {stat.total}
+                                                        </TableCell>
+                                                        <TableCell className="text-center">
+                                                            <div className="flex items-center gap-2 justify-center">
+                                                                <Progress value={stat.percentage} className="w-20 h-2" />
+                                                                <span className="text-sm font-medium w-12 text-right">{stat.percentage}%</span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-right">
+                                                            {stat.percentage === 100 ? (
+                                                                <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400">
+                                                                    <Award className="h-3 w-3 mr-1" />Complete
+                                                                </Badge>
+                                                            ) : stat.percentage > 0 ? (
+                                                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800">
+                                                                    <TrendingUp className="h-3 w-3 mr-1" />In Progress
+                                                                </Badge>
+                                                            ) : (
+                                                                <Badge variant="outline" className="text-muted-foreground">
+                                                                    Not Started
+                                                                </Badge>
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-center text-muted-foreground py-8">No guides found</p>
+                            )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="content" className="space-y-6">
+                    {/* Module List by Category */}
+                    {Object.entries(groupedModules).map(([category, categoryModules]) => (
+                        <Card key={category}>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <BookOpen className="h-5 w-5 text-primary" />
+                                    {category}
+                                    <Badge variant="outline">{categoryModules.length}</Badge>
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-3">
+                                    {categoryModules.map((module) => (
+                                        <div
+                                            key={module.id}
+                                            className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                                        >
+                                            <div className="flex items-center gap-3 flex-1">
+                                                <GripVertical className="h-4 w-4 text-muted-foreground" />
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-medium">{module.title}</span>
+                                                        {module.isRequired && (
+                                                            <Badge variant="secondary" className="text-xs">Required</Badge>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-sm text-muted-foreground truncate max-w-md">
+                                                        {module.description}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <p className="text-sm text-muted-foreground truncate max-w-md">
-                                                {module.description}
-                                            </p>
+                                            <div className="flex items-center gap-4">
+                                                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                                    <Clock className="h-4 w-4" />
+                                                    {module.estimatedMinutes}m
+                                                </div>
+                                                {module.externalUrl && (
+                                                    <a
+                                                        href={module.externalUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-blue-500 hover:text-blue-600"
+                                                    >
+                                                        <ExternalLink className="h-4 w-4" />
+                                                    </a>
+                                                )}
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => handleEdit(module)}
+                                                >
+                                                    <Edit className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="text-destructive"
+                                                    onClick={() => setDeleteModule(module)}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                            <Clock className="h-4 w-4" />
-                                            {module.estimatedMinutes}m
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+
+                    {(!modules || modules.length === 0) && (
+                        <Card>
+                            <CardContent className="p-12 text-center">
+                                <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                                <h3 className="text-lg font-semibold">No Training Modules</h3>
+                                <p className="text-muted-foreground mb-4">
+                                    Get started by creating your first training module.
+                                </p>
+                                <Button onClick={() => setIsCreateOpen(true)}>
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    Add Module
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Create/Edit Dialog */}
+                    <Dialog open={isCreateOpen || !!editingModule} onOpenChange={(open) => !open && handleCancel()}>
+                        <DialogContent className="max-w-2xl">
+                            <DialogHeader>
+                                <DialogTitle>
+                                    {editingModule ? "Edit Training Module" : "Create Training Module"}
+                                </DialogTitle>
+                                <DialogDescription>
+                                    {editingModule
+                                        ? "Update the training module details below."
+                                        : "Add a new training module for guides to complete."}
+                                </DialogDescription>
+                            </DialogHeader>
+                            <form onSubmit={handleSubmit}>
+                                <div className="grid gap-4 py-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="title">Title</Label>
+                                            <Input
+                                                id="title"
+                                                value={formData.title}
+                                                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                                placeholder="Module title"
+                                                required
+                                            />
                                         </div>
-                                        {module.externalUrl && (
-                                            <a
-                                                href={module.externalUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-blue-500 hover:text-blue-600"
+                                        <div className="space-y-2">
+                                            <Label htmlFor="category">Category</Label>
+                                            <Select
+                                                value={formData.category}
+                                                onValueChange={(value) => setFormData({ ...formData, category: value })}
                                             >
-                                                <ExternalLink className="h-4 w-4" />
-                                            </a>
-                                        )}
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => handleEdit(module)}
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {CATEGORIES.map((cat) => (
+                                                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="description">Description</Label>
+                                        <Textarea
+                                            id="description"
+                                            value={formData.description}
+                                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                            placeholder="Brief description of what this module covers"
+                                            rows={2}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="content">Content / Instructions</Label>
+                                        <Textarea
+                                            id="content"
+                                            value={formData.content}
+                                            onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                                            placeholder="Detailed content or instructions for the guide"
+                                            rows={4}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="externalUrl">External Resource URL</Label>
+                                        <Input
+                                            id="externalUrl"
+                                            type="url"
+                                            value={formData.externalUrl}
+                                            onChange={(e) => setFormData({ ...formData, externalUrl: e.target.value })}
+                                            placeholder="https://example.com/resource"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="targetAudience">Target Audience</Label>
+                                        <Select
+                                            value={formData.targetAudience}
+                                            onValueChange={(value: "guide" | "visitor" | "both") => setFormData({ ...formData, targetAudience: value })}
                                         >
-                                            <Edit className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="text-destructive"
-                                            onClick={() => setDeleteModule(module)}
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="guide">Guides Only</SelectItem>
+                                                <SelectItem value="visitor">Visitors Only</SelectItem>
+                                                <SelectItem value="both">Both (Guides & Visitors)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="estimatedMinutes">Est. Time (min)</Label>
+                                            <Input
+                                                id="estimatedMinutes"
+                                                type="number"
+                                                min="1"
+                                                value={formData.estimatedMinutes}
+                                                onChange={(e) => setFormData({ ...formData, estimatedMinutes: parseInt(e.target.value) || 15 })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="sortOrder">Sort Order</Label>
+                                            <Input
+                                                id="sortOrder"
+                                                type="number"
+                                                value={formData.sortOrder}
+                                                onChange={(e) => setFormData({ ...formData, sortOrder: parseInt(e.target.value) || 0 })}
+                                            />
+                                        </div>
+                                        <div className="flex items-center justify-between pt-6">
+                                            <Label htmlFor="isRequired">Required</Label>
+                                            <Switch
+                                                id="isRequired"
+                                                checked={formData.isRequired}
+                                                onCheckedChange={(checked) => setFormData({ ...formData, isRequired: checked })}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-            ))}
-
-            {(!modules || modules.length === 0) && (
-                <Card>
-                    <CardContent className="p-12 text-center">
-                        <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-semibold">No Training Modules</h3>
-                        <p className="text-muted-foreground mb-4">
-                            Get started by creating your first training module.
-                        </p>
-                        <Button onClick={() => setIsCreateOpen(true)}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add Module
-                        </Button>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Create/Edit Dialog */}
-            <Dialog open={isCreateOpen || !!editingModule} onOpenChange={(open) => !open && handleCancel()}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>
-                            {editingModule ? "Edit Training Module" : "Create Training Module"}
-                        </DialogTitle>
-                        <DialogDescription>
-                            {editingModule
-                                ? "Update the training module details below."
-                                : "Add a new training module for guides to complete."}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleSubmit}>
-                        <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="title">Title</Label>
-                                    <Input
-                                        id="title"
-                                        value={formData.title}
-                                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                        placeholder="Module title"
-                                        required
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="category">Category</Label>
-                                    <Select
-                                        value={formData.category}
-                                        onValueChange={(value) => setFormData({ ...formData, category: value })}
+                                <DialogFooter>
+                                    <Button type="button" variant="outline" onClick={handleCancel}>
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        type="submit"
+                                        disabled={createMutation.isPending || updateMutation.isPending}
                                     >
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {CATEGORIES.map((cat) => (
-                                                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
+                                        {createMutation.isPending || updateMutation.isPending ? (
+                                            "Saving..."
+                                        ) : editingModule ? (
+                                            "Update Module"
+                                        ) : (
+                                            "Create Module"
+                                        )}
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="description">Description</Label>
-                                <Textarea
-                                    id="description"
-                                    value={formData.description}
-                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                    placeholder="Brief description of what this module covers"
-                                    rows={2}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="content">Content / Instructions</Label>
-                                <Textarea
-                                    id="content"
-                                    value={formData.content}
-                                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                                    placeholder="Detailed content or instructions for the guide"
-                                    rows={4}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="externalUrl">External Resource URL</Label>
-                                <Input
-                                    id="externalUrl"
-                                    type="url"
-                                    value={formData.externalUrl}
-                                    onChange={(e) => setFormData({ ...formData, externalUrl: e.target.value })}
-                                    placeholder="https://example.com/resource"
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="estimatedMinutes">Est. Time (min)</Label>
-                                    <Input
-                                        id="estimatedMinutes"
-                                        type="number"
-                                        min="1"
-                                        value={formData.estimatedMinutes}
-                                        onChange={(e) => setFormData({ ...formData, estimatedMinutes: parseInt(e.target.value) || 15 })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="sortOrder">Sort Order</Label>
-                                    <Input
-                                        id="sortOrder"
-                                        type="number"
-                                        value={formData.sortOrder}
-                                        onChange={(e) => setFormData({ ...formData, sortOrder: parseInt(e.target.value) || 0 })}
-                                    />
-                                </div>
-                                <div className="flex items-center justify-between pt-6">
-                                    <Label htmlFor="isRequired">Required</Label>
-                                    <Switch
-                                        id="isRequired"
-                                        checked={formData.isRequired}
-                                        onCheckedChange={(checked) => setFormData({ ...formData, isRequired: checked })}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button type="button" variant="outline" onClick={handleCancel}>
-                                Cancel
-                            </Button>
-                            <Button
-                                type="submit"
-                                disabled={createMutation.isPending || updateMutation.isPending}
-                            >
-                                {createMutation.isPending || updateMutation.isPending ? (
-                                    "Saving..."
-                                ) : editingModule ? (
-                                    "Update Module"
-                                ) : (
-                                    "Create Module"
-                                )}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
-
-            {/* Delete Confirmation */}
-            <AlertDialog open={!!deleteModule} onOpenChange={() => setDeleteModule(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Training Module</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Are you sure you want to delete "{deleteModule?.title}"? This action cannot be undone.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={() => deleteModule && deleteMutation.mutate(deleteModule.id)}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                            Delete
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+                    {/* Delete Confirmation */}
+                    <AlertDialog open={!!deleteModule} onOpenChange={() => setDeleteModule(null)}>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Training Module</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Are you sure you want to delete "{deleteModule?.title}"? This action cannot be undone.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                    onClick={() => deleteModule && deleteMutation.mutate(deleteModule.id)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                    Delete
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }

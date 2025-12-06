@@ -152,8 +152,15 @@ export default function AuthPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
+          <div className="flex justify-center mb-4">
+            <img 
+              src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" 
+              alt="Dzaleka Digital Heritage Logo" 
+              className="h-16 w-auto"
+            />
+          </div>
           <h1 className="text-3xl font-bold text-foreground">Visit Dzaleka</h1>
-          <p className="text-muted-foreground mt-2">Refugee Camp Visitor Management</p>
+          <p className="text-muted-foreground mt-2">Visitor Management System</p>
         </div>
 
         <Card>
@@ -553,6 +560,18 @@ export default function AuthPage() {
             Book here
           </a>
         </p>
+
+        <div className="mt-8 pt-6 border-t border-border/40 text-center">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Code of Practice</h3>
+          <p className="text-[10px] text-muted-foreground leading-relaxed px-4">
+            Information technology resources are essential for accomplishing Dzaleka Online Services's mission. 
+            Members and users of the Visit Dzaleka community are granted shared access to these resources on 
+            condition they are used in accordance with the organisation's Information Technology Code of Practice. 
+            This Code of Practice applies irrespective of where the technology resources are accessed and used, 
+            and includes use at home. You can expect sanctions if you act irresponsibly and disregard your 
+            obligations under the <a href="https://services.dzaleka.com/terms/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Terms and Conditions</a>. It is your responsibility to become familiar with the <a href="https://services.dzaleka.com/terms/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Terms and Conditions</a>.
+          </p>
+        </div>
       </div>
     </div>
   );

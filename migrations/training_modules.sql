@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS training_modules (
   sort_order INTEGER DEFAULT 0,
   is_required BOOLEAN DEFAULT true,
   is_active BOOLEAN DEFAULT true,
+  target_audience VARCHAR DEFAULT 'both', -- 'guide', 'visitor', or 'both'
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -19,6 +20,14 @@ DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'training_progress_status') THEN
     CREATE TYPE training_progress_status AS ENUM ('not_started', 'in_progress', 'completed');
+  END IF;
+END$$;
+
+-- Target Audience Enum
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'target_audience') THEN
+    CREATE TYPE target_audience AS ENUM ('guide', 'visitor', 'both');
   END IF;
 END$$;
 
@@ -38,6 +47,7 @@ CREATE TABLE IF NOT EXISTS guide_training_progress (
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_training_modules_category ON training_modules(category);
 CREATE INDEX IF NOT EXISTS idx_training_modules_active ON training_modules(is_active);
+CREATE INDEX IF NOT EXISTS idx_training_modules_audience ON training_modules(target_audience);
 CREATE INDEX IF NOT EXISTS idx_guide_training_progress_guide ON guide_training_progress(guide_id);
 CREATE INDEX IF NOT EXISTS idx_guide_training_progress_module ON guide_training_progress(module_id);
 

@@ -36,6 +36,7 @@ import SecurityAdmin from "@/pages/security-admin";
 import AcceptInvite from "@/pages/accept-invite";
 import GuideTraining from "@/pages/guide-training";
 import TrainingAdmin from "@/pages/training-admin";
+import VisitorResources from "@/pages/visitor-resources";
 
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -101,6 +102,7 @@ function Router() {
         <Route path="/guides" component={Guides} />
         <Route path="/guide/:slug" component={GuideProfile} />
         <Route path="/guide-training" component={GuideTraining} />
+        <Route path="/training-admin" component={TrainingAdmin} />
         <Route path="/zones" component={Zones} />
         <Route path="/security" component={Security} />
         <Route path="/users" component={UsersPage} />
@@ -113,7 +115,7 @@ function Router() {
         <Route path="/audit-logs" component={AuditLogs} />
         <Route path="/cms" component={CMSPage} />
         <Route path="/security-admin" component={SecurityAdmin} />
-        <Route path="/training-admin" component={TrainingAdmin} />
+        <Route path="/resources" component={VisitorResources} />
         <Route path="/landing" component={Landing} />
         <Route component={NotFound} />
       </Switch>

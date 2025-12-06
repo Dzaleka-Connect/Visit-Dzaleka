@@ -64,6 +64,12 @@ const mainNavigationItems: NavItem[] = [
     roles: ["visitor"],
   },
   {
+    title: "Learning Center",
+    url: "/resources",
+    icon: BookOpen,
+    roles: ["visitor"],
+  },
+  {
     title: "Calendar",
     url: "/calendar",
     icon: CalendarDays,

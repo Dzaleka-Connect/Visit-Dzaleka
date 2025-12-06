@@ -289,6 +289,8 @@ export interface IStorage {
 
   // Training Module operations
   getTrainingModules(): Promise<TrainingModule[]>;
+  getGuideTrainingModules(): Promise<TrainingModule[]>;
+  getVisitorResources(): Promise<TrainingModule[]>;
   getTrainingModule(id: string): Promise<TrainingModule | undefined>;
   createTrainingModule(module: InsertTrainingModule): Promise<TrainingModule>;
   updateTrainingModule(id: string, module: Partial<TrainingModule>): Promise<TrainingModule | undefined>;
@@ -298,6 +300,7 @@ export interface IStorage {
   getGuideTrainingProgress(guideId: string): Promise<GuideTrainingProgress[]>;
   updateGuideTrainingProgress(guideId: string, moduleId: string, status: TrainingProgressStatus, notes?: string): Promise<GuideTrainingProgress>;
   getGuideTrainingStats(guideId: string): Promise<{ completed: number; total: number; percentage: number }>;
+  getAllGuidesTrainingStats(): Promise<Array<{ guide: Guide; completed: number; total: number; percentage: number }>>;
 }
 
 export class SupabaseStorage implements IStorage {
@@ -1544,6 +1547,26 @@ export class SupabaseStorage implements IStorage {
     return this.handleResponse(data || [], error);
   }
 
+  async getGuideTrainingModules(): Promise<TrainingModule[]> {
+    const { data, error } = await this.supabase
+      .from("training_modules")
+      .select("*")
+      .eq("is_active", true)
+      .in("target_audience", ["guide", "both"])
+      .order("sort_order", { ascending: true });
+    return this.handleResponse(data || [], error);
+  }
+
+  async getVisitorResources(): Promise<TrainingModule[]> {
+    const { data, error } = await this.supabase
+      .from("training_modules")
+      .select("*")
+      .eq("is_active", true)
+      .in("target_audience", ["visitor", "both"])
+      .order("sort_order", { ascending: true });
+    return this.handleResponse(data || [], error);
+  }
+
   async getTrainingModule(id: string): Promise<TrainingModule | undefined> {
     const { data, error } = await this.supabase
       .from("training_modules")
@@ -1642,12 +1665,13 @@ export class SupabaseStorage implements IStorage {
   }
 
   async getGuideTrainingStats(guideId: string): Promise<{ completed: number; total: number; percentage: number }> {
-    // Get all active required modules
+    // Get all active required modules for guides
     const { data: modules } = await this.supabase
       .from("training_modules")
       .select("id")
       .eq("is_active", true)
-      .eq("is_required", true);
+      .eq("is_required", true)
+      .in("target_audience", ["guide", "both"]);
 
     const totalModules = modules?.length || 0;
 
@@ -1666,6 +1690,44 @@ export class SupabaseStorage implements IStorage {
       total: totalModules,
       percentage,
     };
+  }
+
+  async getAllGuidesTrainingStats(): Promise<Array<{ guide: Guide; completed: number; total: number; percentage: number }>> {
+    // Get all guides
+    const guides = await this.getGuides();
+
+    // Get all required guide training modules
+    const { data: modules } = await this.supabase
+      .from("training_modules")
+      .select("id")
+      .eq("is_active", true)
+      .eq("is_required", true)
+      .in("target_audience", ["guide", "both"]);
+
+    const totalModules = modules?.length || 0;
+
+    // Get all training progress
+    const { data: allProgress } = await this.supabase
+      .from("guide_training_progress")
+      .select("*")
+      .eq("status", "completed");
+
+    // Calculate stats for each guide
+    const results = guides.map(guide => {
+      const guideProgress = allProgress?.filter(p => p.guide_id === guide.id) || [];
+      const completedCount = guideProgress.length;
+      const percentage = totalModules > 0 ? Math.round((completedCount / totalModules) * 100) : 0;
+
+      return {
+        guide,
+        completed: completedCount,
+        total: totalModules,
+        percentage,
+      };
+    });
+
+    // Sort by percentage descending
+    return results.sort((a, b) => b.percentage - a.percentage);
   }
 }
 

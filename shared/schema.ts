@@ -762,7 +762,14 @@ export const trainingProgressStatusEnum = pgEnum("training_progress_status", [
   "completed",
 ]);
 
-// Training Modules - stores training content for guides
+// Target Audience Enum - for separating guide vs visitor content
+export const targetAudienceEnum = pgEnum("target_audience", [
+  "guide",
+  "visitor",
+  "both",
+]);
+
+// Training Modules - stores training content for guides and visitors
 export const trainingModules = pgTable("training_modules", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   title: varchar("title").notNull(),
@@ -774,6 +781,7 @@ export const trainingModules = pgTable("training_modules", {
   sortOrder: integer("sort_order").default(0),
   isRequired: boolean("is_required").default(true),
   isActive: boolean("is_active").default(true),
+  targetAudience: targetAudienceEnum("target_audience").default("both"), // guide, visitor, or both
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -828,3 +836,5 @@ export type GuideTrainingProgress = typeof guideTrainingProgress.$inferSelect;
 export type InsertGuideTrainingProgress = z.infer<typeof insertGuideTrainingProgressSchema>;
 
 export type TrainingProgressStatus = "not_started" | "in_progress" | "completed";
+
+export type TargetAudience = "guide" | "visitor" | "both";

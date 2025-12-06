@@ -3119,6 +3119,17 @@ export async function registerRoutes(
 
   // ==================== TRAINING MODULE ROUTES ====================
 
+  // Get all guides' training stats (for admin dashboard)
+  app.get("/api/training/guides-stats", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const stats = await storage.getAllGuidesTrainingStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching all guides training stats:", error);
+      res.status(500).json({ message: "Failed to fetch guides training stats" });
+    }
+  });
+
   // Get all training modules (for guides and admins)
   app.get("/api/training/modules", isAuthenticated, async (req, res) => {
     try {
@@ -3207,8 +3218,19 @@ export async function registerRoutes(
 
   // ==================== GUIDE TRAINING PROGRESS ROUTES ====================
 
-  // Get current guide's training progress (for guides)
-  app.get("/api/training/progress", isAuthenticated, async (req: any, res) => {
+  // Training endpoints
+  app.get("/api/visitor-resources", isAuthenticated, async (req, res) => {
+    try {
+      // Get visitor-targeted training modules only
+      const modules = await storage.getVisitorResources();
+      res.json(modules);
+    } catch (error) {
+      console.error("Error fetching visitor resources:", error);
+      res.status(500).json({ message: "Failed to fetch resources" });
+    }
+  });
+
+  app.get("/api/training/progress", isAuthenticated, requireRole("guide", "admin", "coordinator"), async (req: any, res) => {
     try {
       const userId = req.session?.userId;
       if (!userId) {

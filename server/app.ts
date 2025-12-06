@@ -27,7 +27,8 @@ export async function createApp() {
   const httpServer = createServer(app);
 
   // Trust proxy is required for secure cookies to work behind Netlify's load balancer
-  app.set('trust proxy', 1);
+  // Using 'true' trusts the client's IP address and is more robust for varying proxy depths
+  app.set('trust proxy', true);
 
   // Security headers
   app.use(helmet({
@@ -87,11 +88,13 @@ export async function createApp() {
       tableName: 'sessions',
       createTableIfMissing: true,
     });
+    log("Using PostgreSQL session store");
   } else {
     const MemoryStore = createMemoryStore(session);
     sessionStore = new MemoryStore({
       checkPeriod: 86400000, // prune expired entries every 24h
     });
+    log("Using Memory session store");
   }
 
   // Session setup
@@ -111,9 +114,6 @@ export async function createApp() {
   app.use("/api/auth/forgot-password", authLimiter);
   app.use("/api", apiLimiter);
 
-  // Debug session store type
-  console.log(`[Session] Using ${isProduction && process.env.DATABASE_URL ? 'PostgreSQL' : 'Memory'} session store`);
-
   app.use(
     session({
       store: sessionStore,
@@ -121,6 +121,7 @@ export async function createApp() {
       resave: false,
       saveUninitialized: false,
       name: 'dzaleka.sid', // Custom session cookie name
+      proxy: true, // Required for secure cookies behind a proxy
       cookie: {
         secure: isProduction, // true for HTTPS
         httpOnly: true,
