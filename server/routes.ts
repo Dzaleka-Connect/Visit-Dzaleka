@@ -80,15 +80,22 @@ function calculateTotalAmount(groupSize: string, tourType: string, customDuratio
 // Role-based access control middleware (session-based)
 function requireRole(...allowedRoles: UserRole[]) {
   return async (req: Request, res: Response, next: NextFunction) => {
+    const userId = req.session?.userId;
+
+    // Early return if not authenticated - this prevents 500 errors
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     try {
-      const userId = req.session?.userId;
-      if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
+      const user = await storage.getUser(userId);
+      if (!user) {
+        // Session exists but user not found - clear invalid session
+        return res.status(401).json({ message: "Session expired" });
       }
 
-      const user = await storage.getUser(userId);
-      if (!user || !user.role) {
-        return res.status(403).json({ message: "Access denied" });
+      if (!user.role) {
+        return res.status(403).json({ message: "Access denied - no role assigned" });
       }
 
       if (!allowedRoles.includes(user.role as UserRole)) {
@@ -801,15 +808,17 @@ export async function registerRoutes(
   app.get("/api/bookings", isAuthenticated, requireRole("admin", "coordinator", "security"), async (req, res) => {
     try {
       const bookingsList = await storage.getBookings();
-      const bookingsWithGuides = await Promise.all(
-        bookingsList.map(async (booking) => {
-          if (booking.assignedGuideId) {
-            const guide = await storage.getGuide(booking.assignedGuideId);
-            return { ...booking, guide };
-          }
-          return booking;
-        })
-      );
+
+      // Batch fetch guides
+      const guideIds = [...new Set(bookingsList.map(b => b.assignedGuideId).filter(Boolean) as string[])];
+      const guides = await storage.getGuidesByIds(guideIds);
+      const guidesMap = new Map(guides.map(g => [g.id, g]));
+
+      const bookingsWithGuides = bookingsList.map(booking => ({
+        ...booking,
+        guide: booking.assignedGuideId ? guidesMap.get(booking.assignedGuideId) || null : null
+      }));
+
       res.json(bookingsWithGuides);
     } catch (error) {
       console.error("Error fetching bookings:", error);
@@ -820,15 +829,17 @@ export async function registerRoutes(
   app.get("/api/bookings/recent", isAuthenticated, requireRole("admin", "coordinator", "security"), async (req, res) => {
     try {
       const recentBookings = await storage.getRecentBookings(10);
-      const bookingsWithGuides = await Promise.all(
-        recentBookings.map(async (booking) => {
-          if (booking.assignedGuideId) {
-            const guide = await storage.getGuide(booking.assignedGuideId);
-            return { ...booking, guide };
-          }
-          return booking;
-        })
-      );
+
+      // Batch fetch guides
+      const guideIds = [...new Set(recentBookings.map(b => b.assignedGuideId).filter(Boolean) as string[])];
+      const guides = await storage.getGuidesByIds(guideIds);
+      const guidesMap = new Map(guides.map(g => [g.id, g]));
+
+      const bookingsWithGuides = recentBookings.map(booking => ({
+        ...booking,
+        guide: booking.assignedGuideId ? guidesMap.get(booking.assignedGuideId) || null : null
+      }));
+
       res.json(bookingsWithGuides);
     } catch (error) {
       console.error("Error fetching recent bookings:", error);
@@ -839,15 +850,17 @@ export async function registerRoutes(
   app.get("/api/bookings/today", isAuthenticated, requireRole("admin", "coordinator", "security", "guide"), async (req, res) => {
     try {
       const todaysBookings = await storage.getTodaysBookings();
-      const bookingsWithGuides = await Promise.all(
-        todaysBookings.map(async (booking) => {
-          if (booking.assignedGuideId) {
-            const guide = await storage.getGuide(booking.assignedGuideId);
-            return { ...booking, guide };
-          }
-          return booking;
-        })
-      );
+
+      // Batch fetch guides
+      const guideIds = [...new Set(todaysBookings.map(b => b.assignedGuideId).filter(Boolean) as string[])];
+      const guides = await storage.getGuidesByIds(guideIds);
+      const guidesMap = new Map(guides.map(g => [g.id, g]));
+
+      const bookingsWithGuides = todaysBookings.map(booking => ({
+        ...booking,
+        guide: booking.assignedGuideId ? guidesMap.get(booking.assignedGuideId) || null : null
+      }));
+
       res.json(bookingsWithGuides);
     } catch (error) {
       console.error("Error fetching today's bookings:", error);
@@ -859,15 +872,17 @@ export async function registerRoutes(
   app.get("/api/bookings/active", isAuthenticated, requireRole("admin", "coordinator", "security"), async (req, res) => {
     try {
       const activeVisits = await storage.getActiveVisits();
-      const bookingsWithGuides = await Promise.all(
-        activeVisits.map(async (booking) => {
-          if (booking.assignedGuideId) {
-            const guide = await storage.getGuide(booking.assignedGuideId);
-            return { ...booking, guide };
-          }
-          return booking;
-        })
-      );
+
+      // Batch fetch guides
+      const guideIds = [...new Set(activeVisits.map(b => b.assignedGuideId).filter(Boolean) as string[])];
+      const guides = await storage.getGuidesByIds(guideIds);
+      const guidesMap = new Map(guides.map(g => [g.id, g]));
+
+      const bookingsWithGuides = activeVisits.map(booking => ({
+        ...booking,
+        guide: booking.assignedGuideId ? guidesMap.get(booking.assignedGuideId) || null : null
+      }));
+
       res.json(bookingsWithGuides);
     } catch (error) {
       console.error("Error fetching active visits:", error);
@@ -1619,6 +1634,54 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching guides:", error);
       res.status(500).json({ message: "Failed to fetch guides" });
+    }
+  });
+
+  // Get guide by URL slug (firstname-lastname format)
+  app.get("/api/guides/slug/:slug", isAuthenticated, requireRole("admin", "coordinator", "guide", "security"), async (req, res) => {
+    try {
+      const slug = req.params.slug.toLowerCase().trim();
+      console.log("Looking for guide with slug:", slug);
+
+      const guides = await storage.getGuides();
+      console.log("Available guides:", guides.map(g => `${g.firstName} ${g.lastName}`));
+
+      // Normalize function to create consistent slugs
+      const normalizeSlug = (str: string) => str
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '-')  // Replace spaces with hyphens
+        .replace(/[^a-z0-9-]/g, ''); // Remove special characters
+
+      // Find guide by matching slug (firstname-lastname)
+      const guide = guides.find(g => {
+        const guideSlug = normalizeSlug(`${g.firstName}-${g.lastName}`);
+        console.log(`Comparing: "${guideSlug}" with "${slug}"`);
+        return guideSlug === slug;
+      });
+
+      if (!guide) {
+        console.log("Guide not found for slug:", slug);
+        return res.status(404).json({ message: "Guide not found" });
+      }
+
+      console.log("Found guide:", guide.firstName, guide.lastName);
+      res.json(guide);
+    } catch (error) {
+      console.error("Error fetching guide by slug:", error);
+      res.status(500).json({ message: "Failed to fetch guide" });
+    }
+  });
+
+  // Get bookings for a specific guide
+  app.get("/api/guides/:id/bookings", isAuthenticated, requireRole("admin", "coordinator", "guide"), async (req, res) => {
+    try {
+      const bookings = await storage.getBookings();
+      const guideBookings = bookings.filter(b => b.assignedGuideId === req.params.id);
+      res.json(guideBookings);
+    } catch (error) {
+      console.error("Error fetching guide bookings:", error);
+      res.status(500).json({ message: "Failed to fetch guide bookings" });
     }
   });
 
@@ -3051,6 +3114,206 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Accept invite error:", error);
       res.status(500).json({ message: "Failed to accept invitation" });
+    }
+  });
+
+  // ==================== TRAINING MODULE ROUTES ====================
+
+  // Get all training modules (for guides and admins)
+  app.get("/api/training/modules", isAuthenticated, async (req, res) => {
+    try {
+      const modules = await storage.getTrainingModules();
+      res.json(modules);
+    } catch (error) {
+      console.error("Error fetching training modules:", error);
+      res.status(500).json({ message: "Failed to fetch training modules" });
+    }
+  });
+
+  // Get single training module
+  app.get("/api/training/modules/:id", isAuthenticated, async (req, res) => {
+    try {
+      const module = await storage.getTrainingModule(req.params.id);
+      if (!module) {
+        return res.status(404).json({ message: "Training module not found" });
+      }
+      res.json(module);
+    } catch (error) {
+      console.error("Error fetching training module:", error);
+      res.status(500).json({ message: "Failed to fetch training module" });
+    }
+  });
+
+  // Create training module (admin only)
+  app.post("/api/training/modules", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    try {
+      const moduleData = req.body;
+      const module = await storage.createTrainingModule(moduleData);
+
+      const userId = req.session?.userId;
+      if (userId) {
+        await createAuditLog(userId, "create", "training_module", module.id, null, moduleData, req);
+      }
+
+      res.status(201).json(module);
+    } catch (error) {
+      console.error("Error creating training module:", error);
+      res.status(500).json({ message: "Failed to create training module" });
+    }
+  });
+
+  // Update training module (admin only)
+  app.patch("/api/training/modules/:id", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    try {
+      const oldModule = await storage.getTrainingModule(req.params.id);
+      const module = await storage.updateTrainingModule(req.params.id, req.body);
+      if (!module) {
+        return res.status(404).json({ message: "Training module not found" });
+      }
+
+      const userId = req.session?.userId;
+      if (userId) {
+        await createAuditLog(userId, "update", "training_module", module.id, oldModule, req.body, req);
+      }
+
+      res.json(module);
+    } catch (error) {
+      console.error("Error updating training module:", error);
+      res.status(500).json({ message: "Failed to update training module" });
+    }
+  });
+
+  // Delete training module (admin only)
+  app.delete("/api/training/modules/:id", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    try {
+      const module = await storage.getTrainingModule(req.params.id);
+      if (!module) {
+        return res.status(404).json({ message: "Training module not found" });
+      }
+
+      await storage.deleteTrainingModule(req.params.id);
+
+      const userId = req.session?.userId;
+      if (userId) {
+        await createAuditLog(userId, "delete", "training_module", req.params.id, module, null, req);
+      }
+
+      res.json({ message: "Training module deleted" });
+    } catch (error) {
+      console.error("Error deleting training module:", error);
+      res.status(500).json({ message: "Failed to delete training module" });
+    }
+  });
+
+  // ==================== GUIDE TRAINING PROGRESS ROUTES ====================
+
+  // Get current guide's training progress (for guides)
+  app.get("/api/training/progress", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      // Get guide by user ID
+      const guide = await storage.getGuideByUserId(userId);
+      if (!guide) {
+        return res.status(404).json({ message: "Guide profile not found" });
+      }
+
+      const progress = await storage.getGuideTrainingProgress(guide.id);
+      const modules = await storage.getTrainingModules();
+
+      // Combine modules with progress
+      const modulesWithProgress = modules.map(module => {
+        const moduleProgress = progress.find(p => p.moduleId === module.id);
+        return {
+          ...module,
+          progress: moduleProgress || { status: "not_started", completedAt: null, notes: null }
+        };
+      });
+
+      res.json(modulesWithProgress);
+    } catch (error) {
+      console.error("Error fetching training progress:", error);
+      res.status(500).json({ message: "Failed to fetch training progress" });
+    }
+  });
+
+  // Get specific guide's training progress (for admins)
+  app.get("/api/guides/:guideId/training", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const progress = await storage.getGuideTrainingProgress(req.params.guideId);
+      const stats = await storage.getGuideTrainingStats(req.params.guideId);
+      const modules = await storage.getTrainingModules();
+
+      // Combine modules with progress
+      const modulesWithProgress = modules.map(module => {
+        const moduleProgress = progress.find(p => p.moduleId === module.id);
+        return {
+          ...module,
+          progress: moduleProgress || { status: "not_started", completedAt: null, notes: null }
+        };
+      });
+
+      res.json({
+        modules: modulesWithProgress,
+        stats
+      });
+    } catch (error) {
+      console.error("Error fetching guide training:", error);
+      res.status(500).json({ message: "Failed to fetch guide training" });
+    }
+  });
+
+  // Update training progress (for guides)
+  app.post("/api/training/progress/:moduleId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      // Get guide by user ID
+      const guide = await storage.getGuideByUserId(userId);
+      if (!guide) {
+        return res.status(404).json({ message: "Guide profile not found" });
+      }
+
+      const { status, notes } = req.body;
+      if (!status || !["not_started", "in_progress", "completed"].includes(status)) {
+        return res.status(400).json({ message: "Invalid status. Must be not_started, in_progress, or completed" });
+      }
+
+      const progress = await storage.updateGuideTrainingProgress(guide.id, req.params.moduleId, status, notes);
+
+      await createAuditLog(userId, "update", "training_progress", progress.id, null, { moduleId: req.params.moduleId, status }, req);
+
+      res.json(progress);
+    } catch (error) {
+      console.error("Error updating training progress:", error);
+      res.status(500).json({ message: "Failed to update training progress" });
+    }
+  });
+
+  // Get training stats for current guide
+  app.get("/api/training/stats", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const guide = await storage.getGuideByUserId(userId);
+      if (!guide) {
+        return res.status(404).json({ message: "Guide profile not found" });
+      }
+
+      const stats = await storage.getGuideTrainingStats(guide.id);
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching training stats:", error);
+      res.status(500).json({ message: "Failed to fetch training stats" });
     }
   });
 

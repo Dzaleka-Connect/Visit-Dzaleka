@@ -754,3 +754,77 @@ export const insertUserInviteSchema = createInsertSchema(userInvites).omit({
 
 export type UserInvite = typeof userInvites.$inferSelect;
 export type InsertUserInvite = z.infer<typeof insertUserInviteSchema>;
+
+// Training Progress Status Enum
+export const trainingProgressStatusEnum = pgEnum("training_progress_status", [
+  "not_started",
+  "in_progress",
+  "completed",
+]);
+
+// Training Modules - stores training content for guides
+export const trainingModules = pgTable("training_modules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title").notNull(),
+  description: text("description"),
+  category: varchar("category").notNull(), // e.g., "About Dzaleka", "Culture", "Services"
+  content: text("content"), // Full training content/instructions
+  externalUrl: varchar("external_url"), // Link to external resource
+  estimatedMinutes: integer("estimated_minutes").default(15),
+  sortOrder: integer("sort_order").default(0),
+  isRequired: boolean("is_required").default(true),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Guide Training Progress - tracks each guide's progress on modules
+export const guideTrainingProgress = pgTable("guide_training_progress", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  guideId: varchar("guide_id").notNull(),
+  moduleId: varchar("module_id").notNull(),
+  status: trainingProgressStatusEnum("status").default("not_started"),
+  completedAt: timestamp("completed_at"),
+  notes: text("notes"), // Guide's notes/learnings
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Training Module Relations
+export const trainingModulesRelations = relations(trainingModules, ({ many }) => ({
+  progress: many(guideTrainingProgress),
+}));
+
+// Guide Training Progress Relations
+export const guideTrainingProgressRelations = relations(guideTrainingProgress, ({ one }) => ({
+  guide: one(guides, {
+    fields: [guideTrainingProgress.guideId],
+    references: [guides.id],
+  }),
+  module: one(trainingModules, {
+    fields: [guideTrainingProgress.moduleId],
+    references: [trainingModules.id],
+  }),
+}));
+
+// Insert Schemas for Training
+export const insertTrainingModuleSchema = createInsertSchema(trainingModules).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertGuideTrainingProgressSchema = createInsertSchema(guideTrainingProgress).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Training Types
+export type TrainingModule = typeof trainingModules.$inferSelect;
+export type InsertTrainingModule = z.infer<typeof insertTrainingModuleSchema>;
+
+export type GuideTrainingProgress = typeof guideTrainingProgress.$inferSelect;
+export type InsertGuideTrainingProgress = z.infer<typeof insertGuideTrainingProgressSchema>;
+
+export type TrainingProgressStatus = "not_started" | "in_progress" | "completed";

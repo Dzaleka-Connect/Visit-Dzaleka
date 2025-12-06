@@ -17,6 +17,7 @@ import Dashboard from "@/pages/dashboard";
 import Bookings from "@/pages/bookings";
 import MyBookings from "@/pages/my-bookings";
 import Guides from "@/pages/guides";
+import GuideProfile from "@/pages/guide-profile";
 import CalendarPage from "@/pages/calendar";
 import GuidePerformance from "@/pages/guide-performance";
 import Zones from "@/pages/zones";
@@ -33,6 +34,9 @@ import Landing from "@/pages/landing";
 import CMSPage from "@/pages/cms";
 import SecurityAdmin from "@/pages/security-admin";
 import AcceptInvite from "@/pages/accept-invite";
+import GuideTraining from "@/pages/guide-training";
+import TrainingAdmin from "@/pages/training-admin";
+
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const style = {
@@ -95,6 +99,8 @@ function Router() {
         <Route path="/calendar" component={CalendarPage} />
         <Route path="/guide-performance" component={GuidePerformance} />
         <Route path="/guides" component={Guides} />
+        <Route path="/guide/:slug" component={GuideProfile} />
+        <Route path="/guide-training" component={GuideTraining} />
         <Route path="/zones" component={Zones} />
         <Route path="/security" component={Security} />
         <Route path="/users" component={UsersPage} />
@@ -107,6 +113,7 @@ function Router() {
         <Route path="/audit-logs" component={AuditLogs} />
         <Route path="/cms" component={CMSPage} />
         <Route path="/security-admin" component={SecurityAdmin} />
+        <Route path="/training-admin" component={TrainingAdmin} />
         <Route path="/landing" component={Landing} />
         <Route component={NotFound} />
       </Switch>

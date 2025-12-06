@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Plus,
@@ -18,6 +19,7 @@ import {
   Clock,
   AlertCircle,
   CreditCard,
+  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -107,6 +109,15 @@ const TOUR_TIMES = [
   { value: "afternoon", label: "Afternoon (12:00 PM - 4:00 PM)" },
   { value: "evening", label: "Evening (4:00 PM - 7:00 PM)" },
 ];
+
+// Helper function to create consistent URL slugs
+const createGuideSlug = (firstName: string, lastName: string) => {
+  return `${firstName}-${lastName}`
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '');
+};
 
 export default function Guides() {
   const { toast } = useToast();
@@ -310,8 +321,8 @@ export default function Guides() {
 
   return (
     <div className="space-y-6">
-      <SEO 
-        title="Our Guides" 
+      <SEO
+        title="Our Guides"
         description="Meet our expert local guides. Each guide brings a unique perspective and deep knowledge of Dzaleka's history and culture."
       />
       <div className="flex flex-col gap-2">
@@ -366,7 +377,7 @@ export default function Guides() {
             >
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-4">
+                  <Link href={`/guide/${createGuideSlug(guide.firstName, guide.lastName)}`} className="flex items-center gap-4 hover:opacity-80 transition-opacity cursor-pointer">
                     <Avatar className="h-12 w-12">
                       <AvatarImage
                         src={guide.profileImageUrl || undefined}
@@ -379,7 +390,7 @@ export default function Guides() {
                     </Avatar>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">
+                        <h3 className="font-semibold text-primary hover:underline">
                           {guide.firstName} {guide.lastName}
                         </h3>
                         {guide.isActive ? (
@@ -397,7 +408,7 @@ export default function Guides() {
                         {guide.phone}
                       </p>
                     </div>
-                  </div>
+                  </Link>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
@@ -409,6 +420,12 @@ export default function Guides() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuItem asChild>
+                        <Link href={`/guide/${createGuideSlug(guide.firstName, guide.lastName)}`}>
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          View Profile
+                        </Link>
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleEdit(guide)}>
                         <Edit className="mr-2 h-4 w-4" />
                         Edit

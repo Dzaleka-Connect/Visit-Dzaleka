@@ -45,6 +45,11 @@ import {
   type InsertLoginHistory,
   type UserInvite,
   type InsertUserInvite,
+  type TrainingModule,
+  type InsertTrainingModule,
+  type GuideTrainingProgress,
+  type InsertGuideTrainingProgress,
+  type TrainingProgressStatus,
 } from "@shared/schema";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import crypto from "crypto";
@@ -148,10 +153,6 @@ export interface IStorage {
 
   // Booking operations
   getBookings(): Promise<Booking[]>;
-  getBooking(id: string): Promise<Booking | undefined>;
-  getBookingByReference(reference: string): Promise<Booking | undefined>;
-  getRecentBookings(limit: number): Promise<Booking[]>;
-  getTodaysBookings(): Promise<Booking[]>;
   getActiveVisits(): Promise<Booking[]>;
   createBooking(booking: InsertBooking): Promise<Booking>;
   updateBookingStatus(id: string, status: BookingStatus): Promise<Booking | undefined>;
@@ -161,6 +162,9 @@ export interface IStorage {
   checkInVisitor(id: string, checkInBy: string): Promise<Booking | undefined>;
   checkOutVisitor(id: string, checkOutBy: string): Promise<Booking | undefined>;
   updateBookingRating(id: string, rating: number): Promise<Booking | undefined>;
+
+  // Guide Helper
+  getGuidesByIds(ids: string[]): Promise<Guide[]>;
 
   // Guide Availability operations
   getGuideAvailability(guideId: string): Promise<GuideAvailability[]>;
@@ -282,6 +286,18 @@ export interface IStorage {
   createInvite(invite: InsertUserInvite): Promise<UserInvite>;
   acceptInvite(id: string): Promise<UserInvite | undefined>;
   deleteInvite(id: string): Promise<void>;
+
+  // Training Module operations
+  getTrainingModules(): Promise<TrainingModule[]>;
+  getTrainingModule(id: string): Promise<TrainingModule | undefined>;
+  createTrainingModule(module: InsertTrainingModule): Promise<TrainingModule>;
+  updateTrainingModule(id: string, module: Partial<TrainingModule>): Promise<TrainingModule | undefined>;
+  deleteTrainingModule(id: string): Promise<void>;
+
+  // Guide Training Progress operations
+  getGuideTrainingProgress(guideId: string): Promise<GuideTrainingProgress[]>;
+  updateGuideTrainingProgress(guideId: string, moduleId: string, status: TrainingProgressStatus, notes?: string): Promise<GuideTrainingProgress>;
+  getGuideTrainingStats(guideId: string): Promise<{ completed: number; total: number; percentage: number }>;
 }
 
 export class SupabaseStorage implements IStorage {
@@ -633,6 +649,16 @@ export class SupabaseStorage implements IStorage {
       .not("check_in_time", "is", null)
       .is("check_out_time", null)
       .order("check_in_time");
+    return this.handleResponse(data, error);
+  }
+
+  // Helper for batch fetching guides to avoid N+1 queries
+  async getGuidesByIds(ids: string[]): Promise<Guide[]> {
+    if (!ids.length) return [];
+    const { data, error } = await this.supabase
+      .from("guides")
+      .select("*")
+      .in("id", ids);
     return this.handleResponse(data, error);
   }
 
@@ -1507,6 +1533,141 @@ export class SupabaseStorage implements IStorage {
       .eq("id", id);
     if (error) throw error;
   }
+
+  // Training Module operations
+  async getTrainingModules(): Promise<TrainingModule[]> {
+    const { data, error } = await this.supabase
+      .from("training_modules")
+      .select("*")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true });
+    return this.handleResponse(data || [], error);
+  }
+
+  async getTrainingModule(id: string): Promise<TrainingModule | undefined> {
+    const { data, error } = await this.supabase
+      .from("training_modules")
+      .select("*")
+      .eq("id", id)
+      .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createTrainingModule(module: InsertTrainingModule): Promise<TrainingModule> {
+    const snakeData = transformToSnake(module);
+    const { data, error } = await this.supabase
+      .from("training_modules")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async updateTrainingModule(id: string, module: Partial<TrainingModule>): Promise<TrainingModule | undefined> {
+    const snakeData = transformToSnake({ ...module, updatedAt: new Date().toISOString() });
+    const { data, error } = await this.supabase
+      .from("training_modules")
+      .update(snakeData)
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async deleteTrainingModule(id: string): Promise<void> {
+    // Soft delete by setting is_active to false
+    const { error } = await this.supabase
+      .from("training_modules")
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw error;
+  }
+
+  // Guide Training Progress operations
+  async getGuideTrainingProgress(guideId: string): Promise<GuideTrainingProgress[]> {
+    const { data, error } = await this.supabase
+      .from("guide_training_progress")
+      .select("*")
+      .eq("guide_id", guideId);
+    return this.handleResponse(data || [], error);
+  }
+
+  async updateGuideTrainingProgress(
+    guideId: string,
+    moduleId: string,
+    status: TrainingProgressStatus,
+    notes?: string
+  ): Promise<GuideTrainingProgress> {
+    // First check if progress record exists
+    const { data: existing } = await this.supabase
+      .from("guide_training_progress")
+      .select("*")
+      .eq("guide_id", guideId)
+      .eq("module_id", moduleId)
+      .single();
+
+    const progressData: any = {
+      guide_id: guideId,
+      module_id: moduleId,
+      status,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (notes !== undefined) {
+      progressData.notes = notes;
+    }
+
+    if (status === "completed") {
+      progressData.completed_at = new Date().toISOString();
+    }
+
+    if (existing) {
+      // Update existing record
+      const { data, error } = await this.supabase
+        .from("guide_training_progress")
+        .update(progressData)
+        .eq("id", existing.id)
+        .select()
+        .single();
+      return this.handleResponse(data, error);
+    } else {
+      // Create new progress record
+      const { data, error } = await this.supabase
+        .from("guide_training_progress")
+        .insert(progressData)
+        .select()
+        .single();
+      return this.handleResponse(data, error);
+    }
+  }
+
+  async getGuideTrainingStats(guideId: string): Promise<{ completed: number; total: number; percentage: number }> {
+    // Get all active required modules
+    const { data: modules } = await this.supabase
+      .from("training_modules")
+      .select("id")
+      .eq("is_active", true)
+      .eq("is_required", true);
+
+    const totalModules = modules?.length || 0;
+
+    // Get completed progress for this guide
+    const { data: progress } = await this.supabase
+      .from("guide_training_progress")
+      .select("*")
+      .eq("guide_id", guideId)
+      .eq("status", "completed");
+
+    const completedCount = progress?.length || 0;
+    const percentage = totalModules > 0 ? Math.round((completedCount / totalModules) * 100) : 0;
+
+    return {
+      completed: completedCount,
+      total: totalModules,
+      percentage,
+    };
+  }
 }
 
 export const storage = new SupabaseStorage();
+

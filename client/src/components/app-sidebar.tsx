@@ -15,6 +15,7 @@ import {
   DollarSign,
   FileText,
   TrendingUp,
+  GraduationCap,
 } from "lucide-react";
 import {
   Sidebar,
@@ -92,6 +93,12 @@ const mainNavigationItems: NavItem[] = [
     icon: Users,
     roles: ["admin", "coordinator"],
   },
+  {
+    title: "Guide Training",
+    url: "/guide-training",
+    icon: GraduationCap,
+    roles: ["guide"],
+  },
 ];
 
 const financeItems: NavItem[] = [
@@ -132,6 +139,12 @@ const operationsItems: NavItem[] = [
     title: "Audit Logs",
     url: "/audit-logs",
     icon: FileText,
+    roles: ["admin"],
+  },
+  {
+    title: "Training Management",
+    url: "/training-admin",
+    icon: BookOpen,
     roles: ["admin"],
   },
 ];
