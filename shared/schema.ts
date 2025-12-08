@@ -327,6 +327,8 @@ export const emailLogs = pgTable("email_logs", {
   relatedEntityType: varchar("related_entity_type"), // 'booking', 'user', 'guide', etc.
   relatedEntityId: varchar("related_entity_id"),
   metadata: jsonb("metadata").default({}),
+  isArchived: boolean("is_archived").default(false),
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -838,3 +840,266 @@ export type InsertGuideTrainingProgress = z.infer<typeof insertGuideTrainingProg
 export type TrainingProgressStatus = "not_started" | "in_progress" | "completed";
 
 export type TargetAudience = "guide" | "visitor" | "both";
+
+// ==================== TASK MANAGEMENT ====================
+
+// Task Enums
+export const taskPriorityEnum = pgEnum("task_priority", [
+  "low",
+  "medium",
+  "high",
+  "urgent",
+]);
+
+export const taskStatusEnum = pgEnum("task_status", [
+  "pending",
+  "in_progress",
+  "under_review",
+  "completed",
+  "cancelled",
+]);
+
+export const taskCategoryEnum = pgEnum("task_category", [
+  "tour_prep",
+  "training",
+  "admin",
+  "maintenance",
+  "communication",
+  "documentation",
+  "other",
+]);
+
+// Tasks Table
+export const tasks = pgTable("tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 50 }).default("other"),
+  priority: varchar("priority", { length: 10 }).default("medium"),
+  status: varchar("status", { length: 20 }).default("pending"),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  assignedBy: varchar("assigned_by").references(() => users.id),
+  dueDate: timestamp("due_date", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  estimatedHours: integer("estimated_hours"),
+  actualHours: integer("actual_hours"),
+  isRecurring: boolean("is_recurring").default(false),
+  recurrencePattern: varchar("recurrence_pattern", { length: 50 }),
+  parentTaskId: varchar("parent_task_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  assignedToIdx: index("idx_tasks_assigned_to").on(table.assignedTo),
+  statusIdx: index("idx_tasks_status").on(table.status),
+  dueDateIdx: index("idx_tasks_due_date").on(table.dueDate),
+}));
+
+// Task Comments Table
+export const taskComments = pgTable("task_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id").notNull().references(() => tasks.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  taskIdx: index("idx_task_comments_task").on(table.taskId),
+}));
+
+// Task Attachments Table
+export const taskAttachments = pgTable("task_attachments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id").notNull().references(() => tasks.id),
+  fileUrl: varchar("file_url", { length: 500 }).notNull(),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  fileType: varchar("file_type", { length: 50 }),
+  fileSize: integer("file_size"),
+  uploadedBy: varchar("uploaded_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  taskIdx: index("idx_task_attachments_task").on(table.taskId),
+}));
+
+// Task History Table (audit trail)
+export const taskHistory = pgTable("task_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id").notNull().references(() => tasks.id),
+  userId: varchar("user_id").references(() => users.id),
+  action: varchar("action", { length: 50 }).notNull(),
+  fieldName: varchar("field_name", { length: 50 }),
+  oldValue: text("old_value"),
+  newValue: text("new_value"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  taskIdx: index("idx_task_history_task").on(table.taskId),
+}));
+
+// Task Relations
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
+  assignee: one(users, {
+    fields: [tasks.assignedTo],
+    references: [users.id],
+    relationName: "assignedTasks",
+  }),
+  assigner: one(users, {
+    fields: [tasks.assignedBy],
+    references: [users.id],
+    relationName: "createdTasks",
+  }),
+  comments: many(taskComments),
+  attachments: many(taskAttachments),
+  history: many(taskHistory),
+}));
+
+export const taskCommentsRelations = relations(taskComments, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskComments.taskId],
+    references: [tasks.id],
+  }),
+  user: one(users, {
+    fields: [taskComments.userId],
+    references: [users.id],
+  }),
+}));
+
+export const taskAttachmentsRelations = relations(taskAttachments, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskAttachments.taskId],
+    references: [tasks.id],
+  }),
+  uploader: one(users, {
+    fields: [taskAttachments.uploadedBy],
+    references: [users.id],
+  }),
+}));
+
+export const taskHistoryRelations = relations(taskHistory, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskHistory.taskId],
+    references: [tasks.id],
+  }),
+  user: one(users, {
+    fields: [taskHistory.userId],
+    references: [users.id],
+  }),
+}));
+
+// Insert Schemas for Tasks
+export const insertTaskSchema = createInsertSchema(tasks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  completedAt: true,
+});
+
+export const insertTaskCommentSchema = createInsertSchema(taskComments).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertTaskAttachmentSchema = createInsertSchema(taskAttachments).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Task Types
+export type Task = typeof tasks.$inferSelect;
+export type InsertTask = z.infer<typeof insertTaskSchema>;
+
+export type TaskComment = typeof taskComments.$inferSelect;
+export type InsertTaskComment = z.infer<typeof insertTaskCommentSchema>;
+
+export type TaskAttachment = typeof taskAttachments.$inferSelect;
+export type InsertTaskAttachment = z.infer<typeof insertTaskAttachmentSchema>;
+
+export type TaskHistory = typeof taskHistory.$inferSelect;
+
+export type TaskPriority = "low" | "medium" | "high" | "urgent";
+export type TaskStatus = "pending" | "in_progress" | "under_review" | "completed" | "cancelled";
+export type TaskCategory = "tour_prep" | "training" | "admin" | "maintenance" | "communication" | "documentation" | "other";
+
+// Chat Rooms table
+export const chatRooms = pgTable("chat_rooms", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name"),
+  type: varchar("type").default("direct"), // 'direct', 'booking', 'group'
+  bookingId: varchar("booking_id"),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Chat Participants table
+export const chatParticipants = pgTable("chat_participants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  roomId: varchar("room_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  joinedAt: timestamp("joined_at").defaultNow(),
+  lastReadAt: timestamp("last_read_at").defaultNow(),
+});
+
+// Chat Messages table
+export const chatMessages = pgTable("chat_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  roomId: varchar("room_id").notNull(),
+  senderId: varchar("sender_id"),
+  content: text("content").notNull(),
+  messageType: varchar("message_type").default("text"), // 'text', 'image', 'system'
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Chat Insert Schemas
+export const insertChatRoomSchema = createInsertSchema(chatRooms).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertChatParticipantSchema = createInsertSchema(chatParticipants).omit({
+  id: true,
+  joinedAt: true,
+});
+
+// Chat Types
+export type ChatRoom = typeof chatRooms.$inferSelect;
+export type InsertChatRoom = z.infer<typeof insertChatRoomSchema>;
+
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
+
+export type ChatParticipant = typeof chatParticipants.$inferSelect;
+export type InsertChatParticipant = z.infer<typeof insertChatParticipantSchema>;
+
+// Chat Relations
+export const chatParticipantsRelations = relations(chatParticipants, ({ one }) => ({
+  user: one(users, {
+    fields: [chatParticipants.userId],
+    references: [users.id],
+  }),
+  room: one(chatRooms, {
+    fields: [chatParticipants.roomId],
+    references: [chatRooms.id],
+  }),
+}));
+
+export const chatRoomsRelations = relations(chatRooms, ({ many }) => ({
+  participants: many(chatParticipants),
+  messages: many(chatMessages),
+}));
+
+export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
+  room: one(chatRooms, {
+    fields: [chatMessages.roomId],
+    references: [chatRooms.id],
+  }),
+  sender: one(users, {
+    fields: [chatMessages.senderId],
+    references: [users.id],
+  }),
+}));

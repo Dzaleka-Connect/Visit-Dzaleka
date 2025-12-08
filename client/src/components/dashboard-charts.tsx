@@ -52,7 +52,7 @@ export function WeeklyBookingTrends() {
       <CardContent>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorBookings" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
@@ -62,17 +62,21 @@ export function WeeklyBookingTrends() {
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis
                 dataKey="date"
-                fontSize={12}
+                fontSize={11}
                 tickLine={false}
                 axisLine={false}
                 className="text-muted-foreground"
+                tick={{ fill: 'currentColor' }}
+                interval="preserveStartEnd"
               />
               <YAxis
-                fontSize={12}
+                fontSize={11}
                 tickLine={false}
                 axisLine={false}
                 className="text-muted-foreground"
                 allowDecimals={false}
+                tick={{ fill: 'currentColor' }}
+                width={35}
               />
               <Tooltip
                 contentStyle={{
@@ -127,25 +131,36 @@ export function PopularZonesChart() {
       <CardContent>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
+            <PieChart margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
               <Pie
                 data={chartData}
                 cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={80}
+                cy="40%"
+                innerRadius={40}
+                outerRadius={60}
                 fill="#8884d8"
                 paddingAngle={5}
                 dataKey="visits"
                 nameKey="name"
-                label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                labelLine={false}
               >
                 {chartData.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip />
+              <Tooltip
+                formatter={(value: number) => [value, 'Visits']}
+                contentStyle={{
+                  backgroundColor: "hsl(var(--background))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                }}
+              />
+              <Legend
+                verticalAlign="bottom"
+                height={36}
+                wrapperStyle={{ fontSize: '11px' }}
+              />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -173,7 +188,11 @@ export function GuidePerformanceChart() {
     );
   }
 
-  const chartData = data || [];
+  // Truncate long guide names for display
+  const chartData = (data || []).map(item => ({
+    ...item,
+    displayName: item.name.length > 12 ? item.name.substring(0, 12) + '...' : item.name,
+  }));
 
   return (
     <Card>
@@ -182,17 +201,31 @@ export function GuidePerformanceChart() {
         <CardDescription>Tours completed this month</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-64">
+        <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
+            <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }} barCategoryGap="15%">
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
-              <XAxis type="number" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis type="category" dataKey="name" fontSize={12} tickLine={false} axisLine={false} width={60} />
+              <XAxis type="number" fontSize={11} tickLine={false} axisLine={false} tick={{ fill: 'currentColor' }} orientation="bottom" />
+              <YAxis
+                type="category"
+                dataKey="displayName"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                width={80}
+                tick={{ fill: 'currentColor' }}
+              />
               <Tooltip
                 contentStyle={{
                   backgroundColor: "hsl(var(--background))",
                   border: "1px solid hsl(var(--border))",
                   borderRadius: "8px",
+                  fontSize: "12px",
+                }}
+                formatter={(value: number) => [value, 'Tours']}
+                labelFormatter={(label: string) => {
+                  const original = data?.find(d => d.name.startsWith(String(label).replace('...', '')));
+                  return original?.name || label;
                 }}
               />
               <Bar dataKey="tours" fill="#3b82f6" radius={[0, 4, 4, 0]} />

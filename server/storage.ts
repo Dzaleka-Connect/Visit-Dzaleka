@@ -50,6 +50,16 @@ import {
   type GuideTrainingProgress,
   type InsertGuideTrainingProgress,
   type TrainingProgressStatus,
+  type Task,
+  type InsertTask,
+  type TaskComment,
+  type InsertTaskComment,
+  type ChatRoom,
+  type InsertChatRoom,
+  type ChatMessage,
+  type InsertChatMessage,
+  type ChatParticipant,
+  type InsertChatParticipant,
 } from "@shared/schema";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import crypto from "crypto";
@@ -201,6 +211,8 @@ export interface IStorage {
   getEmailLog(id: string): Promise<EmailLog | undefined>;
   createEmailLog(log: InsertEmailLog): Promise<EmailLog>;
   updateEmailLogStatus(id: string, status: string): Promise<EmailLog | undefined>;
+  archiveEmailLog(id: string): Promise<EmailLog | undefined>;
+  deleteEmailLog(id: string): Promise<void>;
 
   // User authentication operations
   createUser(email: string, password: string, firstName: string, lastName: string, role?: UserRole): Promise<User>;
@@ -301,6 +313,28 @@ export interface IStorage {
   updateGuideTrainingProgress(guideId: string, moduleId: string, status: TrainingProgressStatus, notes?: string): Promise<GuideTrainingProgress>;
   getGuideTrainingStats(guideId: string): Promise<{ completed: number; total: number; percentage: number }>;
   getAllGuidesTrainingStats(): Promise<Array<{ guide: Guide; completed: number; total: number; percentage: number }>>;
+
+  // Task Management operations
+  getTasks(filters?: { status?: string; assignedTo?: string; priority?: string }): Promise<Task[]>;
+  getTask(id: string): Promise<Task | undefined>;
+  createTask(task: InsertTask): Promise<Task>;
+  updateTask(id: string, task: Partial<Task>): Promise<Task | undefined>;
+  deleteTask(id: string): Promise<void>;
+  getTasksByUser(userId: string): Promise<Task[]>;
+  getTaskComments(taskId: string): Promise<TaskComment[]>;
+  createTaskComment(comment: InsertTaskComment): Promise<TaskComment>;
+  getTaskStats(): Promise<{ total: number; pending: number; inProgress: number; completed: number; overdue: number }>;
+
+  // Chat operations
+  getChatRooms(userId: string): Promise<ChatRoom[]>;
+  getChatRoom(id: string): Promise<ChatRoom | undefined>;
+  createChatRoom(room: InsertChatRoom): Promise<ChatRoom>;
+  getOrCreateDirectRoom(userId1: string, userId2: string): Promise<ChatRoom>;
+  getChatMessages(roomId: string, limit?: number): Promise<ChatMessage[]>;
+  createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
+  getChatParticipants(roomId: string): Promise<ChatParticipant[]>;
+  addChatParticipant(participant: InsertChatParticipant): Promise<ChatParticipant>;
+  updateLastRead(roomId: string, userId: string): Promise<void>;
 }
 
 export class SupabaseStorage implements IStorage {
@@ -941,7 +975,11 @@ export class SupabaseStorage implements IStorage {
 
   // Email Log operations
   async getEmailLogs(): Promise<EmailLog[]> {
-    const { data, error } = await this.supabase.from("email_logs").select("*").order("created_at", { ascending: false });
+    const { data, error } = await this.supabase
+      .from("email_logs")
+      .select("*")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
     return this.handleResponse(data, error);
   }
 
@@ -966,6 +1004,26 @@ export class SupabaseStorage implements IStorage {
       .single();
     if (error && error.code === 'PGRST116') return undefined;
     return this.handleOptionalResponse(data, error);
+  }
+
+  async archiveEmailLog(id: string): Promise<EmailLog | undefined> {
+    const { data, error } = await this.supabase
+      .from("email_logs")
+      .update({ is_archived: true })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error && error.code === 'PGRST116') return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async deleteEmailLog(id: string): Promise<void> {
+    // Soft delete - set deleted_at timestamp
+    const { error } = await this.supabase
+      .from("email_logs")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw error;
   }
 
   // User authentication operations
@@ -1728,6 +1786,279 @@ export class SupabaseStorage implements IStorage {
 
     // Sort by percentage descending
     return results.sort((a, b) => b.percentage - a.percentage);
+  }
+
+  // ==================== TASK MANAGEMENT ====================
+
+  async getTasks(filters?: { status?: string; assignedTo?: string; priority?: string }): Promise<Task[]> {
+    let query = this.supabase
+      .from("tasks")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (filters?.status) {
+      query = query.eq("status", filters.status);
+    }
+    if (filters?.assignedTo) {
+      query = query.eq("assigned_to", filters.assignedTo);
+    }
+    if (filters?.priority) {
+      query = query.eq("priority", filters.priority);
+    }
+
+    const { data, error } = await query;
+    return this.handleResponse(data, error) as Task[];
+  }
+
+  async getTask(id: string): Promise<Task | undefined> {
+    const { data, error } = await this.supabase.from("tasks").select("*").eq("id", id).maybeSingle();
+    if (error && error.code === 'PGRST116') return undefined;
+    return this.handleOptionalResponse(data, error) as Task | undefined;
+  }
+
+  async createTask(task: InsertTask): Promise<Task> {
+    const snakeData = transformToSnake(task);
+    const { data, error } = await this.supabase.from("tasks").insert(snakeData).select().single();
+    return this.handleResponse(data, error) as Task;
+  }
+
+  async updateTask(id: string, task: Partial<Task>): Promise<Task | undefined> {
+    const { updatedAt, ...taskData } = task as any;
+    const snakeData = transformToSnake({ ...taskData, updated_at: new Date().toISOString() });
+    const { data, error } = await this.supabase
+      .from("tasks")
+      .update(snakeData)
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error) as Task | undefined;
+  }
+
+  async deleteTask(id: string): Promise<void> {
+    const { error } = await this.supabase.from("tasks").delete().eq("id", id);
+    if (error) throw error;
+  }
+
+  async getTasksByUser(userId: string): Promise<Task[]> {
+    const { data, error } = await this.supabase
+      .from("tasks")
+      .select("*")
+      .eq("assigned_to", userId)
+      .order("due_date", { ascending: true });
+    return this.handleResponse(data, error) as Task[];
+  }
+
+  async getTaskComments(taskId: string): Promise<TaskComment[]> {
+    const { data, error } = await this.supabase
+      .from("task_comments")
+      .select("*")
+      .eq("task_id", taskId)
+      .order("created_at", { ascending: true });
+    return this.handleResponse(data, error) as TaskComment[];
+  }
+
+  async createTaskComment(comment: InsertTaskComment): Promise<TaskComment> {
+    const snakeData = transformToSnake(comment);
+    const { data, error } = await this.supabase.from("task_comments").insert(snakeData).select().single();
+    return this.handleResponse(data, error) as TaskComment;
+  }
+
+  async getTaskStats(): Promise<{ total: number; pending: number; inProgress: number; completed: number; overdue: number }> {
+    const { data: tasks, error } = await this.supabase.from("tasks").select("status, due_date");
+    if (error) throw error;
+
+    const now = new Date();
+    return {
+      total: tasks?.length || 0,
+      pending: tasks?.filter(t => t.status === "pending").length || 0,
+      inProgress: tasks?.filter(t => t.status === "in_progress").length || 0,
+      completed: tasks?.filter(t => t.status === "completed").length || 0,
+      overdue: tasks?.filter(t => t.due_date && new Date(t.due_date) < now && t.status !== "completed").length || 0,
+    };
+  }
+
+  // Chat Operations
+  async getChatRooms(userId: string): Promise<ChatRoom[]> {
+    // Get rooms where user is a participant
+    const { data: participations } = await this.supabase
+      .from("chat_participants")
+      .select("room_id")
+      .eq("user_id", userId);
+
+    if (!participations || participations.length === 0) return [];
+
+    const roomIds = participations.map(p => p.room_id);
+    const { data, error } = await this.supabase
+      .from("chat_rooms")
+      .select("*, chat_participants(user_id, last_read_at)")
+      .in("id", roomIds)
+      .order("updated_at", { ascending: false });
+
+    return this.handleResponse<ChatRoom[]>(data, error);
+  }
+
+  async getChatRoom(id: string): Promise<ChatRoom | undefined> {
+    const { data, error } = await this.supabase
+      .from("chat_rooms")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    return this.handleOptionalResponse<ChatRoom>(data, error);
+  }
+
+  async createChatRoom(room: InsertChatRoom): Promise<ChatRoom> {
+    const roomData = transformToSnake(room);
+    const { data, error } = await this.supabase
+      .from("chat_rooms")
+      .insert(roomData)
+      .select()
+      .single();
+
+    return this.handleResponse<ChatRoom>(data, error);
+  }
+
+  async deleteChatRoom(roomId: string): Promise<void> {
+    // Delete messages first (foreign key constraint)
+    const { error: messagesError } = await this.supabase
+      .from("chat_messages")
+      .delete()
+      .eq("room_id", roomId);
+
+    if (messagesError) {
+      throw new Error(messagesError.message);
+    }
+
+    // Delete participants
+    const { error: participantsError } = await this.supabase
+      .from("chat_participants")
+      .delete()
+      .eq("room_id", roomId);
+
+    if (participantsError) {
+      throw new Error(participantsError.message);
+    }
+
+    // Delete room
+    const { error: roomError } = await this.supabase
+      .from("chat_rooms")
+      .delete()
+      .eq("id", roomId);
+
+    if (roomError) {
+      throw new Error(roomError.message);
+    }
+  }
+
+  async getOrCreateDirectRoom(userId1: string, userId2: string): Promise<ChatRoom> {
+    // First, find if a direct room exists between these two users
+    const { data: rooms1 } = await this.supabase
+      .from("chat_participants")
+      .select("room_id")
+      .eq("user_id", userId1);
+
+    const { data: rooms2 } = await this.supabase
+      .from("chat_participants")
+      .select("room_id")
+      .eq("user_id", userId2);
+
+    if (rooms1 && rooms2) {
+      const roomIds1 = new Set(rooms1.map(r => r.room_id));
+      const commonRoomIds = rooms2.filter(r => roomIds1.has(r.room_id)).map(r => r.room_id);
+
+      if (commonRoomIds.length > 0) {
+        // Check if any of these are direct rooms
+        const { data: existingRoom } = await this.supabase
+          .from("chat_rooms")
+          .select("*")
+          .in("id", commonRoomIds)
+          .eq("type", "direct")
+          .single();
+
+        if (existingRoom) {
+          return transformToCamel<ChatRoom>(existingRoom);
+        }
+      }
+    }
+
+    // Create new direct room
+    const newRoom = await this.createChatRoom({
+      type: "direct",
+      createdBy: userId1,
+    });
+
+    // Add both participants
+    await this.addChatParticipant({ roomId: newRoom.id, userId: userId1 });
+    await this.addChatParticipant({ roomId: newRoom.id, userId: userId2 });
+
+    return newRoom;
+  }
+
+  async getChatMessages(roomId: string, limit: number = 50): Promise<ChatMessage[]> {
+    const { data, error } = await this.supabase
+      .from("chat_messages")
+      .select("*")
+      .eq("room_id", roomId)
+      .order("created_at", { ascending: true })
+      .limit(limit);
+
+    return this.handleResponse<ChatMessage[]>(data, error);
+  }
+
+  async createChatMessage(message: InsertChatMessage): Promise<ChatMessage> {
+    const messageData = transformToSnake(message);
+    const { data, error } = await this.supabase
+      .from("chat_messages")
+      .insert(messageData)
+      .select()
+      .single();
+
+    // Update room's updated_at timestamp
+    await this.supabase
+      .from("chat_rooms")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", message.roomId);
+
+    return this.handleResponse<ChatMessage>(data, error);
+  }
+
+  async deleteChatMessage(messageId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("chat_messages")
+      .delete()
+      .eq("id", messageId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  async getChatParticipants(roomId: string): Promise<ChatParticipant[]> {
+    const { data, error } = await this.supabase
+      .from("chat_participants")
+      .select("*")
+      .eq("room_id", roomId);
+
+    return this.handleResponse<ChatParticipant[]>(data, error);
+  }
+
+  async addChatParticipant(participant: InsertChatParticipant): Promise<ChatParticipant> {
+    const participantData = transformToSnake(participant);
+    const { data, error } = await this.supabase
+      .from("chat_participants")
+      .insert(participantData)
+      .select()
+      .single();
+
+    return this.handleResponse<ChatParticipant>(data, error);
+  }
+
+  async updateLastRead(roomId: string, userId: string): Promise<void> {
+    await this.supabase
+      .from("chat_participants")
+      .update({ last_read_at: new Date().toISOString() })
+      .eq("room_id", roomId)
+      .eq("user_id", userId);
   }
 }
 

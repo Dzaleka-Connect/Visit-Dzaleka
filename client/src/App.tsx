@@ -9,6 +9,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
 import { useAuth } from "@/hooks/useAuth";
+import { useRealtimeSubscriptions } from "@/hooks/useRealtime";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
 import ResetPassword from "@/pages/reset-password";
@@ -37,9 +38,15 @@ import AcceptInvite from "@/pages/accept-invite";
 import GuideTraining from "@/pages/guide-training";
 import TrainingAdmin from "@/pages/training-admin";
 import VisitorResources from "@/pages/visitor-resources";
+import Tasks from "@/pages/tasks";
+import TaskAdmin from "@/pages/task-admin";
+import Messages from "@/pages/messages";
 
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
+  // Enable real-time subscriptions for the authenticated user
+  useRealtimeSubscriptions();
+
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -108,7 +115,7 @@ function Router() {
         <Route path="/users" component={UsersPage} />
         <Route path="/settings" component={Settings} />
         <Route path="/profile" component={Profile} />
-        <Route path="/email-history" component={EmailHistory} />
+        <Route path="/send-email" component={EmailHistory} />
         <Route path="/email-settings" component={EmailSettings} />
         <Route path="/revenue" component={Revenue} />
         <Route path="/visitors" component={Visitors} />
@@ -116,6 +123,9 @@ function Router() {
         <Route path="/cms" component={CMSPage} />
         <Route path="/security-admin" component={SecurityAdmin} />
         <Route path="/resources" component={VisitorResources} />
+        <Route path="/tasks" component={Tasks} />
+        <Route path="/task-admin" component={TaskAdmin} />
+        <Route path="/messages" component={Messages} />
         <Route path="/landing" component={Landing} />
         <Route component={NotFound} />
       </Switch>

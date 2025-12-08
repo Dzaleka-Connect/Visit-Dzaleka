@@ -810,7 +810,7 @@ export async function registerRoutes(
       const bookingsList = await storage.getBookings();
 
       // Batch fetch guides
-      const guideIds = [...new Set(bookingsList.map(b => b.assignedGuideId).filter(Boolean) as string[])];
+      const guideIds = Array.from(new Set(bookingsList.map(b => b.assignedGuideId).filter(Boolean) as string[]));
       const guides = await storage.getGuidesByIds(guideIds);
       const guidesMap = new Map(guides.map(g => [g.id, g]));
 
@@ -831,7 +831,7 @@ export async function registerRoutes(
       const recentBookings = await storage.getRecentBookings(10);
 
       // Batch fetch guides
-      const guideIds = [...new Set(recentBookings.map(b => b.assignedGuideId).filter(Boolean) as string[])];
+      const guideIds = Array.from(new Set(recentBookings.map(b => b.assignedGuideId).filter(Boolean) as string[]));
       const guides = await storage.getGuidesByIds(guideIds);
       const guidesMap = new Map(guides.map(g => [g.id, g]));
 
@@ -852,7 +852,7 @@ export async function registerRoutes(
       const todaysBookings = await storage.getTodaysBookings();
 
       // Batch fetch guides
-      const guideIds = [...new Set(todaysBookings.map(b => b.assignedGuideId).filter(Boolean) as string[])];
+      const guideIds = Array.from(new Set(todaysBookings.map(b => b.assignedGuideId).filter(Boolean) as string[]));
       const guides = await storage.getGuidesByIds(guideIds);
       const guidesMap = new Map(guides.map(g => [g.id, g]));
 
@@ -874,7 +874,7 @@ export async function registerRoutes(
       const activeVisits = await storage.getActiveVisits();
 
       // Batch fetch guides
-      const guideIds = [...new Set(activeVisits.map(b => b.assignedGuideId).filter(Boolean) as string[])];
+      const guideIds = Array.from(new Set(activeVisits.map(b => b.assignedGuideId).filter(Boolean) as string[]));
       const guides = await storage.getGuidesByIds(guideIds);
       const guidesMap = new Map(guides.map(g => [g.id, g]));
 
@@ -2499,6 +2499,33 @@ export async function registerRoutes(
     }
   });
 
+  // Archive email
+  app.post("/api/email-logs/:id/archive", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const emailLog = await storage.archiveEmailLog(id);
+      if (!emailLog) {
+        return res.status(404).json({ message: "Email log not found" });
+      }
+      res.json({ success: true, message: "Email archived successfully" });
+    } catch (error) {
+      console.error("Error archiving email:", error);
+      res.status(500).json({ message: "Failed to archive email" });
+    }
+  });
+
+  // Delete email (soft delete)
+  app.delete("/api/email-logs/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteEmailLog(id);
+      res.json({ success: true, message: "Email deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting email:", error);
+      res.status(500).json({ message: "Failed to delete email" });
+    }
+  });
+
   // Email Templates API
   app.get("/api/email-templates", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
@@ -3336,6 +3363,420 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching training stats:", error);
       res.status(500).json({ message: "Failed to fetch training stats" });
+    }
+  });
+
+  // ==================== TASK MANAGEMENT ENDPOINTS ====================
+
+  // Get all tasks (admin/coordinator sees all, others see their own)
+  app.get("/api/tasks", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      const user = await storage.getUser(userId);
+
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { status, priority, assignedTo } = req.query;
+      let filters: { status?: string; assignedTo?: string; priority?: string } = {};
+
+      if (status) filters.status = status;
+      if (priority) filters.priority = priority;
+
+      // Admins and coordinators can see all tasks, others see only their own
+      if (user.role === "admin" || user.role === "coordinator") {
+        if (assignedTo) filters.assignedTo = assignedTo;
+      } else {
+        filters.assignedTo = userId;
+      }
+
+      const tasks = await storage.getTasks(filters);
+      res.json(tasks);
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+      res.status(500).json({ message: "Failed to fetch tasks" });
+    }
+  });
+
+  // Get task statistics (must be before :id route)
+  app.get("/api/tasks/stats", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
+    try {
+      const stats = await storage.getTaskStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching task stats:", error);
+      res.status(500).json({ message: "Failed to fetch task statistics" });
+    }
+  });
+
+  // Get task by ID
+  app.get("/api/tasks/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const task = await storage.getTask(req.params.id);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      res.json(task);
+    } catch (error) {
+      console.error("Error fetching task:", error);
+      res.status(500).json({ message: "Failed to fetch task" });
+    }
+  });
+
+  // Create task (admin/coordinator only)
+  app.post("/api/tasks", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      const task = await storage.createTask({
+        ...req.body,
+        assigned_by: userId,
+      });
+
+      await createAuditLog(userId, "create", "tasks", task.id, null, task, req);
+
+      res.status(201).json(task);
+    } catch (error) {
+      console.error("Error creating task:", error);
+      res.status(500).json({ message: "Failed to create task" });
+    }
+  });
+
+  // Update task
+  app.patch("/api/tasks/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      const existingTask = await storage.getTask(req.params.id);
+
+      if (!existingTask) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+
+      const user = await storage.getUser(userId);
+
+      // Only admin/coordinator can update any task, others can only update their own
+      if (user?.role !== "admin" && user?.role !== "coordinator") {
+        if (existingTask.assignedTo !== userId) {
+          return res.status(403).json({ message: "You can only update tasks assigned to you" });
+        }
+        // Non-admin users can only update status
+        const { status } = req.body;
+        if (!status) {
+          return res.status(400).json({ message: "You can only update task status" });
+        }
+        req.body = { status };
+      }
+
+      // If status is changing to completed, set completedAt
+      if (req.body.status === "completed" && existingTask.status !== "completed") {
+        req.body.completedAt = new Date().toISOString();
+      }
+
+      const task = await storage.updateTask(req.params.id, req.body);
+
+      await createAuditLog(userId, "update", "tasks", req.params.id, existingTask, task, req);
+
+      res.json(task);
+    } catch (error) {
+      console.error("Error updating task:", error);
+      res.status(500).json({ message: "Failed to update task" });
+    }
+  });
+
+  // Delete task (admin only)
+  app.delete("/api/tasks/:id", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      const task = await storage.getTask(req.params.id);
+
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+
+      await storage.deleteTask(req.params.id);
+      await createAuditLog(userId, "delete", "tasks", req.params.id, task, null, req);
+
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      res.status(500).json({ message: "Failed to delete task" });
+    }
+  });
+
+  // Get my tasks
+  app.get("/api/tasks/my-tasks", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      const tasks = await storage.getTasksByUser(userId);
+      res.json(tasks);
+    } catch (error) {
+      console.error("Error fetching my tasks:", error);
+      res.status(500).json({ message: "Failed to fetch tasks" });
+    }
+  });
+
+  // Get task comments
+  app.get("/api/tasks/:id/comments", isAuthenticated, async (req: any, res) => {
+    try {
+      const comments = await storage.getTaskComments(req.params.id);
+      res.json(comments);
+    } catch (error) {
+      console.error("Error fetching task comments:", error);
+      res.status(500).json({ message: "Failed to fetch comments" });
+    }
+  });
+
+  // Add task comment
+  app.post("/api/tasks/:id/comments", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      const { content } = req.body;
+
+      if (!content || content.trim().length === 0) {
+        return res.status(400).json({ message: "Comment content is required" });
+      }
+
+      const comment = await storage.createTaskComment({
+        taskId: req.params.id,
+        userId,
+        content: content.trim(),
+      });
+
+      res.status(201).json(comment);
+    } catch (error) {
+      console.error("Error creating comment:", error);
+      res.status(500).json({ message: "Failed to create comment" });
+    }
+  });
+
+  // =============================================
+  // CHAT API ROUTES
+  // =============================================
+
+  // Get all chat rooms for current user
+  app.get("/api/chat/rooms", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const rooms = await storage.getChatRooms(userId);
+      res.json(rooms);
+    } catch (error) {
+      console.error("Error fetching chat rooms:", error);
+      res.status(500).json({ message: "Failed to fetch chat rooms" });
+    }
+  });
+
+  // Get a specific chat room
+  app.get("/api/chat/rooms/:id", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const room = await storage.getChatRoom(req.params.id);
+      if (!room) {
+        return res.status(404).json({ message: "Chat room not found" });
+      }
+      res.json(room);
+    } catch (error) {
+      console.error("Error fetching chat room:", error);
+      res.status(500).json({ message: "Failed to fetch chat room" });
+    }
+  });
+
+  // Delete a chat room (and all messages)
+  app.delete("/api/chat/rooms/:id", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const roomId = req.params.id;
+
+      // Verify user is a participant
+      const participants = await storage.getChatParticipants(roomId);
+      const isParticipant = participants.some(p => p.userId === userId);
+
+      if (!isParticipant) {
+        return res.status(403).json({ message: "You are not a participant of this chat" });
+      }
+
+      await storage.deleteChatRoom(roomId);
+      res.json({ message: "Chat history deleted" });
+    } catch (error) {
+      console.error("Error deleting chat room:", error);
+      res.status(500).json({ message: "Failed to delete chat" });
+    }
+  });
+
+  // Create or get direct message room with another user
+  app.post("/api/chat/direct/:userId", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const currentUserId = req.session.userId!;
+      const otherUserId = req.params.userId;
+
+      if (currentUserId === otherUserId) {
+        return res.status(400).json({ message: "Cannot chat with yourself" });
+      }
+
+      const room = await storage.getOrCreateDirectRoom(currentUserId, otherUserId);
+      res.json(room);
+    } catch (error) {
+      console.error("Error creating direct room:", error);
+      res.status(500).json({ message: "Failed to create chat room" });
+    }
+  });
+
+  // Get messages for a chat room
+  app.get("/api/chat/rooms/:id/messages", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const messages = await storage.getChatMessages(req.params.id, limit);
+
+      // Update last read timestamp for current user
+      const userId = req.session.userId!;
+      await storage.updateLastRead(req.params.id, userId);
+
+      res.json(messages);
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
+
+  // Send a message to a chat room
+  app.post("/api/chat/rooms/:id/messages", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const { content, messageType } = req.body;
+
+      if (!content || !content.trim()) {
+        return res.status(400).json({ message: "Message content is required" });
+      }
+
+      const message = await storage.createChatMessage({
+        roomId: req.params.id,
+        senderId: userId,
+        content: content.trim(),
+        messageType: messageType || "text",
+      });
+
+      res.status(201).json(message);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  // Delete a message (only own messages)
+  app.delete("/api/chat/messages/:id", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const messageId = req.params.id;
+
+      // Get the message first to verify ownership
+      const messages = await storage.getChatMessages("", 1000) as any[];
+      const message = messages.find((m: any) => m.id === messageId);
+
+      if (!message) {
+        return res.status(404).json({ message: "Message not found" });
+      }
+
+      if (message.senderId !== userId) {
+        return res.status(403).json({ message: "You can only delete your own messages" });
+      }
+
+      await storage.deleteChatMessage(messageId);
+      res.json({ message: "Message deleted" });
+    } catch (error) {
+      console.error("Error deleting message:", error);
+      res.status(500).json({ message: "Failed to delete message" });
+    }
+  });
+
+  // Get participants of a chat room
+  app.get("/api/chat/rooms/:id/participants", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const participants = await storage.getChatParticipants(req.params.id);
+      res.json(participants);
+    } catch (error) {
+      console.error("Error fetching participants:", error);
+      res.status(500).json({ message: "Failed to fetch participants" });
+    }
+  });
+
+  // Get list of users for starting a chat
+  app.get("/api/chat/users", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const currentUser = await storage.getUser(userId);
+      const allUsers = await storage.getUsers();
+
+      let filteredUsers = allUsers.filter(u => u.id !== userId);
+
+      // Role-based filtering
+      if (currentUser?.role === 'visitor') {
+        // Visitors can only chat with:
+        // 1. Admins (for general inquiries)
+        // 2. Guides assigned to their bookings
+        const allBookings = await storage.getBookings();
+        const myBookings = allBookings.filter(b =>
+          b.visitorUserId === userId || b.visitorEmail === currentUser.email
+        );
+        const assignedGuideIds = new Set(
+          myBookings
+            .filter(b => b.assignedGuideId)
+            .map(b => b.assignedGuideId)
+        );
+
+        filteredUsers = filteredUsers.filter(u =>
+          u.role === 'admin' || assignedGuideIds.has(u.id)
+        );
+      }
+      // Staff (admin, coordinator, guide, security) can see all users
+
+      const chatUsers = filteredUsers.map(u => ({
+        id: u.id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        email: u.email,
+        role: u.role,
+        profileImageUrl: u.profileImageUrl,
+      }));
+      res.json(chatUsers);
+    } catch (error) {
+      console.error("Error fetching chat users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  // Get unread chat count
+  app.get("/api/chat/unread-count", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      // We can reuse getChatRooms as it already fetches the necessary data with joins
+      // A dedicated count query would be more performant in a large scale app
+      const rooms = await storage.getChatRooms(userId) as any[];
+
+      let unreadCount = 0;
+      for (const room of rooms) {
+        // Use camelCase to match the transformed response
+        const participants = room.chatParticipants || room.chat_participants || [];
+        const participant = participants.find((p: any) =>
+          p.userId === userId || p.user_id === userId
+        );
+        if (participant) {
+          const lastReadStr = participant.lastReadAt || participant.last_read_at;
+          const lastRead = lastReadStr ? new Date(lastReadStr) : new Date(0);
+          const roomUpdatedStr = room.updatedAt || room.updated_at;
+          const lastUpdated = new Date(roomUpdatedStr);
+
+          console.log(`[Unread Debug] Room ${room.id}: updatedAt=${roomUpdatedStr}, lastRead=${lastReadStr}, isUnread=${lastUpdated > lastRead}`);
+
+          // Check if room has been updated since last read
+          if (lastUpdated > lastRead) {
+            unreadCount++;
+          }
+        }
+      }
+
+      console.log(`[Unread Debug] Total unread for user ${userId}: ${unreadCount}`);
+      res.json({ count: unreadCount });
+    } catch (error) {
+      console.error("Error fetching unread chat count:", error);
+      res.status(500).json({ message: "Failed to fetch unread count" });
     }
   });
 

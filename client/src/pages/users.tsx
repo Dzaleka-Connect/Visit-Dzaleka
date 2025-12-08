@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { formatDistanceToNow } from "date-fns";
 import {
   Users,
   Shield,
@@ -8,14 +7,9 @@ import {
   MapPin,
   Eye,
   Search,
-  ChevronDown,
   Plus,
-  Activity,
   UserPlus,
   Trash2,
-  Edit,
-  LogIn,
-  LogOut,
   Power,
   MoreVertical,
   Key,
@@ -68,7 +62,6 @@ import type { User, UserRole } from "@shared/schema";
 interface UserStats {
   totalUsers: number;
   byRole: Record<string, number>;
-  recentActivity: { action: string; userId: string; userName: string; timestamp: Date }[];
 }
 
 const roleColors: Record<string, { bg: string; text: string; icon: any }> = {
@@ -118,13 +111,7 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
-const activityIcons: Record<string, any> = {
-  create: UserPlus,
-  delete: Trash2,
-  update: Edit,
-  login: LogIn,
-  logout: LogOut,
-};
+
 
 export default function UsersPage() {
   const { toast } = useToast();
@@ -585,229 +572,176 @@ export default function UsersPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={user.profileImageUrl || undefined} />
-                          <AvatarFallback>
-                            {user.firstName?.charAt(0) || "U"}
-                            {user.lastName?.charAt(0) || ""}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">
-                            {user.firstName} {user.lastName}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{user.email || "-"}</TableCell>
-                    <TableCell>
-                      <RoleBadge role={user.role || "visitor"} />
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={user.isActive ? "default" : "secondary"}
-                        className={
-                          user.isActive
-                            ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                            : ""
-                        }
-                      >
-                        {user.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {user.createdAt
-                        ? new Date(user.createdAt).toLocaleDateString()
-                        : "-"}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            data-testid={`button-user-actions-${user.id}`}
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Change Role</DropdownMenuLabel>
-                          {(
-                            [
-                              "admin",
-                              "coordinator",
-                              "guide",
-                              "security",
-                              "visitor",
-                            ] as const
-                          ).map((role) => (
-                            <DropdownMenuItem
-                              key={role}
-                              onClick={() =>
-                                updateRoleMutation.mutate({
-                                  userId: user.id,
-                                  role,
-                                })
-                              }
-                              disabled={user.role === role}
-                              className="cursor-pointer"
-                            >
-                              <RoleBadge role={role} />
-                            </DropdownMenuItem>
-                          ))}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem
-                            onClick={() => toggleActiveMutation.mutate(user.id)}
-                            className="cursor-pointer"
-                          >
-                            <Power className="mr-2 h-4 w-4" />
-                            {user.isActive ? "Deactivate" : "Activate"}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setResetPasswordDialog({ open: true, userId: user.id });
-                              setNewPassword("");
-                            }}
-                            className="cursor-pointer"
-                          >
-                            <Key className="mr-2 h-4 w-4" />
-                            Set Password
-                          </DropdownMenuItem>
-                          {!user.emailVerified && (
-                            <DropdownMenuItem
-                              onClick={() => verifyEmailMutation.mutate(user.id)}
-                              className="cursor-pointer"
-                            >
-                              <CheckCircle className="mr-2 h-4 w-4" />
-                              Verify Email
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem
-                            onClick={() => sendResetEmailMutation.mutate(user.id)}
-                            className="cursor-pointer"
-                          >
-                            <Mail className="mr-2 h-4 w-4" />
-                            Send Reset Email
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => {
-                              if (confirm(`Are you sure you want to delete ${user.firstName} ${user.lastName}? This will deactivate the user.`)) {
-                                deleteUserMutation.mutate(user.id);
-                              }
-                            }}
-                            className="cursor-pointer text-red-600"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete User
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+                    <TableHead>User</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Joined</TableHead>
+                    <TableHead></TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={user.profileImageUrl || undefined} />
+                            <AvatarFallback>
+                              {user.firstName?.charAt(0) || "U"}
+                              {user.lastName?.charAt(0) || ""}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">
+                              {user.firstName} {user.lastName}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{user.email || "-"}</TableCell>
+                      <TableCell>
+                        <RoleBadge role={user.role || "visitor"} />
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={user.isActive ? "default" : "secondary"}
+                          className={
+                            user.isActive
+                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                              : ""
+                          }
+                        >
+                          {user.isActive ? "Active" : "Inactive"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {user.createdAt
+                          ? new Date(user.createdAt).toLocaleDateString()
+                          : "-"}
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              data-testid={`button-user-actions-${user.id}`}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Change Role</DropdownMenuLabel>
+                            {(
+                              [
+                                "admin",
+                                "coordinator",
+                                "guide",
+                                "security",
+                                "visitor",
+                              ] as const
+                            ).map((role) => (
+                              <DropdownMenuItem
+                                key={role}
+                                onClick={() =>
+                                  updateRoleMutation.mutate({
+                                    userId: user.id,
+                                    role,
+                                  })
+                                }
+                                disabled={user.role === role}
+                                className="cursor-pointer"
+                              >
+                                <RoleBadge role={role} />
+                              </DropdownMenuItem>
+                            ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() => toggleActiveMutation.mutate(user.id)}
+                              className="cursor-pointer"
+                            >
+                              <Power className="mr-2 h-4 w-4" />
+                              {user.isActive ? "Deactivate" : "Activate"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setResetPasswordDialog({ open: true, userId: user.id });
+                                setNewPassword("");
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <Key className="mr-2 h-4 w-4" />
+                              Set Password
+                            </DropdownMenuItem>
+                            {!user.emailVerified && (
+                              <DropdownMenuItem
+                                onClick={() => verifyEmailMutation.mutate(user.id)}
+                                className="cursor-pointer"
+                              >
+                                <CheckCircle className="mr-2 h-4 w-4" />
+                                Verify Email
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem
+                              onClick={() => sendResetEmailMutation.mutate(user.id)}
+                              className="cursor-pointer"
+                            >
+                              <Mail className="mr-2 h-4 w-4" />
+                              Send Reset Email
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => {
+                                if (confirm(`Are you sure you want to delete ${user.firstName} ${user.lastName}? This will deactivate the user.`)) {
+                                  deleteUserMutation.mutate(user.id);
+                                }
+                              }}
+                              className="cursor-pointer text-red-600"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete User
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              Recent Activity
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {!userStats?.recentActivity || userStats.recentActivity.length === 0 ? (
-              <EmptyState
-                icon={Activity}
-                title="No recent activity"
-                description="User activities will appear here."
-                className="py-8"
-              />
-            ) : (
-              <div className="space-y-4">
-                {userStats.recentActivity.slice(0, 10).map((activity, index) => {
-                  const Icon = activityIcons[activity.action] || Activity;
-                  return (
-                    <div
-                      key={index}
-                      className="flex items-center gap-3 rounded-lg border p-3"
-                      data-testid={`activity-item-${index}`}
-                    >
-                      <div className="rounded-full bg-muted p-2">
-                        <Icon className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">
-                          {activity.action.charAt(0).toUpperCase() + activity.action.slice(1)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {activity.userName}
-                        </p>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {activity.timestamp
-                          ? formatDistanceToNow(new Date(activity.timestamp), {
-                            addSuffix: true,
-                          })
-                          : "Unknown"}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Role Permissions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4">
-              {Object.entries(roleDescriptions).map(([role, description]) => {
-                const config = roleColors[role];
-                const Icon = config.icon;
-                return (
-                  <div
-                    key={role}
-                    className="flex items-start gap-3 rounded-lg border p-4"
-                  >
-                    <div className={`rounded-full p-2 ${config.bg}`}>
-                      <Icon className={`h-4 w-4 ${config.text}`} />
-                    </div>
-                    <div>
-                      <p className="font-medium capitalize">{role}</p>
-                      <p className="text-sm text-muted-foreground">{description}</p>
-                    </div>
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <CardTitle>Role Permissions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            {Object.entries(roleDescriptions).map(([role, description]) => {
+              const config = roleColors[role];
+              const Icon = config.icon;
+              return (
+                <div
+                  key={role}
+                  className="flex items-start gap-3 rounded-lg border p-4"
+                >
+                  <div className={`rounded-full p-2 ${config.bg}`}>
+                    <Icon className={`h-4 w-4 ${config.text}`} />
                   </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                  <div>
+                    <p className="font-medium capitalize">{role}</p>
+                    <p className="text-sm text-muted-foreground">{description}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Password Reset Dialog */}
       <Dialog open={resetPasswordDialog.open} onOpenChange={(open) => setResetPasswordDialog({ ...resetPasswordDialog, open })}>

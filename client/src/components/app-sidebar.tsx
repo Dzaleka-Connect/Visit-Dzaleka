@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   CalendarDays,
@@ -16,6 +17,8 @@ import {
   FileText,
   TrendingUp,
   GraduationCap,
+  ListTodo,
+  MessageCircle,
 } from "lucide-react";
 import {
   Sidebar,
@@ -105,6 +108,18 @@ const mainNavigationItems: NavItem[] = [
     icon: GraduationCap,
     roles: ["guide"],
   },
+  {
+    title: "My Tasks",
+    url: "/tasks",
+    icon: ListTodo,
+    roles: ["admin", "coordinator", "guide", "security"],
+  },
+  {
+    title: "Messages",
+    url: "/messages",
+    icon: MessageCircle,
+    roles: ["admin", "coordinator", "guide", "security", "visitor"],
+  },
 ];
 
 const financeItems: NavItem[] = [
@@ -131,7 +146,7 @@ const operationsItems: NavItem[] = [
   },
   {
     title: "Send Email",
-    url: "/email-history",
+    url: "/send-email",
     icon: Mail,
     roles: ["admin", "coordinator"],
   },
@@ -152,6 +167,12 @@ const operationsItems: NavItem[] = [
     url: "/training-admin",
     icon: BookOpen,
     roles: ["admin"],
+  },
+  {
+    title: "Task Admin",
+    url: "/task-admin",
+    icon: ListTodo,
+    roles: ["admin", "coordinator"],
   },
 ];
 
@@ -185,6 +206,29 @@ const adminItems: NavItem[] = [
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, logout, isLoggingOut } = useAuth();
+
+  // Fetch pending task count for badge
+  const { data: tasks } = useQuery<{ id: string; status: string }[]>({
+    queryKey: ["/api/tasks"],
+    enabled: !!user && user.role !== "visitor",
+  });
+
+  // Fetch pending bookings count for badge
+  const { data: bookings } = useQuery<{ id: string; status: string }[]>({
+    queryKey: ["/api/bookings"],
+    enabled: !!user && (user.role === "admin" || user.role === "coordinator"),
+  });
+
+  // Fetch unread chat count
+  const { data: chatCount } = useQuery<{ count: number }>({
+    queryKey: ["/api/chat/unread-count"],
+    enabled: !!user,
+    refetchInterval: 10000, // Poll every 10s for faster updates
+  });
+
+  const pendingTaskCount = tasks?.filter(t => t.status === "pending" || t.status === "in_progress").length || 0;
+  const pendingBookingCount = bookings?.filter(b => b.status === "pending").length || 0;
+  const unreadChatCount = chatCount?.count || 0;
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     const first = firstName?.charAt(0) || "";
@@ -233,6 +277,15 @@ export function AppSidebar() {
             <SidebarMenu>
               {filteredMainItems.map((item) => {
                 const isActive = location === item.url;
+                const showTaskBadge = item.title === "My Tasks" && pendingTaskCount > 0;
+                const showBookingBadge = item.title === "Bookings" && pendingBookingCount > 0;
+                const showChatBadge = item.title === "Messages" && unreadChatCount > 0;
+
+                let badgeCount = 0;
+                if (showTaskBadge) badgeCount = pendingTaskCount;
+                else if (showBookingBadge) badgeCount = pendingBookingCount;
+                else if (showChatBadge) badgeCount = unreadChatCount;
+
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
@@ -242,7 +295,15 @@ export function AppSidebar() {
                     >
                       <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
                         <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
+                        <span className="flex-1">{item.title}</span>
+                        {(showTaskBadge || showBookingBadge || showChatBadge) && (
+                          <Badge
+                            variant="default"
+                            className={`ml-auto h-5 min-w-5 shrink-0 rounded-full px-1.5 flex items-center justify-center text-[10px] font-bold ${showBookingBadge ? "bg-orange-500 hover:bg-orange-600" : "bg-primary hover:bg-primary/90"}`}
+                          >
+                            {badgeCount > 9 ? "9+" : badgeCount}
+                          </Badge>
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
