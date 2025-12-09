@@ -60,6 +60,13 @@ import {
   type InsertChatMessage,
   type ChatParticipant,
   type InsertChatParticipant,
+  type HelpArticle,
+  type InsertHelpArticle,
+  type SupportTicket,
+  type InsertSupportTicket,
+  type HelpCategory,
+  type HelpAudience,
+  type TicketStatus,
 } from "@shared/schema";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import crypto from "crypto";
@@ -118,7 +125,7 @@ export interface IStorage {
   upsertUser(user: UpsertUser): Promise<User>;
   updateUser(id: string, user: Partial<User>): Promise<User | undefined>;
   updateUserRole(id: string, role: UserRole): Promise<User | undefined>;
-  updateUserProfile(id: string, profile: { firstName?: string; lastName?: string; phone?: string }): Promise<User | undefined>;
+  updateUserProfile(id: string, profile: { firstName?: string; lastName?: string; phone?: string; profileImageUrl?: string; emailNotifications?: boolean }): Promise<User | undefined>;
   setPasswordResetToken(userId: string, token: string, expires: Date): Promise<void>;
   getUserByResetToken(token: string): Promise<User | undefined>;
   clearPasswordResetToken(userId: string): Promise<void>;
@@ -405,7 +412,7 @@ export class SupabaseStorage implements IStorage {
     return this.updateUser(id, { role });
   }
 
-  async updateUserProfile(id: string, profile: { firstName?: string; lastName?: string; phone?: string }): Promise<User | undefined> {
+  async updateUserProfile(id: string, profile: { firstName?: string; lastName?: string; phone?: string; profileImageUrl?: string; emailNotifications?: boolean }): Promise<User | undefined> {
     return this.updateUser(id, profile);
   }
 
@@ -1793,7 +1800,7 @@ export class SupabaseStorage implements IStorage {
   async getTasks(filters?: { status?: string; assignedTo?: string; priority?: string }): Promise<Task[]> {
     let query = this.supabase
       .from("tasks")
-      .select("*")
+      .select("*, assignee:users!tasks_assigned_to_fkey(id, first_name, last_name, email)")
       .order("created_at", { ascending: false });
 
     if (filters?.status) {
@@ -2060,7 +2067,150 @@ export class SupabaseStorage implements IStorage {
       .eq("room_id", roomId)
       .eq("user_id", userId);
   }
+
+  // ================================================
+  // HELP CENTER METHODS
+  // ================================================
+
+  async getHelpArticles(audience?: HelpAudience, category?: HelpCategory): Promise<HelpArticle[]> {
+    let query = this.supabase
+      .from("help_articles")
+      .select("*")
+      .eq("is_published", true)
+      .order("sort_order", { ascending: true });
+
+    if (audience && audience !== "both") {
+      // Get articles for this audience OR 'both'
+      query = query.in("audience", [audience, "both"]);
+    }
+
+    if (category) {
+      query = query.eq("category", category);
+    }
+
+    const { data, error } = await query;
+    return this.handleResponse<HelpArticle[]>(data, error);
+  }
+
+  async getAllHelpArticles(): Promise<HelpArticle[]> {
+    const { data, error } = await this.supabase
+      .from("help_articles")
+      .select("*")
+      .order("sort_order", { ascending: true });
+
+    return this.handleResponse<HelpArticle[]>(data, error);
+  }
+
+  async getHelpArticleBySlug(slug: string): Promise<HelpArticle | null> {
+    const { data, error } = await this.supabase
+      .from("help_articles")
+      .select("*")
+      .eq("slug", slug)
+      .single();
+
+    if (error && error.code === "PGRST116") return null;
+    return this.handleResponse<HelpArticle>(data, error);
+  }
+
+  async getHelpArticleById(id: string): Promise<HelpArticle | null> {
+    const { data, error } = await this.supabase
+      .from("help_articles")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error && error.code === "PGRST116") return null;
+    return this.handleResponse<HelpArticle>(data, error);
+  }
+
+  async createHelpArticle(article: InsertHelpArticle): Promise<HelpArticle> {
+    const articleData = transformToSnake(article);
+    const { data, error } = await this.supabase
+      .from("help_articles")
+      .insert(articleData)
+      .select()
+      .single();
+
+    return this.handleResponse<HelpArticle>(data, error);
+  }
+
+  async updateHelpArticle(id: string, updates: Partial<InsertHelpArticle>): Promise<HelpArticle> {
+    const updateData = transformToSnake({
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    });
+    const { data, error } = await this.supabase
+      .from("help_articles")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single();
+
+    return this.handleResponse<HelpArticle>(data, error);
+  }
+
+  async deleteHelpArticle(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("help_articles")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+  }
+
+  // Support Tickets
+  async getSupportTickets(userId?: string): Promise<SupportTicket[]> {
+    let query = this.supabase
+      .from("support_tickets")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (userId) {
+      query = query.eq("user_id", userId);
+    }
+
+    const { data, error } = await query;
+    return this.handleResponse<SupportTicket[]>(data, error);
+  }
+
+  async getSupportTicketById(id: string): Promise<SupportTicket | null> {
+    const { data, error } = await this.supabase
+      .from("support_tickets")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error && error.code === "PGRST116") return null;
+    return this.handleResponse<SupportTicket>(data, error);
+  }
+
+  async createSupportTicket(ticket: InsertSupportTicket): Promise<SupportTicket> {
+    const ticketData = transformToSnake(ticket);
+    const { data, error } = await this.supabase
+      .from("support_tickets")
+      .insert(ticketData)
+      .select()
+      .single();
+
+    return this.handleResponse<SupportTicket>(data, error);
+  }
+
+  async updateSupportTicket(id: string, updates: Partial<SupportTicket>): Promise<SupportTicket> {
+    const updateData = transformToSnake({
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    });
+    const { data, error } = await this.supabase
+      .from("support_tickets")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single();
+
+    return this.handleResponse<SupportTicket>(data, error);
+  }
 }
 
 export const storage = new SupabaseStorage();
+
 

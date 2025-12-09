@@ -1103,3 +1103,113 @@ export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+// ================================================
+// HELP CENTER
+// ================================================
+
+// Help article categories
+export const helpCategoryEnum = pgEnum("help_category", [
+  "faq",
+  "getting_started",
+  "guide_help",
+  "visitor_help",
+  "general",
+]);
+
+// Target audience for articles
+export const helpAudienceEnum = pgEnum("help_audience", [
+  "visitor",
+  "guide",
+  "both",
+]);
+
+// Support ticket status
+export const ticketStatusEnum = pgEnum("ticket_status", [
+  "open",
+  "in_progress",
+  "resolved",
+  "closed",
+]);
+
+// Support ticket priority
+export const ticketPriorityEnum = pgEnum("ticket_priority", [
+  "low",
+  "normal",
+  "high",
+  "urgent",
+]);
+
+// Help articles table
+export const helpArticles = pgTable("help_articles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 255 }).unique().notNull(),
+  content: text("content").notNull(),
+  category: helpCategoryEnum("category").default("general"),
+  audience: helpAudienceEnum("audience").default("both"),
+  sortOrder: integer("sort_order").default(0),
+  isPublished: boolean("is_published").default(true),
+  createdBy: varchar("created_by"),
+  updatedBy: varchar("updated_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+// Support tickets table
+export const supportTickets = pgTable("support_tickets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  subject: varchar("subject", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  status: ticketStatusEnum("status").default("open"),
+  priority: ticketPriorityEnum("priority").default("normal"),
+  assignedTo: varchar("assigned_to"),
+  adminNotes: text("admin_notes"),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+// Help Center Relations
+export const helpArticlesRelations = relations(helpArticles, ({ one }) => ({
+  creator: one(users, {
+    fields: [helpArticles.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export const supportTicketsRelations = relations(supportTickets, ({ one }) => ({
+  user: one(users, {
+    fields: [supportTickets.userId],
+    references: [users.id],
+  }),
+  assignee: one(users, {
+    fields: [supportTickets.assignedTo],
+    references: [users.id],
+  }),
+}));
+
+// Insert Schemas
+export const insertHelpArticleSchema = createInsertSchema(helpArticles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  resolvedAt: true,
+});
+
+// Types
+export type HelpArticle = typeof helpArticles.$inferSelect;
+export type InsertHelpArticle = z.infer<typeof insertHelpArticleSchema>;
+export type SupportTicket = typeof supportTickets.$inferSelect;
+export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
+export type HelpCategory = "faq" | "getting_started" | "guide_help" | "visitor_help" | "general";
+export type HelpAudience = "visitor" | "guide" | "both";
+export type TicketStatus = "open" | "in_progress" | "resolved" | "closed";
+export type TicketPriority = "low" | "normal" | "high" | "urgent";

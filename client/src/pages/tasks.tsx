@@ -183,6 +183,11 @@ export default function Tasks() {
                                             <p className="text-sm text-muted-foreground mb-2">{task.description}</p>
                                         )}
                                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                            {(task as any).assignee && (
+                                                <span className="flex items-center gap-1 font-medium text-foreground">
+                                                    Assigned to: {(task as any).assignee.firstName || (task as any).assignee.email}
+                                                </span>
+                                            )}
                                             {task.dueDate && (
                                                 <span className="flex items-center gap-1">
                                                     <Calendar className="h-4 w-4" />

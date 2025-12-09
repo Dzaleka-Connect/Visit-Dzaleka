@@ -41,6 +41,8 @@ import VisitorResources from "@/pages/visitor-resources";
 import Tasks from "@/pages/tasks";
 import TaskAdmin from "@/pages/task-admin";
 import Messages from "@/pages/messages";
+import HelpCenter from "@/pages/help-center";
+import HelpAdmin from "@/pages/help-admin";
 
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -126,6 +128,8 @@ function Router() {
         <Route path="/tasks" component={Tasks} />
         <Route path="/task-admin" component={TaskAdmin} />
         <Route path="/messages" component={Messages} />
+        <Route path="/help" component={HelpCenter} />
+        <Route path="/help-admin" component={HelpAdmin} />
         <Route path="/landing" component={Landing} />
         <Route component={NotFound} />
       </Switch>

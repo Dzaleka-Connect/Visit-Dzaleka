@@ -55,6 +55,30 @@ function isAuthenticated(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+// Admin role middleware (with DB fallback for old sessions)
+async function isAdmin(req: Request, res: Response, next: NextFunction) {
+  // Check session first
+  if (req.session?.userRole === "admin") {
+    return next();
+  }
+
+  // Fallback: fetch from DB if session doesn't have role
+  if (req.session?.userId) {
+    try {
+      const user = await storage.getUser(req.session.userId);
+      if (user?.role === "admin") {
+        // Update session with role for future requests
+        req.session.userRole = user.role;
+        return next();
+      }
+    } catch (error) {
+      console.error("Error checking admin role:", error);
+    }
+  }
+
+  res.status(403).json({ message: "Admin access required" });
+}
+
 // Pricing calculation helper
 const PRICING = {
   individual: 15000,
@@ -263,6 +287,7 @@ export async function registerRoutes(
 
       // Set session after regeneration
       req.session.userId = user.id;
+      req.session.userRole = user.role || "visitor";
 
       // Audit log
       await createAuditLog(user.id, "create", "user", user.id, null, { email, firstName, lastName }, req);
@@ -359,8 +384,9 @@ export async function registerRoutes(
         failureReason: null
       });
 
-      // Set session userId 
+      // Set session userId and role
       req.session.userId = user.id;
+      req.session.userRole = user.role || "visitor";
 
       // Update last login
       await storage.updateLastLogin(user.id);
@@ -572,9 +598,17 @@ export async function registerRoutes(
   app.patch("/api/auth/profile", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
-      const { firstName, lastName, phone } = req.body;
+      const { firstName, lastName, phone, profileImageUrl, emailNotifications } = req.body;
 
-      const user = await storage.updateUserProfile(userId, { firstName, lastName, phone });
+      // Build update object, filtering out undefined values
+      const updates: Record<string, any> = {};
+      if (firstName !== undefined) updates.firstName = firstName;
+      if (lastName !== undefined) updates.lastName = lastName;
+      if (phone !== undefined) updates.phone = phone;
+      if (profileImageUrl !== undefined) updates.profileImageUrl = profileImageUrl;
+      if (emailNotifications !== undefined) updates.emailNotifications = emailNotifications;
+
+      const user = await storage.updateUserProfile(userId, updates);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -3131,6 +3165,7 @@ export async function registerRoutes(
 
       // Set session after regeneration
       req.session.userId = user.id;
+      req.session.userRole = user.role || "visitor";
 
       // Audit log
       await createAuditLog(user.id, "create", "user", user.id, null, { email: invite.email, role: invite.role }, req);
@@ -3777,6 +3812,166 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching unread chat count:", error);
       res.status(500).json({ message: "Failed to fetch unread count" });
+    }
+  });
+
+  // ================================================
+  // HELP CENTER API
+  // ================================================
+
+  // Get help articles (filtered by user role)
+  app.get("/api/help/articles", isAuthenticated, async (req, res) => {
+    try {
+      const userRole = req.session.userRole;
+      const category = req.query.category as string | undefined;
+
+      // Map user role to audience
+      let audience: "visitor" | "guide" | "both" = "both";
+      if (userRole === "visitor") {
+        audience = "visitor";
+      } else if (userRole === "guide") {
+        audience = "guide";
+      }
+
+      const articles = await storage.getHelpArticles(
+        audience,
+        category as any
+      );
+      res.json(articles);
+    } catch (error) {
+      console.error("Error fetching help articles:", error);
+      res.status(500).json({ message: "Failed to fetch help articles" });
+    }
+  });
+
+  // Get single article by slug
+  app.get("/api/help/articles/:slug", isAuthenticated, async (req, res) => {
+    try {
+      const article = await storage.getHelpArticleBySlug(req.params.slug);
+      if (!article) {
+        return res.status(404).json({ message: "Article not found" });
+      }
+      res.json(article);
+    } catch (error) {
+      console.error("Error fetching help article:", error);
+      res.status(500).json({ message: "Failed to fetch article" });
+    }
+  });
+
+  // Admin: Get all articles (including unpublished)
+  app.get("/api/admin/help/articles", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const articles = await storage.getAllHelpArticles();
+      res.json(articles);
+    } catch (error) {
+      console.error("Error fetching all help articles:", error);
+      res.status(500).json({ message: "Failed to fetch articles" });
+    }
+  });
+
+  // Admin: Create article
+  app.post("/api/admin/help/articles", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const articleData = {
+        ...req.body,
+        createdBy: userId,
+        updatedBy: userId,
+      };
+      const article = await storage.createHelpArticle(articleData);
+      res.status(201).json(article);
+    } catch (error) {
+      console.error("Error creating help article:", error);
+      res.status(500).json({ message: "Failed to create article" });
+    }
+  });
+
+  // Admin: Update article
+  app.put("/api/admin/help/articles/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const updates = {
+        ...req.body,
+        updatedBy: userId,
+      };
+      const article = await storage.updateHelpArticle(req.params.id, updates);
+      res.json(article);
+    } catch (error) {
+      console.error("Error updating help article:", error);
+      res.status(500).json({ message: "Failed to update article" });
+    }
+  });
+
+  // Admin: Delete article
+  app.delete("/api/admin/help/articles/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      await storage.deleteHelpArticle(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting help article:", error);
+      res.status(500).json({ message: "Failed to delete article" });
+    }
+  });
+
+  // Get support tickets (admin sees all, users see their own)
+  app.get("/api/support/tickets", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const userRole = req.session.userRole;
+
+      // Admins see all tickets, others see only their own
+      const tickets = await storage.getSupportTickets(
+        userRole === "admin" ? undefined : userId
+      );
+      res.json(tickets);
+    } catch (error) {
+      console.error("Error fetching support tickets:", error);
+      res.status(500).json({ message: "Failed to fetch tickets" });
+    }
+  });
+
+  // Create support ticket
+  app.post("/api/support/tickets", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const ticketData = {
+        ...req.body,
+        userId,
+      };
+      const ticket = await storage.createSupportTicket(ticketData);
+
+      // Optionally notify admins about new ticket
+      const admins = await storage.getUsers();
+      const adminUsers = admins.filter((u) => u.role === "admin");
+      for (const admin of adminUsers) {
+        await storage.createNotification({
+          userId: admin.id,
+          type: "system",
+          title: "New Support Ticket",
+          message: `New support ticket: ${ticketData.subject}`,
+          link: "/help-admin",
+        });
+      }
+
+      res.status(201).json(ticket);
+    } catch (error) {
+      console.error("Error creating support ticket:", error);
+      res.status(500).json({ message: "Failed to create ticket" });
+    }
+  });
+
+  // Admin: Update support ticket
+  app.put("/api/support/tickets/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const updates = req.body;
+      if (updates.status === "resolved") {
+        updates.resolvedAt = new Date().toISOString();
+      }
+      const ticket = await storage.updateSupportTicket(req.params.id, updates);
+      res.json(ticket);
+    } catch (error) {
+      console.error("Error updating support ticket:", error);
+      res.status(500).json({ message: "Failed to update ticket" });
     }
   });
 

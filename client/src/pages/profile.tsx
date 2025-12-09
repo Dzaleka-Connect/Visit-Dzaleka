@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { User, Mail, Phone, Shield, Save, Loader2, Bell } from "lucide-react";
+import { User, Mail, Phone, Shield, Save, Loader2, Bell, Camera } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,11 +11,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 
 export default function Profile() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     firstName: user?.firstName || "",
     lastName: user?.lastName || "",
@@ -63,6 +66,83 @@ export default function Profile() {
     },
   });
 
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Invalid file",
+        description: "Please upload an image file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload an image smaller than 5MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      // Generate unique filename
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `profile-images/${fileName}`;
+
+      // Check if supabase client is available
+      if (!supabase) {
+        throw new Error("Storage is not configured");
+      }
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+
+      // Update profile with new image URL
+      const res = await apiRequest("PATCH", "/api/auth/profile", { profileImageUrl: publicUrl });
+      const updatedUser = await res.json();
+
+      // Verify the URL was actually saved
+      if (!updatedUser.profileImageUrl) {
+        throw new Error("Profile image URL was not saved");
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      toast({
+        title: "Photo updated",
+        description: "Your profile photo has been updated.",
+      });
+    } catch (error) {
+      console.error("Image upload error:", error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload image. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     const first = firstName?.charAt(0) || "";
     const last = lastName?.charAt(0) || "";
@@ -91,7 +171,7 @@ export default function Profile() {
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="md:col-span-1">
           <CardHeader className="text-center">
-            <div className="mx-auto">
+            <div className="mx-auto relative">
               <Avatar className="h-24 w-24">
                 <AvatarImage
                   src={user?.profileImageUrl || undefined}
@@ -101,6 +181,26 @@ export default function Profile() {
                   {getInitials(user?.firstName, user?.lastName)}
                 </AvatarFallback>
               </Avatar>
+              {/* Upload button overlay */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingImage}
+                className="absolute bottom-0 right-0 rounded-full bg-primary p-2 text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                title="Change profile photo"
+              >
+                {isUploadingImage ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Camera className="h-4 w-4" />
+                )}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+              />
             </div>
             <CardTitle className="mt-4">
               {user?.firstName
@@ -108,6 +208,7 @@ export default function Profile() {
                 : "User"}
             </CardTitle>
             <CardDescription>{user?.email}</CardDescription>
+            <p className="text-xs text-muted-foreground mt-2">Click camera icon to update photo</p>
           </CardHeader>
           <CardContent className="text-center">
             <Badge className={roleColors[user?.role || "visitor"]} data-testid="badge-user-role">

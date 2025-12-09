@@ -19,6 +19,7 @@ import {
   GraduationCap,
   ListTodo,
   MessageCircle,
+  HelpCircle,
 } from "lucide-react";
 import {
   Sidebar,
@@ -120,6 +121,12 @@ const mainNavigationItems: NavItem[] = [
     icon: MessageCircle,
     roles: ["admin", "coordinator", "guide", "security", "visitor"],
   },
+  {
+    title: "Help Center",
+    url: "/help",
+    icon: HelpCircle,
+    roles: ["visitor", "guide"],
+  },
 ];
 
 const financeItems: NavItem[] = [
@@ -173,6 +180,12 @@ const operationsItems: NavItem[] = [
     url: "/task-admin",
     icon: ListTodo,
     roles: ["admin", "coordinator"],
+  },
+  {
+    title: "Help Admin",
+    url: "/help-admin",
+    icon: HelpCircle,
+    roles: ["admin"],
   },
 ];
 
