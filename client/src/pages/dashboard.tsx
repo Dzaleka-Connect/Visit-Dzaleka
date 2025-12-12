@@ -44,7 +44,7 @@ import { EmptyState } from "@/components/empty-state";
 import { DashboardSkeleton } from "@/components/loading-skeleton";
 import { formatDate, formatTime, formatCurrency } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
-import { WeeklyBookingTrends, PopularZonesChart, GuidePerformanceChart } from "@/components/dashboard-charts";
+import { WeeklyBookingTrends, PopularZonesChart, GuidePerformanceChart, BookingTimeHeatmap, SeasonalTrendsChart, GuideComparisonChart } from "@/components/dashboard-charts";
 import type { Booking, Guide, Incident } from "@shared/schema";
 
 interface DashboardStats {
@@ -172,7 +172,7 @@ function AdminDashboard() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Bookings"
           value={dashboardStats.totalBookings}
@@ -204,10 +204,13 @@ function AdminDashboard() {
       </div>
 
       {/* Analytics Charts */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         <WeeklyBookingTrends />
+        <SeasonalTrendsChart />
+        <BookingTimeHeatmap />
         <PopularZonesChart />
         <GuidePerformanceChart />
+        <GuideComparisonChart />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -541,7 +544,7 @@ function CoordinatorDashboard() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Pending Requests"
           value={dashboardStats.pendingRequests}
@@ -657,7 +660,7 @@ function CoordinatorDashboard() {
           <CardTitle className="text-lg font-semibold">Quick Actions</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
               <Link href="/bookings">
                 <BookOpen className="h-5 w-5 text-primary" />
@@ -765,7 +768,7 @@ function GuideDashboard() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Today's Tours"
           value={upcomingTours.length}
@@ -928,7 +931,7 @@ function SecurityDashboard() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Active Visitors"
           value={checkedInVisitors.length}
@@ -1044,7 +1047,7 @@ function SecurityDashboard() {
           <CardTitle className="text-lg font-semibold">Quick Actions</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
               <Link href="/security">
                 <UserCheck className="h-5 w-5 text-primary" />
@@ -1489,7 +1492,7 @@ function VisitorDashboard() {
           <CardTitle className="text-lg font-semibold">Explore Dzaleka</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-primary/30 hover:border-primary hover:bg-primary/5" asChild>
               <a href="https://services.dzaleka.com/visit/travel-guide/" target="_blank" rel="noopener noreferrer">
                 <MapPin className="h-5 w-5 text-primary" />

@@ -186,7 +186,7 @@ export default function ResetPassword() {
                         <div className="text-center">
                             <Button
                                 type="button"
-                                variant="link"
+                                variant="ghost"
                                 onClick={() => setLocation("/auth")}
                                 className="text-sm"
                             >

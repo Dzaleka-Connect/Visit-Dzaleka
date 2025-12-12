@@ -145,6 +145,7 @@ export const guides = pgTable("guides", {
   totalEarnings: integer("total_earnings").default(0),
   rating: integer("rating").default(0),
   totalRatings: integer("total_ratings").default(0),
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -157,6 +158,7 @@ export const zones = pgTable("zones", {
   icon: varchar("icon"),
   isActive: boolean("is_active").default(true),
   totalVisits: integer("total_visits").default(0),
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -230,9 +232,47 @@ export const bookings = pgTable("bookings", {
   checkInBy: varchar("check_in_by"),
   checkOutBy: varchar("check_out_by"),
   visitorRating: integer("visitor_rating"), // Rating given by visitor (1-5)
+  version: integer("version").default(1).notNull(), // Optimistic locking version
+  recurringBookingId: varchar("recurring_booking_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+export const recurringFrequencyEnum = pgEnum("recurring_frequency", [
+  "weekly",
+  "monthly",
+]);
+
+export const recurringBookings = pgTable("recurring_bookings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationName: varchar("organization_name"), // e.g. "St. Mary's School"
+  visitorName: varchar("visitor_name").notNull(),
+  visitorEmail: varchar("visitor_email").notNull(),
+  visitorPhone: varchar("visitor_phone"),
+  groupSize: groupSizeEnum("group_size").notNull(),
+  numberOfPeople: integer("number_of_people").default(1),
+  tourType: tourTypeEnum("tour_type").notNull(),
+
+  frequency: recurringFrequencyEnum("frequency").notNull(), // weekly, monthly
+  dayOfWeek: integer("day_of_week"), // 0-6 (Sun-Sat)
+  weekOfMonth: integer("week_of_month"), // 1-5 (e.g. 2nd Friday)
+
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date"),
+
+  startTime: time("start_time").notNull(), // Visit time
+
+  isActive: boolean("is_active").default(true),
+  lastGeneratedDate: date("last_generated_date"),
+
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const recurringBookingsRelations = relations(recurringBookings, ({ many }) => ({
+  bookings: many(bookings),
+}));
 
 // Guide Availability table - Enhanced for weekly scheduling
 export const guideAvailability = pgTable("guide_availability", {
@@ -357,6 +397,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "check_out",
   "payment_received",
   "payment_verified",
+  "incident_reported",
   "system",
 ]);
 
@@ -397,9 +438,13 @@ export const guidesRelations = relations(guides, ({ one, many }) => ({
 }));
 
 export const bookingsRelations = relations(bookings, ({ one, many }) => ({
-  guide: one(guides, {
+  assignedGuide: one(guides, {
     fields: [bookings.assignedGuideId],
     references: [guides.id],
+  }),
+  recurringBooking: one(recurringBookings, {
+    fields: [bookings.recurringBookingId],
+    references: [recurringBookings.id],
   }),
   meetingPoint: one(meetingPoints, {
     fields: [bookings.meetingPointId],
@@ -647,7 +692,7 @@ export type UserRole = "admin" | "coordinator" | "guide" | "security" | "visitor
 export type IncidentSeverity = "low" | "medium" | "high" | "critical";
 export type IncidentStatus = "reported" | "investigating" | "resolved" | "closed";
 export type AuditAction = "create" | "update" | "delete" | "login" | "logout" | "check_in" | "check_out" | "verify";
-export type NotificationType = "booking_created" | "booking_confirmed" | "booking_cancelled" | "booking_completed" | "guide_assigned" | "check_in" | "check_out" | "payment_received" | "payment_verified" | "system";
+export type NotificationType = "booking_created" | "booking_confirmed" | "booking_cancelled" | "booking_completed" | "guide_assigned" | "check_in" | "check_out" | "payment_received" | "payment_verified" | "incident_reported" | "system";
 
 // Content Management System (CMS)
 export const contentBlocks = pgTable("content_blocks", {
@@ -886,6 +931,7 @@ export const tasks = pgTable("tasks", {
   isRecurring: boolean("is_recurring").default(false),
   recurrencePattern: varchar("recurrence_pattern", { length: 50 }),
   parentTaskId: varchar("parent_task_id"),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (table) => ({
@@ -1016,6 +1062,58 @@ export type TaskHistory = typeof taskHistory.$inferSelect;
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 export type TaskStatus = "pending" | "in_progress" | "under_review" | "completed" | "cancelled";
 export type TaskCategory = "tour_prep" | "training" | "admin" | "maintenance" | "communication" | "documentation" | "other";
+
+// Payout status enum
+export const payoutStatusEnum = pgEnum("payout_status", [
+  "pending",
+  "paid",
+  "cancelled",
+]);
+
+// Guide Payouts table for tracking payment history
+export const guidePayouts = pgTable("guide_payouts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  guideId: varchar("guide_id").notNull().references(() => guides.id),
+  amount: integer("amount").notNull(), // Amount in MWK
+  periodStart: date("period_start"),
+  periodEnd: date("period_end"),
+  toursCount: integer("tours_count").default(0),
+  status: varchar("status", { length: 20 }).default("pending"), // pending, paid, cancelled
+  paidAt: timestamp("paid_at"),
+  paidBy: varchar("paid_by").references(() => users.id),
+  paymentMethod: varchar("payment_method", { length: 50 }), // cash, airtel_money, tnm_mpamba
+  paymentReference: varchar("payment_reference", { length: 100 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  guideIdx: index("idx_payouts_guide").on(table.guideId),
+  statusIdx: index("idx_payouts_status").on(table.status),
+  createdIdx: index("idx_payouts_created").on(table.createdAt),
+}));
+
+// Guide Payouts relations
+export const guidePayoutsRelations = relations(guidePayouts, ({ one }) => ({
+  guide: one(guides, {
+    fields: [guidePayouts.guideId],
+    references: [guides.id],
+  }),
+  payer: one(users, {
+    fields: [guidePayouts.paidBy],
+    references: [users.id],
+  }),
+}));
+
+// Payout insert schema
+export const insertGuidePayoutSchema = createInsertSchema(guidePayouts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Payout types
+export type GuidePayout = typeof guidePayouts.$inferSelect;
+export type InsertGuidePayout = z.infer<typeof insertGuidePayoutSchema>;
 
 // Chat Rooms table
 export const chatRooms = pgTable("chat_rooms", {
@@ -1213,3 +1311,13 @@ export type HelpCategory = "faq" | "getting_started" | "guide_help" | "visitor_h
 export type HelpAudience = "visitor" | "guide" | "both";
 export type TicketStatus = "open" | "in_progress" | "resolved" | "closed";
 export type TicketPriority = "low" | "normal" | "high" | "urgent";
+
+export const insertRecurringBookingSchema = createInsertSchema(recurringBookings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastGeneratedDate: true
+});
+
+export type RecurringBooking = typeof recurringBookings.$inferSelect;
+export type InsertRecurringBooking = z.infer<typeof insertRecurringBookingSchema>;

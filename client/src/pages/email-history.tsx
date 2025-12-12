@@ -193,7 +193,7 @@ export default function SendEmail() {
         {/* Left Sidebar - Email List */}
         <div className={cn(
           "flex flex-col border-r transition-all",
-          selectedEmail ? "w-[380px]" : "flex-1"
+          selectedEmail ? "hidden md:flex w-[380px]" : "w-full md:flex-1"
         )}>
           {/* Search and Stats */}
           <div className="p-4 border-b space-y-3">
@@ -297,7 +297,7 @@ export default function SendEmail() {
 
         {/* Right Panel - Email Detail */}
         {selectedEmail && (
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col w-full md:w-auto">
             {/* Detail Header */}
             <div className="flex items-center justify-between p-4 border-b">
               <Button
@@ -350,7 +350,7 @@ export default function SendEmail() {
 
             {/* Email Content */}
             <ScrollArea className="flex-1">
-              <div className="p-6 max-w-3xl">
+              <div className="p-4 sm:p-6 max-w-3xl">
                 {/* Subject */}
                 <h2 className="text-xl font-semibold mb-4">{selectedEmail.subject}</h2>
 

@@ -20,6 +20,7 @@ import {
   ListTodo,
   MessageCircle,
   HelpCircle,
+  CalendarRange,
 } from "lucide-react";
 import {
   Sidebar,
@@ -59,6 +60,12 @@ const mainNavigationItems: NavItem[] = [
     title: "Bookings",
     url: "/bookings",
     icon: BookOpen,
+    roles: ["admin", "coordinator"],
+  },
+  {
+    title: "Recurring",
+    url: "/recurring-bookings",
+    icon: CalendarRange,
     roles: ["admin", "coordinator"],
   },
   {

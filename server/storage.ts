@@ -18,6 +18,8 @@ import {
   type GuideAvailability,
   type InsertGuideAvailability,
   type Incident,
+  type RecurringBooking,
+  type InsertRecurringBooking,
   type InsertIncident,
   type IncidentStatus,
   type AuditLog,
@@ -67,9 +69,12 @@ import {
   type HelpCategory,
   type HelpAudience,
   type TicketStatus,
+  type GuidePayout,
+  type InsertGuidePayout,
 } from "@shared/schema";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import crypto from "crypto";
+import { cache, CACHE_TTL, CACHE_KEYS } from "./utils/cache";
 
 // Generate booking reference (e.g., DVS-2024-ABC123)
 function generateBookingReference(): string {
@@ -116,6 +121,23 @@ function transformToSnake(obj: any): any {
   }
   return result;
 }
+
+// Pagination types
+export interface PaginationOptions {
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
 
 export interface IStorage {
   // User operations
@@ -170,15 +192,18 @@ export interface IStorage {
 
   // Booking operations
   getBookings(): Promise<Booking[]>;
+  getBookingsPaginated(options?: PaginationOptions): Promise<PaginatedResult<Booking>>;
+  searchBookings(query: string, filters?: { status?: BookingStatus; paymentStatus?: PaymentStatus }): Promise<Booking[]>;
   getActiveVisits(): Promise<Booking[]>;
   createBooking(booking: InsertBooking): Promise<Booking>;
-  updateBookingStatus(id: string, status: BookingStatus): Promise<Booking | undefined>;
+  updateBookingStatus(id: string, status: BookingStatus, expectedVersion?: number): Promise<Booking | undefined>;
   updateBookingPaymentStatus(id: string, status: PaymentStatus, verifiedBy?: string): Promise<Booking | undefined>;
   assignGuideToBooking(bookingId: string, guideId: string): Promise<Booking | undefined>;
   updateBookingNotes(id: string, notes: string): Promise<Booking | undefined>;
   checkInVisitor(id: string, checkInBy: string): Promise<Booking | undefined>;
   checkOutVisitor(id: string, checkOutBy: string): Promise<Booking | undefined>;
   updateBookingRating(id: string, rating: number): Promise<Booking | undefined>;
+  rescheduleBooking(id: string, visitDate: string, visitTime: string): Promise<Booking | undefined>;
 
   // Guide Helper
   getGuidesByIds(ids: string[]): Promise<Guide[]>;
@@ -220,6 +245,13 @@ export interface IStorage {
   updateEmailLogStatus(id: string, status: string): Promise<EmailLog | undefined>;
   archiveEmailLog(id: string): Promise<EmailLog | undefined>;
   deleteEmailLog(id: string): Promise<void>;
+
+  // Recurring Bookings
+  createRecurringBooking(booking: InsertRecurringBooking): Promise<RecurringBooking>;
+  getRecurringBookings(): Promise<RecurringBooking[]>;
+  getRecurringBooking(id: string): Promise<RecurringBooking | undefined>;
+  updateRecurringBooking(id: string, updates: Partial<RecurringBooking>): Promise<RecurringBooking | undefined>;
+  deleteRecurringBooking(id: string): Promise<void>;
 
   // User authentication operations
   createUser(email: string, password: string, firstName: string, lastName: string, role?: UserRole): Promise<User>;
@@ -331,6 +363,18 @@ export interface IStorage {
   getTaskComments(taskId: string): Promise<TaskComment[]>;
   createTaskComment(comment: InsertTaskComment): Promise<TaskComment>;
   getTaskStats(): Promise<{ total: number; pending: number; inProgress: number; completed: number; overdue: number }>;
+
+  // Guide Payout operations
+  getPayouts(filters?: { guideId?: string; status?: string }): Promise<GuidePayout[]>;
+  getPayout(id: string): Promise<GuidePayout | undefined>;
+  createPayout(payout: InsertGuidePayout): Promise<GuidePayout>;
+  markPayoutAsPaid(id: string, paidBy: string, paymentMethod: string, paymentReference?: string): Promise<GuidePayout | undefined>;
+  getPayoutSummary(): Promise<{
+    totalPaidOut: number;
+    totalPending: number;
+    thisMonthPaid: number;
+    guidesAwaitingPayment: number;
+  }>;
 
   // Chat operations
   getChatRooms(userId: string): Promise<ChatRoom[]>;
@@ -487,7 +531,7 @@ export class SupabaseStorage implements IStorage {
 
   // Guide operations
   async getGuides(): Promise<Guide[]> {
-    const { data, error } = await this.supabase.from("guides").select("*").order("created_at", { ascending: false });
+    const { data, error } = await this.supabase.from("guides").select("*").is("deleted_at", null).order("created_at", { ascending: false });
     return this.handleResponse(data, error);
   }
 
@@ -521,14 +565,23 @@ export class SupabaseStorage implements IStorage {
   }
 
   async deleteGuide(id: string): Promise<void> {
-    const { error } = await this.supabase.from("guides").delete().eq("id", id);
+    // Soft delete - set deleted_at timestamp
+    const { error } = await this.supabase.from("guides").update({ deleted_at: new Date().toISOString() }).eq("id", id);
     if (error) throw new Error(error.message);
   }
 
   // Zone operations
   async getZones(): Promise<Zone[]> {
-    const { data, error } = await this.supabase.from("zones").select("*").order("name");
-    return this.handleResponse(data, error);
+    // Check cache first
+    const cached = cache.get<Zone[]>(CACHE_KEYS.ZONES);
+    if (cached) return cached;
+
+    const { data, error } = await this.supabase.from("zones").select("*").is("deleted_at", null).order("name");
+    const zones = this.handleResponse(data, error);
+
+    // Cache for 5 minutes
+    cache.set(CACHE_KEYS.ZONES, zones, CACHE_TTL.MEDIUM);
+    return zones;
   }
 
   async getZone(id: string): Promise<Zone | undefined> {
@@ -550,7 +603,8 @@ export class SupabaseStorage implements IStorage {
   }
 
   async deleteZone(id: string): Promise<void> {
-    const { error } = await this.supabase.from("zones").delete().eq("id", id);
+    // Soft delete - set deleted_at timestamp
+    const { error } = await this.supabase.from("zones").update({ deleted_at: new Date().toISOString() }).eq("id", id);
     if (error) throw new Error(error.message);
   }
 
@@ -614,8 +668,16 @@ export class SupabaseStorage implements IStorage {
 
   // Pricing operations
   async getPricingConfigs(): Promise<PricingConfig[]> {
+    // Check cache first
+    const cached = cache.get<PricingConfig[]>(CACHE_KEYS.PRICING);
+    if (cached) return cached;
+
     const { data, error } = await this.supabase.from("pricing_config").select("*");
-    return this.handleResponse(data, error);
+    const configs = this.handleResponse(data, error);
+
+    // Cache for 15 minutes (rarely changes)
+    cache.set(CACHE_KEYS.PRICING, configs, CACHE_TTL.LONG);
+    return configs;
   }
 
   async updatePricing(data: Record<string, number>): Promise<void> {
@@ -651,6 +713,54 @@ export class SupabaseStorage implements IStorage {
   // Booking operations
   async getBookings(): Promise<Booking[]> {
     const { data, error } = await this.supabase.from("bookings").select("*").order("created_at", { ascending: false });
+    return this.handleResponse(data, error);
+  }
+
+  async getBookingsPaginated(options?: PaginationOptions): Promise<PaginatedResult<Booking>> {
+    const page = Math.max(1, options?.page || 1);
+    const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, options?.limit || DEFAULT_PAGE_SIZE));
+    const offset = (page - 1) * limit;
+
+    // Get count first
+    const { count, error: countError } = await this.supabase
+      .from("bookings")
+      .select("*", { count: "exact", head: true });
+    if (countError) throw new Error(countError.message);
+
+    // Get paginated data
+    const { data, error } = await this.supabase
+      .from("bookings")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    const bookings = this.handleResponse(data, error);
+    const total = count || 0;
+
+    return {
+      data: bookings,
+      total,
+      page,
+      limit,
+      hasMore: offset + bookings.length < total
+    };
+  }
+
+  async searchBookings(query: string, filters?: { status?: BookingStatus; paymentStatus?: PaymentStatus }): Promise<Booking[]> {
+    let queryBuilder = this.supabase
+      .from("bookings")
+      .select("*")
+      .or(`visitor_name.ilike.%${query}%,visitor_email.ilike.%${query}%,booking_reference.ilike.%${query}%`)
+      .order("created_at", { ascending: false });
+
+    if (filters?.status) {
+      queryBuilder = queryBuilder.eq("status", filters.status);
+    }
+    if (filters?.paymentStatus) {
+      queryBuilder = queryBuilder.eq("payment_status", filters.paymentStatus);
+    }
+
+    const { data, error } = await queryBuilder.limit(50);
     return this.handleResponse(data, error);
   }
 
@@ -717,7 +827,44 @@ export class SupabaseStorage implements IStorage {
     return this.handleResponse(data, error);
   }
 
-  async updateBookingStatus(id: string, status: BookingStatus): Promise<Booking | undefined> {
+  async updateBookingStatus(id: string, status: BookingStatus, expectedVersion?: number): Promise<Booking | undefined> {
+    // If expectedVersion is provided, use optimistic locking
+    if (expectedVersion !== undefined) {
+      const { data: updated, error } = await this.supabase
+        .from("bookings")
+        .update({
+          status,
+          updated_at: new Date(),
+          version: expectedVersion + 1
+        })
+        .eq("id", id)
+        .eq("version", expectedVersion)
+        .select()
+        .single();
+
+      // No rows updated means version mismatch (concurrent update)
+      if (error?.code === 'PGRST116') {
+        const conflictError = new Error('VERSION_CONFLICT');
+        (conflictError as any).code = 'VERSION_CONFLICT';
+        throw conflictError;
+      }
+      if (error) throw new Error(error.message);
+
+      // If completed, update guide stats
+      if (status === "completed" && updated?.assigned_guide_id) {
+        const guide = await this.getGuide(updated.assigned_guide_id);
+        if (guide) {
+          await this.updateGuide(updated.assigned_guide_id, {
+            totalTours: (guide.totalTours || 0) + 1,
+            totalEarnings: (guide.totalEarnings || 0) + (updated.total_amount || 0),
+          });
+        }
+      }
+
+      return transformToCamel(updated);
+    }
+
+    // Original behavior without version check (backward compatible)
     const { data: updated, error } = await this.supabase
       .from("bookings")
       .update({ status, updated_at: new Date() })
@@ -824,6 +971,20 @@ export class SupabaseStorage implements IStorage {
     const { data, error } = await this.supabase
       .from("bookings")
       .update({ visitor_rating: rating, updated_at: new Date() })
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async rescheduleBooking(id: string, visitDate: string, visitTime: string): Promise<Booking | undefined> {
+    const { data, error } = await this.supabase
+      .from("bookings")
+      .update({
+        visit_date: visitDate,
+        visit_time: visitTime,
+        updated_at: new Date()
+      })
       .eq("id", id)
       .select()
       .single();
@@ -1842,7 +2003,8 @@ export class SupabaseStorage implements IStorage {
   }
 
   async deleteTask(id: string): Promise<void> {
-    const { error } = await this.supabase.from("tasks").delete().eq("id", id);
+    // Soft delete - set deleted_at timestamp
+    const { error } = await this.supabase.from("tasks").update({ deleted_at: new Date().toISOString() }).eq("id", id);
     if (error) throw error;
   }
 
@@ -1881,6 +2043,96 @@ export class SupabaseStorage implements IStorage {
       inProgress: tasks?.filter(t => t.status === "in_progress").length || 0,
       completed: tasks?.filter(t => t.status === "completed").length || 0,
       overdue: tasks?.filter(t => t.due_date && new Date(t.due_date) < now && t.status !== "completed").length || 0,
+    };
+  }
+
+  // Guide Payout Operations
+  async getPayouts(filters?: { guideId?: string; status?: string }): Promise<GuidePayout[]> {
+    let query = this.supabase
+      .from("guide_payouts")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (filters?.guideId) {
+      query = query.eq("guide_id", filters.guideId);
+    }
+    if (filters?.status) {
+      query = query.eq("status", filters.status);
+    }
+
+    const { data, error } = await query;
+    return this.handleResponse<GuidePayout[]>(data, error);
+  }
+
+  async getPayout(id: string): Promise<GuidePayout | undefined> {
+    const { data, error } = await this.supabase
+      .from("guide_payouts")
+      .select("*")
+      .eq("id", id)
+      .single();
+    return this.handleOptionalResponse<GuidePayout>(data, error);
+  }
+
+  async createPayout(payout: InsertGuidePayout): Promise<GuidePayout> {
+    const snakeData = transformToSnake(payout);
+    const { data, error } = await this.supabase
+      .from("guide_payouts")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse<GuidePayout>(data, error);
+  }
+
+  async markPayoutAsPaid(id: string, paidBy: string, paymentMethod: string, paymentReference?: string): Promise<GuidePayout | undefined> {
+    const updateData: any = {
+      status: "paid",
+      paid_at: new Date(),
+      paid_by: paidBy,
+      payment_method: paymentMethod,
+      updated_at: new Date(),
+    };
+    if (paymentReference) {
+      updateData.payment_reference = paymentReference;
+    }
+
+    const { data, error } = await this.supabase
+      .from("guide_payouts")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse<GuidePayout>(data, error);
+  }
+
+  async getPayoutSummary(): Promise<{
+    totalPaidOut: number;
+    totalPending: number;
+    thisMonthPaid: number;
+    guidesAwaitingPayment: number;
+  }> {
+    const { data: payouts, error } = await this.supabase
+      .from("guide_payouts")
+      .select("amount, status, paid_at, guide_id");
+
+    if (error) throw error;
+
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const paidPayouts = payouts?.filter(p => p.status === "paid") || [];
+    const pendingPayouts = payouts?.filter(p => p.status === "pending") || [];
+    const thisMonthPayouts = paidPayouts.filter(p =>
+      p.paid_at && new Date(p.paid_at) >= startOfMonth
+    );
+
+    // Count unique guides with pending payouts
+    const guidesWithPending = new Set(pendingPayouts.map(p => p.guide_id));
+
+    return {
+      totalPaidOut: paidPayouts.reduce((sum, p) => sum + (p.amount || 0), 0),
+      totalPending: pendingPayouts.reduce((sum, p) => sum + (p.amount || 0), 0),
+      thisMonthPaid: thisMonthPayouts.reduce((sum, p) => sum + (p.amount || 0), 0),
+      guidesAwaitingPayment: guidesWithPending.size,
     };
   }
 
@@ -2208,6 +2460,58 @@ export class SupabaseStorage implements IStorage {
       .single();
 
     return this.handleResponse<SupportTicket>(data, error);
+  }
+
+  // Recurring Bookings
+  async createRecurringBooking(booking: InsertRecurringBooking): Promise<RecurringBooking> {
+    const bookingData = transformToSnake(booking);
+    const { data, error } = await this.supabase
+      .from("recurring_bookings")
+      .insert(bookingData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async getRecurringBookings(): Promise<RecurringBooking[]> {
+    const { data, error } = await this.supabase
+      .from("recurring_bookings")
+      .select("*")
+      .order("created_at", { ascending: false });
+    return this.handleResponse(data, error);
+  }
+
+  async getRecurringBooking(id: string): Promise<RecurringBooking | undefined> {
+    const { data, error } = await this.supabase
+      .from("recurring_bookings")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error && error.code === 'PGRST116') return undefined; // Not found
+    return this.handleResponse(data, error);
+  }
+
+  async updateRecurringBooking(id: string, updates: Partial<RecurringBooking>): Promise<RecurringBooking | undefined> {
+    const updateData = transformToSnake({
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    });
+    const { data, error } = await this.supabase
+      .from("recurring_bookings")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async deleteRecurringBooking(id: string): Promise<void> {
+    // Soft delete if preferred, but for now hard delete or inactive
+    const { error } = await this.supabase
+      .from("recurring_bookings")
+      .delete()
+      .eq("id", id);
+    if (error) throw new Error(error.message);
   }
 }
 

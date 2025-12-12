@@ -30,6 +30,10 @@ import {
   notifyGuideAssigned,
   notifyCheckIn,
   notifyPaymentReceived,
+  notifyBookingCancelledByVisitor,
+  notifySupportTicketCreated,
+  notifyLowRatingReceived,
+  notifyIncidentReported,
 } from "./notifications";
 import crypto from "crypto";
 
@@ -166,25 +170,59 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Health check endpoint - exempt from IP whitelist for monitoring
+  app.get("/api/health", async (req, res) => {
+    try {
+      // Test database connectivity with a lightweight query
+      const zones = await storage.getZones();
+      res.json({
+        status: "healthy",
+        timestamp: new Date().toISOString(),
+        database: "connected",
+        zonesCount: zones.length
+      });
+    } catch (error) {
+      console.error("Health check failed:", error);
+      res.status(503).json({
+        status: "unhealthy",
+        timestamp: new Date().toISOString(),
+        database: "disconnected"
+      });
+    }
+  });
+
   // IP Whitelist Middleware
   app.use("/api", async (req, res, next) => {
-    // Skip for public endpoints if needed, but generally IP whitelist protects everything API related
-    // Except maybe webhooks if they come from external services (Stripe etc).
-    // For now, we apply to all /api
+    // Skip IP check for health endpoint (needed for monitoring)
+    if (req.path === "/health") {
+      return next();
+    }
+
+    const isProduction = process.env.NODE_ENV === "production";
 
     try {
       const ip = req.ip || req.socket.remoteAddress || "";
       const isAllowed = await storage.checkIpAllowed(ip);
 
       if (!isAllowed) {
-        console.warn(`Blocked access from unauthorized IP: ${ip}`);
+        console.warn(`[SECURITY] Blocked access from unauthorized IP: ${ip}, path: ${req.path}, requestId: ${req.requestId}`);
         return res.status(403).json({ message: "Access denied: Unauthorized IP address" });
       }
       next();
     } catch (error) {
-      console.error("IP Check error:", error);
-      // Fail open or closed? Fail open for now to avoid accidental lockout during setup
-      next();
+      // Log the error for monitoring/alerting
+      console.error(`[SECURITY] IP Check error - requestId: ${req.requestId}, error:`, error);
+
+      if (isProduction) {
+        // In production: fail-closed for security
+        // Rate limiting from app.ts still provides some protection
+        console.error(`[SECURITY] Denying request due to IP check failure in production`);
+        return res.status(503).json({ message: "Service temporarily unavailable" });
+      } else {
+        // In development: fail-open to avoid lockouts during setup
+        console.warn(`[SECURITY] IP check failed - allowing request in development mode`);
+        next();
+      }
     }
   });
 
@@ -408,10 +446,13 @@ export async function registerRoutes(
   });
 
   // Logout
-  app.post("/api/auth/logout", (req, res) => {
+  app.post("/api/auth/logout", async (req, res) => {
     const userId = req.session?.userId;
     if (userId) {
-      createAuditLog(userId, "logout", "user", userId, null, null, req);
+      // Fire and forget audit log - don't block logout on audit log failure
+      createAuditLog(userId, "logout", "user", userId, null, null, req).catch((err) => {
+        console.error("Audit log error during logout:", err);
+      });
     }
     req.session.destroy((err) => {
       if (err) {
@@ -838,10 +879,108 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/stats/heatmap", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const bookings = await storage.getBookings();
+      // Initialize 24x7 grid
+      const data: { day: string; hour: number; value: number }[] = [];
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+      for (let day = 0; day < 7; day++) {
+        for (let hour = 0; hour < 24; hour++) {
+          data.push({
+            day: days[day],
+            hour: hour,
+            value: 0
+          });
+        }
+      }
+
+      // Fill with data
+      console.log(`[Heatmap] Processing ${bookings.length} bookings`);
+      let processedCount = 0;
+      bookings.forEach(booking => {
+        if (!booking.visitDate || !booking.visitTime) return;
+        const date = new Date(booking.visitDate);
+        const dayIndex = date.getDay();
+
+        // Handle various time formats (HH:mm:ss or HH:mm)
+        const timeStr = booking.visitTime.toString().trim();
+        const hour = parseInt(timeStr.split(':')[0]);
+
+        if (!isNaN(date.getTime()) && !isNaN(dayIndex) && !isNaN(hour) && hour >= 0 && hour < 24) {
+          const index = dayIndex * 24 + hour;
+          if (data[index]) {
+            data[index].value++;
+            processedCount++;
+          }
+        }
+      });
+      console.log(`[Heatmap] Processed ${processedCount} valid booking times`);
+
+      // Filter out zero values to reduce payload size if desired, but grid is better for heatmap
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching heatmap stats:", error);
+      res.status(500).json({ message: "Failed to fetch heatmap stats" });
+    }
+  });
+
+  app.get("/api/stats/seasonal", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const bookings = await storage.getBookings();
+      const currentYear = new Date().getFullYear();
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+      // Initialize months
+      const data = months.map(m => ({ month: m, bookings: 0, revenue: 0 }));
+
+      bookings.forEach(booking => {
+        if (!booking.visitDate) return;
+        const date = new Date(booking.visitDate);
+
+        if (!isNaN(date.getTime())) {
+          // Aggregate ALL years to show true seasonal trends
+          const monthIndex = date.getMonth();
+          if (monthIndex >= 0 && monthIndex < 12) {
+            data[monthIndex].bookings++;
+            // Add revenue if completed/confirmed
+            if ((booking.status === 'completed' || booking.status === 'confirmed') && booking.totalAmount) {
+              data[monthIndex].revenue += Number(booking.totalAmount);
+            }
+          }
+        }
+      });
+
+      const totalBookings = data.reduce((acc, curr) => acc + curr.bookings, 0);
+      console.log(`[Seasonal] Found ${totalBookings} total bookings across all years`);
+
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching seasonal stats:", error);
+      res.status(500).json({ message: "Failed to fetch seasonal stats" });
+    }
+  });
+
   // Bookings endpoints - admin, coordinator, security can view all bookings
   app.get("/api/bookings", isAuthenticated, requireRole("admin", "coordinator", "security"), async (req, res) => {
     try {
-      const bookingsList = await storage.getBookings();
+      // Support optional pagination via query params
+      const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+
+      let bookingsList;
+      let paginationMeta;
+
+      if (page !== undefined) {
+        // Use paginated endpoint
+        const result = await storage.getBookingsPaginated({ page, limit });
+        bookingsList = result.data;
+        paginationMeta = { total: result.total, page: result.page, limit: result.limit, hasMore: result.hasMore };
+      } else {
+        // Original behavior - return all
+        bookingsList = await storage.getBookings();
+      }
 
       // Batch fetch guides
       const guideIds = Array.from(new Set(bookingsList.map(b => b.assignedGuideId).filter(Boolean) as string[]));
@@ -853,10 +992,47 @@ export async function registerRoutes(
         guide: booking.assignedGuideId ? guidesMap.get(booking.assignedGuideId) || null : null
       }));
 
-      res.json(bookingsWithGuides);
+      if (paginationMeta) {
+        res.json({ data: bookingsWithGuides, ...paginationMeta });
+      } else {
+        res.json(bookingsWithGuides);
+      }
     } catch (error) {
       console.error("Error fetching bookings:", error);
       res.status(500).json({ message: "Failed to fetch bookings" });
+    }
+  });
+
+  // Search bookings endpoint
+  app.get("/api/bookings/search", isAuthenticated, requireRole("admin", "coordinator", "security"), async (req, res) => {
+    try {
+      const query = (req.query.q as string) || "";
+      const status = req.query.status as string | undefined;
+      const paymentStatus = req.query.paymentStatus as string | undefined;
+
+      if (!query.trim()) {
+        return res.status(400).json({ message: "Search query is required" });
+      }
+
+      const bookings = await storage.searchBookings(query.trim(), {
+        status: status as any,
+        paymentStatus: paymentStatus as any
+      });
+
+      // Attach guides
+      const guideIds = Array.from(new Set(bookings.map(b => b.assignedGuideId).filter(Boolean) as string[]));
+      const guides = await storage.getGuidesByIds(guideIds);
+      const guidesMap = new Map(guides.map(g => [g.id, g]));
+
+      const bookingsWithGuides = bookings.map(booking => ({
+        ...booking,
+        guide: booking.assignedGuideId ? guidesMap.get(booking.assignedGuideId) || null : null
+      }));
+
+      res.json(bookingsWithGuides);
+    } catch (error) {
+      console.error("Error searching bookings:", error);
+      res.status(500).json({ message: "Failed to search bookings" });
     }
   });
 
@@ -1148,20 +1324,20 @@ export async function registerRoutes(
         console.error("Error details:", error.message);
         console.error("Stack:", error.stack);
       }
-      // Return the specific error message to the client for debugging
-      res.status(500).json({
-        message: "Failed to create historical booking",
-        details: error instanceof Error ? error.message : String(error)
-      });
+      // In production, return generic error. Log details server-side only.
+      console.error("Error creating historical booking:", error);
+      res.status(500).json({ message: "Failed to create historical booking" });
     }
   });
 
   app.patch("/api/bookings/:id/status", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
     try {
       const { id } = req.params;
-      const { status } = req.body;
+      const { status, version } = req.body;
       const oldBooking = await storage.getBooking(id);
-      const booking = await storage.updateBookingStatus(id, status);
+
+      // Use optimistic locking if version is provided
+      const booking = await storage.updateBookingStatus(id, status, version);
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
       }
@@ -1195,9 +1371,63 @@ export async function registerRoutes(
       }
 
       res.json(booking);
-    } catch (error) {
+    } catch (error: any) {
+      // Handle version conflict (optimistic locking failure)
+      if (error?.code === 'VERSION_CONFLICT') {
+        return res.status(409).json({
+          message: "Booking was modified by another user. Please refresh and try again.",
+          code: "VERSION_CONFLICT"
+        });
+      }
       console.error("Error updating booking status:", error);
       res.status(500).json({ message: "Failed to update booking status" });
+    }
+  });
+
+  // Reschedule booking (for calendar drag-and-drop)
+  app.patch("/api/bookings/:id/reschedule", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { visitDate, visitTime } = req.body;
+
+      if (!visitDate) {
+        return res.status(400).json({ message: "Visit date is required" });
+      }
+
+      const oldBooking = await storage.getBooking(id);
+      if (!oldBooking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      const booking = await storage.rescheduleBooking(id, visitDate, visitTime || oldBooking.visitTime);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      // Create audit log
+      const userId = req.session?.userId;
+      if (userId) {
+        await createAuditLog(userId, "update", "booking", id,
+          { visitDate: oldBooking.visitDate, visitTime: oldBooking.visitTime },
+          { visitDate, visitTime: visitTime || oldBooking.visitTime },
+          req
+        );
+      }
+
+      // Create activity log
+      await storage.createBookingActivityLog({
+        bookingId: id,
+        action: "rescheduled",
+        description: `Rescheduled from ${oldBooking.visitDate} to ${visitDate}`,
+        oldStatus: oldBooking.status || null,
+        newStatus: oldBooking.status || null,
+        userId: userId || null,
+      });
+
+      res.json(booking);
+    } catch (error) {
+      console.error("Error rescheduling booking:", error);
+      res.status(500).json({ message: "Failed to reschedule booking" });
     }
   });
 
@@ -1301,6 +1531,27 @@ export async function registerRoutes(
       // Update booking status
       const updated = await storage.updateBookingStatus(id, "cancelled");
 
+      // Get guideUserId if assigned
+      let guideUserId;
+      if (booking.assignedGuideId) {
+        const guide = await storage.getGuide(booking.assignedGuideId);
+        if (guide) guideUserId = guide.userId;
+      }
+
+      // Notify Admins and Guide
+      await notifyBookingCancelledByVisitor(id, booking.visitorName, booking.bookingReference!, guideUserId);
+
+      // Email Visitor
+      await sendStatusUpdate({
+        visitorName: booking.visitorName,
+        visitorEmail: booking.visitorEmail,
+        bookingReference: booking.bookingReference!,
+        oldStatus: booking.status,
+        newStatus: "cancelled",
+        visitDate: String(booking.visitDate),
+        adminNotes: "Cancelled by visitor"
+      });
+
       // Create activity log
       await storage.createBookingActivityLog({
         bookingId: id,
@@ -1377,12 +1628,17 @@ export async function registerRoutes(
       }
 
       // Save rating on booking
-      // Save rating on booking
       await storage.updateBookingRating(id, rating);
 
       // Create audit log
       await createAuditLog(userId, "create", "guide_rating", booking.assignedGuideId,
         null, { rating, bookingId: id }, req);
+
+      // Notify admins if rating is low (<= 3)
+      if (rating <= 3) {
+        const guideName = guide ? `${guide.firstName} ${guide.lastName}` : "Unknown Guide";
+        await notifyLowRatingReceived(id, guideName, rating, booking.visitorName);
+      }
 
       res.json({ success: true, message: "Guide rated successfully", rating });
     } catch (error) {
@@ -2275,7 +2531,11 @@ export async function registerRoutes(
       });
       const incident = await storage.createIncident(incidentData);
 
+      const user = await storage.getUser(userId!);
       await createAuditLog(userId, "create", "incident", incident.id, null, incidentData, req);
+
+      // Notify admins and security
+      await notifyIncidentReported(incident.id, incident.title, incidentData.severity || "low", user ? `${user.firstName} ${user.lastName}` : "Unknown User");
 
       res.status(201).json(incident);
     } catch (error) {
@@ -2774,37 +3034,12 @@ export async function registerRoutes(
       const bookings = await storage.getBookings();
       const guides = await storage.getGuides();
 
-      // Debug logging
-      console.log(`[Payouts] Total bookings: ${bookings.length}`);
-      console.log(`[Payouts] Total guides: ${guides.length}`);
-
       const completedBookings = bookings.filter(b => b.status === 'completed');
-      console.log(`[Payouts] Completed bookings: ${completedBookings.length}`);
-
       const bookingsWithGuides = completedBookings.filter(b => b.assignedGuideId);
-      console.log(`[Payouts] Completed bookings with assigned guides: ${bookingsWithGuides.length}`);
-
-      if (completedBookings.length > 0) {
-        console.log(`[Payouts] Sample completed booking:`, {
-          id: completedBookings[0].id,
-          status: completedBookings[0].status,
-          assignedGuideId: completedBookings[0].assignedGuideId,
-          paymentStatus: completedBookings[0].paymentStatus,
-          totalAmount: completedBookings[0].totalAmount
-        });
-      }
-
-      if (guides.length > 0) {
-        console.log(`[Payouts] Sample guide:`, {
-          id: guides[0].id,
-          userId: guides[0].userId,
-          name: `${guides[0].firstName} ${guides[0].lastName}`
-        });
-      }
 
       // Calculate payouts based on completed bookings
-      // Assuming standard split: Guide gets 80%, Platform gets 20% (configurable later)
-      const GUIDE_SHARE_PERCENTAGE = 0.8;
+      // Guide currently gets 100% of revenue (no platform fee)
+      const GUIDE_SHARE_PERCENTAGE = 1.0;
 
       const payouts = guides.map(guide => {
         // Get all completed bookings for this guide (regardless of payment status)
@@ -2845,6 +3080,142 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error calculating payouts:", error);
       res.status(500).json({ message: "Failed to calculate payouts" });
+    }
+  });
+
+  // =====================
+  // Guide Payout History & Processing
+  // =====================
+
+  // Get payout history with optional filters
+  app.get("/api/payouts", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const { guideId, status } = req.query;
+      const payouts = await storage.getPayouts({
+        guideId: guideId as string | undefined,
+        status: status as string | undefined,
+      });
+
+      // Enrich with guide names
+      const guides = await storage.getGuides();
+      const guideMap = new Map(guides.map(g => [g.id, g]));
+
+      const enrichedPayouts = payouts.map(p => ({
+        ...p,
+        guideName: guideMap.get(p.guideId)
+          ? `${guideMap.get(p.guideId)!.firstName} ${guideMap.get(p.guideId)!.lastName}`
+          : "Unknown Guide",
+      }));
+
+      res.json(enrichedPayouts);
+    } catch (error) {
+      console.error("Error fetching payouts:", error);
+      res.status(500).json({ message: "Failed to fetch payouts" });
+    }
+  });
+
+  // Get payout summary stats
+  app.get("/api/payouts/summary", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const summary = await storage.getPayoutSummary();
+      res.json(summary);
+    } catch (error) {
+      console.error("Error fetching payout summary:", error);
+      res.status(500).json({ message: "Failed to fetch payout summary" });
+    }
+  });
+
+  // Create a new payout record
+  app.post("/api/payouts", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    try {
+      const { guideId, amount, toursCount, periodStart, periodEnd, notes, status, paymentMethod, paymentReference, paidAt } = req.body;
+
+      if (!guideId || !amount) {
+        return res.status(400).json({ message: "Guide ID and amount are required" });
+      }
+
+      const payout = await storage.createPayout({
+        guideId,
+        amount,
+        toursCount: toursCount || 0,
+        periodStart: periodStart || null,
+        periodEnd: periodEnd || null,
+        notes: notes || null,
+        status: status || "pending",
+        paymentMethod: paymentMethod || null,
+        paymentReference: paymentReference || null,
+        paidAt: paidAt ? new Date(paidAt) : (status === 'paid' ? new Date() : null),
+      });
+
+      res.json(payout);
+    } catch (error) {
+      console.error("Error creating payout:", error);
+      res.status(500).json({ message: "Failed to create payout" });
+    }
+  });
+
+  // Mark payout as paid
+  app.patch("/api/payouts/:id/mark-paid", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { paymentMethod, paymentReference } = req.body;
+      const userId = req.session?.userId;
+
+      if (!paymentMethod) {
+        return res.status(400).json({ message: "Payment method is required" });
+      }
+
+      const payout = await storage.markPayoutAsPaid(id, userId, paymentMethod, paymentReference);
+      if (!payout) {
+        return res.status(404).json({ message: "Payout not found" });
+      }
+
+      res.json(payout);
+    } catch (error) {
+      console.error("Error marking payout as paid:", error);
+      res.status(500).json({ message: "Failed to mark payout as paid" });
+    }
+  });
+
+  // Export payouts as CSV
+  app.get("/api/payouts/export", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const { startDate, endDate, status } = req.query;
+      let payouts = await storage.getPayouts({
+        status: status as string | undefined,
+      });
+
+      // Filter by date range if provided
+      if (startDate || endDate) {
+        payouts = payouts.filter(p => {
+          const created = new Date(p.createdAt!);
+          if (startDate && created < new Date(startDate as string)) return false;
+          if (endDate && created > new Date(endDate as string)) return false;
+          return true;
+        });
+      }
+
+      // Get guide names
+      const guides = await storage.getGuides();
+      const guideMap = new Map(guides.map(g => [g.id, `${g.firstName} ${g.lastName}`]));
+
+      // Build CSV
+      let csv = "Payout ID,Guide Name,Amount (MWK),Tours,Status,Payment Method,Payment Reference,Paid Date,Created Date\n";
+
+      for (const p of payouts) {
+        const guideName = guideMap.get(p.guideId) || "Unknown";
+        const paidDate = p.paidAt ? new Date(p.paidAt).toISOString().split('T')[0] : "";
+        const createdDate = p.createdAt ? new Date(p.createdAt).toISOString().split('T')[0] : "";
+
+        csv += `${p.id},${guideName},${p.amount},${p.toursCount || 0},${p.status},${p.paymentMethod || ""},${p.paymentReference || ""},${paidDate},${createdDate}\n`;
+      }
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename=payouts_export_${new Date().toISOString().split('T')[0]}.csv`);
+      res.send(csv);
+    } catch (error) {
+      console.error("Error exporting payouts:", error);
+      res.status(500).json({ message: "Failed to export payouts" });
     }
   });
 
@@ -3798,8 +4169,6 @@ export async function registerRoutes(
           const roomUpdatedStr = room.updatedAt || room.updated_at;
           const lastUpdated = new Date(roomUpdatedStr);
 
-          console.log(`[Unread Debug] Room ${room.id}: updatedAt=${roomUpdatedStr}, lastRead=${lastReadStr}, isUnread=${lastUpdated > lastRead}`);
-
           // Check if room has been updated since last read
           if (lastUpdated > lastRead) {
             unreadCount++;
@@ -3807,7 +4176,6 @@ export async function registerRoutes(
         }
       }
 
-      console.log(`[Unread Debug] Total unread for user ${userId}: ${unreadCount}`);
       res.json({ count: unreadCount });
     } catch (error) {
       console.error("Error fetching unread chat count:", error);
@@ -3940,18 +4308,9 @@ export async function registerRoutes(
       };
       const ticket = await storage.createSupportTicket(ticketData);
 
-      // Optionally notify admins about new ticket
-      const admins = await storage.getUsers();
-      const adminUsers = admins.filter((u) => u.role === "admin");
-      for (const admin of adminUsers) {
-        await storage.createNotification({
-          userId: admin.id,
-          type: "system",
-          title: "New Support Ticket",
-          message: `New support ticket: ${ticketData.subject}`,
-          link: "/help-admin",
-        });
-      }
+      // Notify admins about new ticket
+      const user = await storage.getUser(userId);
+      await notifySupportTicketCreated(ticket.id, ticketData.subject, user ? `${user.firstName} ${user.lastName}` : "User");
 
       res.status(201).json(ticket);
     } catch (error) {
@@ -3972,6 +4331,126 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating support ticket:", error);
       res.status(500).json({ message: "Failed to update ticket" });
+    }
+  });
+
+  // =====================
+  // Recurring Bookings
+  // =====================
+
+  app.get("/api/recurring-bookings", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const recurrings = await storage.getRecurringBookings();
+      res.json(recurrings);
+    } catch (error) {
+      console.error("Error fetching recurring bookings:", error);
+      res.status(500).json({ message: "Failed to fetch recurring bookings" });
+    }
+  });
+
+  app.post("/api/recurring-bookings", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
+    try {
+      const bookingData = req.body;
+      const recurring = await storage.createRecurringBooking(bookingData);
+      res.status(201).json(recurring);
+    } catch (error) {
+      console.error("Error creating recurring booking:", error);
+      res.status(500).json({ message: "Failed to create recurring booking" });
+    }
+  });
+
+  app.delete("/api/recurring-bookings/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      await storage.deleteRecurringBooking(req.params.id);
+      res.sendStatus(204);
+    } catch (error) {
+      console.error("Error deleting recurring booking:", error);
+      res.status(500).json({ message: "Failed to delete recurring booking" });
+    }
+  });
+
+  app.post("/api/recurring-bookings/:id/generate", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { targetDate } = req.body; // Generate up to this date
+
+      const recurring = await storage.getRecurringBooking(id);
+      if (!recurring || !recurring.isActive) {
+        return res.status(404).json({ message: "Recurring schedule not found or inactive" });
+      }
+
+      const endCap = targetDate ? new Date(targetDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default 30 days
+      const startCursor = recurring.lastGeneratedDate
+        ? new Date(new Date(recurring.lastGeneratedDate).getTime() + 24 * 60 * 60 * 1000) // Start from day after last gen
+        : new Date(recurring.startDate);
+
+      if (startCursor < new Date()) {
+        // Optionally enforce starting from today if last gen was long ago? 
+        // For now allow backfilling if desired, or maybe max(startCursor, today)
+      }
+
+      const generatedBookings = [];
+      const cursor = new Date(startCursor);
+
+      while (cursor <= endCap) {
+        let shouldBook = false;
+
+        // Basic Frequency Logic
+        if (recurring.frequency === 'weekly') {
+          if (recurring.dayOfWeek !== null && cursor.getDay() === recurring.dayOfWeek) {
+            shouldBook = true;
+          }
+        } else if (recurring.frequency === 'monthly') {
+          // Ex: Same day of month (e.g. 15th)
+          const startD = new Date(recurring.startDate);
+          if (cursor.getDate() === startD.getDate()) {
+            shouldBook = true;
+          }
+          // TODO: Implement "2nd Friday" logic if needed based on weekOfMonth
+        }
+
+        if (shouldBook) {
+          // Create Booking
+          const visitDateStr = cursor.toISOString().split('T')[0];
+
+          // Check if booking already exists for this ref to avoid dupes?
+          // We rely on createBooking.
+
+          const bookingData = {
+            visitorName: recurring.visitorName,
+            visitorEmail: recurring.visitorEmail,
+            visitorPhone: recurring.visitorPhone || "",
+            groupSize: recurring.groupSize,
+            numberOfPeople: recurring.numberOfPeople || 1,
+            tourType: recurring.tourType,
+            visitDate: visitDateStr,
+            visitTime: recurring.startTime, // "HH:mm:ss"
+            paymentMethod: "cash", // Default or needs adding to recurring schema
+            status: "confirmed", // Auto-confirm? Or pending?
+            adminNotes: `Auto-generated from recurring schedule: ${recurring.organizationName || ''}. ${recurring.notes || ''}`,
+            recurringBookingId: recurring.id
+          };
+
+          // @ts-ignore
+          const newBooking = await storage.createBooking(bookingData);
+          generatedBookings.push(newBooking);
+        }
+
+        // Next day
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      // Update last generated date
+      if (generatedBookings.length > 0) {
+        await storage.updateRecurringBooking(id, {
+          lastGeneratedDate: endCap.toISOString().split('T')[0]
+        });
+      }
+
+      res.json({ generatedCount: generatedBookings.length, bookings: generatedBookings });
+    } catch (error) {
+      console.error("Error generating bookings:", error);
+      res.status(500).json({ message: "Failed to generate bookings" });
     }
   });
 

@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   DollarSign,
   TrendingUp,
@@ -10,6 +11,10 @@ import {
   ArrowDownRight,
   Download,
   Users,
+  CheckCircle,
+  Banknote,
+  Smartphone,
+  History,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +42,26 @@ import {
   Legend,
 } from "recharts";
 import { EmptyState } from "@/components/empty-state";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { format } from "date-fns";
 
 interface RevenueDashboard {
   totalRevenue: number;
@@ -62,6 +87,26 @@ interface PayoutData {
   pendingRevenue: number;
   guideShare: number;
   platformShare: number;
+}
+
+interface PayoutRecord {
+  id: string;
+  guideId: string;
+  guideName: string;
+  amount: number;
+  toursCount: number;
+  status: string;
+  paymentMethod?: string;
+  paymentReference?: string;
+  paidAt?: string;
+  createdAt: string;
+}
+
+interface PayoutSummary {
+  totalPaidOut: number;
+  totalPending: number;
+  thisMonthPaid: number;
+  guidesAwaitingPayment: number;
 }
 
 const COLORS = ["#0284c7", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6"];
@@ -161,9 +206,40 @@ const formatStatus = (status: string) => {
 };
 
 function PayoutsTab() {
+  const { toast } = useToast();
+  const [recordDialogOpen, setRecordDialogOpen] = useState(false);
+  const [selectedGuideData, setSelectedGuideData] = useState<PayoutData | null>(null);
+
   const { data: payouts, isLoading } = useQuery<PayoutData[]>({
     queryKey: ["/api/reports/payouts"],
   });
+
+  const createPayoutMutation = useMutation({
+    mutationFn: async (data: { guideId: string; amount: number; toursCount: number; status: string }) => {
+      const res = await apiRequest("POST", "/api/payouts", data);
+      return res;
+    },
+    onSuccess: () => {
+      toast({ title: "Payout Recorded", description: "The payout record has been created and added to history." });
+      setRecordDialogOpen(false);
+      setSelectedGuideData(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/payouts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/payouts/summary"] });
+    },
+    onError: () => {
+      toast({ title: "Failed to record payout", variant: "destructive" });
+    }
+  });
+
+  const handleRecordPayout = () => {
+    if (!selectedGuideData) return;
+    createPayoutMutation.mutate({
+      guideId: selectedGuideData.guideId,
+      amount: selectedGuideData.guideShare,
+      toursCount: selectedGuideData.completedTours,
+      status: "pending" // Default to pending, admin can mark as paid in history
+    });
+  };
 
   if (isLoading) {
     return (
@@ -196,7 +272,7 @@ function PayoutsTab() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Guide Payouts (80%)</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Guide Earnings</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">{formatCurrency(totalGuideShare)}</div>
@@ -205,10 +281,11 @@ function PayoutsTab() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Platform Revenue (20%)</CardTitle>
+            <CardTitle className="text-sm font-medium">Guides Active</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">{formatCurrency(totalPlatformShare)}</div>
+            <div className="text-2xl font-bold text-primary">{payouts.length}</div>
+            <p className="text-xs text-muted-foreground">With completed tours</p>
           </CardContent>
         </Card>
         <Card>
@@ -246,7 +323,8 @@ function PayoutsTab() {
                   <TableHead className="text-center">Pending</TableHead>
                   <TableHead className="text-right">Paid Revenue</TableHead>
                   <TableHead className="text-right">Pending Revenue</TableHead>
-                  <TableHead className="text-right">Guide Share (80%)</TableHead>
+                  <TableHead className="text-right">Total Earnings</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -273,6 +351,18 @@ function PayoutsTab() {
                       {payout.pendingRevenue > 0 ? formatCurrency(payout.pendingRevenue) : "-"}
                     </TableCell>
                     <TableCell className="text-right font-bold text-green-600">{formatCurrency(payout.guideShare)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedGuideData(payout);
+                          setRecordDialogOpen(true);
+                        }}
+                      >
+                        Record Payout
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -280,6 +370,327 @@ function PayoutsTab() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={recordDialogOpen} onOpenChange={setRecordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Record Payout for {selectedGuideData?.guideName}</DialogTitle>
+            <DialogDescription>
+              Create a payout record in the history functionality. This allows you to track payments explicitly.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="p-4 bg-muted rounded text-center">
+              <p className="text-sm text-muted-foreground">Total Lifetime Earnings</p>
+              <p className="text-2xl font-bold text-green-600">
+                {selectedGuideData && formatCurrency(selectedGuideData.guideShare)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Including {selectedGuideData?.completedTours} completed tours
+              </p>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              This will create a "Pending" payout record. You can mark it as "Paid" in the Payout History tab when you actually transfer the money.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setRecordDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleRecordPayout} disabled={createPayoutMutation.isPending}>
+              {createPayoutMutation.isPending ? "Recording..." : "Create Record"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function PayoutHistoryTab() {
+  const { toast } = useToast();
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [payDialogOpen, setPayDialogOpen] = useState(false);
+  const [selectedPayout, setSelectedPayout] = useState<PayoutRecord | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<string>("");
+  const [paymentReference, setPaymentReference] = useState<string>("");
+
+  const { data: payouts, isLoading: payoutsLoading } = useQuery<PayoutRecord[]>({
+    queryKey: ["/api/payouts", statusFilter !== "all" ? statusFilter : undefined],
+  });
+
+  const { data: summary } = useQuery<PayoutSummary>({
+    queryKey: ["/api/payouts/summary"],
+  });
+
+  const markPaidMutation = useMutation({
+    mutationFn: async ({ id, paymentMethod, paymentReference }: { id: string; paymentMethod: string; paymentReference?: string }) => {
+      return apiRequest("PATCH", `/api/payouts/${id}/mark-paid`, { paymentMethod, paymentReference });
+    },
+    onSuccess: () => {
+      toast({ title: "Payout marked as paid", description: "The payout has been recorded." });
+      queryClient.invalidateQueries({ queryKey: ["/api/payouts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/payouts/summary"] });
+      setPayDialogOpen(false);
+      setSelectedPayout(null);
+      setPaymentMethod("");
+      setPaymentReference("");
+    },
+    onError: () => {
+      toast({ title: "Failed to process payout", variant: "destructive" });
+    },
+  });
+
+  const handleMarkPaid = () => {
+    if (!selectedPayout || !paymentMethod) return;
+    markPaidMutation.mutate({
+      id: selectedPayout.id,
+      paymentMethod,
+      paymentReference: paymentReference || undefined,
+    });
+  };
+
+  const handleExport = () => {
+    window.open(`/api/payouts/export?status=${statusFilter !== "all" ? statusFilter : ""}`, "_blank");
+  };
+
+  const filteredPayouts = payouts?.filter(p =>
+    statusFilter === "all" || p.status === statusFilter
+  ) || [];
+
+  if (payoutsLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Total Paid Out</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{formatCurrency(summary?.totalPaidOut || 0)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Pending Payouts</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-600">{formatCurrency(summary?.totalPending || 0)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">This Month</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{formatCurrency(summary?.thisMonthPaid || 0)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Guides Awaiting</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{summary?.guidesAwaitingPayment || 0}</div>
+            <p className="text-xs text-muted-foreground">Pending payments</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters and Actions */}
+      <div className="flex flex-wrap gap-4 items-center justify-between">
+        <div className="flex gap-2">
+          <Button
+            variant={statusFilter === "all" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("all")}
+          >
+            All
+          </Button>
+          <Button
+            variant={statusFilter === "pending" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("pending")}
+          >
+            Pending
+          </Button>
+          <Button
+            variant={statusFilter === "paid" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("paid")}
+          >
+            Paid
+          </Button>
+        </div>
+        <Button variant="outline" onClick={handleExport}>
+          <Download className="h-4 w-4 mr-2" />
+          Export CSV
+        </Button>
+      </div>
+
+      {/* Payout History Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Payout History
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {filteredPayouts.length === 0 ? (
+            <EmptyState
+              icon={Banknote}
+              title="No payout records"
+              description="Payout history will appear here once you process guide payments."
+              className="py-12"
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Guide</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-center">Tours</TableHead>
+                    <TableHead>Payment Method</TableHead>
+                    <TableHead>Reference</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredPayouts.map((payout) => (
+                    <TableRow key={payout.id}>
+                      <TableCell className="text-sm">
+                        {payout.createdAt ? format(new Date(payout.createdAt), "MMM d, yyyy") : "-"}
+                      </TableCell>
+                      <TableCell className="font-medium">{payout.guideName}</TableCell>
+                      <TableCell className="text-right font-semibold">{formatCurrency(payout.amount)}</TableCell>
+                      <TableCell className="text-center">{payout.toursCount || 0}</TableCell>
+                      <TableCell>
+                        {payout.paymentMethod ? (
+                          <div className="flex items-center gap-1">
+                            {payout.paymentMethod === "cash" && <Banknote className="h-4 w-4" />}
+                            {(payout.paymentMethod === "airtel_money" || payout.paymentMethod === "tnm_mpamba") && <Smartphone className="h-4 w-4" />}
+                            <span className="capitalize">{payout.paymentMethod.replace("_", " ")}</span>
+                          </div>
+                        ) : "-"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{payout.paymentReference || "-"}</TableCell>
+                      <TableCell>
+                        {payout.status === "paid" ? (
+                          <Badge className="bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Paid
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+                            Pending
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {payout.status === "pending" && (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedPayout(payout);
+                              setPayDialogOpen(true);
+                            }}
+                          >
+                            Pay Now
+                          </Button>
+                        )}
+                        {payout.status === "paid" && payout.paidAt && (
+                          <span className="text-xs text-muted-foreground">
+                            {format(new Date(payout.paidAt), "MMM d")}
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Mark as Paid Dialog */}
+      <Dialog open={payDialogOpen} onOpenChange={setPayDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Process Payout</DialogTitle>
+            <DialogDescription>
+              Mark this payout as paid for {selectedPayout?.guideName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <div className="text-3xl font-bold text-green-600">
+                {selectedPayout && formatCurrency(selectedPayout.amount)}
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                {selectedPayout?.toursCount || 0} tours
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Payment Method *</Label>
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">
+                    <div className="flex items-center gap-2">
+                      <Banknote className="h-4 w-4" />
+                      Cash
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="airtel_money">
+                    <div className="flex items-center gap-2">
+                      <Smartphone className="h-4 w-4" />
+                      Airtel Money
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="tnm_mpamba">
+                    <div className="flex items-center gap-2">
+                      <Smartphone className="h-4 w-4" />
+                      TNM Mpamba
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Reference Number (optional)</Label>
+              <Input
+                placeholder="Transaction ID or receipt number"
+                value={paymentReference}
+                onChange={(e) => setPaymentReference(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleMarkPaid}
+              disabled={!paymentMethod || markPaidMutation.isPending}
+            >
+              {markPaidMutation.isPending ? "Processing..." : "Confirm Payment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -344,7 +755,8 @@ export default function Revenue() {
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="payouts">Guide Payouts</TabsTrigger>
+          <TabsTrigger value="payouts">Guide Earnings</TabsTrigger>
+          <TabsTrigger value="history">Payout History</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6 mt-6">
@@ -426,15 +838,14 @@ export default function Revenue() {
                   <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={data.monthlyTrend}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis dataKey="month" className="text-xs" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                        <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                         <YAxis
-                          className="text-xs"
-                          tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`}
+                          tick={{ fontSize: 12 }}
+                          tickFormatter={(value: number) => `${(value / 1000).toFixed(0)}K`}
                         />
                         <Tooltip
-                          formatter={(value: number) => formatCurrency(value)}
-                          labelClassName="font-medium"
+                          formatter={(value) => formatCurrency(Number(value))}
                         />
                         <Bar dataKey="revenue" fill="#0284c7" radius={[4, 4, 0, 0]} />
                       </BarChart>
@@ -473,7 +884,7 @@ export default function Revenue() {
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                        <Tooltip formatter={(value) => formatCurrency(Number(value))} />
                         <Legend />
                       </PieChart>
                     </ResponsiveContainer>
@@ -623,6 +1034,10 @@ export default function Revenue() {
 
         <TabsContent value="payouts" className="mt-6">
           <PayoutsTab />
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-6">
+          <PayoutHistoryTab />
         </TabsContent>
       </Tabs>
     </div>

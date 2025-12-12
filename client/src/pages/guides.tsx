@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "wouter";
+import { useState, useEffect } from "react";
+import { Link, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Plus,
@@ -121,6 +121,7 @@ const createGuideSlug = (firstName: string, lastName: string) => {
 
 export default function Guides() {
   const { toast } = useToast();
+  const searchString = useSearch();
   const [searchQuery, setSearchQuery] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGuide, setEditingGuide] = useState<Guide | null>(null);
@@ -130,6 +131,23 @@ export default function Guides() {
   const { data: guides, isLoading } = useQuery<Guide[]>({
     queryKey: ["/api/guides"],
   });
+
+  // Handle ?edit=<guideId> query parameter
+  useEffect(() => {
+    if (!guides || isLoading) return;
+
+    const params = new URLSearchParams(searchString);
+    const editId = params.get("edit");
+
+    if (editId) {
+      const guideToEdit = guides.find(g => g.id === editId);
+      if (guideToEdit) {
+        handleEdit(guideToEdit);
+        // Clear the query param from URL without navigation
+        window.history.replaceState({}, '', '/guides');
+      }
+    }
+  }, [guides, isLoading, searchString]);
 
   const form = useForm<GuideFormValues>({
     resolver: zodResolver(guideFormSchema),

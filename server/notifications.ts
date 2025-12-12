@@ -187,3 +187,125 @@ export async function notifyPaymentReceived(
         console.error("Failed to notify payment received:", error);
     }
 }
+
+/**
+ * Notify admins about visitor cancellation
+ */
+export async function notifyBookingCancelledByVisitor(
+    bookingId: string,
+    visitorName: string,
+    bookingRef: string,
+    guideUserId?: string
+): Promise<void> {
+    try {
+        const users = await storage.getUsers();
+        const recipients = users.filter((u) => u.role === "admin" || u.role === "coordinator");
+
+        for (const user of recipients) {
+            await createNotification({
+                userId: user.id,
+                type: "booking_cancelled",
+                title: "Booking Cancelled by Visitor",
+                message: `${visitorName} has cancelled their booking ${bookingRef}`,
+                link: "/bookings",
+                relatedId: bookingId,
+            });
+        }
+
+        if (guideUserId) {
+            await createNotification({
+                userId: guideUserId,
+                type: "booking_cancelled",
+                title: "Tour Cancelled",
+                message: `The tour with ${visitorName} (${bookingRef}) has been cancelled.`,
+                link: "/calendar",
+                relatedId: bookingId,
+            });
+        }
+    } catch (error) {
+        console.error("Failed to notify booking cancellation:", error);
+    }
+}
+
+/**
+ * Notify admins about new support ticket
+ */
+export async function notifySupportTicketCreated(
+    ticketId: string,
+    subject: string,
+    userName: string
+): Promise<void> {
+    try {
+        const users = await storage.getUsers();
+        const recipients = users.filter((u) => u.role === "admin" || u.role === "coordinator");
+
+        for (const user of recipients) {
+            await createNotification({
+                userId: user.id,
+                type: "system",
+                title: "New Support Ticket",
+                message: `${userName} submitted a ticket: ${subject}`,
+                link: "/help-admin",
+                relatedId: ticketId,
+            });
+        }
+    } catch (error) {
+        console.error("Failed to notify support ticket:", error);
+    }
+}
+
+/**
+ * Notify admins about low rating (<= 3 stars)
+ */
+export async function notifyLowRatingReceived(
+    bookingId: string,
+    guideName: string,
+    rating: number,
+    visitorName: string
+): Promise<void> {
+    try {
+        const users = await storage.getUsers();
+        const recipients = users.filter((u) => u.role === "admin" || u.role === "coordinator");
+
+        for (const user of recipients) {
+            await createNotification({
+                userId: user.id,
+                type: "system",
+                title: "Low Rating Alert",
+                message: `${guideName} received ${rating} stars from ${visitorName}`,
+                link: "/guide-performance",
+                relatedId: bookingId,
+            });
+        }
+    } catch (error) {
+        console.error("Failed to notify low rating:", error);
+    }
+}
+
+/**
+ * Notify admins and security about incident
+ */
+export async function notifyIncidentReported(
+    incidentId: string,
+    title: string,
+    severity: string,
+    reportedBy: string
+): Promise<void> {
+    try {
+        const users = await storage.getUsers();
+        const recipients = users.filter((u) => u.role === "admin" || u.role === "coordinator" || u.role === "security");
+
+        for (const user of recipients) {
+            await createNotification({
+                userId: user.id,
+                type: "incident_reported",
+                title: `Incident: ${severity.toUpperCase()}`,
+                message: `${title} reported by ${reportedBy}`,
+                link: "/security-admin",
+                relatedId: incidentId,
+            });
+        }
+    } catch (error) {
+        console.error("Failed to notify incident:", error);
+    }
+}

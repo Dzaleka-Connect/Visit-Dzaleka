@@ -29,14 +29,10 @@ export function useRealtimeSubscriptions(options: RealtimeOptions = {}) {
                 'postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'bookings' },
                 (payload) => {
-                    console.log('New booking received:', payload);
-
                     if (user.role === 'admin' || user.role === 'coordinator') {
-                        // Invalidate booking queries to refresh data
                         queryClient.invalidateQueries({ queryKey: ['/api/bookings'] });
                         queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
 
-                        // Show toast notification
                         toast({
                             title: '🎫 New Booking',
                             description: 'A new booking request has been submitted.',
@@ -51,13 +47,10 @@ export function useRealtimeSubscriptions(options: RealtimeOptions = {}) {
                 'postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'tasks' },
                 (payload) => {
-                    console.log('New task received:', payload);
                     const newTask = payload.new as any;
 
-                    // Invalidate task queries
                     queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
 
-                    // If task is assigned to current user, show notification
                     if (newTask.assigned_to === user.id) {
                         toast({
                             title: '📋 New Task Assigned',
@@ -72,8 +65,7 @@ export function useRealtimeSubscriptions(options: RealtimeOptions = {}) {
             .on(
                 'postgres_changes',
                 { event: 'UPDATE', schema: 'public', table: 'tasks' },
-                (payload) => {
-                    console.log('Task updated:', payload);
+                () => {
                     queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
                 }
             )
@@ -81,8 +73,7 @@ export function useRealtimeSubscriptions(options: RealtimeOptions = {}) {
             .on(
                 'postgres_changes',
                 { event: 'UPDATE', schema: 'public', table: 'bookings' },
-                (payload) => {
-                    console.log('Booking updated:', payload);
+                () => {
                     queryClient.invalidateQueries({ queryKey: ['/api/bookings'] });
                     queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
                 }
@@ -92,10 +83,8 @@ export function useRealtimeSubscriptions(options: RealtimeOptions = {}) {
                 'postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'notifications' },
                 (payload) => {
-                    console.log('New notification:', payload);
                     const notification = payload.new as any;
 
-                    // If notification is for current user
                     if (notification.user_id === user.id) {
                         queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
                         queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
@@ -114,10 +103,8 @@ export function useRealtimeSubscriptions(options: RealtimeOptions = {}) {
                 'postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'task_comments' },
                 (payload) => {
-                    console.log('New task comment:', payload);
                     const comment = payload.new as any;
 
-                    // Invalidate task comments query
                     queryClient.invalidateQueries({ queryKey: [`/api/tasks/${comment.task_id}/comments`] });
                     queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
 
@@ -132,7 +119,6 @@ export function useRealtimeSubscriptions(options: RealtimeOptions = {}) {
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'payments' },
                 (payload) => {
-                    console.log('Payment update:', payload);
                     queryClient.invalidateQueries({ queryKey: ['/api/revenue'] });
                     queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
 
@@ -149,7 +135,6 @@ export function useRealtimeSubscriptions(options: RealtimeOptions = {}) {
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'check_ins' },
                 (payload) => {
-                    console.log('Check-in update:', payload);
                     queryClient.invalidateQueries({ queryKey: ['/api/check-ins'] });
                     queryClient.invalidateQueries({ queryKey: ['/api/visitors'] });
 
@@ -166,17 +151,14 @@ export function useRealtimeSubscriptions(options: RealtimeOptions = {}) {
             .on(
                 'postgres_changes',
                 { event: 'UPDATE', schema: 'public', table: 'guides' },
-                (payload) => {
-                    console.log('Guide update:', payload);
+                () => {
                     queryClient.invalidateQueries({ queryKey: ['/api/guides'] });
                     queryClient.invalidateQueries({ queryKey: ['/api/calendar'] });
                 }
             );
 
         // Subscribe to the channel
-        channel.subscribe((status) => {
-            console.log('Realtime subscription status:', status);
-        });
+        channel.subscribe();
 
         channelRef.current = channel;
 
@@ -239,7 +221,6 @@ export function useCalendarRealtime() {
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'bookings' },
                 (payload) => {
-                    console.log('Calendar booking change:', payload);
                     queryClient.invalidateQueries({ queryKey: ['/api/bookings'] });
                     queryClient.invalidateQueries({ queryKey: ['/api/calendar'] });
 
@@ -284,7 +265,6 @@ export function useRevenueRealtime() {
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'payments' },
                 (payload) => {
-                    console.log('Revenue payment change:', payload);
                     queryClient.invalidateQueries({ queryKey: ['/api/revenue'] });
                     queryClient.invalidateQueries({ queryKey: ['/api/revenue/summary'] });
 
@@ -322,7 +302,6 @@ export function useCheckInRealtime() {
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'check_ins' },
                 (payload) => {
-                    console.log('Check-in change:', payload);
                     queryClient.invalidateQueries({ queryKey: ['/api/check-ins'] });
                     queryClient.invalidateQueries({ queryKey: ['/api/visitors'] });
 

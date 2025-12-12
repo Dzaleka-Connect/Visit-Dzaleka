@@ -6,3 +6,11 @@ declare module "express-session" {
         userRole: string;
     }
 }
+
+declare global {
+    namespace Express {
+        interface Request {
+            requestId?: string;
+        }
+    }
+}

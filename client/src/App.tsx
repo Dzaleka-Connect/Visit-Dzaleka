@@ -43,6 +43,7 @@ import TaskAdmin from "@/pages/task-admin";
 import Messages from "@/pages/messages";
 import HelpCenter from "@/pages/help-center";
 import HelpAdmin from "@/pages/help-admin";
+import RecurringBookingsPage from "@/pages/recurring-bookings";
 
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -66,7 +67,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
               <ThemeToggle />
             </div>
           </header>
-          <main className="flex-1 overflow-y-auto p-6">{children}</main>
+          <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
         </div>
       </div>
     </SidebarProvider>
@@ -105,6 +106,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/bookings" component={Bookings} />
+        <Route path="/recurring-bookings" component={RecurringBookingsPage} />
         <Route path="/my-bookings" component={MyBookings} />
         <Route path="/calendar" component={CalendarPage} />
         <Route path="/guide-performance" component={GuidePerformance} />

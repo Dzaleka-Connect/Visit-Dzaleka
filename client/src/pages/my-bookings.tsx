@@ -16,6 +16,9 @@ import {
   Star,
   Phone,
   Languages,
+  CalendarClock,
+  MessageSquare,
+  Ban,
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -151,6 +154,17 @@ export default function MyBookings() {
   const { user } = useAuth();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedGuide, setSelectedGuide] = useState<BookingWithGuide['guide'] | null>(null);
+
+  // Self-service states
+  const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<BookingWithGuide | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleTime, setRescheduleTime] = useState("");
+  const [rating, setRating] = useState(0);
+  const [feedback, setFeedback] = useState("");
+
   const [newBooking, setNewBooking] = useState({
     visitorName: "",
     visitorEmail: "",
@@ -222,6 +236,79 @@ export default function MyBookings() {
       toast({
         title: "Error",
         description: "Failed to submit booking. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Reschedule mutation
+  const rescheduleMutation = useMutation({
+    mutationFn: async ({ id, visitDate, visitTime }: { id: string; visitDate: string; visitTime: string }) => {
+      return apiRequest("PATCH", `/api/bookings/${id}/reschedule`, { visitDate, visitTime });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings/my-bookings"] });
+      setRescheduleDialogOpen(false);
+      setSelectedBooking(null);
+      setRescheduleDate("");
+      setRescheduleTime("");
+      toast({
+        title: "Booking rescheduled",
+        description: "Your booking has been moved to the new date and time.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Failed to reschedule",
+        description: "Could not reschedule your booking. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Cancel mutation
+  const cancelMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("POST", `/api/bookings/${id}/visitor-cancel`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings/my-bookings"] });
+      setCancelDialogOpen(false);
+      setSelectedBooking(null);
+      toast({
+        title: "Booking cancelled",
+        description: "Your booking has been cancelled successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Failed to cancel",
+        description: "Could not cancel your booking. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Rate guide mutation
+  const rateMutation = useMutation({
+    mutationFn: async ({ id, rating }: { id: string; rating: number }) => {
+      return apiRequest("POST", `/api/bookings/${id}/rate-guide`, { rating });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings/my-bookings"] });
+      setRatingDialogOpen(false);
+      setSelectedBooking(null);
+      setRating(0);
+      setFeedback("");
+      toast({
+        title: "Thank you for your feedback!",
+        description: "Your rating helps us improve our services.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Failed to submit rating",
+        description: "Could not submit your rating. Please try again.",
         variant: "destructive",
       });
     },
@@ -395,6 +482,57 @@ export default function MyBookings() {
                   <FileDown className="mr-2 h-4 w-4" />
                   Download Confirmation
                 </Button>
+
+                {/* Self-service action buttons */}
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {/* Reschedule - only for pending or confirmed */}
+                  {(booking.status === "pending" || booking.status === "confirmed") && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedBooking(booking);
+                        setRescheduleDate(booking.visitDate);
+                        setRescheduleTime(booking.visitTime || "");
+                        setRescheduleDialogOpen(true);
+                      }}
+                    >
+                      <CalendarClock className="mr-1 h-4 w-4" />
+                      Reschedule
+                    </Button>
+                  )}
+
+                  {/* Cancel - only for pending or confirmed */}
+                  {(booking.status === "pending" || booking.status === "confirmed") && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => {
+                        setSelectedBooking(booking);
+                        setCancelDialogOpen(true);
+                      }}
+                    >
+                      <Ban className="mr-1 h-4 w-4" />
+                      Cancel
+                    </Button>
+                  )}
+
+                  {/* Rate - only for completed without rating */}
+                  {booking.status === "completed" && !booking.visitorRating && booking.guide && (
+                    <Button
+                      size="sm"
+                      className="col-span-2"
+                      onClick={() => {
+                        setSelectedBooking(booking);
+                        setRatingDialogOpen(true);
+                      }}
+                    >
+                      <Star className="mr-1 h-4 w-4" />
+                      Rate Your Experience
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -677,6 +815,186 @@ export default function MyBookings() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setSelectedGuide(null)}>
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reschedule Dialog */}
+      <Dialog open={rescheduleDialogOpen} onOpenChange={setRescheduleDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reschedule Your Booking</DialogTitle>
+            <DialogDescription>
+              Choose a new date and time for your visit.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>New Date</Label>
+              <Input
+                type="date"
+                value={rescheduleDate}
+                onChange={(e) => setRescheduleDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>New Time</Label>
+              <Input
+                type="time"
+                value={rescheduleTime}
+                onChange={(e) => setRescheduleTime(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRescheduleDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedBooking && rescheduleDate && rescheduleTime) {
+                  rescheduleMutation.mutate({
+                    id: selectedBooking.id,
+                    visitDate: rescheduleDate,
+                    visitTime: rescheduleTime,
+                  });
+                }
+              }}
+              disabled={!rescheduleDate || !rescheduleTime || rescheduleMutation.isPending}
+            >
+              {rescheduleMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Rescheduling...
+                </>
+              ) : (
+                <>
+                  <CalendarClock className="mr-2 h-4 w-4" />
+                  Confirm New Date
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Dialog */}
+      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Booking</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to cancel this booking?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                <strong>Note:</strong> Cancellations within 24 hours of your scheduled visit may affect future bookings.
+              </p>
+            </div>
+            {selectedBooking && (
+              <div className="mt-4 space-y-2 text-sm">
+                <p><strong>Tour:</strong> {selectedBooking.tourType === "standard" ? "Standard Tour" : selectedBooking.tourType === "extended" ? "Extended Tour" : "Custom Tour"}</p>
+                <p><strong>Date:</strong> {formatDate(selectedBooking.visitDate)}</p>
+                <p><strong>Time:</strong> {formatTime(selectedBooking.visitTime)}</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>
+              Keep Booking
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (selectedBooking) {
+                  cancelMutation.mutate(selectedBooking.id);
+                }
+              }}
+              disabled={cancelMutation.isPending}
+            >
+              {cancelMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Cancelling...
+                </>
+              ) : (
+                <>
+                  <Ban className="mr-2 h-4 w-4" />
+                  Yes, Cancel Booking
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rating Dialog */}
+      <Dialog open={ratingDialogOpen} onOpenChange={setRatingDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rate Your Experience</DialogTitle>
+            <DialogDescription>
+              How was your visit to Dzaleka? Your feedback helps us improve.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-6">
+            <div className="flex justify-center gap-2 mb-6">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => setRating(star)}
+                  className="p-1 transition-transform hover:scale-110 focus:outline-none"
+                >
+                  <Star
+                    className={`h-10 w-10 ${star <= rating
+                        ? "fill-yellow-400 text-yellow-400"
+                        : "text-gray-300 dark:text-gray-600"
+                      }`}
+                  />
+                </button>
+              ))}
+            </div>
+            <p className="text-center text-sm text-muted-foreground mb-4">
+              {rating === 0 && "Select a rating"}
+              {rating === 1 && "Poor"}
+              {rating === 2 && "Fair"}
+              {rating === 3 && "Good"}
+              {rating === 4 && "Very Good"}
+              {rating === 5 && "Excellent!"}
+            </p>
+            {selectedBooking?.guide && (
+              <p className="text-center text-sm">
+                Rating for guide: <strong>{selectedBooking.guide.firstName} {selectedBooking.guide.lastName}</strong>
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRatingDialogOpen(false)}>
+              Maybe Later
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedBooking && rating > 0) {
+                  rateMutation.mutate({ id: selectedBooking.id, rating });
+                }
+              }}
+              disabled={rating === 0 || rateMutation.isPending}
+            >
+              {rateMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Star className="mr-2 h-4 w-4" />
+                  Submit Rating
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

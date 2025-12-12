@@ -134,10 +134,7 @@ export default function EmailSettings() {
 
     const updateTemplateMutation = useMutation({
         mutationFn: async (template: EmailTemplate) => {
-            return await apiRequest(`/api/email-templates/${template.id}`, {
-                method: "PUT",
-                body: JSON.stringify(template),
-            });
+            return await apiRequest("PUT", `/api/email-templates/${template.id}`, template);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/email-templates"] });
@@ -158,10 +155,7 @@ export default function EmailSettings() {
 
     const toggleTemplateMutation = useMutation({
         mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-            return await apiRequest(`/api/email-templates/${id}/toggle`, {
-                method: "PATCH",
-                body: JSON.stringify({ isActive }),
-            });
+            return await apiRequest("PATCH", `/api/email-templates/${id}/toggle`, { isActive });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/email-templates"] });

@@ -106,7 +106,7 @@ export default function GuidePerformance() {
             days.push({
                 day: i,
                 bookings: dayBookings.length,
-                guides: [...new Set(dayBookings.map(b => b.assignedGuideId).filter(Boolean))],
+                guides: Array.from(new Set(dayBookings.map(b => b.assignedGuideId).filter(Boolean))),
             });
         }
 
@@ -274,13 +274,13 @@ export default function GuidePerformance() {
                                 <div className="h-80">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                                            <XAxis dataKey="month" fontSize={12} tickLine={false} axisLine={false} />
+                                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                                            <XAxis dataKey="month" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
                                             <YAxis
-                                                fontSize={12}
+                                                tick={{ fontSize: 12 }}
                                                 tickLine={false}
                                                 axisLine={false}
-                                                tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+                                                tickFormatter={(value: number) => `${(value / 1000).toFixed(0)}k`}
                                             />
                                             <Tooltip
                                                 contentStyle={{
@@ -288,7 +288,7 @@ export default function GuidePerformance() {
                                                     border: "1px solid hsl(var(--border))",
                                                     borderRadius: "8px",
                                                 }}
-                                                formatter={(value: number) => [formatCurrency(value), "Earnings"]}
+                                                formatter={(value) => [formatCurrency(Number(value)), "Earnings"]}
                                             />
                                             <Bar dataKey="earnings" fill="#10b981" radius={[4, 4, 0, 0]} />
                                         </BarChart>

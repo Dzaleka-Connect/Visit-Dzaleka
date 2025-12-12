@@ -9,6 +9,7 @@ import helmet from "helmet";
 import cors from "cors";
 import pg from "pg";
 import connectPgSimple from "connect-pg-simple";
+import { requestIdMiddleware } from "./middleware/requestId";
 
 // Export log function so it can be used here
 export function log(message: string, source = "express") {
@@ -113,6 +114,9 @@ export async function createApp() {
   );
 
   app.use(express.urlencoded({ extended: false }));
+
+  // Request ID middleware for error correlation
+  app.use(requestIdMiddleware);
 
   // Apply rate limiting
   app.use("/api/auth/login", authLimiter);

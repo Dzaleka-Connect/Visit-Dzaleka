@@ -289,18 +289,18 @@ export default function Security() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="verify" data-testid="tab-verify">
-            <Shield className="mr-2 h-4 w-4" />
-            Verify & Check-in
+        <TabsList className="w-full sm:w-auto grid grid-cols-3 sm:flex">
+          <TabsTrigger value="verify" data-testid="tab-verify" className="text-xs sm:text-sm px-2 sm:px-4">
+            <Shield className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Verify & Check-in</span>
           </TabsTrigger>
-          <TabsTrigger value="active" data-testid="tab-active">
-            <UserCheck className="mr-2 h-4 w-4" />
-            Active Visits
+          <TabsTrigger value="active" data-testid="tab-active" className="text-xs sm:text-sm px-2 sm:px-4">
+            <UserCheck className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Active Visits</span>
           </TabsTrigger>
-          <TabsTrigger value="incidents" data-testid="tab-incidents">
-            <AlertTriangle className="mr-2 h-4 w-4" />
-            Incidents
+          <TabsTrigger value="incidents" data-testid="tab-incidents" className="text-xs sm:text-sm px-2 sm:px-4">
+            <AlertTriangle className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Incidents</span>
           </TabsTrigger>
         </TabsList>
 
@@ -454,65 +454,67 @@ export default function Security() {
                   className="py-8"
                 />
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Reference</TableHead>
-                      <TableHead>Visitor</TableHead>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Group</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Check-in</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {todaysBookings.map((booking) => (
-                      <TableRow key={booking.id}>
-                        <TableCell className="font-mono text-sm">
-                          {booking.bookingReference}
-                        </TableCell>
-                        <TableCell>{booking.visitorName}</TableCell>
-                        <TableCell>{formatTime(booking.visitTime)}</TableCell>
-                        <TableCell>{booking.numberOfPeople} people</TableCell>
-                        <TableCell>
-                          <StatusBadge status={booking.status || "pending"} />
-                        </TableCell>
-                        <TableCell>
-                          {booking.checkInTime ? (
-                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                              <CheckCircle className="mr-1 h-3 w-3" />
-                              Checked In
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline">Pending</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {!booking.checkInTime && booking.status === "confirmed" && (
-                            <Button
-                              size="sm"
-                              onClick={() => checkInMutation.mutate(booking.id)}
-                              disabled={checkInMutation.isPending}
-                            >
-                              Check In
-                            </Button>
-                          )}
-                          {booking.checkInTime && !booking.checkOutTime && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => checkOutMutation.mutate(booking.id)}
-                              disabled={checkOutMutation.isPending}
-                            >
-                              Check Out
-                            </Button>
-                          )}
-                        </TableCell>
+                <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                  <Table className="min-w-[700px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Reference</TableHead>
+                        <TableHead>Visitor</TableHead>
+                        <TableHead>Time</TableHead>
+                        <TableHead>Group</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Check-in</TableHead>
+                        <TableHead></TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {todaysBookings.map((booking) => (
+                        <TableRow key={booking.id}>
+                          <TableCell className="font-mono text-sm">
+                            {booking.bookingReference}
+                          </TableCell>
+                          <TableCell>{booking.visitorName}</TableCell>
+                          <TableCell>{formatTime(booking.visitTime)}</TableCell>
+                          <TableCell>{booking.numberOfPeople} people</TableCell>
+                          <TableCell>
+                            <StatusBadge status={booking.status || "pending"} />
+                          </TableCell>
+                          <TableCell>
+                            {booking.checkInTime ? (
+                              <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                <CheckCircle className="mr-1 h-3 w-3" />
+                                Checked In
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline">Pending</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {!booking.checkInTime && booking.status === "confirmed" && (
+                              <Button
+                                size="sm"
+                                onClick={() => checkInMutation.mutate(booking.id)}
+                                disabled={checkInMutation.isPending}
+                              >
+                                Check In
+                              </Button>
+                            )}
+                            {booking.checkInTime && !booking.checkOutTime && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => checkOutMutation.mutate(booking.id)}
+                                disabled={checkOutMutation.isPending}
+                              >
+                                Check Out
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -537,80 +539,82 @@ export default function Security() {
                   className="py-8"
                 />
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Reference</TableHead>
-                      <TableHead>Visitor</TableHead>
-                      <TableHead>Check-in Time</TableHead>
-                      <TableHead>Duration</TableHead>
-                      <TableHead>Guide</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {activeVisits.map((visit) => {
-                      const checkInTime = visit.checkInTime
-                        ? new Date(visit.checkInTime)
-                        : null;
-                      const duration = checkInTime
-                        ? Math.round(
+                <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                  <Table className="min-w-[650px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Reference</TableHead>
+                        <TableHead>Visitor</TableHead>
+                        <TableHead>Check-in Time</TableHead>
+                        <TableHead>Duration</TableHead>
+                        <TableHead>Guide</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {activeVisits.map((visit) => {
+                        const checkInTime = visit.checkInTime
+                          ? new Date(visit.checkInTime)
+                          : null;
+                        const duration = checkInTime
+                          ? Math.round(
                             (Date.now() - checkInTime.getTime()) / (1000 * 60)
                           )
-                        : 0;
-                      return (
-                        <TableRow key={visit.id}>
-                          <TableCell className="font-mono text-sm">
-                            {visit.bookingReference}
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium">{visit.visitorName}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {visit.numberOfPeople} people
-                              </p>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {checkInTime?.toLocaleTimeString()}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant="outline"
-                              className={
-                                duration > 120
-                                  ? "border-red-500 text-red-500"
-                                  : ""
-                              }
-                            >
-                              {Math.floor(duration / 60)}h {duration % 60}m
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {visit.guide ? (
-                              `${visit.guide.firstName} ${visit.guide.lastName}`
-                            ) : (
-                              <span className="text-muted-foreground">
-                                Unassigned
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => checkOutMutation.mutate(visit.id)}
-                              disabled={checkOutMutation.isPending}
-                            >
-                              <UserX className="mr-2 h-4 w-4" />
-                              Check Out
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                          : 0;
+                        return (
+                          <TableRow key={visit.id}>
+                            <TableCell className="font-mono text-sm">
+                              {visit.bookingReference}
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{visit.visitorName}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {visit.numberOfPeople} people
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {checkInTime?.toLocaleTimeString()}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={
+                                  duration > 120
+                                    ? "border-red-500 text-red-500"
+                                    : ""
+                                }
+                              >
+                                {Math.floor(duration / 60)}h {duration % 60}m
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {visit.guide ? (
+                                `${visit.guide.firstName} ${visit.guide.lastName}`
+                              ) : (
+                                <span className="text-muted-foreground">
+                                  Unassigned
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => checkOutMutation.mutate(visit.id)}
+                                disabled={checkOutMutation.isPending}
+                              >
+                                <UserX className="mr-2 h-4 w-4" />
+                                Check Out
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -642,76 +646,74 @@ export default function Security() {
                   className="py-8"
                 />
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Severity</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {incidents.map((incident) => (
-                      <TableRow key={incident.id}>
-                        <TableCell>
-                          {incident.createdAt
-                            ? new Date(incident.createdAt).toLocaleDateString()
-                            : "-"}
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{incident.title}</p>
-                            <p className="text-xs text-muted-foreground line-clamp-1">
-                              {incident.description}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={`${
-                              severityColors[incident.severity || "medium"].bg
-                            } ${
-                              severityColors[incident.severity || "medium"].text
-                            }`}
-                          >
-                            {incident.severity}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={`${
-                              statusColors[incident.status || "reported"].bg
-                            } ${
-                              statusColors[incident.status || "reported"].text
-                            }`}
-                          >
-                            {incident.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{incident.location || "-"}</TableCell>
-                        <TableCell>
-                          {incident.status !== "resolved" &&
-                            incident.status !== "closed" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  resolveIncidentMutation.mutate(incident.id)
-                                }
-                                disabled={resolveIncidentMutation.isPending}
-                              >
-                                <CheckCircle className="mr-2 h-4 w-4" />
-                                Resolve
-                              </Button>
-                            )}
-                        </TableCell>
+                <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                  <Table className="min-w-[650px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Severity</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead></TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {incidents.map((incident) => (
+                        <TableRow key={incident.id}>
+                          <TableCell>
+                            {incident.createdAt
+                              ? new Date(incident.createdAt).toLocaleDateString()
+                              : "-"}
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">{incident.title}</p>
+                              <p className="text-xs text-muted-foreground line-clamp-1">
+                                {incident.description}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              className={`${severityColors[incident.severity || "medium"].bg
+                                } ${severityColors[incident.severity || "medium"].text
+                                }`}
+                            >
+                              {incident.severity}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              className={`${statusColors[incident.status || "reported"].bg
+                                } ${statusColors[incident.status || "reported"].text
+                                }`}
+                            >
+                              {incident.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{incident.location || "-"}</TableCell>
+                          <TableCell>
+                            {incident.status !== "resolved" &&
+                              incident.status !== "closed" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    resolveIncidentMutation.mutate(incident.id)
+                                  }
+                                  disabled={resolveIncidentMutation.isPending}
+                                >
+                                  <CheckCircle className="mr-2 h-4 w-4" />
+                                  Resolve
+                                </Button>
+                              )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>

@@ -9,8 +9,10 @@ import { type Request, Response, NextFunction } from "express";
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
+    // Log the error but don't throw after sending response
+    console.error("Unhandled error:", err);
     res.status(status).json({ message });
-    throw err;
+    // Don't throw here - response already sent, would cause unhandled rejection
   });
 
   // importantly only setup vite in development and after

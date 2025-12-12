@@ -620,8 +620,8 @@ export default function Bookings() {
         </p>
       </div>
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 gap-4">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -632,54 +632,54 @@ export default function Bookings() {
               data-testid="input-search-bookings"
             />
           </div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="w-44" data-testid="select-status-filter">
-                <Filter className="mr-2 h-4 w-4" />
-                {statusFilters.length === 0
-                  ? "All Status"
-                  : statusFilters.length === 1
-                    ? statusFilters[0].charAt(0).toUpperCase() + statusFilters[0].slice(1)
-                    : `${statusFilters.length} selected`}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-48 p-2" align="start">
-              <div className="space-y-2">
-                {["pending", "confirmed", "completed", "cancelled"].map((status) => (
-                  <div key={status} className="flex items-center gap-2">
-                    <Checkbox
-                      id={`status-${status}`}
-                      checked={statusFilters.includes(status)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setStatusFilters([...statusFilters, status]);
-                        } else {
-                          setStatusFilters(statusFilters.filter((s) => s !== status));
-                        }
-                      }}
-                    />
-                    <label
-                      htmlFor={`status-${status}`}
-                      className="text-sm capitalize cursor-pointer"
+          <div className="flex flex-wrap gap-2 items-center">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-44" data-testid="select-status-filter">
+                  <Filter className="mr-2 h-4 w-4" />
+                  {statusFilters.length === 0
+                    ? "All Status"
+                    : statusFilters.length === 1
+                      ? statusFilters[0].charAt(0).toUpperCase() + statusFilters[0].slice(1)
+                      : `${statusFilters.length} selected`}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-2" align="start">
+                <div className="space-y-2">
+                  {["pending", "confirmed", "completed", "cancelled"].map((status) => (
+                    <div key={status} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`status-${status}`}
+                        checked={statusFilters.includes(status)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setStatusFilters([...statusFilters, status]);
+                          } else {
+                            setStatusFilters(statusFilters.filter((s) => s !== status));
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor={`status-${status}`}
+                        className="text-sm capitalize cursor-pointer"
+                      >
+                        {status}
+                      </label>
+                    </div>
+                  ))}
+                  {statusFilters.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full mt-2"
+                      onClick={() => setStatusFilters([])}
                     >
-                      {status}
-                    </label>
-                  </div>
-                ))}
-                {statusFilters.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full mt-2"
-                    onClick={() => setStatusFilters([])}
-                  >
-                    Clear all
-                  </Button>
-                )}
-              </div>
-            </PopoverContent>
-          </Popover>
-          <div className="flex gap-2 items-center">
+                      Clear all
+                    </Button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
             <Input
               type="date"
               value={dateFrom}
@@ -850,8 +850,8 @@ export default function Bookings() {
             />
           </CardContent>
         ) : (
-          <div className="overflow-x-auto w-full">
-            <Table>
+          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+            <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10">
