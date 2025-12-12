@@ -116,7 +116,7 @@ export function PopularZonesChart() {
     );
   }
 
-  const chartData = data || [];
+  const chartData = (data || []).slice(0, 5);
 
   return (
     <Card>
@@ -184,11 +184,13 @@ export function GuidePerformanceChart() {
     );
   }
 
-  // Truncate long guide names for display
-  const chartData = (data || []).map(item => ({
-    ...item,
-    displayName: item.name.length > 12 ? item.name.substring(0, 12) + '...' : item.name,
-  }));
+  // Truncate long guide names for display and limit to top 5
+  const chartData = (data || [])
+    .slice(0, 5)
+    .map(item => ({
+      ...item,
+      displayName: item.name.length > 12 ? item.name.substring(0, 12) + '...' : item.name,
+    }));
 
   return (
     <Card>
@@ -251,7 +253,7 @@ export function BookingTimeHeatmap() {
 
   if (isLoading) {
     return (
-      <Card className="col-span-2">
+      <Card>
         <CardHeader>
           <CardTitle className="text-lg">Popular Visit Times</CardTitle>
           <CardDescription>Heatmap of booking frequency</CardDescription>
@@ -272,7 +274,7 @@ export function BookingTimeHeatmap() {
   }));
 
   return (
-    <Card className="col-span-2">
+    <Card>
       <CardHeader>
         <CardTitle className="text-lg">Popular Visit Times</CardTitle>
         <CardDescription>Darker green indicates higher booking volume</CardDescription>
@@ -341,7 +343,7 @@ export function SeasonalTrendsChart() {
 
   if (isLoading) {
     return (
-      <Card className="col-span-2">
+      <Card>
         <CardHeader>
           <CardTitle className="text-lg">Seasonal Trends</CardTitle>
           <CardDescription>Monthly bookings and revenue</CardDescription>
@@ -356,7 +358,7 @@ export function SeasonalTrendsChart() {
   const chartData = data || [];
 
   return (
-    <Card className="col-span-2">
+    <Card>
       <CardHeader>
         <CardTitle className="text-lg">Seasonal Trends</CardTitle>
         <CardDescription>Bookings vs Revenue (Last 12 Months)</CardDescription>
@@ -388,7 +390,7 @@ export function GuideComparisonChart() {
 
   if (isLoading) {
     return (
-      <Card className="col-span-2">
+      <Card>
         <CardHeader>
           <CardTitle className="text-lg">Guide Comparison</CardTitle>
           <CardDescription>Rating vs Tours Completed</CardDescription>
@@ -403,7 +405,7 @@ export function GuideComparisonChart() {
   const chartData = data || [];
 
   return (
-    <Card className="col-span-2">
+    <Card>
       <CardHeader>
         <CardTitle className="text-lg">Guide Comparison</CardTitle>
         <CardDescription>Performance Matrix (Rating vs Volume)</CardDescription>
