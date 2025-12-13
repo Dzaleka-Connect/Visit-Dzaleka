@@ -11,6 +11,7 @@ import {
   date,
   time,
   pgEnum,
+  uuid,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -105,12 +106,35 @@ export const users = pgTable("users", {
   role: userRoleEnum("role").default("visitor"),
   isActive: boolean("is_active").default(true),
   emailVerified: boolean("email_verified").default(false),
+  // CRM Fields
+  preferences: jsonb("preferences").default({}), // Dietary requirements, special interests
+  adminNotes: text("admin_notes"),
+  tags: text("tags").array().default(sql`ARRAY[]::text[]`), // Segmentation tags
+  // Enhanced CRM Fields
+  dateOfBirth: date("date_of_birth"),
+  address: text("address"),
+  country: varchar("country"),
+  preferredLanguage: varchar("preferred_language").default("en"),
+  preferredContactMethod: varchar("preferred_contact_method").default("email"), // email, phone, whatsapp
+  marketingConsent: boolean("marketing_consent").default(false),
+  // Auth fields
   passwordResetToken: varchar("password_reset_token"),
   passwordResetExpires: timestamp("password_reset_expires"),
   emailVerificationToken: varchar("email_verification_token"),
   emailVerificationExpires: timestamp("email_verification_expires"),
+  // Legacy/Compatibility Fields (Restored)
   emailNotifications: boolean("email_notifications").default(true),
   lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const externalCalendars = pgTable("external_calendars", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(), // e.g., "Viator", "Airbnb"
+  url: text("url").notNull(), // iCal URL
+  color: text("color").default("#3b82f6"),
+  lastSyncedAt: timestamp("last_synced_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -201,7 +225,9 @@ export const pricingConfig = pgTable("pricing_config", {
 // Bookings table
 export const bookings = pgTable("bookings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  bookingReference: varchar("booking_reference").unique(),
+  bookingReference: varchar("booking_reference").unique().notNull(), // e.g., DVS-2024-001
+  source: varchar("source").default("direct"), // direct, viator, expedia, manual
+  externalReferenceId: varchar("external_reference_id"), // ID from OTA
   visitorName: varchar("visitor_name").notNull(),
   visitorEmail: varchar("visitor_email").notNull(),
   visitorPhone: varchar("visitor_phone").notNull(),
@@ -1302,6 +1328,13 @@ export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit
   resolvedAt: true,
 });
 
+export const insertExternalCalendarSchema = createInsertSchema(externalCalendars).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastSyncedAt: true
+});
+
 // Types
 export type HelpArticle = typeof helpArticles.$inferSelect;
 export type InsertHelpArticle = z.infer<typeof insertHelpArticleSchema>;
@@ -1321,3 +1354,6 @@ export const insertRecurringBookingSchema = createInsertSchema(recurringBookings
 
 export type RecurringBooking = typeof recurringBookings.$inferSelect;
 export type InsertRecurringBooking = z.infer<typeof insertRecurringBookingSchema>;
+
+export type ExternalCalendar = typeof externalCalendars.$inferSelect;
+export type InsertExternalCalendar = z.infer<typeof insertExternalCalendarSchema>;

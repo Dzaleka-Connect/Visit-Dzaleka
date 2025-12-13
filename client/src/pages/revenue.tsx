@@ -34,13 +34,11 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
   PieChart,
   Pie,
   Cell,
-  Legend,
 } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, type ChartConfig } from "@/components/ui/chart";
 import { EmptyState } from "@/components/empty-state";
 import {
   Dialog,
@@ -109,7 +107,31 @@ interface PayoutSummary {
   guidesAwaitingPayment: number;
 }
 
-const COLORS = ["#0284c7", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6"];
+const revenueConfig = {
+  revenue: {
+    label: "Revenue",
+    color: "hsl(var(--chart-1))",
+  },
+} satisfies ChartConfig;
+
+const paymentMethodConfig = {
+  airtel_money: {
+    label: "Airtel Money",
+    color: "hsl(var(--chart-2))",
+  },
+  tnm_mpamba: {
+    label: "TNM Mpamba",
+    color: "hsl(var(--chart-3))",
+  },
+  cash: {
+    label: "Cash",
+    color: "hsl(var(--chart-4))",
+  },
+  unknown: {
+    label: "Unknown",
+    color: "hsl(var(--chart-5))",
+  },
+} satisfies ChartConfig;
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("en-MW", {
@@ -735,10 +757,11 @@ export default function Revenue() {
   }
 
   const pieData = data.byPaymentMethod.map((item, index) => ({
-    name: formatMethodName(item.method),
+    name: item.method, // Keep raw method name for config matching
+    displayName: formatMethodName(item.method),
     value: item.amount,
     count: item.count,
-    color: COLORS[index % COLORS.length],
+    fill: `var(--color-${item.method})`,
   }));
 
   return (
@@ -835,21 +858,30 @@ export default function Revenue() {
                     className="py-8"
                   />
                 ) : (
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-[300px] w-full">
+                    <ChartContainer config={revenueConfig} className="h-full w-full">
                       <BarChart data={data.monthlyTrend}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
-                        <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis
+                          dataKey="month"
+                          tickLine={false}
+                          axisLine={false}
+                          tickMargin={10}
+                          tick={{ fontSize: 12 }}
+                        />
                         <YAxis
+                          tickLine={false}
+                          axisLine={false}
                           tick={{ fontSize: 12 }}
                           tickFormatter={(value: number) => `${(value / 1000).toFixed(0)}K`}
                         />
-                        <Tooltip
-                          formatter={(value) => formatCurrency(Number(value))}
+                        <ChartTooltip
+                          cursor={false}
+                          content={<ChartTooltipContent formatter={(value) => formatCurrency(Number(value))} />}
                         />
-                        <Bar dataKey="revenue" fill="#0284c7" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="revenue" fill="var(--color-revenue)" radius={[4, 4, 0, 0]} />
                       </BarChart>
-                    </ResponsiveContainer>
+                    </ChartContainer>
                   </div>
                 )}
               </CardContent>
@@ -868,26 +900,30 @@ export default function Revenue() {
                     className="py-8"
                   />
                 ) : (
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-[300px] w-full">
+                    <ChartContainer config={paymentMethodConfig} className="h-full w-full">
                       <PieChart>
                         <Pie
                           data={pieData}
+                          dataKey="value"
+                          nameKey="name"
                           cx="50%"
                           cy="50%"
                           innerRadius={60}
-                          outerRadius={100}
                           paddingAngle={2}
-                          dataKey="value"
-                        >
-                          {pieData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                        <Legend />
+                        />
+                        <ChartTooltip
+                          cursor={false}
+                          content={<ChartTooltipContent hideLabel formatter={(value, name, item) => (
+                            <div className="flex min-w-[130px] gap-2">
+                              <span className="font-medium text-foreground">{item.payload.displayName}</span>
+                              <span className="font-mono text-muted-foreground ml-auto">{formatCurrency(Number(value))}</span>
+                            </div>
+                          )} />}
+                        />
+                        <ChartLegend content={<ChartLegendContent className="-translate-y-2 flex-wrap gap-2 [&>*]:basis-1/4 [&>*]:justify-center" />} />
                       </PieChart>
-                    </ResponsiveContainer>
+                    </ChartContainer>
                   </div>
                 )}
               </CardContent>

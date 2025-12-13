@@ -14,6 +14,7 @@ import {
   insertAllowedIpSchema,
   type UserRole,
 } from "@shared/schema";
+import { generateIcalFeed, parseIcalFeed } from "./lib/ical";
 import { z } from "zod";
 import {
   sendBookingConfirmation,
@@ -35,6 +36,7 @@ import {
   notifyLowRatingReceived,
   notifyIncidentReported,
 } from "./notifications";
+import { logError } from "./utils/errors";
 import crypto from "crypto";
 
 // Auth schemas
@@ -76,7 +78,7 @@ async function isAdmin(req: Request, res: Response, next: NextFunction) {
         return next();
       }
     } catch (error) {
-      console.error("Error checking admin role:", error);
+      logError("Error checking admin role", error, req.requestId);
     }
   }
 
@@ -134,7 +136,7 @@ function requireRole(...allowedRoles: UserRole[]) {
       (req as any).currentUser = user;
       next();
     } catch (error) {
-      console.error("Role check error:", error);
+      logError("Role check error", error, req.requestId);
       res.status(500).json({ message: "Authorization error" });
     }
   };
@@ -162,7 +164,7 @@ async function createAuditLog(
       userAgent: req?.get("user-agent") || null,
     });
   } catch (error) {
-    console.error("Audit log error:", error);
+    logError("Audit log error", error, req?.requestId);
   }
 }
 
@@ -182,7 +184,7 @@ export async function registerRoutes(
         zonesCount: zones.length
       });
     } catch (error) {
-      console.error("Health check failed:", error);
+      logError("Health check failed", error, req.requestId);
       res.status(503).json({
         status: "unhealthy",
         timestamp: new Date().toISOString(),
@@ -211,12 +213,12 @@ export async function registerRoutes(
       next();
     } catch (error) {
       // Log the error for monitoring/alerting
-      console.error(`[SECURITY] IP Check error - requestId: ${req.requestId}, error:`, error);
+      logError("IP Check error", error, req.requestId);
 
       if (isProduction) {
         // In production: fail-closed for security
         // Rate limiting from app.ts still provides some protection
-        console.error(`[SECURITY] Denying request due to IP check failure in production`);
+        logError("Denying request due to IP check failure in production", null, req.requestId);
         return res.status(503).json({ message: "Service temporarily unavailable" });
       } else {
         // In development: fail-open to avoid lockouts during setup
@@ -264,7 +266,7 @@ export async function registerRoutes(
           });
           successCount++;
         } catch (e) {
-          console.error(`Failed to send notification to user ${user.id}:`, e);
+          logError(`Failed to send notification to user ${user.id}`, e, req.requestId);
         }
       }
 
@@ -281,12 +283,100 @@ export async function registerRoutes(
 
       res.json({ success: true, sentCount: successCount, totalTargeted: targetUsers.length });
     } catch (error) {
-      console.error("Error sending notifications:", error);
+      logError("Error sending notifications", error, req.requestId);
       res.status(500).json({ message: "Failed to send notifications" });
     }
   });
 
-  // Debug endpoint to check session status (safe to have in production, doesn't expose sensitive data)
+  // CRM: Get Customers (Visitors with stats)
+  app.get("/api/customers", requireRole("admin", "coordinator", "guide"), async (req, res) => {
+    try {
+      const users = await storage.getUsers();
+      const bookings = await storage.getBookings();
+
+      const visitors = users.filter(u => u.role === "visitor");
+      const customerStats = visitors.map(user => {
+        const userBookings = bookings.filter(b => b.visitorUserId === user.id || b.visitorEmail === user.email);
+        const totalVisits = userBookings.filter(b => b.status === "completed").length;
+        const totalSpend = userBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+        const lastVisit = userBookings
+          .filter(b => b.visitDate)
+          .sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime())[0]?.visitDate;
+
+        return {
+          ...user,
+          stats: {
+            totalVisits,
+            totalSpend,
+            lastVisit,
+            bookingCount: userBookings.length
+          }
+        };
+      });
+
+      res.json(customerStats);
+    } catch (error) {
+      logError("Error fetching customers", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch customers" });
+    }
+  });
+
+  // CRM: Get Customer Details
+  app.get("/api/customers/:id", requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const user = await storage.getUser(req.params.id);
+      if (!user) return res.status(404).json({ message: "Customer not found" });
+
+      const bookings = await storage.getBookings();
+      const userBookings = bookings.filter(b => b.visitorUserId === user.id || b.visitorEmail === user.email);
+
+      const stats = {
+        totalVisits: userBookings.filter(b => b.status === "completed").length,
+        totalSpend: userBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0),
+        lastVisit: userBookings
+          .filter(b => b.visitDate)
+          .sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime())[0]?.visitDate
+      };
+
+      res.json({ user, bookings: userBookings, stats });
+    } catch (error) {
+      logError("Error fetching customer details", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch customer details" });
+    }
+  });
+
+  // CRM: Update Customer (Notes, Preferences, Tags, Personal Info)
+  app.patch("/api/customers/:id", requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const {
+        preferences,
+        adminNotes,
+        tags,
+        dateOfBirth,
+        address,
+        country,
+        preferredLanguage,
+        preferredContactMethod,
+        marketingConsent
+      } = req.body;
+
+      const user = await storage.updateUser(req.params.id, {
+        preferences,
+        adminNotes,
+        tags,
+        dateOfBirth,
+        address,
+        country,
+        preferredLanguage,
+        preferredContactMethod,
+        marketingConsent
+      });
+      res.json(user);
+    } catch (error) {
+      logError("Error updating customer", error, req.requestId);
+      res.status(500).json({ message: "Failed to update customer" });
+    }
+  });
   app.get("/api/auth/session-status", (req, res) => {
     res.json({
       hasSession: !!req.session,
@@ -337,7 +427,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid data", errors: error.errors });
       } else {
-        console.error("Registration error:", error);
+        logError("Registration error", error, req.requestId);
         res.status(500).json({ message: "Failed to register" });
       }
     }
@@ -439,7 +529,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid data", errors: error.errors });
       } else {
-        console.error("Login error:", error);
+        logError("Login error", error, req.requestId);
         res.status(500).json({ message: "Failed to login" });
       }
     }
@@ -451,12 +541,12 @@ export async function registerRoutes(
     if (userId) {
       // Fire and forget audit log - don't block logout on audit log failure
       createAuditLog(userId, "logout", "user", userId, null, null, req).catch((err) => {
-        console.error("Audit log error during logout:", err);
+        logError("Audit log error during logout", err, req.requestId);
       });
     }
     req.session.destroy((err) => {
       if (err) {
-        console.error("Logout error:", err);
+        logError("Logout error", err, req.requestId);
         return res.status(500).json({ message: "Failed to logout" });
       }
       res.clearCookie("connect.sid");
@@ -491,7 +581,7 @@ export async function registerRoutes(
       const { password: _, ...safeUser } = user;
       res.status(201).json(safeUser);
     } catch (error) {
-      console.error("Create user error:", error);
+      logError("Create user error", error, req.requestId);
       res.status(500).json({ message: "Failed to create user" });
     }
   });
@@ -531,13 +621,13 @@ export async function registerRoutes(
           resetUrl,
         });
       } catch (emailError) {
-        console.error("Failed to send password reset email:", emailError);
+        logError("Failed to send password reset email", emailError, req.requestId);
         // Don't fail the request if email fails - user can retry
       }
 
       res.json({ message: "If an account exists with that email, we've sent password reset instructions." });
     } catch (error) {
-      console.error("Forgot password error:", error);
+      logError("Forgot password error", error, req.requestId);
       res.status(500).json({ message: "Failed to process request" });
     }
   });
@@ -580,7 +670,7 @@ export async function registerRoutes(
 
       res.json({ message: "Password reset successful. You can now log in with your new password." });
     } catch (error) {
-      console.error("Reset password error:", error);
+      logError("Reset password error", error, req.requestId);
       res.status(500).json({ message: "Failed to reset password" });
     }
   });
@@ -613,7 +703,7 @@ export async function registerRoutes(
 
       res.json({ message: "Email verified successfully!" });
     } catch (error) {
-      console.error("Verify email error:", error);
+      logError("Verify email error", error, req.requestId);
       res.status(500).json({ message: "Failed to verify email" });
     }
   });
@@ -630,7 +720,7 @@ export async function registerRoutes(
       const { password: _, ...safeUser } = user;
       res.json(safeUser);
     } catch (error) {
-      console.error("Error fetching user:", error);
+      logError("Error fetching user", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
@@ -658,7 +748,7 @@ export async function registerRoutes(
       const { password: _, ...safeUser } = user;
       res.json(safeUser);
     } catch (error) {
-      console.error("Error updating profile:", error);
+      logError("Error updating profile", error, req.requestId);
       res.status(500).json({ message: "Failed to update profile" });
     }
   });
@@ -698,7 +788,7 @@ export async function registerRoutes(
 
       res.json({ success: true, message: "Password changed successfully" });
     } catch (error) {
-      console.error("Error changing password:", error);
+      logError("Error changing password", error, req.requestId);
       res.status(500).json({ message: "Failed to change password" });
     }
   });
@@ -726,7 +816,7 @@ export async function registerRoutes(
       const { password: _, ...safeUser } = user;
       res.status(201).json(safeUser);
     } catch (error) {
-      console.error("Create user error:", error);
+      logError("Create user error", error, req.requestId);
       res.status(500).json({ message: "Failed to create user" });
     }
   });
@@ -737,7 +827,7 @@ export async function registerRoutes(
       const stats = await storage.getStats();
       res.json(stats);
     } catch (error) {
-      console.error("Error fetching stats:", error);
+      logError("Error fetching stats", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch stats" });
     }
   });
@@ -798,7 +888,7 @@ export async function registerRoutes(
 
       res.json(weekData);
     } catch (error) {
-      console.error("Error fetching weekly stats:", error);
+      logError("Error fetching weekly stats", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch weekly stats" });
     }
   });
@@ -836,7 +926,7 @@ export async function registerRoutes(
 
       res.json(zoneData);
     } catch (error) {
-      console.error("Error fetching zone stats:", error);
+      logError("Error fetching zone stats", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch zone stats" });
     }
   });
@@ -874,7 +964,7 @@ export async function registerRoutes(
 
       res.json(guideStats);
     } catch (error) {
-      console.error("Error fetching guide performance:", error);
+      logError("Error fetching guide performance", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch guide performance" });
     }
   });
@@ -921,7 +1011,7 @@ export async function registerRoutes(
       // Filter out zero values to reduce payload size if desired, but grid is better for heatmap
       res.json(data);
     } catch (error) {
-      console.error("Error fetching heatmap stats:", error);
+      logError("Error fetching heatmap stats", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch heatmap stats" });
     }
   });
@@ -957,7 +1047,7 @@ export async function registerRoutes(
 
       res.json(data);
     } catch (error) {
-      console.error("Error fetching seasonal stats:", error);
+      logError("Error fetching seasonal stats", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch seasonal stats" });
     }
   });
@@ -998,7 +1088,7 @@ export async function registerRoutes(
         res.json(bookingsWithGuides);
       }
     } catch (error) {
-      console.error("Error fetching bookings:", error);
+      logError("Error fetching bookings", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch bookings" });
     }
   });
@@ -1031,7 +1121,7 @@ export async function registerRoutes(
 
       res.json(bookingsWithGuides);
     } catch (error) {
-      console.error("Error searching bookings:", error);
+      logError("Error searching bookings", error, req.requestId);
       res.status(500).json({ message: "Failed to search bookings" });
     }
   });
@@ -1052,7 +1142,7 @@ export async function registerRoutes(
 
       res.json(bookingsWithGuides);
     } catch (error) {
-      console.error("Error fetching recent bookings:", error);
+      logError("Error fetching recent bookings", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch recent bookings" });
     }
   });
@@ -1073,7 +1163,7 @@ export async function registerRoutes(
 
       res.json(bookingsWithGuides);
     } catch (error) {
-      console.error("Error fetching today's bookings:", error);
+      logError("Error fetching today's bookings", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch today's bookings" });
     }
   });
@@ -1095,7 +1185,7 @@ export async function registerRoutes(
 
       res.json(bookingsWithGuides);
     } catch (error) {
-      console.error("Error fetching active visits:", error);
+      logError("Error fetching active visits", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch active visits" });
     }
   });
@@ -1139,7 +1229,7 @@ export async function registerRoutes(
 
       res.json(bookingsWithGuide);
     } catch (error) {
-      console.error("Error fetching my bookings:", error);
+      logError("Error fetching my bookings", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch bookings" });
     }
   });
@@ -1167,7 +1257,7 @@ export async function registerRoutes(
       const myTours = allBookings.filter(b => b.assignedGuideId === myGuide.id);
       res.json(myTours);
     } catch (error) {
-      console.error("Error fetching my tours:", error);
+      logError("Error fetching my tours", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch tours" });
     }
   });
@@ -1193,7 +1283,7 @@ export async function registerRoutes(
         checkOutTime: booking.checkOutTime,
       });
     } catch (error) {
-      console.error("Error verifying booking:", error);
+      logError("Error verifying booking", error, req.requestId);
       res.status(500).json({ message: "Failed to verify booking" });
     }
   });
@@ -1233,7 +1323,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid booking data", errors: error.errors });
       } else {
-        console.error("Error creating booking:", error);
+        logError("Error creating booking", error, req.requestId);
         res.status(500).json({ message: "Failed to create booking" });
       }
     }
@@ -1318,14 +1408,7 @@ export async function registerRoutes(
 
       res.status(201).json(booking);
     } catch (error) {
-      console.error("Error creating historical booking:", error);
-      // Log the full error object for debugging
-      if (error instanceof Error) {
-        console.error("Error details:", error.message);
-        console.error("Stack:", error.stack);
-      }
-      // In production, return generic error. Log details server-side only.
-      console.error("Error creating historical booking:", error);
+      logError("Error creating historical booking", error, req.requestId);
       res.status(500).json({ message: "Failed to create historical booking" });
     }
   });
@@ -1379,7 +1462,7 @@ export async function registerRoutes(
           code: "VERSION_CONFLICT"
         });
       }
-      console.error("Error updating booking status:", error);
+      logError("Error updating booking status", error, req.requestId);
       res.status(500).json({ message: "Failed to update booking status" });
     }
   });
@@ -1426,7 +1509,7 @@ export async function registerRoutes(
 
       res.json(booking);
     } catch (error) {
-      console.error("Error rescheduling booking:", error);
+      logError("Error rescheduling booking", error, req.requestId);
       res.status(500).json({ message: "Failed to reschedule booking" });
     }
   });
@@ -1438,7 +1521,7 @@ export async function registerRoutes(
       const activities = await storage.getBookingActivityLogs(id);
       res.json(activities);
     } catch (error) {
-      console.error("Error fetching booking activity:", error);
+      logError("Error fetching booking activity", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch booking activity" });
     }
   });
@@ -1465,7 +1548,7 @@ export async function registerRoutes(
 
       res.json(booking);
     } catch (error) {
-      console.error("Error updating payment status:", error);
+      logError("Error updating payment status", error, req.requestId);
       res.status(500).json({ message: "Failed to update payment status" });
     }
   });
@@ -1500,7 +1583,7 @@ export async function registerRoutes(
 
       res.json(updated);
     } catch (error) {
-      console.error("Error updating visitor payment status:", error);
+      logError("Error updating visitor payment status", error, req.requestId);
       res.status(500).json({ message: "Failed to update payment status" });
     }
   });
@@ -1539,7 +1622,7 @@ export async function registerRoutes(
       }
 
       // Notify Admins and Guide
-      await notifyBookingCancelledByVisitor(id, booking.visitorName, booking.bookingReference!, guideUserId);
+      await notifyBookingCancelledByVisitor(id, booking.visitorName, booking.bookingReference!, guideUserId || undefined);
 
       // Email Visitor
       await sendStatusUpdate({
@@ -1569,7 +1652,7 @@ export async function registerRoutes(
 
       res.json(updated);
     } catch (error) {
-      console.error("Error cancelling booking:", error);
+      logError("Error cancelling booking", error, req.requestId);
       res.status(500).json({ message: "Failed to cancel booking" });
     }
   });
@@ -1642,7 +1725,7 @@ export async function registerRoutes(
 
       res.json({ success: true, message: "Guide rated successfully", rating });
     } catch (error) {
-      console.error("Error rating guide:", error);
+      logError("Error rating guide", error, req.requestId);
       res.status(500).json({ message: "Failed to rate guide" });
     }
   });
@@ -1684,7 +1767,7 @@ export async function registerRoutes(
 
       res.json(booking);
     } catch (error) {
-      console.error("Error assigning guide:", error);
+      logError("Error assigning guide", error, req.requestId);
       res.status(500).json({ message: "Failed to assign guide" });
     }
   });
@@ -1699,7 +1782,7 @@ export async function registerRoutes(
       }
       res.json(booking);
     } catch (error) {
-      console.error("Error updating notes:", error);
+      logError("Error updating notes", error, req.requestId);
       res.status(500).json({ message: "Failed to update notes" });
     }
   });
@@ -1739,7 +1822,7 @@ export async function registerRoutes(
 
       res.json(booking);
     } catch (error) {
-      console.error("Error checking in visitor:", error);
+      logError("Error checking in visitor", error, req.requestId);
       res.status(500).json({ message: "Failed to check in visitor" });
     }
   });
@@ -1761,7 +1844,7 @@ export async function registerRoutes(
 
       res.json(booking);
     } catch (error) {
-      console.error("Error checking out visitor:", error);
+      logError("Error checking out visitor", error, req.requestId);
       res.status(500).json({ message: "Failed to check out visitor" });
     }
   });
@@ -1795,7 +1878,7 @@ export async function registerRoutes(
 
       res.json(booking);
     } catch (error) {
-      console.error("Error starting tour:", error);
+      logError("Error starting tour", error, req.requestId);
       res.status(500).json({ message: "Failed to start tour" });
     }
   });
@@ -1844,7 +1927,7 @@ export async function registerRoutes(
 
       res.json(booking);
     } catch (error) {
-      console.error("Error completing tour:", error);
+      logError("Error completing tour", error, req.requestId);
       res.status(500).json({ message: "Failed to complete tour" });
     }
   });
@@ -1855,7 +1938,7 @@ export async function registerRoutes(
       const companions = await storage.getBookingCompanions(req.params.id);
       res.json(companions);
     } catch (error) {
-      console.error("Error fetching companions:", error);
+      logError("Error fetching companions", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch companions" });
     }
   });
@@ -1872,7 +1955,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid data", errors: error.errors });
       } else {
-        console.error("Error creating companion:", error);
+        logError("Error creating companion", error, req.requestId);
         res.status(500).json({ message: "Failed to create companion" });
       }
     }
@@ -1883,7 +1966,7 @@ export async function registerRoutes(
       await storage.deleteBookingCompanion(req.params.id);
       res.status(204).send();
     } catch (error) {
-      console.error("Error deleting companion:", error);
+      logError("Error deleting companion", error, req.requestId);
       res.status(500).json({ message: "Failed to delete companion" });
     }
   });
@@ -1894,7 +1977,7 @@ export async function registerRoutes(
       const logs = await storage.getBookingActivityLogs(req.params.id);
       res.json(logs);
     } catch (error) {
-      console.error("Error fetching activity logs:", error);
+      logError("Error fetching activity logs", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch activity logs" });
     }
   });
@@ -1912,7 +1995,7 @@ export async function registerRoutes(
       }
       res.json(guide);
     } catch (error) {
-      console.error("Error fetching guide profile:", error);
+      logError("Error fetching guide profile", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch guide profile" });
     }
   });
@@ -1922,7 +2005,7 @@ export async function registerRoutes(
       const guidesList = await storage.getGuides();
       res.json(guidesList);
     } catch (error) {
-      console.error("Error fetching guides:", error);
+      logError("Error fetching guides", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch guides" });
     }
   });
@@ -1958,7 +2041,7 @@ export async function registerRoutes(
       console.log("Found guide:", guide.firstName, guide.lastName);
       res.json(guide);
     } catch (error) {
-      console.error("Error fetching guide by slug:", error);
+      logError("Error fetching guide by slug", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch guide" });
     }
   });
@@ -1970,7 +2053,7 @@ export async function registerRoutes(
       const guideBookings = bookings.filter(b => b.assignedGuideId === req.params.id);
       res.json(guideBookings);
     } catch (error) {
-      console.error("Error fetching guide bookings:", error);
+      logError("Error fetching guide bookings", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch guide bookings" });
     }
   });
@@ -1983,7 +2066,7 @@ export async function registerRoutes(
       }
       res.json(guide);
     } catch (error) {
-      console.error("Error fetching guide:", error);
+      logError("Error fetching guide", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch guide" });
     }
   });
@@ -2003,7 +2086,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid guide data", errors: error.errors });
       } else {
-        console.error("Error creating guide:", error);
+        logError("Error creating guide", error, req.requestId);
         res.status(500).json({ message: "Failed to create guide" });
       }
     }
@@ -2024,7 +2107,7 @@ export async function registerRoutes(
 
       res.json(guide);
     } catch (error) {
-      console.error("Error updating guide:", error);
+      logError("Error updating guide", error, req.requestId);
       res.status(500).json({ message: "Failed to update guide" });
     }
   });
@@ -2039,7 +2122,7 @@ export async function registerRoutes(
       await storage.deleteGuide(req.params.id);
       res.status(204).send();
     } catch (error) {
-      console.error("Error deleting guide:", error);
+      logError("Error deleting guide", error, req.requestId);
       res.status(500).json({ message: "Failed to delete guide" });
     }
   });
@@ -2050,7 +2133,7 @@ export async function registerRoutes(
       const leaderboard = await storage.getGuideLeaderboard();
       res.json(leaderboard);
     } catch (error) {
-      console.error("Error fetching leaderboard:", error);
+      logError("Error fetching leaderboard", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch leaderboard" });
     }
   });
@@ -2061,7 +2144,7 @@ export async function registerRoutes(
       const availability = await storage.getGuideAvailability(req.params.id);
       res.json(availability);
     } catch (error) {
-      console.error("Error fetching availability:", error);
+      logError("Error fetching availability", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch availability" });
     }
   });
@@ -2075,7 +2158,7 @@ export async function registerRoutes(
       const availability = await storage.createGuideAvailability(availabilityData);
       res.status(201).json(availability);
     } catch (error) {
-      console.error("Error creating availability:", error);
+      logError("Error creating availability", error, req.requestId);
       res.status(500).json({ message: "Failed to create availability" });
     }
   });
@@ -2085,7 +2168,7 @@ export async function registerRoutes(
       await storage.deleteGuideAvailability(req.params.id);
       res.status(204).send();
     } catch (error) {
-      console.error("Error deleting availability:", error);
+      logError("Error deleting availability", error, req.requestId);
       res.status(500).json({ message: "Failed to delete availability" });
     }
   });
@@ -2096,7 +2179,7 @@ export async function registerRoutes(
       const usersList = await storage.getUsers();
       res.json(usersList);
     } catch (error) {
-      console.error("Error fetching users:", error);
+      logError("Error fetching users", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch users" });
     }
   });
@@ -2118,7 +2201,7 @@ export async function registerRoutes(
 
       res.json(user);
     } catch (error) {
-      console.error("Error updating user role:", error);
+      logError("Error updating user role", error, req.requestId);
       res.status(500).json({ message: "Failed to update user role" });
     }
   });
@@ -2149,7 +2232,7 @@ export async function registerRoutes(
 
       res.json(user);
     } catch (error) {
-      console.error("Error updating user:", error);
+      logError("Error updating user", error, req.requestId);
       res.status(500).json({ message: "Failed to update user" });
     }
   });
@@ -2178,7 +2261,7 @@ export async function registerRoutes(
 
       res.json(updatedUser);
     } catch (error) {
-      console.error("Error toggling user status:", error);
+      logError("Error toggling user status", error, req.requestId);
       res.status(500).json({ message: "Failed to toggle user status" });
     }
   });
@@ -2207,7 +2290,7 @@ export async function registerRoutes(
 
       res.json({ message: "User deactivated" });
     } catch (error) {
-      console.error("Error deleting user:", error);
+      logError("Error deleting user", error, req.requestId);
       res.status(500).json({ message: "Failed to delete user" });
     }
   });
@@ -2238,7 +2321,7 @@ export async function registerRoutes(
 
       res.json({ message: "Password reset successfully" });
     } catch (error) {
-      console.error("Error resetting password:", error);
+      logError("Error resetting password", error, req.requestId);
       res.status(500).json({ message: "Failed to reset password" });
     }
   });
@@ -2261,7 +2344,7 @@ export async function registerRoutes(
 
       res.json({ message: "Email verified successfully" });
     } catch (error) {
-      console.error("Error verifying email:", error);
+      logError("Error verifying email", error, req.requestId);
       res.status(500).json({ message: "Failed to verify email" });
     }
   });
@@ -2298,7 +2381,7 @@ export async function registerRoutes(
         }
       });
     } catch (error) {
-      console.error("Error fetching user details:", error);
+      logError("Error fetching user details", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch user details" });
     }
   });
@@ -2335,7 +2418,7 @@ export async function registerRoutes(
 
       res.json({ message: "Password reset email sent" });
     } catch (error) {
-      console.error("Error sending reset email:", error);
+      logError("Error sending reset email", error, req.requestId);
       res.status(500).json({ message: "Failed to send reset email" });
     }
   });
@@ -2346,7 +2429,7 @@ export async function registerRoutes(
       const zonesList = await storage.getZones();
       res.json(zonesList);
     } catch (error) {
-      console.error("Error fetching zones:", error);
+      logError("Error fetching zones", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch zones" });
     }
   });
@@ -2360,7 +2443,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid zone data", errors: error.errors });
       } else {
-        console.error("Error creating zone:", error);
+        logError("Error creating zone", error, req.requestId);
         res.status(500).json({ message: "Failed to create zone" });
       }
     }
@@ -2374,7 +2457,7 @@ export async function registerRoutes(
       }
       res.json(zone);
     } catch (error) {
-      console.error("Error updating zone:", error);
+      logError("Error updating zone", error, req.requestId);
       res.status(500).json({ message: "Failed to update zone" });
     }
   });
@@ -2384,7 +2467,7 @@ export async function registerRoutes(
       await storage.deleteZone(req.params.id);
       res.status(204).send();
     } catch (error) {
-      console.error("Error deleting zone:", error);
+      logError("Error deleting zone", error, req.requestId);
       res.status(500).json({ message: "Failed to delete zone" });
     }
   });
@@ -2395,7 +2478,7 @@ export async function registerRoutes(
       const analytics = await storage.getZoneAnalytics();
       res.json(analytics);
     } catch (error) {
-      console.error("Error fetching zone analytics:", error);
+      logError("Error fetching zone analytics", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch zone analytics" });
     }
   });
@@ -2406,7 +2489,7 @@ export async function registerRoutes(
       const poiList = await storage.getPointsOfInterest();
       res.json(poiList);
     } catch (error) {
-      console.error("Error fetching points of interest:", error);
+      logError("Error fetching points of interest", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch points of interest" });
     }
   });
@@ -2420,7 +2503,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid POI data", errors: error.errors });
       } else {
-        console.error("Error creating POI:", error);
+        logError("Error creating POI", error, req.requestId);
         res.status(500).json({ message: "Failed to create point of interest" });
       }
     }
@@ -2434,7 +2517,7 @@ export async function registerRoutes(
       }
       res.json(poi);
     } catch (error) {
-      console.error("Error updating POI:", error);
+      logError("Error updating POI", error, req.requestId);
       res.status(500).json({ message: "Failed to update point of interest" });
     }
   });
@@ -2444,7 +2527,7 @@ export async function registerRoutes(
       await storage.deletePointOfInterest(req.params.id);
       res.status(204).send();
     } catch (error) {
-      console.error("Error deleting POI:", error);
+      logError("Error deleting POI", error, req.requestId);
       res.status(500).json({ message: "Failed to delete point of interest" });
     }
   });
@@ -2455,7 +2538,7 @@ export async function registerRoutes(
       const mpList = await storage.getMeetingPoints();
       res.json(mpList);
     } catch (error) {
-      console.error("Error fetching meeting points:", error);
+      logError("Error fetching meeting points", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch meeting points" });
     }
   });
@@ -2469,7 +2552,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid meeting point data", errors: error.errors });
       } else {
-        console.error("Error creating meeting point:", error);
+        logError("Error creating meeting point", error, req.requestId);
         res.status(500).json({ message: "Failed to create meeting point" });
       }
     }
@@ -2483,7 +2566,7 @@ export async function registerRoutes(
       }
       res.json(mp);
     } catch (error) {
-      console.error("Error updating meeting point:", error);
+      logError("Error updating meeting point", error, req.requestId);
       res.status(500).json({ message: "Failed to update meeting point" });
     }
   });
@@ -2493,7 +2576,7 @@ export async function registerRoutes(
       await storage.deleteMeetingPoint(req.params.id);
       res.status(204).send();
     } catch (error) {
-      console.error("Error deleting meeting point:", error);
+      logError("Error deleting meeting point", error, req.requestId);
       res.status(500).json({ message: "Failed to delete meeting point" });
     }
   });
@@ -2504,7 +2587,7 @@ export async function registerRoutes(
       const incidentsList = await storage.getIncidents();
       res.json(incidentsList);
     } catch (error) {
-      console.error("Error fetching incidents:", error);
+      logError("Error fetching incidents", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch incidents" });
     }
   });
@@ -2517,7 +2600,7 @@ export async function registerRoutes(
       }
       res.json(incident);
     } catch (error) {
-      console.error("Error fetching incident:", error);
+      logError("Error fetching incident", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch incident" });
     }
   });
@@ -2542,7 +2625,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid incident data", errors: error.errors });
       } else {
-        console.error("Error creating incident:", error);
+        logError("Error creating incident", error, req.requestId);
         res.status(500).json({ message: "Failed to create incident" });
       }
     }
@@ -2563,7 +2646,7 @@ export async function registerRoutes(
 
       res.json(incident);
     } catch (error) {
-      console.error("Error updating incident:", error);
+      logError("Error updating incident", error, req.requestId);
       res.status(500).json({ message: "Failed to update incident" });
     }
   });
@@ -2581,7 +2664,7 @@ export async function registerRoutes(
 
       res.json(incident);
     } catch (error) {
-      console.error("Error resolving incident:", error);
+      logError("Error resolving incident", error, req.requestId);
       res.status(500).json({ message: "Failed to resolve incident" });
     }
   });
@@ -2649,7 +2732,7 @@ export async function registerRoutes(
 
       res.json(enrichedLogs);
     } catch (error) {
-      console.error("Error fetching audit logs:", error);
+      logError("Error fetching audit logs", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch audit logs" });
     }
   });
@@ -2664,7 +2747,7 @@ export async function registerRoutes(
       const revenueStats = await storage.getRevenueStats(start, end);
       res.json(revenueStats);
     } catch (error) {
-      console.error("Error fetching revenue report:", error);
+      logError("Error fetching revenue report", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch revenue report" });
     }
   });
@@ -2675,7 +2758,7 @@ export async function registerRoutes(
       const configs = await storage.getPricingConfigs();
       res.json(configs);
     } catch (error) {
-      console.error("Error fetching pricing:", error);
+      logError("Error fetching pricing", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch pricing" });
     }
   });
@@ -2685,7 +2768,7 @@ export async function registerRoutes(
       await storage.updatePricing(req.body);
       res.json({ success: true });
     } catch (error) {
-      console.error("Error updating pricing:", error);
+      logError("Error updating pricing", error, req.requestId);
       res.status(500).json({ message: "Failed to update pricing" });
     }
   });
@@ -2697,7 +2780,7 @@ export async function registerRoutes(
       const totalAmount = calculateTotalAmount(groupSize, tourType, customDuration);
       res.json({ totalAmount });
     } catch (error) {
-      console.error("Error calculating price:", error);
+      logError("Error calculating price", error, req.requestId);
       res.status(500).json({ message: "Failed to calculate price" });
     }
   });
@@ -2746,7 +2829,7 @@ export async function registerRoutes(
         res.status(500).json({ message: "Failed to send email" });
       }
     } catch (error) {
-      console.error("Error sending email:", error);
+      logError("Error sending email", error, req.requestId);
       res.status(500).json({ message: "Failed to send email" });
     }
   });
@@ -2757,7 +2840,7 @@ export async function registerRoutes(
       const logs = await storage.getEmailLogs();
       res.json(logs);
     } catch (error) {
-      console.error("Error fetching email logs:", error);
+      logError("Error fetching email logs", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch email logs" });
     }
   });
@@ -2788,7 +2871,7 @@ export async function registerRoutes(
         res.status(500).json({ message: "Failed to resend email" });
       }
     } catch (error) {
-      console.error("Error retrying email:", error);
+      logError("Error retrying email", error, req.requestId);
       res.status(500).json({ message: "Failed to retry email" });
     }
   });
@@ -2803,7 +2886,7 @@ export async function registerRoutes(
       }
       res.json({ success: true, message: "Email archived successfully" });
     } catch (error) {
-      console.error("Error archiving email:", error);
+      logError("Error archiving email", error, req.requestId);
       res.status(500).json({ message: "Failed to archive email" });
     }
   });
@@ -2815,7 +2898,7 @@ export async function registerRoutes(
       await storage.deleteEmailLog(id);
       res.json({ success: true, message: "Email deleted successfully" });
     } catch (error) {
-      console.error("Error deleting email:", error);
+      logError("Error deleting email", error, req.requestId);
       res.status(500).json({ message: "Failed to delete email" });
     }
   });
@@ -2826,7 +2909,7 @@ export async function registerRoutes(
       const templates = await storage.getEmailTemplates();
       res.json(templates);
     } catch (error) {
-      console.error("Error fetching email templates:", error);
+      logError("Error fetching email templates", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch email templates" });
     }
   });
@@ -2840,7 +2923,7 @@ export async function registerRoutes(
       }
       res.json(template);
     } catch (error) {
-      console.error("Error updating email template:", error);
+      logError("Error updating email template", error, req.requestId);
       res.status(500).json({ message: "Failed to update email template" });
     }
   });
@@ -2855,7 +2938,7 @@ export async function registerRoutes(
       }
       res.json(template);
     } catch (error) {
-      console.error("Error toggling email template:", error);
+      logError("Error toggling email template", error, req.requestId);
       res.status(500).json({ message: "Failed to toggle email template" });
     }
   });
@@ -2866,7 +2949,7 @@ export async function registerRoutes(
       const data = await storage.getRevenueDashboard();
       res.json(data);
     } catch (error) {
-      console.error("Error fetching revenue data:", error);
+      logError("Error fetching revenue data", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch revenue data" });
     }
   });
@@ -2877,7 +2960,7 @@ export async function registerRoutes(
       const stats = await storage.getUserStats();
       res.json(stats);
     } catch (error) {
-      console.error("Error fetching user stats:", error);
+      logError("Error fetching user stats", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch user stats" });
     }
   });
@@ -2894,7 +2977,7 @@ export async function registerRoutes(
       const notifications = await storage.getNotifications(userId, limit);
       res.json(notifications);
     } catch (error) {
-      console.error("Error fetching notifications:", error);
+      logError("Error fetching notifications", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch notifications" });
     }
   });
@@ -2906,7 +2989,7 @@ export async function registerRoutes(
       const count = await storage.getUnreadNotificationCount(userId);
       res.json({ count });
     } catch (error) {
-      console.error("Error fetching unread count:", error);
+      logError("Error fetching unread count", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch unread count" });
     }
   });
@@ -2921,7 +3004,7 @@ export async function registerRoutes(
       }
       res.json(notification);
     } catch (error) {
-      console.error("Error marking notification as read:", error);
+      logError("Error marking notification as read", error, req.requestId);
       res.status(500).json({ message: "Failed to mark notification as read" });
     }
   });
@@ -2933,7 +3016,7 @@ export async function registerRoutes(
       await storage.markAllNotificationsAsRead(userId);
       res.json({ success: true });
     } catch (error) {
-      console.error("Error marking all notifications as read:", error);
+      logError("Error marking all notifications as read", error, req.requestId);
       res.status(500).json({ message: "Failed to mark all notifications as read" });
     }
   });
@@ -2945,7 +3028,7 @@ export async function registerRoutes(
       await storage.deleteNotification(id);
       res.json({ success: true });
     } catch (error) {
-      console.error("Error deleting notification:", error);
+      logError("Error deleting notification", error, req.requestId);
       res.status(500).json({ message: "Failed to delete notification" });
     }
   });
@@ -2964,7 +3047,7 @@ export async function registerRoutes(
       }, {});
       res.json(contentMap);
     } catch (error) {
-      console.error("Error fetching content:", error);
+      logError("Error fetching content", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch content" });
     }
   });
@@ -2990,7 +3073,7 @@ export async function registerRoutes(
 
       res.json({ success: true, updated: results.length });
     } catch (error) {
-      console.error("Error updating content:", error);
+      logError("Error updating content", error, req.requestId);
       res.status(500).json({ message: "Failed to update content" });
     }
   });
@@ -3020,7 +3103,7 @@ export async function registerRoutes(
       res.setHeader('Content-Disposition', `attachment; filename=system-backup-${new Date().toISOString().split('T')[0]}.json`);
       res.json(exportData);
     } catch (error) {
-      console.error("Error exporting data:", error);
+      logError("Error exporting data", error, req.requestId);
       res.status(500).json({ message: "Failed to export data" });
     }
   });
@@ -3078,7 +3161,7 @@ export async function registerRoutes(
 
       res.json(payouts);
     } catch (error) {
-      console.error("Error calculating payouts:", error);
+      logError("Error calculating payouts", error, req.requestId);
       res.status(500).json({ message: "Failed to calculate payouts" });
     }
   });
@@ -3109,7 +3192,7 @@ export async function registerRoutes(
 
       res.json(enrichedPayouts);
     } catch (error) {
-      console.error("Error fetching payouts:", error);
+      logError("Error fetching payouts", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch payouts" });
     }
   });
@@ -3120,7 +3203,7 @@ export async function registerRoutes(
       const summary = await storage.getPayoutSummary();
       res.json(summary);
     } catch (error) {
-      console.error("Error fetching payout summary:", error);
+      logError("Error fetching payout summary", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch payout summary" });
     }
   });
@@ -3149,7 +3232,7 @@ export async function registerRoutes(
 
       res.json(payout);
     } catch (error) {
-      console.error("Error creating payout:", error);
+      logError("Error creating payout", error, req.requestId);
       res.status(500).json({ message: "Failed to create payout" });
     }
   });
@@ -3172,7 +3255,7 @@ export async function registerRoutes(
 
       res.json(payout);
     } catch (error) {
-      console.error("Error marking payout as paid:", error);
+      logError("Error marking payout as paid", error, req.requestId);
       res.status(500).json({ message: "Failed to mark payout as paid" });
     }
   });
@@ -3214,7 +3297,7 @@ export async function registerRoutes(
       res.setHeader("Content-Disposition", `attachment; filename=payouts_export_${new Date().toISOString().split('T')[0]}.csv`);
       res.send(csv);
     } catch (error) {
-      console.error("Error exporting payouts:", error);
+      logError("Error exporting payouts", error, req.requestId);
       res.status(500).json({ message: "Failed to export payouts" });
     }
   });
@@ -3263,7 +3346,7 @@ export async function registerRoutes(
 
       res.json({ success: true, message: "Invitation sent successfully" });
     } catch (error) {
-      console.error("Error sending invitation:", error);
+      logError("Error sending invitation", error, req.requestId);
       res.status(500).json({ message: "Failed to send invitation" });
     }
   });
@@ -3279,7 +3362,7 @@ export async function registerRoutes(
       const loginHistory = await storage.getLoginHistory(limit);
       res.json(loginHistory);
     } catch (error) {
-      console.error("Error fetching login history:", error);
+      logError("Error fetching login history", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch login history" });
     }
   });
@@ -3291,7 +3374,7 @@ export async function registerRoutes(
       const loginHistory = await storage.getUserLoginHistory(req.params.id, limit);
       res.json(loginHistory);
     } catch (error) {
-      console.error("Error fetching user login history:", error);
+      logError("Error fetching user login history", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch login history" });
     }
   });
@@ -3302,7 +3385,7 @@ export async function registerRoutes(
       const ips = await storage.getAllowedIps();
       res.json(ips);
     } catch (error) {
-      console.error("Error fetching allowed IPs:", error);
+      logError("Error fetching allowed IPs", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch allowed IPs" });
     }
   });
@@ -3323,7 +3406,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid data", errors: error.errors });
       } else {
-        console.error("Error adding allowed IP:", error);
+        logError("Error adding allowed IP", error, req.requestId);
         res.status(500).json({ message: "Failed to add IP" });
       }
     }
@@ -3335,7 +3418,7 @@ export async function registerRoutes(
       await createAuditLog(req.session.userId, "delete", "ip_whitelist", req.params.id, null, null, req);
       res.json({ success: true });
     } catch (error) {
-      console.error("Error removing allowed IP:", error);
+      logError("Error removing allowed IP", error, req.requestId);
       res.status(500).json({ message: "Failed to remove IP" });
     }
   });
@@ -3350,7 +3433,7 @@ export async function registerRoutes(
       const invites = await storage.getInvites();
       res.json(invites);
     } catch (error) {
-      console.error("Error fetching invites:", error);
+      logError("Error fetching invites", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch invites" });
     }
   });
@@ -3402,7 +3485,7 @@ export async function registerRoutes(
           inviterName
         });
       } catch (emailError) {
-        console.error("Failed to send invitation email:", emailError);
+        logError("Failed to send invitation email", emailError, req.requestId);
         // Don't fail the request if email fails
       }
 
@@ -3410,7 +3493,7 @@ export async function registerRoutes(
 
       res.json({ success: true, invite });
     } catch (error) {
-      console.error("Error creating invite:", error);
+      logError("Error creating invite", error, req.requestId);
       res.status(500).json({ message: "Failed to create invitation" });
     }
   });
@@ -3456,12 +3539,12 @@ export async function registerRoutes(
           inviterName
         });
       } catch (emailError) {
-        console.error("Failed to send invitation email:", emailError);
+        logError("Failed to send invitation email", emailError, req.requestId);
       }
 
       res.json({ success: true, invite: newInvite });
     } catch (error) {
-      console.error("Error resending invite:", error);
+      logError("Error resending invite", error, req.requestId);
       res.status(500).json({ message: "Failed to resend invitation" });
     }
   });
@@ -3473,7 +3556,7 @@ export async function registerRoutes(
       await createAuditLog(req.session.userId, "delete", "user_invite", req.params.id, null, null, req);
       res.json({ success: true });
     } catch (error) {
-      console.error("Error deleting invite:", error);
+      logError("Error deleting invite", error, req.requestId);
       res.status(500).json({ message: "Failed to delete invitation" });
     }
   });
@@ -3545,7 +3628,7 @@ export async function registerRoutes(
       const { password: _, ...safeUser } = user;
       res.status(201).json(safeUser);
     } catch (error) {
-      console.error("Accept invite error:", error);
+      logError("Accept invite error", error, req.requestId);
       res.status(500).json({ message: "Failed to accept invitation" });
     }
   });
@@ -3558,7 +3641,7 @@ export async function registerRoutes(
       const stats = await storage.getAllGuidesTrainingStats();
       res.json(stats);
     } catch (error) {
-      console.error("Error fetching all guides training stats:", error);
+      logError("Error fetching all guides training stats", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch guides training stats" });
     }
   });
@@ -3569,7 +3652,7 @@ export async function registerRoutes(
       const modules = await storage.getTrainingModules();
       res.json(modules);
     } catch (error) {
-      console.error("Error fetching training modules:", error);
+      logError("Error fetching training modules", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch training modules" });
     }
   });
@@ -3583,7 +3666,7 @@ export async function registerRoutes(
       }
       res.json(module);
     } catch (error) {
-      console.error("Error fetching training module:", error);
+      logError("Error fetching training module", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch training module" });
     }
   });
@@ -3601,7 +3684,7 @@ export async function registerRoutes(
 
       res.status(201).json(module);
     } catch (error) {
-      console.error("Error creating training module:", error);
+      logError("Error creating training module", error, req.requestId);
       res.status(500).json({ message: "Failed to create training module" });
     }
   });
@@ -3622,7 +3705,7 @@ export async function registerRoutes(
 
       res.json(module);
     } catch (error) {
-      console.error("Error updating training module:", error);
+      logError("Error updating training module", error, req.requestId);
       res.status(500).json({ message: "Failed to update training module" });
     }
   });
@@ -3644,7 +3727,7 @@ export async function registerRoutes(
 
       res.json({ message: "Training module deleted" });
     } catch (error) {
-      console.error("Error deleting training module:", error);
+      logError("Error deleting training module", error, req.requestId);
       res.status(500).json({ message: "Failed to delete training module" });
     }
   });
@@ -3658,7 +3741,7 @@ export async function registerRoutes(
       const modules = await storage.getVisitorResources();
       res.json(modules);
     } catch (error) {
-      console.error("Error fetching visitor resources:", error);
+      logError("Error fetching visitor resources", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch resources" });
     }
   });
@@ -3690,7 +3773,7 @@ export async function registerRoutes(
 
       res.json(modulesWithProgress);
     } catch (error) {
-      console.error("Error fetching training progress:", error);
+      logError("Error fetching training progress", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch training progress" });
     }
   });
@@ -3716,7 +3799,7 @@ export async function registerRoutes(
         stats
       });
     } catch (error) {
-      console.error("Error fetching guide training:", error);
+      logError("Error fetching guide training", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch guide training" });
     }
   });
@@ -3746,7 +3829,7 @@ export async function registerRoutes(
 
       res.json(progress);
     } catch (error) {
-      console.error("Error updating training progress:", error);
+      logError("Error updating training progress", error, req.requestId);
       res.status(500).json({ message: "Failed to update training progress" });
     }
   });
@@ -3767,7 +3850,7 @@ export async function registerRoutes(
       const stats = await storage.getGuideTrainingStats(guide.id);
       res.json(stats);
     } catch (error) {
-      console.error("Error fetching training stats:", error);
+      logError("Error fetching training stats", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch training stats" });
     }
   });
@@ -3800,7 +3883,7 @@ export async function registerRoutes(
       const tasks = await storage.getTasks(filters);
       res.json(tasks);
     } catch (error) {
-      console.error("Error fetching tasks:", error);
+      logError("Error fetching tasks", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch tasks" });
     }
   });
@@ -3811,7 +3894,7 @@ export async function registerRoutes(
       const stats = await storage.getTaskStats();
       res.json(stats);
     } catch (error) {
-      console.error("Error fetching task stats:", error);
+      logError("Error fetching task stats", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch task statistics" });
     }
   });
@@ -3825,7 +3908,7 @@ export async function registerRoutes(
       }
       res.json(task);
     } catch (error) {
-      console.error("Error fetching task:", error);
+      logError("Error fetching task", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch task" });
     }
   });
@@ -3843,7 +3926,7 @@ export async function registerRoutes(
 
       res.status(201).json(task);
     } catch (error) {
-      console.error("Error creating task:", error);
+      logError("Error creating task", error, req.requestId);
       res.status(500).json({ message: "Failed to create task" });
     }
   });
@@ -3884,7 +3967,7 @@ export async function registerRoutes(
 
       res.json(task);
     } catch (error) {
-      console.error("Error updating task:", error);
+      logError("Error updating task", error, req.requestId);
       res.status(500).json({ message: "Failed to update task" });
     }
   });
@@ -3904,7 +3987,7 @@ export async function registerRoutes(
 
       res.status(204).send();
     } catch (error) {
-      console.error("Error deleting task:", error);
+      logError("Error deleting task", error, req.requestId);
       res.status(500).json({ message: "Failed to delete task" });
     }
   });
@@ -3916,7 +3999,7 @@ export async function registerRoutes(
       const tasks = await storage.getTasksByUser(userId);
       res.json(tasks);
     } catch (error) {
-      console.error("Error fetching my tasks:", error);
+      logError("Error fetching my tasks", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch tasks" });
     }
   });
@@ -3927,7 +4010,7 @@ export async function registerRoutes(
       const comments = await storage.getTaskComments(req.params.id);
       res.json(comments);
     } catch (error) {
-      console.error("Error fetching task comments:", error);
+      logError("Error fetching task comments", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch comments" });
     }
   });
@@ -3950,7 +4033,7 @@ export async function registerRoutes(
 
       res.status(201).json(comment);
     } catch (error) {
-      console.error("Error creating comment:", error);
+      logError("Error creating comment", error, req.requestId);
       res.status(500).json({ message: "Failed to create comment" });
     }
   });
@@ -3966,7 +4049,7 @@ export async function registerRoutes(
       const rooms = await storage.getChatRooms(userId);
       res.json(rooms);
     } catch (error) {
-      console.error("Error fetching chat rooms:", error);
+      logError("Error fetching chat rooms", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch chat rooms" });
     }
   });
@@ -3980,7 +4063,7 @@ export async function registerRoutes(
       }
       res.json(room);
     } catch (error) {
-      console.error("Error fetching chat room:", error);
+      logError("Error fetching chat room", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch chat room" });
     }
   });
@@ -4002,7 +4085,7 @@ export async function registerRoutes(
       await storage.deleteChatRoom(roomId);
       res.json({ message: "Chat history deleted" });
     } catch (error) {
-      console.error("Error deleting chat room:", error);
+      logError("Error deleting chat room", error, req.requestId);
       res.status(500).json({ message: "Failed to delete chat" });
     }
   });
@@ -4020,7 +4103,7 @@ export async function registerRoutes(
       const room = await storage.getOrCreateDirectRoom(currentUserId, otherUserId);
       res.json(room);
     } catch (error) {
-      console.error("Error creating direct room:", error);
+      logError("Error creating direct room", error, req.requestId);
       res.status(500).json({ message: "Failed to create chat room" });
     }
   });
@@ -4037,7 +4120,7 @@ export async function registerRoutes(
 
       res.json(messages);
     } catch (error) {
-      console.error("Error fetching messages:", error);
+      logError("Error fetching messages", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch messages" });
     }
   });
@@ -4061,7 +4144,7 @@ export async function registerRoutes(
 
       res.status(201).json(message);
     } catch (error) {
-      console.error("Error sending message:", error);
+      logError("Error sending message", error, req.requestId);
       res.status(500).json({ message: "Failed to send message" });
     }
   });
@@ -4087,7 +4170,7 @@ export async function registerRoutes(
       await storage.deleteChatMessage(messageId);
       res.json({ message: "Message deleted" });
     } catch (error) {
-      console.error("Error deleting message:", error);
+      logError("Error deleting message", error, req.requestId);
       res.status(500).json({ message: "Failed to delete message" });
     }
   });
@@ -4098,7 +4181,7 @@ export async function registerRoutes(
       const participants = await storage.getChatParticipants(req.params.id);
       res.json(participants);
     } catch (error) {
-      console.error("Error fetching participants:", error);
+      logError("Error fetching participants", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch participants" });
     }
   });
@@ -4143,7 +4226,7 @@ export async function registerRoutes(
       }));
       res.json(chatUsers);
     } catch (error) {
-      console.error("Error fetching chat users:", error);
+      logError("Error fetching chat users", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch users" });
     }
   });
@@ -4178,7 +4261,7 @@ export async function registerRoutes(
 
       res.json({ count: unreadCount });
     } catch (error) {
-      console.error("Error fetching unread chat count:", error);
+      logError("Error fetching unread chat count", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch unread count" });
     }
   });
@@ -4207,7 +4290,7 @@ export async function registerRoutes(
       );
       res.json(articles);
     } catch (error) {
-      console.error("Error fetching help articles:", error);
+      logError("Error fetching help articles", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch help articles" });
     }
   });
@@ -4221,7 +4304,7 @@ export async function registerRoutes(
       }
       res.json(article);
     } catch (error) {
-      console.error("Error fetching help article:", error);
+      logError("Error fetching help article", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch article" });
     }
   });
@@ -4232,7 +4315,7 @@ export async function registerRoutes(
       const articles = await storage.getAllHelpArticles();
       res.json(articles);
     } catch (error) {
-      console.error("Error fetching all help articles:", error);
+      logError("Error fetching all help articles", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch articles" });
     }
   });
@@ -4249,7 +4332,7 @@ export async function registerRoutes(
       const article = await storage.createHelpArticle(articleData);
       res.status(201).json(article);
     } catch (error) {
-      console.error("Error creating help article:", error);
+      logError("Error creating help article", error, req.requestId);
       res.status(500).json({ message: "Failed to create article" });
     }
   });
@@ -4265,7 +4348,7 @@ export async function registerRoutes(
       const article = await storage.updateHelpArticle(req.params.id, updates);
       res.json(article);
     } catch (error) {
-      console.error("Error updating help article:", error);
+      logError("Error updating help article", error, req.requestId);
       res.status(500).json({ message: "Failed to update article" });
     }
   });
@@ -4276,7 +4359,7 @@ export async function registerRoutes(
       await storage.deleteHelpArticle(req.params.id);
       res.json({ success: true });
     } catch (error) {
-      console.error("Error deleting help article:", error);
+      logError("Error deleting help article", error, req.requestId);
       res.status(500).json({ message: "Failed to delete article" });
     }
   });
@@ -4293,7 +4376,7 @@ export async function registerRoutes(
       );
       res.json(tickets);
     } catch (error) {
-      console.error("Error fetching support tickets:", error);
+      logError("Error fetching support tickets", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch tickets" });
     }
   });
@@ -4314,7 +4397,7 @@ export async function registerRoutes(
 
       res.status(201).json(ticket);
     } catch (error) {
-      console.error("Error creating support ticket:", error);
+      logError("Error creating support ticket", error, req.requestId);
       res.status(500).json({ message: "Failed to create ticket" });
     }
   });
@@ -4329,7 +4412,7 @@ export async function registerRoutes(
       const ticket = await storage.updateSupportTicket(req.params.id, updates);
       res.json(ticket);
     } catch (error) {
-      console.error("Error updating support ticket:", error);
+      logError("Error updating support ticket", error, req.requestId);
       res.status(500).json({ message: "Failed to update ticket" });
     }
   });
@@ -4343,7 +4426,7 @@ export async function registerRoutes(
       const recurrings = await storage.getRecurringBookings();
       res.json(recurrings);
     } catch (error) {
-      console.error("Error fetching recurring bookings:", error);
+      logError("Error fetching recurring bookings", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch recurring bookings" });
     }
   });
@@ -4354,7 +4437,7 @@ export async function registerRoutes(
       const recurring = await storage.createRecurringBooking(bookingData);
       res.status(201).json(recurring);
     } catch (error) {
-      console.error("Error creating recurring booking:", error);
+      logError("Error creating recurring booking", error, req.requestId);
       res.status(500).json({ message: "Failed to create recurring booking" });
     }
   });
@@ -4364,7 +4447,7 @@ export async function registerRoutes(
       await storage.deleteRecurringBooking(req.params.id);
       res.sendStatus(204);
     } catch (error) {
-      console.error("Error deleting recurring booking:", error);
+      logError("Error deleting recurring booking", error, req.requestId);
       res.status(500).json({ message: "Failed to delete recurring booking" });
     }
   });
@@ -4449,11 +4532,128 @@ export async function registerRoutes(
 
       res.json({ generatedCount: generatedBookings.length, bookings: generatedBookings });
     } catch (error) {
-      console.error("Error generating bookings:", error);
+      logError("Error generating bookings", error, req.requestId);
       res.status(500).json({ message: "Failed to generate bookings" });
+    }
+  });
+
+  // Live Operations Stats
+  app.get("/api/live-ops/stats", isAuthenticated, async (req, res) => {
+    try {
+      const [activeVisits, incidents, guides] = await Promise.all([
+        storage.getActiveVisits(),
+        storage.getIncidents(),
+        storage.getGuides(),
+      ]);
+
+      const openIncidents = incidents.filter(
+        (i) => i.status === "reported" || i.status === "investigating"
+      );
+
+      const visitorsOnSite = activeVisits.reduce(
+        (acc, booking) => acc + (booking.numberOfPeople || 1),
+        0
+      );
+
+      // Simple heuristic for available guides: Active guides who are NOT currently assigned to an active visit
+      const busyGuideIds = new Set(
+        activeVisits.map((b) => b.assignedGuideId).filter(Boolean)
+      );
+      const availableGuides = guides.filter(
+        (g) => g.isActive && !busyGuideIds.has(g.id)
+      );
+
+      res.json({
+        activeTours: activeVisits.length,
+        visitorsOnSite,
+        openIncidents: openIncidents.length,
+        availableGuides: availableGuides.length,
+        recentIncidents: openIncidents.slice(0, 5),
+        activeBookings: activeVisits,
+      });
+    } catch (error) {
+      logError("Error fetching live ops stats", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch live operations stats" });
+    }
+  });
+
+  // Channel Manager Endpoints
+
+  // Get all external calendars
+  app.get("/api/calendars", requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const calendars = await storage.getExternalCalendars();
+      res.json(calendars);
+    } catch (error) {
+      logError("Error fetching external calendars", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch calendars" });
+    }
+  });
+
+  // Create external calendar
+  app.post("/api/calendars", requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const calendar = await storage.createExternalCalendar(req.body);
+      res.status(201).json(calendar);
+    } catch (error) {
+      logError("Error creating external calendar", error, req.requestId);
+      res.status(500).json({ message: "Failed to create calendar" });
+    }
+  });
+
+  // Delete external calendar
+  app.delete("/api/calendars/:id", requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      await storage.deleteExternalCalendar(req.params.id);
+      res.sendStatus(204);
+    } catch (error) {
+      logError("Error deleting external calendar", error, req.requestId);
+      res.status(500).json({ message: "Failed to delete calendar" });
+    }
+  });
+
+  // Public iCal Feed
+  app.get("/api/calendar/feed/:token", async (req, res) => {
+    // In a real app, token would be verified against a user or setting.
+    // For now, we'll allow public access or check a static token/ID.
+    try {
+      const bookings = await storage.getBookings(); // Retrieve all bookings
+      const icalData = generateIcalFeed(bookings, "Dzaleka Visit Bookings");
+      res.set('Content-Type', 'text/calendar; charset=utf-8');
+      res.set('Content-Disposition', 'attachment; filename="calendar.ics"');
+      res.send(icalData);
+    } catch (error) {
+      logError("Error generating iCal feed", error, req.requestId);
+      res.status(500).send("Error generating feed");
+    }
+  });
+
+  // Sync External Calendars (Import)
+  app.post("/api/calendar/sync", requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const calendars = await storage.getExternalCalendars();
+      const results = [];
+
+      for (const cal of calendars) {
+        try {
+          const events = await parseIcalFeed(cal.url, cal.name);
+          // Here we would process events: check for duplicates, create 'external' bookings
+          // For now, we just return the events found
+          results.push({ calendar: cal.name, eventsFound: events.length });
+
+          // Update last synced
+          await storage.updateExternalCalendar(cal.id, { lastSyncedAt: new Date() });
+
+        } catch (e: any) {
+          results.push({ calendar: cal.name, error: e.message });
+        }
+      }
+      res.json({ message: "Sync complete", results });
+    } catch (error) {
+      logError("Error syncing calendars", error, req.requestId);
+      res.status(500).json({ message: "Failed to sync calendars" });
     }
   });
 
   return httpServer;
 }
-

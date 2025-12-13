@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +32,13 @@ interface GuideWithStats extends Guide {
 
 // Generate months for the chart
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+const monthlyEarningsConfig = {
+    earnings: {
+        label: "Earnings",
+        color: "hsl(var(--chart-1))",
+    },
+} satisfies ChartConfig;
 
 export default function GuidePerformance() {
     const [selectedGuideId, setSelectedGuideId] = useState<string>("");
@@ -272,27 +280,29 @@ export default function GuidePerformance() {
                         <CardContent>
                             {selectedGuideId ? (
                                 <div className="h-80">
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ChartContainer config={monthlyEarningsConfig} className="h-full w-full">
                                         <BarChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
-                                            <XAxis dataKey="month" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                            <XAxis
+                                                dataKey="month"
+                                                tick={{ fontSize: 12 }}
+                                                tickLine={false}
+                                                axisLine={false}
+                                                tickMargin={8}
+                                            />
                                             <YAxis
                                                 tick={{ fontSize: 12 }}
                                                 tickLine={false}
                                                 axisLine={false}
                                                 tickFormatter={(value: number) => `${(value / 1000).toFixed(0)}k`}
                                             />
-                                            <Tooltip
-                                                contentStyle={{
-                                                    backgroundColor: "hsl(var(--background))",
-                                                    border: "1px solid hsl(var(--border))",
-                                                    borderRadius: "8px",
-                                                }}
-                                                formatter={(value) => [formatCurrency(Number(value)), "Earnings"]}
+                                            <ChartTooltip
+                                                cursor={false}
+                                                content={<ChartTooltipContent formatter={(value) => formatCurrency(Number(value))} />}
                                             />
-                                            <Bar dataKey="earnings" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                            <Bar dataKey="earnings" fill="var(--color-earnings)" radius={[4, 4, 0, 0]} />
                                         </BarChart>
-                                    </ResponsiveContainer>
+                                    </ChartContainer>
                                 </div>
                             ) : (
                                 <div className="flex items-center justify-center h-80 text-muted-foreground">

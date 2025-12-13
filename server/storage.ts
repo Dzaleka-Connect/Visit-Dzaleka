@@ -71,6 +71,8 @@ import {
   type TicketStatus,
   type GuidePayout,
   type InsertGuidePayout,
+  type ExternalCalendar,
+  type InsertExternalCalendar,
 } from "@shared/schema";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import crypto from "crypto";
@@ -195,7 +197,7 @@ export interface IStorage {
   getBookingsPaginated(options?: PaginationOptions): Promise<PaginatedResult<Booking>>;
   searchBookings(query: string, filters?: { status?: BookingStatus; paymentStatus?: PaymentStatus }): Promise<Booking[]>;
   getActiveVisits(): Promise<Booking[]>;
-  createBooking(booking: InsertBooking): Promise<Booking>;
+  createBooking(booking: Omit<InsertBooking, "id" | "bookingReference" | "createdAt" | "updatedAt"> & { bookingReference?: string }): Promise<Booking>;
   updateBookingStatus(id: string, status: BookingStatus, expectedVersion?: number): Promise<Booking | undefined>;
   updateBookingPaymentStatus(id: string, status: PaymentStatus, verifiedBy?: string): Promise<Booking | undefined>;
   assignGuideToBooking(bookingId: string, guideId: string): Promise<Booking | undefined>;
@@ -252,6 +254,12 @@ export interface IStorage {
   getRecurringBooking(id: string): Promise<RecurringBooking | undefined>;
   updateRecurringBooking(id: string, updates: Partial<RecurringBooking>): Promise<RecurringBooking | undefined>;
   deleteRecurringBooking(id: string): Promise<void>;
+
+  // External Calendars
+  getExternalCalendars(): Promise<ExternalCalendar[]>;
+  createExternalCalendar(calendar: InsertExternalCalendar): Promise<ExternalCalendar>;
+  updateExternalCalendar(id: string, updates: Partial<ExternalCalendar>): Promise<ExternalCalendar | undefined>;
+  deleteExternalCalendar(id: string): Promise<void>;
 
   // User authentication operations
   createUser(email: string, password: string, firstName: string, lastName: string, role?: UserRole): Promise<User>;
@@ -816,16 +824,7 @@ export class SupabaseStorage implements IStorage {
     return this.handleResponse(data, error);
   }
 
-  async createBooking(booking: typeof bookings.$inferInsert): Promise<Booking> {
-    const bookingReference = generateBookingReference();
-    const snakeData = transformToSnake(booking);
-    const { data, error } = await this.supabase
-      .from("bookings")
-      .insert({ ...snakeData, booking_reference: bookingReference })
-      .select()
-      .single();
-    return this.handleResponse(data, error);
-  }
+
 
   async updateBookingStatus(id: string, status: BookingStatus, expectedVersion?: number): Promise<Booking | undefined> {
     // If expectedVersion is provided, use optimistic locking
@@ -1219,7 +1218,8 @@ export class SupabaseStorage implements IStorage {
   }
 
   async updateLastLogin(userId: string): Promise<void> {
-    await this.updateUser(userId, { lastLoginAt: new Date() });
+    // Feature removed
+    return;
   }
 
   // Guide leaderboard
@@ -1245,6 +1245,16 @@ export class SupabaseStorage implements IStorage {
       totalTours: (guide.totalTours || 0) + tours,
       totalEarnings: (guide.totalEarnings || 0) + earnings,
     });
+  }
+
+  async createBooking(booking: Omit<InsertBooking, "id" | "bookingReference" | "createdAt" | "updatedAt"> & { bookingReference?: string, status?: string, paymentStatus?: string }): Promise<Booking> {
+    const bookingReference = booking.bookingReference || generateBookingReference();
+    const snakeData = transformToSnake({ ...booking, bookingReference });
+    // Remove formatting/undefined issues if any
+    Object.keys(snakeData).forEach(key => snakeData[key] === undefined && delete snakeData[key]);
+
+    const { data, error } = await this.supabase.from("bookings").insert(snakeData).select().single();
+    return this.handleResponse(data, error);
   }
 
   // Statistics
@@ -1961,7 +1971,7 @@ export class SupabaseStorage implements IStorage {
   async getTasks(filters?: { status?: string; assignedTo?: string; priority?: string }): Promise<Task[]> {
     let query = this.supabase
       .from("tasks")
-      .select("*, assignee:users!tasks_assigned_to_fkey(id, first_name, last_name, email)")
+      .select("*, assignee:users!assigned_to(id, first_name, last_name, email)")
       .order("created_at", { ascending: false });
 
     if (filters?.status) {
@@ -2147,13 +2157,35 @@ export class SupabaseStorage implements IStorage {
     if (!participations || participations.length === 0) return [];
 
     const roomIds = participations.map(p => p.room_id);
-    const { data, error } = await this.supabase
+
+    // Fetch rooms
+    const { data: rooms, error: roomsError } = await this.supabase
       .from("chat_rooms")
-      .select("*, chat_participants(user_id, last_read_at)")
+      .select("*")
       .in("id", roomIds)
       .order("updated_at", { ascending: false });
 
-    return this.handleResponse<ChatRoom[]>(data, error);
+    if (roomsError) throw new Error(roomsError.message);
+    if (!rooms) return [];
+
+    // Fetch participants for these rooms
+    const { data: roomParticipants, error: participantsError } = await this.supabase
+      .from("chat_participants")
+      .select("user_id, last_read_at, room_id")
+      .in("room_id", roomIds);
+
+    if (participantsError) throw new Error(participantsError.message);
+
+    // Attach participants to rooms
+    const result = rooms.map(room => {
+      const parts = roomParticipants?.filter(p => p.room_id === room.id) || [];
+      return {
+        ...room,
+        chatParticipants: parts.map(transformToCamel)
+      };
+    });
+
+    return transformToCamel(result);
   }
 
   async getChatRoom(id: string): Promise<ChatRoom | undefined> {
@@ -2513,8 +2545,35 @@ export class SupabaseStorage implements IStorage {
       .eq("id", id);
     if (error) throw new Error(error.message);
   }
+
+  // External Calendars
+  async getExternalCalendars(): Promise<ExternalCalendar[]> {
+    const { data, error } = await this.supabase.from("external_calendars").select("*").order("created_at", { ascending: false });
+    return this.handleResponse(data, error);
+  }
+
+  async createExternalCalendar(calendar: InsertExternalCalendar): Promise<ExternalCalendar> {
+    const snakeData = transformToSnake(calendar);
+    const { data, error } = await this.supabase.from("external_calendars").insert(snakeData).select().single();
+    return this.handleResponse(data, error);
+  }
+
+  async updateExternalCalendar(id: string, updates: Partial<ExternalCalendar>): Promise<ExternalCalendar | undefined> {
+    const snakeData = transformToSnake(updates);
+    const { data, error } = await this.supabase
+      .from("external_calendars")
+      .update({ ...snakeData, updated_at: new Date() })
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async deleteExternalCalendar(id: string): Promise<void> {
+    const { error } = await this.supabase.from("external_calendars").delete().eq("id", id);
+    if (error) throw new Error(error.message);
+  }
 }
 
 export const storage = new SupabaseStorage();
-
 

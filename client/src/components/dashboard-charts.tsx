@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend, ScatterChart, Scatter, ZAxis, LineChart, Line } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, BarChart, Bar, PieChart, Pie, Cell, ScatterChart, Scatter, ZAxis, LineChart, Line } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, type ChartConfig } from "@/components/ui/chart";
 import { Loader2 } from "lucide-react";
 
 interface WeeklyData {
@@ -20,7 +21,16 @@ interface GuidePerformance {
   rating: number;
 }
 
-const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4'];
+const weeklyChartConfig = {
+  bookings: {
+    label: "Bookings",
+    color: "hsl(var(--chart-1))",
+  },
+  revenue: {
+    label: "Revenue",
+    color: "hsl(var(--chart-2))",
+  },
+} satisfies ChartConfig;
 
 export function WeeklyBookingTrends() {
   const { data, isLoading } = useQuery<WeeklyData[]>({
@@ -50,52 +60,52 @@ export function WeeklyBookingTrends() {
         <CardDescription>Bookings over the last 7 days</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+        <div className="h-64 w-full">
+          <ChartContainer config={weeklyChartConfig} className="h-full w-full">
+            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <defs>
-                <linearGradient id="colorBookings" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                <linearGradient id="fillBookings" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="var(--color-bookings)" stopOpacity={0.8} />
+                  <stop offset="95%" stopColor="var(--color-bookings)" stopOpacity={0.1} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis
                 dataKey="date"
                 tickLine={false}
                 axisLine={false}
-                tick={{ fill: 'currentColor', fontSize: 11 }}
+                tickMargin={8}
+                tick={{ fontSize: 12 }}
                 interval="preserveStartEnd"
               />
               <YAxis
                 tickLine={false}
                 axisLine={false}
                 allowDecimals={false}
-                tick={{ fill: 'currentColor', fontSize: 11 }}
-                width={35}
+                tick={{ fontSize: 12 }}
+                width={30}
               />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "hsl(var(--background))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px",
-                }}
-              />
+              <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
               <Area
-                type="monotone"
                 dataKey="bookings"
-                stroke="#10b981"
+                type="natural"
+                fill="url(#fillBookings)"
+                stroke="var(--color-bookings)"
                 strokeWidth={2}
-                fillOpacity={1}
-                fill="url(#colorBookings)"
               />
             </AreaChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         </div>
       </CardContent>
     </Card>
   );
 }
+
+const zoneChartConfig = {
+  visits: {
+    label: "Visits",
+  },
+} satisfies ChartConfig;
 
 export function PopularZonesChart() {
   const { data, isLoading } = useQuery<ZoneData[]>({
@@ -116,7 +126,19 @@ export function PopularZonesChart() {
     );
   }
 
-  const chartData = (data || []).slice(0, 5);
+  // Assign colors dynamically for the pie chart config
+  const chartData = (data || []).slice(0, 5).map((item, index) => ({
+    ...item,
+    fill: `hsl(var(--chart-${(index % 5) + 1}))`
+  }));
+
+  const dynamicConfig = {
+    visits: { label: "Visits" },
+    ...Object.fromEntries(chartData.map((item) => [
+      item.name,
+      { label: item.name, color: item.fill }
+    ]))
+  } satisfies ChartConfig;
 
   return (
     <Card>
@@ -126,44 +148,35 @@ export function PopularZonesChart() {
       </CardHeader>
       <CardContent>
         <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+          <ChartContainer config={dynamicConfig} className="h-full w-full">
+            <PieChart>
+              <ChartTooltip content={<ChartTooltipContent hideLabel />} />
               <Pie
                 data={chartData}
-                cx="50%"
-                cy="40%"
-                innerRadius={40}
-                outerRadius={60}
-                fill="#8884d8"
-                paddingAngle={5}
                 dataKey="visits"
                 nameKey="name"
+                innerRadius={60}
+                strokeWidth={5}
+                paddingAngle={2}
               >
-                {chartData.map((_, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
               </Pie>
-              <Tooltip
-                formatter={(value) => [Number(value), 'Visits']}
-                contentStyle={{
-                  backgroundColor: "hsl(var(--background))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px",
-                  fontSize: "12px",
-                }}
-              />
-              <Legend
-                verticalAlign="bottom"
-                height={36}
-                wrapperStyle={{ fontSize: '11px' }}
+              <ChartLegend
+                content={<ChartLegendContent nameKey="name" className="-translate-y-2 flex-wrap gap-2 [&>*]:basis-1/4 [&>*]:justify-center" />}
               />
             </PieChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         </div>
       </CardContent>
     </Card>
   );
 }
+
+const guidePerformanceConfig = {
+  tours: {
+    label: "Tours",
+    color: "hsl(var(--chart-2))",
+  },
+} satisfies ChartConfig;
 
 export function GuidePerformanceChart() {
   const { data, isLoading } = useQuery<GuidePerformance[]>({
@@ -199,35 +212,30 @@ export function GuidePerformanceChart() {
         <CardDescription>Tours completed this month</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-48">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }} barCategoryGap="15%">
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" horizontal={false} />
-              <XAxis type="number" tickLine={false} axisLine={false} tick={{ fill: 'currentColor', fontSize: 11 }} orientation="bottom" />
+        <div className="h-64">
+          <ChartContainer config={guidePerformanceConfig} className="h-full w-full">
+            <BarChart
+              data={chartData}
+              layout="vertical"
+              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" hide />
               <YAxis
                 type="category"
                 dataKey="displayName"
                 tickLine={false}
                 axisLine={false}
                 width={80}
-                tick={{ fill: 'currentColor', fontSize: 11 }}
+                tick={{ fontSize: 12 }}
               />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "hsl(var(--background))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px",
-                  fontSize: "12px",
-                }}
-                formatter={(value) => [Number(value), 'Tours']}
-                labelFormatter={(label) => {
-                  const original = data?.find(d => d.name.startsWith(String(label).replace('...', '')));
-                  return original?.name || String(label);
-                }}
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent hideLabel />}
               />
-              <Bar dataKey="tours" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="tours" fill="var(--color-tours)" radius={4} />
             </BarChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         </div>
       </CardContent>
     </Card>
@@ -240,12 +248,15 @@ interface HeatmapData {
   value: number;
 }
 
-interface MonthlyTrendData {
-  month: string;
-  bookings: number;
-  revenue: number;
-}
+const heatmapConfig = {
+  value: {
+    label: "Bookings",
+    color: "hsl(var(--chart-1))",
+  },
+} satisfies ChartConfig;
 
+// Heatmap still requires some manual work as ScatterChart isn't fully standardized in the same way for color mapping by value
+// But we can still wrap it in ChartContainer for tooltips
 export function BookingTimeHeatmap() {
   const { data, isLoading } = useQuery<HeatmapData[]>({
     queryKey: ["/api/stats/heatmap"],
@@ -265,7 +276,6 @@ export function BookingTimeHeatmap() {
     );
   }
 
-  // Transform data to use numeric Y axis for reliable rendering
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const chartData = (data || []).map(d => ({
     ...d,
@@ -281,8 +291,9 @@ export function BookingTimeHeatmap() {
       </CardHeader>
       <CardContent>
         <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+          {/* Heatmap implementation is custom, so we just use ChartContainer for consistent tooltip styling context */}
+          <ChartContainer config={heatmapConfig} className="h-full w-full">
+            <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 10 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="hour"
@@ -292,6 +303,8 @@ export function BookingTimeHeatmap() {
                 tickCount={12}
                 tickFormatter={(hour) => `${hour}:00`}
                 tick={{ fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
               />
               <YAxis
                 dataKey="dayIndex"
@@ -301,19 +314,28 @@ export function BookingTimeHeatmap() {
                 tickCount={7}
                 tickFormatter={(index) => days[index]}
                 tick={{ fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                width={30}
               />
               <ZAxis dataKey="value" range={[50, 400]} name="Bookings" />
-              <Tooltip
+              <ChartTooltip
                 cursor={{ strokeDasharray: '3 3' }}
                 content={({ active, payload }: { active?: boolean; payload?: any[] }) => {
                   if (active && payload && payload.length) {
                     const data = payload[0].payload;
                     return (
-                      <div className="bg-background border p-2 rounded shadow text-sm">
-                        <p className="font-bold">{data.dayLabel} at {data.hour}:00</p>
-                        <p>Bookings: {data.value}</p>
+                      <div className="grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl">
+                        <div className="grid gap-1.5">
+                          <span className="font-medium">{data.dayLabel} at {data.hour}:00</span>
+                          <div className="flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground items-center">
+                            <div className="shrink-0 rounded-[2px] bg-[--color-value] h-2.5 w-2.5" />
+                            <span className="text-muted-foreground">Bookings</span>
+                            <span className="font-mono font-medium tabular-nums text-foreground ml-auto">{data.value}</span>
+                          </div>
+                        </div>
                       </div>
-                    );
+                    )
                   }
                   return null;
                 }}
@@ -323,18 +345,35 @@ export function BookingTimeHeatmap() {
                 {chartData.map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
-                    fill={entry.value > 0 ? `rgba(16, 185, 129, ${Math.min(0.2 + (entry.value / 3), 1)})` : 'transparent'}
-                    stroke={entry.value > 0 ? "#10b981" : "transparent"}
+                    fill={`hsl(var(--chart-1))`}
+                    fillOpacity={0.2 + (Math.min(entry.value, 15) / 15) * 0.8}
                   />
                 ))}
               </Scatter>
             </ScatterChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         </div>
       </CardContent>
     </Card>
   );
 }
+
+interface MonthlyTrendData {
+  month: string;
+  bookings: number;
+  revenue: number;
+}
+
+const seasonalConfig = {
+  bookings: {
+    label: "Bookings",
+    color: "hsl(var(--chart-1))",
+  },
+  revenue: {
+    label: "Revenue",
+    color: "hsl(var(--chart-2))",
+  },
+} satisfies ChartConfig;
 
 export function SeasonalTrendsChart() {
   const { data, isLoading } = useQuery<MonthlyTrendData[]>({
@@ -364,24 +403,57 @@ export function SeasonalTrendsChart() {
         <CardDescription>Bookings vs Revenue (Last 12 Months)</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis yAxisId="left" />
-              <YAxis yAxisId="right" orientation="right" />
-              <Tooltip />
-              <Legend />
-              <Line yAxisId="left" type="monotone" dataKey="bookings" stroke="#8884d8" activeDot={{ r: 8 }} name="Bookings" />
-              <Line yAxisId="right" type="monotone" dataKey="revenue" stroke="#82ca9d" name="Revenue (MWK)" />
+        <div className="h-80">
+          <ChartContainer config={seasonalConfig} className="h-full w-full">
+            <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                dataKey="month"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                tick={{ fontSize: 12 }}
+              />
+              <YAxis yAxisId="left" tickLine={false} axisLine={false} width={40} tick={{ fontSize: 12 }} />
+              <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} width={40} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartLegend content={<ChartLegendContent />} />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="bookings"
+                stroke="var(--color-bookings)"
+                strokeWidth={2}
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="revenue"
+                stroke="var(--color-revenue)"
+                strokeWidth={2}
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
+              />
             </LineChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         </div>
       </CardContent>
     </Card>
   );
 }
+
+const guideComparisonConfig = {
+  rating: {
+    label: "Rating",
+    color: "hsl(var(--chart-3))",
+  },
+  tours: {
+    label: "Tours",
+    color: "hsl(var(--chart-4))",
+  }
+} satisfies ChartConfig;
 
 export function GuideComparisonChart() {
   const { data, isLoading } = useQuery<GuidePerformance[]>({
@@ -412,31 +484,45 @@ export function GuideComparisonChart() {
       </CardHeader>
       <CardContent>
         <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-              <CartesianGrid />
-              <XAxis type="number" dataKey="tours" name="Tours" unit="" />
-              <YAxis type="number" dataKey="rating" name="Rating" domain={[0, 5]} />
-              <Tooltip cursor={{ strokeDasharray: '3 3' }} content={({ active, payload }: { active?: boolean; payload?: any[] }) => {
-                if (active && payload && payload.length) {
-                  return (
-                    <div className="bg-background border p-2 rounded shadow text-sm">
-                      <p className="font-bold">{payload[0].payload.name}</p>
-                      <p>Tours: {payload[0].value}</p>
-                      <p>Rating: {payload[1].value}</p>
-                    </div>
-                  );
-                }
-                return null;
-              }} />
+          <ChartContainer config={guideComparisonConfig} className="h-full w-full">
+            <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis type="number" dataKey="tours" name="Tours" unit="" tickLine={false} axisLine={false} />
+              <YAxis type="number" dataKey="rating" name="Rating" domain={[0, 5]} tickLine={false} axisLine={false} width={30} />
+              <ChartTooltip
+                cursor={{ strokeDasharray: '3 3' }}
+                content={({ active, payload }: { active?: boolean; payload?: any[] }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div className="grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl">
+                        <div className="font-bold mb-1">{data.name}</div>
+                        <div className="grid gap-1.5">
+                          <div className="flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground items-center">
+                            <div className="shrink-0 rounded-[2px] bg-[--color-tours] h-2.5 w-2.5" />
+                            <span className="text-muted-foreground">Tours</span>
+                            <span className="font-mono font-medium tabular-nums text-foreground ml-auto">{data.tours}</span>
+                          </div>
+                          <div className="flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground items-center">
+                            <div className="shrink-0 rounded-[2px] bg-[--color-rating] h-2.5 w-2.5" />
+                            <span className="text-muted-foreground">Rating</span>
+                            <span className="font-mono font-medium tabular-nums text-foreground ml-auto">{data.rating}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
               {/* @ts-ignore */}
-              <Scatter name="Guides" data={chartData} fill="#8884d8">
+              <Scatter name="Guides" data={chartData} fill="var(--color-tours)">
                 {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  <Cell key={`cell-${index}`} fill={`hsl(var(--chart-${(index % 5) + 1}))`} />
                 ))}
               </Scatter>
             </ScatterChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         </div>
       </CardContent>
     </Card>

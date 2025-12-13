@@ -21,6 +21,8 @@ import {
   MessageCircle,
   HelpCircle,
   CalendarRange,
+  Activity,
+  RefreshCw,
 } from "lucide-react";
 import {
   Sidebar,
@@ -85,6 +87,12 @@ const mainNavigationItems: NavItem[] = [
     url: "/calendar",
     icon: CalendarDays,
     roles: ["admin", "coordinator", "guide"],
+  },
+  {
+    title: "Channel Manager",
+    url: "/channel-manager",
+    icon: RefreshCw,
+    roles: ["admin", "coordinator"],
   },
   {
     title: "Guides",
@@ -153,6 +161,12 @@ const operationsItems: NavItem[] = [
     roles: ["admin", "coordinator", "security"],
   },
   {
+    title: "Live Operations",
+    url: "/live-ops",
+    icon: Activity,
+    roles: ["admin", "security"],
+  },
+  {
     title: "Security Admin",
     url: "/security-admin",
     icon: Shield,
@@ -214,6 +228,12 @@ const adminItems: NavItem[] = [
     url: "/settings",
     icon: Settings,
     roles: ["admin"],
+  },
+  {
+    title: "Customers",
+    url: "/customers",
+    icon: Users,
+    roles: ["admin", "coordinator"],
   },
   {
     title: "My Profile",

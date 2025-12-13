@@ -20,6 +20,7 @@ import MyBookings from "@/pages/my-bookings";
 import Guides from "@/pages/guides";
 import GuideProfile from "@/pages/guide-profile";
 import CalendarPage from "@/pages/calendar";
+import ChannelManager from "@/pages/channel-manager";
 import GuidePerformance from "@/pages/guide-performance";
 import Zones from "@/pages/zones";
 import Security from "@/pages/security";
@@ -44,6 +45,9 @@ import Messages from "@/pages/messages";
 import HelpCenter from "@/pages/help-center";
 import HelpAdmin from "@/pages/help-admin";
 import RecurringBookingsPage from "@/pages/recurring-bookings";
+import LiveOperations from "@/pages/live-ops";
+import CustomersPage from "@/pages/customers";
+import CustomerProfile from "@/pages/customer-profile";
 
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -109,6 +113,7 @@ function Router() {
         <Route path="/recurring-bookings" component={RecurringBookingsPage} />
         <Route path="/my-bookings" component={MyBookings} />
         <Route path="/calendar" component={CalendarPage} />
+        <Route path="/channel-manager" component={ChannelManager} />
         <Route path="/guide-performance" component={GuidePerformance} />
         <Route path="/guides" component={Guides} />
         <Route path="/guide/:slug" component={GuideProfile} />
@@ -130,6 +135,9 @@ function Router() {
         <Route path="/tasks" component={Tasks} />
         <Route path="/task-admin" component={TaskAdmin} />
         <Route path="/messages" component={Messages} />
+        <Route path="/live-ops" component={LiveOperations} />
+        <Route path="/customers" component={CustomersPage} />
+        <Route path="/customers/:id" component={CustomerProfile} />
         <Route path="/help" component={HelpCenter} />
         <Route path="/help-admin" component={HelpAdmin} />
         <Route path="/landing" component={Landing} />

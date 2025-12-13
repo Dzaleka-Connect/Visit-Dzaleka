@@ -1,9 +1,18 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    const requestId = res.headers.get("X-Request-Id");
+
+    if (requestId) {
+      console.error(`[Request Failed] ID: ${requestId} Status: ${res.status}`);
+    }
+
+    const error = new Error(`${res.status}: ${text}`);
+    (error as any).requestId = requestId;
+    throw error;
   }
 }
 
@@ -59,6 +68,12 @@ export const queryClient = new QueryClient({
     },
     mutations: {
       retry: false,
+      onError: (error: any) => {
+        // Global error logging for mutations
+        if (error.requestId) {
+          console.error(`Mutation failed with Request ID: ${error.requestId}`);
+        }
+      }
     },
   },
 });
