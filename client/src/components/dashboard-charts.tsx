@@ -477,7 +477,7 @@ export function GuideComparisonChart() {
   const chartData = data || [];
 
   return (
-    <Card>
+    <Card className="lg:col-span-2">
       <CardHeader>
         <CardTitle className="text-lg">Guide Comparison</CardTitle>
         <CardDescription>Performance Matrix (Rating vs Volume)</CardDescription>
@@ -690,19 +690,20 @@ export function ReferralSourceChart() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Referral Source Breakdown</CardTitle>
-        <CardDescription>Where customers say they heard about us</CardDescription>
+        <CardTitle className="text-base sm:text-lg">Referral Source Breakdown</CardTitle>
+        <CardDescription className="text-xs sm:text-sm">Where customers say they heard about us</CardDescription>
       </CardHeader>
-      <CardContent>
-        <ChartContainer config={referralConfig} className="h-[250px]">
-          <BarChart data={referralData} layout="vertical">
+      <CardContent className="px-2 sm:px-6">
+        <ChartContainer config={referralConfig} className="h-[200px] sm:h-[250px] w-full">
+          <BarChart data={referralData} layout="vertical" margin={{ left: 0, right: 10 }}>
             <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-            <XAxis type="number" />
+            <XAxis type="number" tick={{ fontSize: 10 }} />
             <YAxis
               type="category"
               dataKey="source"
-              width={100}
-              tick={{ fontSize: 12 }}
+              width={70}
+              tick={{ fontSize: 10 }}
+              tickFormatter={(value) => value.length > 10 ? value.slice(0, 10) + '...' : value}
             />
             <ChartTooltip
               content={<ChartTooltipContent />}
@@ -796,7 +797,7 @@ export function ConversionRateChart() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={conversionConfig} className="h-[250px]">
+        <ChartContainer config={conversionConfig} className="h-[350px] w-full">
           <AreaChart data={data.dailyConversions}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis

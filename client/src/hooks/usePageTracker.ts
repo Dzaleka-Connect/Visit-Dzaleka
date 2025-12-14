@@ -33,26 +33,21 @@ export function usePageTracker() {
         }
 
         const sessionId = getSessionId();
-        const referrer = document.referrer || undefined;
+        const referrer = document.referrer || "";
         const userAgent = navigator.userAgent;
 
-        // Send page view to backend
+        // Use fetch for reliable tracking
         fetch("/api/analytics/pageview", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 page: location,
                 sessionId,
                 referrer,
                 userAgent,
             }),
-            // Use keepalive for navigation scenarios
-            keepalive: true,
-        }).catch((err) => {
-            // Silently fail - analytics should not break the user experience
-            console.debug("Analytics tracking failed:", err);
+        }).catch(() => {
+            // Silent fail - analytics should not break the user experience
         });
     }, [location]);
 }

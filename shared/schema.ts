@@ -1357,3 +1357,28 @@ export type InsertRecurringBooking = z.infer<typeof insertRecurringBookingSchema
 
 export type ExternalCalendar = typeof externalCalendars.$inferSelect;
 export type InsertExternalCalendar = z.infer<typeof insertExternalCalendarSchema>;
+
+// ===== Page Views (Analytics) =====
+export const pageViews = pgTable("page_views", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull(),
+  page: varchar("page").notNull(),
+  referrer: varchar("referrer"),
+  userAgent: varchar("user_agent"),
+  deviceType: varchar("device_type"), // mobile, tablet, desktop
+  country: varchar("country"),
+  userId: varchar("user_id"), // Optional - if user is logged in
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_pageviews_session").on(table.sessionId),
+  index("IDX_pageviews_page").on(table.page),
+  index("IDX_pageviews_created").on(table.createdAt),
+]);
+
+export const insertPageViewSchema = createInsertSchema(pageViews).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type PageView = typeof pageViews.$inferSelect;
+export type InsertPageView = z.infer<typeof insertPageViewSchema>;

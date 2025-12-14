@@ -2737,6 +2737,34 @@ export async function registerRoutes(
     }
   });
 
+  // Delete old audit logs by age (Admin only) - MUST be before /:id route
+  app.delete("/api/audit-logs/cleanup/:days", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const days = parseInt(req.params.days);
+
+      if (isNaN(days) || days < 1) {
+        return res.status(400).json({ message: "Invalid days parameter. Must be a positive number." });
+      }
+      const deleted = await storage.deleteOldAuditLogs(days);
+      res.json({ message: `Deleted ${deleted} audit logs older than ${days} days`, deleted });
+    } catch (error: any) {
+      logError("Error cleaning up audit logs", error, req.requestId);
+      res.status(500).json({ message: error?.message || "Failed to clean up audit logs" });
+    }
+  });
+
+  // Delete a single audit log (Admin only)
+  app.delete("/api/audit-logs/:id", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteAuditLog(id);
+      res.json({ message: "Audit log deleted" });
+    } catch (error) {
+      logError("Error deleting audit log", error, req.requestId);
+      res.status(500).json({ message: "Failed to delete audit log" });
+    }
+  });
+
   // Revenue reports (Admin only)
   app.get("/api/reports/revenue", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
     try {
@@ -4652,6 +4680,79 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error syncing calendars", error, req.requestId);
       res.status(500).json({ message: "Failed to sync calendars" });
+    }
+  });
+
+  // ===== Page View Analytics =====
+
+  // Track a page view (public endpoint - no auth required)
+  app.post("/api/analytics/pageview", async (req: Request, res: Response) => {
+    try {
+      const { page, referrer, userAgent, sessionId } = req.body;
+
+      if (!page || !sessionId) {
+        return res.status(400).json({ message: "page and sessionId are required" });
+      }
+
+      // Detect device type from user agent
+      let deviceType = "desktop";
+      if (userAgent) {
+        const ua = userAgent.toLowerCase();
+        if (/mobile|iphone|android.*mobile|windows phone/.test(ua)) {
+          deviceType = "mobile";
+        } else if (/tablet|ipad|android(?!.*mobile)/.test(ua)) {
+          deviceType = "tablet";
+        }
+      }
+
+      // Get user ID if authenticated
+      const userId = req.session?.userId || undefined;
+
+      await storage.createPageView({
+        sessionId,
+        page,
+        referrer: referrer || undefined,
+        userAgent: userAgent || undefined,
+        deviceType,
+        userId,
+      });
+
+      res.status(201).json({ success: true });
+    } catch (error) {
+      logError("Error recording page view", error, req.requestId);
+      res.status(500).json({ message: "Failed to record page view" });
+    }
+  });
+
+  // Get page view statistics (admin only)
+  app.get("/api/analytics/pageviews", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
+    try {
+      const { startDate, endDate } = req.query;
+
+      const start = startDate ? new Date(startDate as string) : undefined;
+      const end = endDate ? new Date(endDate as string) : undefined;
+
+      const stats = await storage.getPageViewStats(start, end);
+      res.json(stats);
+    } catch (error) {
+      logError("Error getting page view stats", error, req.requestId);
+      res.status(500).json({ message: "Failed to get page view statistics" });
+    }
+  });
+
+  // Get conversion rate statistics (admin only)
+  app.get("/api/analytics/conversion", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
+    try {
+      const { startDate, endDate } = req.query;
+
+      const start = startDate ? new Date(startDate as string) : undefined;
+      const end = endDate ? new Date(endDate as string) : undefined;
+
+      const stats = await storage.getConversionStats(start, end);
+      res.json(stats);
+    } catch (error) {
+      logError("Error getting conversion stats", error, req.requestId);
+      res.status(500).json({ message: "Failed to get conversion statistics" });
     }
   });
 

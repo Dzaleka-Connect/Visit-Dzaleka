@@ -23,6 +23,7 @@ import {
   CalendarRange,
   Activity,
   RefreshCw,
+  BarChart3,
 } from "lucide-react";
 import {
   Sidebar,
@@ -188,6 +189,12 @@ const operationsItems: NavItem[] = [
     title: "Audit Logs",
     url: "/audit-logs",
     icon: FileText,
+    roles: ["admin"],
+  },
+  {
+    title: "Website Analytics",
+    url: "/analytics",
+    icon: BarChart3,
     roles: ["admin"],
   },
   {

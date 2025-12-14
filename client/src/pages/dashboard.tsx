@@ -44,7 +44,7 @@ import { EmptyState } from "@/components/empty-state";
 import { DashboardSkeleton } from "@/components/loading-skeleton";
 import { formatDate, formatTime, formatCurrency } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
-import { WeeklyBookingTrends, PopularZonesChart, GuidePerformanceChart, BookingTimeHeatmap, SeasonalTrendsChart, GuideComparisonChart, RevenueByChannelChart, ReferralSourceChart, ConversionRateChart, PageViewsChart } from "@/components/dashboard-charts";
+import { WeeklyBookingTrends, PopularZonesChart, GuidePerformanceChart, BookingTimeHeatmap, SeasonalTrendsChart, GuideComparisonChart, RevenueByChannelChart, ReferralSourceChart, ConversionRateChart } from "@/components/dashboard-charts";
 import type { Booking, Guide, Incident } from "@shared/schema";
 
 interface DashboardStats {
@@ -217,7 +217,6 @@ function AdminDashboard() {
         <PopularZonesChart />
         <GuidePerformanceChart />
         <GuideComparisonChart />
-        <PageViewsChart />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

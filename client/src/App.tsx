@@ -48,6 +48,7 @@ import RecurringBookingsPage from "@/pages/recurring-bookings";
 import LiveOperations from "@/pages/live-ops";
 import CustomersPage from "@/pages/customers";
 import CustomerProfile from "@/pages/customer-profile";
+import Analytics from "@/pages/analytics";
 import { usePageTracker } from "@/hooks/usePageTracker";
 
 
@@ -133,6 +134,7 @@ function Router() {
         <Route path="/revenue" component={Revenue} />
         <Route path="/visitors" component={Visitors} />
         <Route path="/audit-logs" component={AuditLogs} />
+        <Route path="/analytics" component={Analytics} />
         <Route path="/cms" component={CMSPage} />
         <Route path="/security-admin" component={SecurityAdmin} />
         <Route path="/resources" component={VisitorResources} />

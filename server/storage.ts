@@ -1075,6 +1075,39 @@ export class SupabaseStorage implements IStorage {
     return this.handleResponse(data, error);
   }
 
+  async deleteAuditLog(id: string): Promise<void> {
+    const { error } = await this.supabase.from("audit_logs").delete().eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+
+  async deleteOldAuditLogs(olderThanDays: number): Promise<number> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+    const cutoffISO = cutoffDate.toISOString();
+
+    // First count how many will be deleted
+    const { count, error: countError } = await this.supabase
+      .from("audit_logs")
+      .select("*", { count: "exact", head: true })
+      .lt("created_at", cutoffISO);
+
+    if (countError) throw new Error(countError.message);
+
+    // If nothing to delete, return early
+    if (!count || count === 0) {
+      return 0;
+    }
+
+    // Then delete
+    const { error } = await this.supabase
+      .from("audit_logs")
+      .delete()
+      .lt("created_at", cutoffISO);
+
+    if (error) throw new Error(error.message);
+    return count;
+  }
+
   // Zone Visit Analytics
   async getZoneVisits(): Promise<ZoneVisit[]> {
     const { data, error } = await this.supabase.from("zone_visits").select("*").order("created_at", { ascending: false });
@@ -2572,6 +2605,204 @@ export class SupabaseStorage implements IStorage {
   async deleteExternalCalendar(id: string): Promise<void> {
     const { error } = await this.supabase.from("external_calendars").delete().eq("id", id);
     if (error) throw new Error(error.message);
+  }
+
+  // ===== Page Views (Analytics) =====
+  async createPageView(pageView: {
+    sessionId: string;
+    page: string;
+    referrer?: string;
+    userAgent?: string;
+    deviceType?: string;
+    country?: string;
+    userId?: string;
+  }): Promise<{ id: string }> {
+    const { data, error } = await this.supabase
+      .from("page_views")
+      .insert(transformToSnake(pageView))
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return { id: data.id };
+  }
+
+  async getPageViewStats(startDate?: Date, endDate?: Date): Promise<{
+    totalPageViews: number;
+    uniqueVisitors: number;
+    bounceRate: number;
+    pageBreakdown: { page: string; views: number }[];
+    dailyViews: { date: string; views: number; uniqueVisitors: number }[];
+    deviceBreakdown: { device: string; count: number }[];
+    referrerBreakdown: { referrer: string; count: number }[];
+    channelBreakdown: { channel: string; count: number }[];
+  }> {
+    let query = this.supabase.from("page_views").select("*");
+
+    if (startDate) {
+      query = query.gte("created_at", startDate.toISOString());
+    }
+    if (endDate) {
+      query = query.lte("created_at", endDate.toISOString());
+    }
+
+    const { data: pageViews, error } = await query;
+    if (error) throw new Error(error.message);
+
+    const views = pageViews || [];
+
+    // Calculate unique visitors by session
+    const uniqueSessions = new Set(views.map(v => v.session_id));
+
+    // Calculate bounce rate (sessions with only 1 page view)
+    const sessionPageCounts = new Map<string, number>();
+    views.forEach(v => {
+      sessionPageCounts.set(v.session_id, (sessionPageCounts.get(v.session_id) || 0) + 1);
+    });
+    const singlePageSessions = Array.from(sessionPageCounts.values()).filter(count => count === 1).length;
+    const bounceRate = uniqueSessions.size > 0 ? (singlePageSessions / uniqueSessions.size) * 100 : 0;
+
+    // Page breakdown
+    const pageMap = new Map<string, number>();
+    views.forEach(v => {
+      pageMap.set(v.page, (pageMap.get(v.page) || 0) + 1);
+    });
+    const pageBreakdown = Array.from(pageMap.entries())
+      .map(([page, viewCount]) => ({ page, views: viewCount }))
+      .sort((a, b) => b.views - a.views);
+
+    // Daily views
+    const dailyMap = new Map<string, { views: number; sessions: Set<string> }>();
+    views.forEach(v => {
+      const date = new Date(v.created_at).toISOString().split('T')[0];
+      const existing = dailyMap.get(date) || { views: 0, sessions: new Set<string>() };
+      existing.views++;
+      existing.sessions.add(v.session_id);
+      dailyMap.set(date, existing);
+    });
+    const dailyViews = Array.from(dailyMap.entries())
+      .map(([date, data]) => ({ date, views: data.views, uniqueVisitors: data.sessions.size }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    // Device breakdown
+    const deviceMap = new Map<string, number>();
+    views.forEach(v => {
+      const device = v.device_type || "unknown";
+      deviceMap.set(device, (deviceMap.get(device) || 0) + 1);
+    });
+    const deviceBreakdown = Array.from(deviceMap.entries())
+      .map(([device, count]) => ({ device, count }));
+
+    // Referrer breakdown
+    const referrerMap = new Map<string, number>();
+    views.forEach(v => {
+      const referrer = v.referrer || "direct";
+      referrerMap.set(referrer, (referrerMap.get(referrer) || 0) + 1);
+    });
+    const referrerBreakdown = Array.from(referrerMap.entries())
+      .map(([referrer, count]) => ({ referrer, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10); // Top 10 referrers
+
+    // Channel categorization
+    const channelMap = new Map<string, number>();
+    const categorizeReferrer = (referrer: string | null): string => {
+      if (!referrer || referrer === "direct" || referrer === "") return "Direct";
+      const r = referrer.toLowerCase();
+      // Search engines
+      if (r.includes("google") || r.includes("bing") || r.includes("yahoo") || r.includes("duckduckgo") || r.includes("baidu")) {
+        return "Organic Search";
+      }
+      // Social media
+      if (r.includes("facebook") || r.includes("fb.") || r.includes("instagram") || r.includes("twitter") ||
+        r.includes("linkedin") || r.includes("tiktok") || r.includes("youtube") || r.includes("pinterest") ||
+        r.includes("whatsapp") || r.includes("t.co")) {
+        return "Social Media";
+      }
+      // Email
+      if (r.includes("mail") || r.includes("outlook") || r.includes("gmail")) {
+        return "Email";
+      }
+      // Booking platforms
+      if (r.includes("tripadvisor") || r.includes("booking.com") || r.includes("viator") || r.includes("expedia") || r.includes("airbnb")) {
+        return "OTA/Booking Platforms";
+      }
+      return "Referral";
+    };
+
+    views.forEach(v => {
+      const channel = categorizeReferrer(v.referrer);
+      channelMap.set(channel, (channelMap.get(channel) || 0) + 1);
+    });
+    const channelBreakdown = Array.from(channelMap.entries())
+      .map(([channel, count]) => ({ channel, count }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      totalPageViews: views.length,
+      uniqueVisitors: uniqueSessions.size,
+      bounceRate,
+      pageBreakdown,
+      dailyViews,
+      deviceBreakdown,
+      referrerBreakdown,
+      channelBreakdown,
+    };
+  }
+
+  async getConversionStats(startDate?: Date, endDate?: Date): Promise<{
+    totalVisitors: number;
+    totalBookings: number;
+    conversionRate: number;
+    totalRevenue: number;
+    averageOrderValue: number;
+    dailyConversions: { date: string; visitors: number; bookings: number; rate: number }[];
+  }> {
+    // Get page view stats
+    const pageStats = await this.getPageViewStats(startDate, endDate);
+
+    // Get bookings in same period with payment info
+    let bookingQuery = this.supabase.from("bookings").select("id, created_at, total_amount, payment_status");
+    if (startDate) {
+      bookingQuery = bookingQuery.gte("created_at", startDate.toISOString());
+    }
+    if (endDate) {
+      bookingQuery = bookingQuery.lte("created_at", endDate.toISOString());
+    }
+    const { data: bookingsData, error } = await bookingQuery;
+    if (error) throw new Error(error.message);
+
+    const bookings = bookingsData || [];
+    const paidBookings = bookings.filter(b => b.payment_status === "paid");
+    const totalBookings = bookings.length;
+    const totalVisitors = pageStats.uniqueVisitors;
+    const conversionRate = totalVisitors > 0 ? (totalBookings / totalVisitors) * 100 : 0;
+
+    // Calculate revenue and AOV
+    const totalRevenue = paidBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
+    const averageOrderValue = paidBookings.length > 0 ? totalRevenue / paidBookings.length : 0;
+
+    // Daily conversions
+    const bookingsByDate = new Map<string, number>();
+    bookings.forEach(b => {
+      const date = new Date(b.created_at).toISOString().split('T')[0];
+      bookingsByDate.set(date, (bookingsByDate.get(date) || 0) + 1);
+    });
+
+    const dailyConversions = pageStats.dailyViews.map(day => ({
+      date: day.date,
+      visitors: day.uniqueVisitors,
+      bookings: bookingsByDate.get(day.date) || 0,
+      rate: day.uniqueVisitors > 0 ? ((bookingsByDate.get(day.date) || 0) / day.uniqueVisitors) * 100 : 0,
+    }));
+
+    return {
+      totalVisitors,
+      totalBookings,
+      conversionRate,
+      totalRevenue,
+      averageOrderValue,
+      dailyConversions,
+    };
   }
 }
 
