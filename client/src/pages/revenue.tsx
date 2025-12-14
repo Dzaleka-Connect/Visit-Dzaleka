@@ -489,7 +489,7 @@ function PayoutHistoryTab() {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Total Paid Out</CardTitle>
@@ -573,10 +573,11 @@ function PayoutHistoryTab() {
               className="py-12"
             />
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto w-full">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    {/* ... (rest of table) */}
                     <TableHead>Date</TableHead>
                     <TableHead>Guide</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
@@ -790,7 +791,7 @@ export default function Revenue() {
             </Button>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
@@ -858,8 +859,8 @@ export default function Revenue() {
                     className="py-8"
                   />
                 ) : (
-                  <div className="h-[300px] w-full">
-                    <ChartContainer config={revenueConfig} className="h-full w-full">
+                  <div className="h-[300px] w-full min-w-0">
+                    <ChartContainer config={revenueConfig} className="h-full w-full aspect-auto">
                       <BarChart data={data.monthlyTrend}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                         <XAxis
@@ -900,8 +901,8 @@ export default function Revenue() {
                     className="py-8"
                   />
                 ) : (
-                  <div className="h-[300px] w-full">
-                    <ChartContainer config={paymentMethodConfig} className="h-full w-full">
+                  <div className="h-[300px] w-full min-w-0">
+                    <ChartContainer config={paymentMethodConfig} className="h-full w-full aspect-auto">
                       <PieChart>
                         <Pie
                           data={pieData}

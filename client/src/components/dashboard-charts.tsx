@@ -60,8 +60,8 @@ export function WeeklyBookingTrends() {
         <CardDescription>Bookings over the last 7 days</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-64 w-full">
-          <ChartContainer config={weeklyChartConfig} className="h-full w-full">
+        <div className="h-64 w-full min-w-0">
+          <ChartContainer config={weeklyChartConfig} className="h-full w-full aspect-auto">
             <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="fillBookings" x1="0" y1="0" x2="0" y2="1">
@@ -147,8 +147,8 @@ export function PopularZonesChart() {
         <CardDescription>Most visited areas</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-64">
-          <ChartContainer config={dynamicConfig} className="h-full w-full">
+        <div className="h-64 w-full min-w-0">
+          <ChartContainer config={dynamicConfig} className="h-full w-full aspect-auto">
             <PieChart>
               <ChartTooltip content={<ChartTooltipContent hideLabel />} />
               <Pie
@@ -212,8 +212,8 @@ export function GuidePerformanceChart() {
         <CardDescription>Tours completed this month</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-64">
-          <ChartContainer config={guidePerformanceConfig} className="h-full w-full">
+        <div className="h-64 w-full min-w-0">
+          <ChartContainer config={guidePerformanceConfig} className="h-full w-full aspect-auto">
             <BarChart
               data={chartData}
               layout="vertical"
@@ -290,9 +290,9 @@ export function BookingTimeHeatmap() {
         <CardDescription>Darker green indicates higher booking volume</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-64">
+        <div className="h-64 w-full min-w-0">
           {/* Heatmap implementation is custom, so we just use ChartContainer for consistent tooltip styling context */}
-          <ChartContainer config={heatmapConfig} className="h-full w-full">
+          <ChartContainer config={heatmapConfig} className="h-full w-full aspect-auto">
             <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 10 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis

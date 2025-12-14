@@ -157,7 +157,7 @@ export default function GuidePerformance() {
                 {/* Earnings Tab */}
                 <TabsContent value="earnings" className="space-y-6">
                     {/* Summary Cards */}
-                    <div className="grid gap-4 md:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
                                 <CardTitle className="text-sm font-medium">Total Guides</CardTitle>
@@ -279,8 +279,8 @@ export default function GuidePerformance() {
                         </CardHeader>
                         <CardContent>
                             {selectedGuideId ? (
-                                <div className="h-80">
-                                    <ChartContainer config={monthlyEarningsConfig} className="h-full w-full">
+                                <div className="h-80 w-full min-w-0">
+                                    <ChartContainer config={monthlyEarningsConfig} className="h-full w-full aspect-auto">
                                         <BarChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                             <XAxis

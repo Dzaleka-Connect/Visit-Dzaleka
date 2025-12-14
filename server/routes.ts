@@ -1389,7 +1389,7 @@ export async function registerRoutes(
         adminNotes: `[HISTORICAL IMPORT] ${adminNotes || ""}`.trim(),
         checkInTime: visitDateObj, // Set check-in time to visit date
         checkOutTime: new Date(visitDateObj.getTime() + 2 * 60 * 60 * 1000), // 2 hours later
-      });
+      } as any);
 
       // Update guide stats if a guide was assigned
       if (assignedGuideId) {

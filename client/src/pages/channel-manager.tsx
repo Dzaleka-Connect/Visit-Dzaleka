@@ -145,11 +145,11 @@ export default function ChannelManager() {
                                 </p>
                             </div>
                         ) : (
-                            <div className="rounded-md border">
+                            <div className="rounded-md border overflow-x-auto">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>Channel Name</TableHead>
+                                            <TableHead className="min-w-[150px]">Channel Name</TableHead>
                                             <TableHead>Status</TableHead>
                                             <TableHead>Last Synced</TableHead>
                                             <TableHead className="text-right">Actions</TableHead>

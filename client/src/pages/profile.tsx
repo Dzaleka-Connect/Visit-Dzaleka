@@ -302,7 +302,9 @@ export default function Profile() {
                   data-testid="input-role"
                 />
               </div>
-              <p className="text-xs text-muted-foreground">Contact an administrator to change your role.</p>
+              <p className="text-xs text-muted-foreground">
+                Contact an administrator to change your role at <a href="mailto:info@mail.dzaleka.com" className="hover:underline text-primary">info@mail.dzaleka.com</a>
+              </p>
             </div>
 
             {isEditing && (

@@ -52,7 +52,7 @@ export default function LiveOperations() {
             </div>
 
             {/* Key Metrics */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Visitors on Site</CardTitle>
@@ -99,7 +99,7 @@ export default function LiveOperations() {
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
                 {/* Active Tours List */}
-                <Card className="col-span-4">
+                <Card className="col-span-4 transition-all">
                     <CardHeader>
                         <CardTitle>Active Tours</CardTitle>
                         <CardDescription>
@@ -108,34 +108,36 @@ export default function LiveOperations() {
                     </CardHeader>
                     <CardContent>
                         {stats?.activeBookings && stats.activeBookings.length > 0 ? (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Ref</TableHead>
-                                        <TableHead>Visitor</TableHead>
-                                        <TableHead>Group</TableHead>
-                                        <TableHead>Guide</TableHead>
-                                        <TableHead>Started</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {stats.activeBookings.map((booking) => (
-                                        <TableRow key={booking.id}>
-                                            <TableCell className="font-mono text-xs">{booking.bookingReference}</TableCell>
-                                            <TableCell className="font-medium">{booking.visitorName}</TableCell>
-                                            <TableCell>
-                                                <Badge variant="secondary" className="text-xs">
-                                                    {booking.groupSize.replace("_", " ")} ({booking.numberOfPeople})
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>{booking.assignedGuideId ? "Assigned" : "Unassigned"}</TableCell>
-                                            <TableCell>
-                                                {booking.checkInTime ? format(new Date(booking.checkInTime), "HH:mm") : "-"}
-                                            </TableCell>
+                            <div className="rounded-md border overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[80px]">Ref</TableHead>
+                                            <TableHead className="min-w-[120px]">Visitor</TableHead>
+                                            <TableHead className="min-w-[100px]">Group</TableHead>
+                                            <TableHead className="min-w-[100px]">Guide</TableHead>
+                                            <TableHead className="text-right">Started</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {stats.activeBookings.map((booking) => (
+                                            <TableRow key={booking.id}>
+                                                <TableCell className="font-mono text-xs">{booking.bookingReference}</TableCell>
+                                                <TableCell className="font-medium">{booking.visitorName}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant="secondary" className="text-xs whitespace-nowrap">
+                                                        {booking.groupSize.replace("_", " ")} ({booking.numberOfPeople})
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell>{booking.assignedGuideId ? "Assigned" : "Unassigned"}</TableCell>
+                                                <TableCell className="text-right whitespace-nowrap">
+                                                    {booking.checkInTime ? format(new Date(booking.checkInTime), "HH:mm") : "-"}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         ) : (
                             <div className="flex h-40 items-center justify-center text-muted-foreground">
                                 No tours currently in progress.

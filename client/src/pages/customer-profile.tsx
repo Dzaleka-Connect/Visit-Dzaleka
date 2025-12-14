@@ -156,17 +156,17 @@ export default function CustomerProfile() {
             </div>
 
             {/* Profile Header */}
-            <div className="grid gap-6 md:grid-cols-3">
-                <Card className="col-span-2">
-                    <CardHeader className="flex flex-row items-start justify-between">
-                        <div className="flex items-center gap-4">
+            <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
+                <Card className="md:col-span-2">
+                    <CardHeader className="flex flex-col md:flex-row items-start justify-between gap-4">
+                        <div className="flex flex-col md:flex-row items-center md:items-start gap-4 text-center md:text-left">
                             <Avatar className="h-16 w-16">
                                 <AvatarImage src={user.profileImageUrl} />
                                 <AvatarFallback className="text-lg">{user.firstName[0]}{user.lastName[0]}</AvatarFallback>
                             </Avatar>
                             <div>
                                 <CardTitle className="text-2xl">{user.firstName} {user.lastName}</CardTitle>
-                                <div className="flex flex-col gap-1 mt-1 text-sm text-muted-foreground">
+                                <div className="flex flex-col gap-1 mt-1 text-sm text-muted-foreground items-center md:items-start">
                                     <div className="flex items-center gap-2">
                                         <Mail className="h-3 w-3" /> {user.email}
                                     </div>
@@ -178,7 +178,7 @@ export default function CustomerProfile() {
                                 </div>
                             </div>
                         </div>
-                        <Button variant={isEditing ? "secondary" : "outline"} onClick={() => setIsEditing(!isEditing)}>
+                        <Button variant={isEditing ? "secondary" : "outline"} onClick={() => setIsEditing(!isEditing)} className="w-full md:w-auto">
                             <Edit2 className="mr-2 h-4 w-4" />
                             {isEditing ? "Cancel" : "Edit Profile"}
                         </Button>
@@ -186,7 +186,7 @@ export default function CustomerProfile() {
                     <CardContent>
                         {isEditing ? (
                             <div className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="grid gap-2">
                                         <Label>Date of Birth</Label>
                                         <Input
@@ -200,7 +200,7 @@ export default function CustomerProfile() {
                                         <Input
                                             value={formData.country}
                                             onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                                            placeholder="Malawi"
+                                            placeholder="Country"
                                         />
                                     </div>
                                     <div className="grid gap-2 col-span-2">
