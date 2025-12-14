@@ -59,10 +59,10 @@ export function WeeklyBookingTrends() {
         <CardTitle className="text-lg">Weekly Booking Trends</CardTitle>
         <CardDescription>Bookings over the last 7 days</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="h-64 w-full min-w-0">
-          <ChartContainer config={weeklyChartConfig} className="h-full w-full aspect-auto">
-            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+      <CardContent className="px-2 sm:px-6">
+        <div className="h-[280px] sm:h-[320px] w-full">
+          <ChartContainer config={weeklyChartConfig} className="h-full w-full">
+            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="fillBookings" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="var(--color-bookings)" stopOpacity={0.8} />
@@ -75,15 +75,18 @@ export function WeeklyBookingTrends() {
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
-                tick={{ fontSize: 12 }}
-                interval="preserveStartEnd"
+                tick={{ fontSize: 11 }}
+                interval={0}
+                angle={-45}
+                textAnchor="end"
+                height={60}
               />
               <YAxis
                 tickLine={false}
                 axisLine={false}
                 allowDecimals={false}
-                tick={{ fontSize: 12 }}
-                width={30}
+                tick={{ fontSize: 11 }}
+                width={35}
               />
               <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
               <Area
@@ -760,7 +763,7 @@ export function ConversionRateChart() {
           <CardTitle>Conversion Rate</CardTitle>
           <CardDescription>Website visitors vs bookings</CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center justify-center h-[300px]">
+        <CardContent className="flex items-center justify-center h-[280px] sm:h-[320px]">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
@@ -775,7 +778,7 @@ export function ConversionRateChart() {
           <CardTitle>Conversion Rate</CardTitle>
           <CardDescription>Website visitors vs bookings</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col items-center justify-center h-[300px] text-center">
+        <CardContent className="flex flex-col items-center justify-center h-[280px] sm:h-[320px] text-center">
           <div className="text-muted-foreground">
             <p className="text-lg font-medium mb-2">No tracking data yet</p>
             <p className="text-sm">Page views will be tracked automatically as visitors browse your site.</p>
@@ -796,8 +799,8 @@ export function ConversionRateChart() {
           {data.totalVisitors} visitors → {data.totalBookings} bookings
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <ChartContainer config={conversionConfig} className="h-[350px] w-full">
+      <CardContent className="px-2 sm:px-6">
+        <ChartContainer config={conversionConfig} className="h-[280px] sm:h-[320px] w-full">
           <AreaChart data={data.dailyConversions}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
