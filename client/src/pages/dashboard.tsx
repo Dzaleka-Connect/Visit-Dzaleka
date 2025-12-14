@@ -83,6 +83,7 @@ interface VisitorStats {
 
 function AdminDashboard() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailForm, setEmailForm] = useState({
     recipientName: "",
@@ -163,7 +164,7 @@ function AdminDashboard() {
     monthlyGrowth: 0,
   };
 
-  const { user } = useAuth();
+
 
   return (
     <div className="space-y-6">
