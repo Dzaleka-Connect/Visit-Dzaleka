@@ -528,3 +528,427 @@ export function GuideComparisonChart() {
     </Card>
   );
 }
+
+// ===== NEW: Revenue by Channel Chart (Direct vs Third Party) =====
+interface ChannelRevenueData {
+  channel: string;
+  revenue: number;
+  bookings: number;
+}
+
+const channelRevenueConfig = {
+  revenue: {
+    label: "Revenue",
+    color: "hsl(var(--chart-1))",
+  },
+} satisfies ChartConfig;
+
+export function RevenueByChannelChart() {
+  const { data: bookings, isLoading } = useQuery<any[]>({
+    queryKey: ["/api/bookings"],
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Revenue by Channel</CardTitle>
+          <CardDescription>Direct vs Third Party earnings breakdown</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-[250px]">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Calculate revenue by channel (source field)
+  const channelData: ChannelRevenueData[] = [];
+  const channelMap = new Map<string, { revenue: number; bookings: number }>();
+
+  (bookings || []).forEach((booking) => {
+    const source = booking.source || "direct";
+    const isThirdParty = ["viator", "expedia", "getyourguide", "tripadvisor"].includes(source.toLowerCase());
+    const channel = isThirdParty ? "Third Party" : "Direct";
+
+    const current = channelMap.get(channel) || { revenue: 0, bookings: 0 };
+    channelMap.set(channel, {
+      revenue: current.revenue + (booking.totalAmount || 0),
+      bookings: current.bookings + 1,
+    });
+  });
+
+  channelMap.forEach((value, key) => {
+    channelData.push({ channel: key, ...value });
+  });
+
+  const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))"];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Revenue by Channel</CardTitle>
+        <CardDescription>Direct vs Third Party earnings breakdown</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={channelRevenueConfig} className="h-[250px]">
+          <PieChart>
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Pie
+              data={channelData}
+              dataKey="revenue"
+              nameKey="channel"
+              cx="50%"
+              cy="50%"
+              outerRadius={80}
+              label={({ channel, percent }) => `${channel} (${((percent || 0) * 100).toFixed(0)}%)`}
+            >
+              {channelData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ChartContainer>
+        <div className="flex justify-center gap-6 mt-4">
+          {channelData.map((item, index) => (
+            <div key={item.channel} className="flex items-center gap-2">
+              <div
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: COLORS[index % COLORS.length] }}
+              />
+              <span className="text-sm">{item.channel}: {item.bookings} bookings</span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ===== NEW: Referral Source Breakdown Chart =====
+interface ReferralData {
+  source: string;
+  count: number;
+  percentage: number;
+}
+
+const referralConfig = {
+  count: {
+    label: "Bookings",
+    color: "hsl(var(--chart-3))",
+  },
+} satisfies ChartConfig;
+
+export function ReferralSourceChart() {
+  const { data: bookings, isLoading } = useQuery<any[]>({
+    queryKey: ["/api/bookings"],
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Referral Source Breakdown</CardTitle>
+          <CardDescription>Where customers say they heard about us</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-[250px]">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Count by referral source
+  const referralMap = new Map<string, number>();
+  const total = (bookings || []).length;
+
+  (bookings || []).forEach((booking) => {
+    const source = booking.referralSource || "Unknown";
+    referralMap.set(source, (referralMap.get(source) || 0) + 1);
+  });
+
+  const referralData: ReferralData[] = [];
+  referralMap.forEach((count, source) => {
+    referralData.push({
+      source: source.replace(/-/g, " ").replace(/_/g, " "),
+      count,
+      percentage: total > 0 ? (count / total) * 100 : 0,
+    });
+  });
+
+  // Sort by count descending
+  referralData.sort((a, b) => b.count - a.count);
+
+  const COLORS = [
+    "hsl(var(--chart-1))",
+    "hsl(var(--chart-2))",
+    "hsl(var(--chart-3))",
+    "hsl(var(--chart-4))",
+    "hsl(var(--chart-5))",
+  ];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Referral Source Breakdown</CardTitle>
+        <CardDescription>Where customers say they heard about us</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={referralConfig} className="h-[250px]">
+          <BarChart data={referralData} layout="vertical">
+            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+            <XAxis type="number" />
+            <YAxis
+              type="category"
+              dataKey="source"
+              width={100}
+              tick={{ fontSize: 12 }}
+            />
+            <ChartTooltip
+              content={<ChartTooltipContent />}
+              formatter={(value, name) => [`${value} bookings`, "Count"]}
+            />
+            <Bar
+              dataKey="count"
+              fill="hsl(var(--chart-3))"
+              radius={[0, 4, 4, 0]}
+            >
+              {referralData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ===== NEW: Conversion Rate Chart =====
+interface ConversionData {
+  totalVisitors: number;
+  totalBookings: number;
+  conversionRate: number;
+  dailyConversions: { date: string; visitors: number; bookings: number; rate: number }[];
+}
+
+const conversionConfig = {
+  visitors: {
+    label: "Visitors",
+    color: "hsl(var(--chart-1))",
+  },
+  bookings: {
+    label: "Bookings",
+    color: "hsl(var(--chart-2))",
+  },
+  rate: {
+    label: "Conversion Rate",
+    color: "hsl(var(--chart-3))",
+  },
+} satisfies ChartConfig;
+
+export function ConversionRateChart() {
+  const { data, isLoading } = useQuery<ConversionData>({
+    queryKey: ["/api/analytics/conversion"],
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Conversion Rate</CardTitle>
+          <CardDescription>Website visitors vs bookings</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-[300px]">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // If no data yet, show setup message
+  if (!data || data.totalVisitors === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Conversion Rate</CardTitle>
+          <CardDescription>Website visitors vs bookings</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center justify-center h-[300px] text-center">
+          <div className="text-muted-foreground">
+            <p className="text-lg font-medium mb-2">No tracking data yet</p>
+            <p className="text-sm">Page views will be tracked automatically as visitors browse your site.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>Conversion Rate</span>
+          <span className="text-2xl font-bold text-primary">{data.conversionRate.toFixed(1)}%</span>
+        </CardTitle>
+        <CardDescription>
+          {data.totalVisitors} visitors → {data.totalBookings} bookings
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={conversionConfig} className="h-[250px]">
+          <AreaChart data={data.dailyConversions}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 12 }}
+              tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            />
+            <YAxis yAxisId="left" />
+            <YAxis yAxisId="right" orientation="right" />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Area
+              yAxisId="left"
+              type="monotone"
+              dataKey="visitors"
+              fill="hsl(var(--chart-1))"
+              fillOpacity={0.3}
+              stroke="hsl(var(--chart-1))"
+              name="Visitors"
+            />
+            <Area
+              yAxisId="left"
+              type="monotone"
+              dataKey="bookings"
+              fill="hsl(var(--chart-2))"
+              fillOpacity={0.3}
+              stroke="hsl(var(--chart-2))"
+              name="Bookings"
+            />
+          </AreaChart>
+        </ChartContainer>
+
+        {/* Summary Stats */}
+        <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t">
+          <div className="text-center">
+            <p className="text-2xl font-bold">{data.totalVisitors}</p>
+            <p className="text-xs text-muted-foreground">Total Visitors</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold">{data.totalBookings}</p>
+            <p className="text-xs text-muted-foreground">Total Bookings</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-primary">{data.conversionRate.toFixed(1)}%</p>
+            <p className="text-xs text-muted-foreground">Conversion Rate</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ===== NEW: Page Views Chart =====
+interface PageViewStats {
+  totalPageViews: number;
+  uniqueVisitors: number;
+  pageBreakdown: { page: string; views: number }[];
+  dailyViews: { date: string; views: number; uniqueVisitors: number }[];
+  deviceBreakdown: { device: string; count: number }[];
+}
+
+const pageViewsConfig = {
+  views: {
+    label: "Page Views",
+    color: "hsl(var(--chart-1))",
+  },
+  uniqueVisitors: {
+    label: "Unique Visitors",
+    color: "hsl(var(--chart-2))",
+  },
+} satisfies ChartConfig;
+
+export function PageViewsChart() {
+  const { data, isLoading } = useQuery<PageViewStats>({
+    queryKey: ["/api/analytics/pageviews"],
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Page Views</CardTitle>
+          <CardDescription>Website traffic analytics</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-[300px]">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!data || data.totalPageViews === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Page Views</CardTitle>
+          <CardDescription>Website traffic analytics</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center justify-center h-[300px] text-center">
+          <div className="text-muted-foreground">
+            <p className="text-lg font-medium mb-2">No page views yet</p>
+            <p className="text-sm">Traffic will appear here as visitors browse your site.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>Page Views</span>
+          <span className="text-lg font-bold">{data.totalPageViews.toLocaleString()}</span>
+        </CardTitle>
+        <CardDescription>{data.uniqueVisitors} unique visitors</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={pageViewsConfig} className="h-[200px]">
+          <AreaChart data={data.dailyViews}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 10 }}
+              tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            />
+            <YAxis />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Area
+              type="monotone"
+              dataKey="views"
+              fill="hsl(var(--chart-1))"
+              fillOpacity={0.3}
+              stroke="hsl(var(--chart-1))"
+              name="Views"
+            />
+          </AreaChart>
+        </ChartContainer>
+
+        {/* Top Pages */}
+        <div className="mt-4 pt-4 border-t">
+          <p className="text-xs font-medium text-muted-foreground mb-2">Top Pages</p>
+          <div className="space-y-1">
+            {data.pageBreakdown.slice(0, 5).map((page) => (
+              <div key={page.page} className="flex justify-between text-sm">
+                <span className="truncate max-w-[180px]">{page.page}</span>
+                <span className="font-medium">{page.views}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

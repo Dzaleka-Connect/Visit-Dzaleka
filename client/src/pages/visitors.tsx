@@ -350,9 +350,15 @@ export default function VisitorsPage() {
                                                     </AvatarFallback>
                                                 </Avatar>
                                                 <div>
-                                                    <p className="font-medium">
+                                                    <button
+                                                        className="font-medium text-left hover:text-primary hover:underline cursor-pointer transition-colors"
+                                                        onClick={() => {
+                                                            setSelectedVisitor(visitor);
+                                                            setDetailsOpen(true);
+                                                        }}
+                                                    >
                                                         {visitor.firstName} {visitor.lastName}
-                                                    </p>
+                                                    </button>
                                                     <p className="text-xs text-muted-foreground">
                                                         Joined {visitor.createdAt
                                                             ? formatDistanceToNow(new Date(visitor.createdAt), { addSuffix: true })

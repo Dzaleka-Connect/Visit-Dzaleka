@@ -48,6 +48,7 @@ import RecurringBookingsPage from "@/pages/recurring-bookings";
 import LiveOperations from "@/pages/live-ops";
 import CustomersPage from "@/pages/customers";
 import CustomerProfile from "@/pages/customer-profile";
+import { usePageTracker } from "@/hooks/usePageTracker";
 
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -80,6 +81,9 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
+
+  // Track page views for analytics
+  usePageTracker();
 
   if (isLoading) {
     return (

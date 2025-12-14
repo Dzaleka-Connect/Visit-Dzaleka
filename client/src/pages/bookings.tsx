@@ -23,8 +23,10 @@ import {
   RefreshCw,
   History,
   Loader2,
+  ArrowLeft,
+  FileDown,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -65,6 +67,8 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { StatusBadge, PaymentStatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { TableSkeleton } from "@/components/loading-skeleton";
@@ -80,6 +84,7 @@ import {
 } from "@/lib/constants";
 import type { Booking, Guide, Zone, MeetingPoint, BookingStatus } from "@shared/schema";
 import { SEO } from "@/components/seo";
+import { jsPDF } from "jspdf";
 
 interface BookingWithGuide extends Booking {
   guide?: Guide;
@@ -150,6 +155,99 @@ function BookingTimeline({ bookingId }: { bookingId: string }) {
     </div>
   );
 }
+
+const getTourTypeName = (type: string) => {
+  return type === "standard"
+    ? "Standard Request"
+    : type === "extended"
+      ? "Extended Tour"
+      : type === "custom"
+        ? "Custom Tour"
+        : type;
+};
+
+// PDF Generator function
+const generateBookingPDF = (booking: BookingWithGuide, meetingPointName: string) => {
+  const doc = new jsPDF();
+
+  // Header
+  // doc.setFillColor(2, 132, 199); // Primary color
+  doc.setFillColor(31, 41, 55); // Dark gray
+  doc.rect(0, 0, 210, 40, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(24);
+  doc.text('Dzaleka Online Services', 105, 20, { align: 'center' });
+  doc.setFontSize(14);
+  doc.text('Booking Confirmation', 105, 32, { align: 'center' });
+
+  // Reset text color
+  doc.setTextColor(0, 0, 0);
+
+  // Booking Reference heading
+  doc.setFontSize(16);
+  doc.text(`Reference: ${booking.bookingReference || 'Pending'}`, 20, 55);
+
+  // Status badge
+  const statusColors: Record<string, [number, number, number]> = {
+    confirmed: [34, 197, 94],
+    pending: [234, 179, 8],
+    cancelled: [239, 68, 68],
+    completed: [59, 130, 246],
+  };
+  const [r, g, b] = statusColors[booking.status || 'pending'] || [107, 114, 128];
+  doc.setFillColor(r, g, b);
+  doc.roundedRect(150, 48, 40, 12, 3, 3, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(10);
+  doc.text((booking.status || 'pending').toUpperCase(), 170, 56, { align: 'center' });
+
+  // Reset text color
+  doc.setTextColor(0, 0, 0);
+
+  // Visitor Details Section
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Visitor Details', 20, 75);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.text(`Name: ${booking.visitorName}`, 20, 85);
+  doc.text(`Email: ${booking.visitorEmail}`, 20, 93);
+  doc.text(`Phone: ${booking.visitorPhone || 'Not provided'}`, 20, 101);
+
+  // Tour Details Section
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Tour Details', 20, 118);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.text(`Date: ${formatDate(booking.visitDate)}`, 20, 128);
+  doc.text(`Time: ${formatTime(booking.visitTime)}`, 20, 136);
+  doc.text(`Tour Type: ${getTourTypeName(booking.tourType)}`, 20, 144);
+  doc.text(`Group Size: ${booking.numberOfPeople || 1} ${(booking.numberOfPeople || 1) === 1 ? 'person' : 'people'}`, 20, 152);
+  doc.text(`Meeting Point: ${meetingPointName}`, 20, 160);
+
+  // Payment Details Section
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Payment Information', 20, 177);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.text(`Total Amount: ${formatCurrency(booking.totalAmount || 0)}`, 20, 187);
+  doc.text(`Payment Status: ${(booking.paymentStatus || 'pending').charAt(0).toUpperCase() + (booking.paymentStatus || 'pending').slice(1)}`, 20, 195);
+  doc.text(`Payment Method: ${booking.paymentMethod?.replace('_', ' ') || 'Cash'}`, 20, 203);
+
+  // Footer
+  doc.setFillColor(31, 41, 55);
+  doc.rect(0, 270, 210, 27, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(10);
+  doc.text('Thank you for booking with Dzaleka Online Services', 105, 280, { align: 'center' });
+  doc.setFontSize(8);
+  doc.text('For questions, contact: info@mail.dzaleka.com | dzalekaconnect@gmail.com', 105, 288, { align: 'center' });
+
+  // Save
+  doc.save(`booking-${booking.bookingReference || booking.id}.pdf`);
+};
 
 export default function Bookings() {
   const { toast } = useToast();
@@ -461,6 +559,7 @@ export default function Bookings() {
     specialRequests: "",
     selectedZones: [] as string[],
     selectedInterests: [] as string[],
+    referralSource: "",
   });
 
   const createBookingMutation = useMutation({
@@ -485,7 +584,9 @@ export default function Bookings() {
         specialRequests: "",
         selectedZones: [],
         selectedInterests: [],
+        referralSource: "",
       });
+
       toast({
         title: "Booking created",
         description: "New booking has been created successfully.",
@@ -614,611 +715,781 @@ export default function Bookings() {
         description="Schedule your visit to Dzaleka. Choose your tour type, group size, and preferred guide."
       />
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Bookings</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">
+          {isDetailOpen ? "Booking Details" : "Bookings"}
+        </h1>
         <p className="text-muted-foreground">
-          Manage visitor booking requests and tour assignments.
+          {isDetailOpen
+            ? `Managing booking #${selectedBooking?.bookingReference || selectedBooking?.id.slice(0, 8) || "..."}`
+            : "Manage visitor booking requests and tour assignments."}
         </p>
       </div>
 
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by name or email..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-              data-testid="input-search-bookings"
-            />
-          </div>
-          <div className="flex flex-wrap gap-2 items-center">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-44" data-testid="select-status-filter">
-                  <Filter className="mr-2 h-4 w-4" />
-                  {statusFilters.length === 0
-                    ? "All Status"
-                    : statusFilters.length === 1
-                      ? statusFilters[0].charAt(0).toUpperCase() + statusFilters[0].slice(1)
-                      : `${statusFilters.length} selected`}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-48 p-2" align="start">
-                <div className="space-y-2">
-                  {["pending", "confirmed", "completed", "cancelled"].map((status) => (
-                    <div key={status} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`status-${status}`}
-                        checked={statusFilters.includes(status)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setStatusFilters([...statusFilters, status]);
-                          } else {
-                            setStatusFilters(statusFilters.filter((s) => s !== status));
-                          }
-                        }}
-                      />
-                      <label
-                        htmlFor={`status-${status}`}
-                        className="text-sm capitalize cursor-pointer"
-                      >
-                        {status}
-                      </label>
-                    </div>
-                  ))}
-                  {statusFilters.length > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full mt-2"
-                      onClick={() => setStatusFilters([])}
-                    >
-                      Clear all
-                    </Button>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-36"
-              placeholder="From"
-              data-testid="input-date-from"
-            />
-            <span className="text-muted-foreground">to</span>
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-36"
-              placeholder="To"
-              data-testid="input-date-to"
-            />
-            {(dateFrom || dateTo) && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => { setDateFrom(""); setDateTo(""); }}
-                title="Clear dates"
-              >
-                <XCircle className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/bookings"] })}
-            title="Refresh bookings"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              if (!filteredBookings || filteredBookings.length === 0) return;
-
-              // Define CSV headers
-              const headers = [
-                "Reference",
-                "Visitor Name",
-                "Visitor Email",
-                "Visitor Phone",
-                "Visit Date",
-                "Visit Time",
-                "Status",
-                "Tour Type",
-                "Group Size",
-                "Number of People",
-                "Total Amount",
-                "Payment Method",
-                "Payment Status",
-                "Created At"
-              ];
-
-              // Map booking data to rows
-              const rows = filteredBookings.map(b => {
-                return [
-                  b.bookingReference || b.id.slice(0, 8),
-                  `"${b.visitorName.replace(/"/g, '""')}"`, // Escape quotes
-                  b.visitorEmail,
-                  b.visitorPhone || "",
-                  b.visitDate,
-                  b.visitTime || "",
-                  b.status || "pending",
-                  b.tourType || "",
-                  b.groupSize || "",
-                  b.numberOfPeople || 1,
-                  b.totalAmount || 0,
-                  b.paymentMethod || "",
-                  b.paymentStatus || "pending",
-                  b.createdAt ? new Date(b.createdAt).toISOString().split('T')[0] : ""
-                ].join(",");
-              });
-
-              // Combine headers and rows
-              const csvContent = [headers.join(","), ...rows].join("\n");
-
-              // Create download link
-              const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement("a");
-              link.setAttribute("href", url);
-              link.setAttribute("download", `bookings-export-${new Date().toISOString().split('T')[0]}.csv`);
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              URL.revokeObjectURL(url);
-            }}
-            disabled={!filteredBookings || filteredBookings.length === 0}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Export CSV
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setIsHistoricalOpen(true)}
-            data-testid="button-historical-booking"
-          >
-            <Clock className="mr-2 h-4 w-4" />
-            Record Past Visit
-          </Button>
-          <Button
-            onClick={() => setIsCreateBookingOpen(true)}
-            data-testid="button-create-booking"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Create Booking
-          </Button>
-        </div>
-      </div>
-
-      {/* Bulk Actions Toolbar */}
-      {selectedBookingIds.size > 0 && (
-        <div className="flex items-center gap-4 p-3 bg-muted rounded-lg">
-          <span className="text-sm font-medium">
-            {selectedBookingIds.size} booking{selectedBookingIds.size > 1 ? "s" : ""} selected
-          </span>
-          <div className="flex gap-2 ml-auto">
-            <Select
-              onValueChange={(status) => {
-                if (status) {
-                  Array.from(selectedBookingIds).forEach((id) => {
-                    updateStatusMutation.mutate({ id, status: status as BookingStatus });
-                  });
-                  setSelectedBookingIds(new Set());
-                }
-              }}
-            >
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Update status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Set Pending</SelectItem>
-                <SelectItem value="confirmed">Set Confirmed</SelectItem>
-                <SelectItem value="completed">Set Completed</SelectItem>
-                <SelectItem value="cancelled">Set Cancelled</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedBookingIds(new Set())}
-            >
-              Clear Selection
+      {isDetailOpen && selectedBooking ? (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="flex items-center justify-between pb-4 border-b">
+            <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to List
             </Button>
+            <div className="flex gap-2">
+              {selectedBooking.status !== "cancelled" && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => updateStatusMutation.mutate({ id: selectedBooking.id, status: "cancelled" })}
+                >
+                  Cancel Booking
+                </Button>
+              )}
+              <Button size="sm" onClick={() => generateBookingPDF(selectedBooking, getMeetingPointName(selectedBooking.meetingPointId))}>
+                <FileDown className="mr-2 h-4 w-4" /> Export PDF
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
 
-      <Card>
-        {!filteredBookings || filteredBookings.length === 0 ? (
-          <CardContent className="p-6">
-            <EmptyState
-              icon={BookOpen}
-              title="No bookings found"
-              description={
-                searchQuery || statusFilters.length > 0
-                  ? "Try adjusting your search or filters."
-                  : "New booking requests will appear here when visitors submit them."
-              }
-            />
-          </CardContent>
-        ) : (
-          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-            <Table className="min-w-[900px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10">
-                    <Checkbox
-                      checked={filteredBookings?.length > 0 && selectedBookingIds.size === filteredBookings?.length}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedBookingIds(new Set(filteredBookings?.map(b => b.id) || []));
-                        } else {
-                          setSelectedBookingIds(new Set());
-                        }
-                      }}
-                    />
-                  </TableHead>
-                  <TableHead>Visitor</TableHead>
-                  <TableHead>Date & Time</TableHead>
-                  <TableHead>Group</TableHead>
-                  <TableHead>Tour Type</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Guide</TableHead>
-                  <TableHead className="w-12"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredBookings.map((booking) => (
-                  <TableRow
-                    key={booking.id}
-                    className="hover-elevate"
-                    data-testid={`booking-row-${booking.id}`}
-                  >
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedBookingIds.has(booking.id)}
-                        onCheckedChange={(checked) => {
-                          const newSet = new Set(selectedBookingIds);
-                          if (checked) {
-                            newSet.add(booking.id);
-                          } else {
-                            newSet.delete(booking.id);
-                          }
-                          setSelectedBookingIds(newSet);
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{booking.visitorName}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {booking.visitorEmail}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span>{formatDate(booking.visitDate)}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {formatTime(booking.visitTime)}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="capitalize">
-                        {booking.numberOfPeople}{" "}
-                        {booking.numberOfPeople === 1 ? "person" : "people"}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="capitalize">
-                        {getTourTypeName(booking.tourType)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {formatCurrency(booking.totalAmount || 0)}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={booking.status || "pending"} />
-                    </TableCell>
-                    <TableCell>
-                      {booking.guide ? (
-                        <span className="text-sm">
-                          {booking.guide.firstName} {booking.guide.lastName}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">
-                          Unassigned
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            data-testid={`button-actions-${booking.id}`}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => handleViewDetails(booking)}
-                          >
-                            <Eye className="mr-2 h-4 w-4" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleAssignGuide(booking)}
-                          >
-                            <UserPlus className="mr-2 h-4 w-4" />
-                            Assign Guide
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleSendEmail(booking)}
-                          >
-                            <Mail className="mr-2 h-4 w-4" />
-                            Send Email
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {booking.status === "pending" && (
-                            <DropdownMenuItem
-                              onClick={() =>
-                                updateStatusMutation.mutate({
-                                  id: booking.id,
-                                  status: "confirmed",
-                                })
-                              }
-                            >
-                              <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
-                              Confirm Booking
-                            </DropdownMenuItem>
-                          )}
-                          {booking.status !== "completed" && booking.status !== "cancelled" && (
-                            <DropdownMenuItem
-                              onClick={() =>
-                                updateStatusMutation.mutate({
-                                  id: booking.id,
-                                  status: "completed",
-                                })
-                              }
-                            >
-                              <CheckCircle className="mr-2 h-4 w-4 text-blue-600" />
-                              Mark Completed
-                            </DropdownMenuItem>
-                          )}
-                          {booking.status !== "cancelled" && (
-                            <DropdownMenuItem
-                              onClick={() =>
-                                updateStatusMutation.mutate({
-                                  id: booking.id,
-                                  status: "cancelled",
-                                })
-                              }
-                              className="text-destructive"
-                            >
-                              <XCircle className="mr-2 h-4 w-4" />
-                              Cancel Booking
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuSeparator />
-                          {booking.status === "confirmed" && !booking.checkInTime && (
-                            <DropdownMenuItem onClick={() => checkInMutation.mutate(booking.id)}>
-                              <UserCheck className="mr-2 h-4 w-4 text-green-600" />
-                              Check In
-                            </DropdownMenuItem>
-                          )}
-                          {booking.checkInTime && !booking.checkOutTime && (
-                            <DropdownMenuItem onClick={() => checkOutMutation.mutate(booking.id)}>
-                              <LogOut className="mr-2 h-4 w-4 text-orange-600" />
-                              Check Out
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </Card>
-
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Booking Details</DialogTitle>
-            <DialogDescription>
-              Complete information about this booking request.
-            </DialogDescription>
-          </DialogHeader>
-          {selectedBooking && (
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Left Column: Visitor & Tour Info */}
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold">
-                    {selectedBooking.visitorName}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Booking Ref: {selectedBooking.bookingReference || selectedBooking.id.slice(0, 8)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <StatusBadge status={selectedBooking.status || "pending"} />
-                  <PaymentStatusBadge
-                    status={selectedBooking.paymentStatus || "pending"}
-                  />
-                </div>
-              </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Visitor Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Name</Label>
+                      <p className="font-medium">{selectedBooking.visitorName}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Email</Label>
+                      <p className="font-medium">{selectedBooking.visitorEmail}</p>
+                      <Button variant="ghost" className="p-0 h-auto text-xs" onClick={() => handleSendEmail(selectedBooking)}>
+                        Send Email
+                      </Button>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Phone</Label>
+                      <p className="font-medium">{selectedBooking.visitorPhone}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Status</Label>
+                      <div className="mt-1"><StatusBadge status={selectedBooking.status || "pending"} /></div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Contact Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Mail className="h-4 w-4 text-muted-foreground" />
-                      {selectedBooking.visitorEmail}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Tour Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Date</Label>
+                      <p className="flex items-center gap-2 font-medium">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        {formatDate(selectedBooking.visitDate)}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
-                      {selectedBooking.visitorPhone}
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Time</Label>
+                      <p className="flex items-center gap-2 font-medium">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        {formatTime(selectedBooking.visitTime)}
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Tour Details
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      {formatDate(selectedBooking.visitDate)}
+                    <div className="col-span-2">
+                      <Label className="text-xs text-muted-foreground">Meeting Point</Label>
+                      <p className="flex items-center gap-2 font-medium">
+                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                        {getMeetingPointName(selectedBooking.meetingPointId)}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      {formatTime(selectedBooking.visitTime)}
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Tour Type</Label>
+                      <p className="font-medium capitalize">{getTourTypeName(selectedBooking.tourType)}</p>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      {selectedBooking.numberOfPeople}{" "}
-                      {selectedBooking.numberOfPeople === 1
-                        ? "person"
-                        : "people"}{" "}
-                      ({getTourTypeName(selectedBooking.tourType)})
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Group Size</Label>
+                      <p className="font-medium">{selectedBooking.numberOfPeople} {selectedBooking.numberOfPeople === 1 ? "person" : "people"}</p>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      {getMeetingPointName(selectedBooking.meetingPointId)}
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />
-                      {formatCurrency(selectedBooking.totalAmount || 0)} (
-                      {selectedBooking.paymentMethod?.replace("_", " ")})
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {selectedBooking.selectedZones &&
-                selectedBooking.selectedZones.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">
-                        Selected Areas
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedBooking.selectedZones.map((zoneId) => (
-                          <span
-                            key={zoneId}
-                            className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
-                          >
-                            {getZoneName(zoneId)}
-                          </span>
-                        ))}
+                    <div className="col-span-2">
+                      <Label className="text-xs text-muted-foreground">Selected Areas</Label>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {selectedBooking.selectedZones && selectedBooking.selectedZones.length > 0 ? (
+                          selectedBooking.selectedZones.map((zoneId) => (
+                            <Badge key={zoneId} variant="secondary">{getZoneName(zoneId)}</Badge>
+                          ))
+                        ) : (
+                          <span className="text-sm text-muted-foreground">None specified</span>
+                        )}
                       </div>
-                    </CardContent>
-                  </Card>
-                )}
+                    </div>
+                    {selectedBooking.referralSource && (
+                      <div className="col-span-2">
+                        <Label className="text-xs text-muted-foreground">Referral Source</Label>
+                        <p className="font-medium capitalize">{selectedBooking.referralSource.replace("-", " ")}</p>
+                      </div>
+                    )}
+                    {selectedBooking.source && selectedBooking.source !== "direct" && (
+                      <div className="col-span-2">
+                        <Label className="text-xs text-muted-foreground">Booking Source</Label>
+                        <p className="font-medium capitalize">{selectedBooking.source}</p>
+                      </div>
+                    )}
+                    {selectedBooking.groupSize && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Group Type</Label>
+                        <p className="font-medium capitalize">{selectedBooking.groupSize.replace("_", " ")}</p>
+                      </div>
+                    )}
+                    {selectedBooking.customDuration && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Custom Duration</Label>
+                        <p className="font-medium">{selectedBooking.customDuration} hours</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
 
-              {selectedBooking.specialRequests && (
+              {/* Interests Card */}
+              {selectedBooking.selectedInterests && selectedBooking.selectedInterests.length > 0 && (
                 <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Special Requests
-                    </CardTitle>
+                  <CardHeader>
+                    <CardTitle>Visitor Interests</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm">{selectedBooking.specialRequests}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedBooking.selectedInterests.map((interest, idx) => (
+                        <Badge key={idx} variant="outline" className="capitalize">{interest.replace(/_/g, " ")}</Badge>
+                      ))}
+                    </div>
                   </CardContent>
                 </Card>
               )}
 
-              {/* Booking Timeline */}
+              {/* Special Requests & Accessibility */}
+              {(selectedBooking.specialRequests || selectedBooking.accessibilityNeeds) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Special Requests & Accessibility</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {selectedBooking.specialRequests && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Special Requests</Label>
+                        <p className="text-sm mt-1">{selectedBooking.specialRequests}</p>
+                      </div>
+                    )}
+                    {selectedBooking.accessibilityNeeds && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Accessibility Needs</Label>
+                        <p className="text-sm mt-1">{selectedBooking.accessibilityNeeds}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <History className="h-4 w-4" />
-                    Activity Timeline
-                  </CardTitle>
+                <CardHeader>
+                  <CardTitle>Activity Timeline</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <BookingTimeline bookingId={selectedBooking.id} />
                 </CardContent>
               </Card>
+            </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="admin-notes">Admin Notes</Label>
-                <Textarea
-                  id="admin-notes"
-                  placeholder="Add internal notes about this booking..."
-                  value={adminNotes}
-                  onChange={(e) => setAdminNotes(e.target.value)}
-                  className="min-h-[100px]"
-                  data-testid="textarea-admin-notes"
+            {/* Right Column: Management (Guide, Payment, Notes) */}
+            <div className="space-y-6">
+              {/* Assigned Guide Card */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle>Assigned Guide</CardTitle>
+                  <Button variant="ghost" size="sm" onClick={() => handleAssignGuide(selectedBooking)}>
+                    <Users className="h-4 w-4 mr-2" />
+                    {selectedBooking.assignedGuideId ? "Change Guide" : "Assign Guide"}
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  {selectedBooking.guide ? (
+                    <div className="flex items-center gap-4 py-2">
+                      <Avatar className="h-12 w-12">
+                        <AvatarImage src={selectedBooking.guide.profileImageUrl || undefined} />
+                        <AvatarFallback className="bg-primary/10 text-primary">
+                          {selectedBooking.guide.firstName.charAt(0)}{selectedBooking.guide.lastName.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <h4 className="font-bold">{selectedBooking.guide.firstName} {selectedBooking.guide.lastName}</h4>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          <Phone className="h-3 w-3" /> {selectedBooking.guide.phone}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-6 text-center text-muted-foreground border-dashed border-2 rounded-md">
+                      <p className="mb-2">No guide assigned yet</p>
+                      <Button size="sm" variant="secondary" onClick={() => handleAssignGuide(selectedBooking)}>
+                        Select Guide
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Payment Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Payment Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex justify-between items-center pb-4 border-b">
+                    <span className="text-muted-foreground">Total Amount</span>
+                    <span className="text-xl font-bold">{formatCurrency(selectedBooking.totalAmount || 0)}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Method</Label>
+                      <p className="capitalize font-medium">{(selectedBooking.paymentMethod || "cash").replace("_", " ")}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Status</Label>
+                      <div className="mt-1 flex items-center gap-2">
+                        <PaymentStatusBadge status={selectedBooking.paymentStatus || "pending"} />
+                        {selectedBooking.paymentStatus !== "paid" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            title="Mark as Paid"
+                            onClick={() => updatePaymentMutation.mutate({ id: selectedBooking.id, paymentStatus: "paid" })}
+                          >
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Workflow Actions */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Quick Actions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {/* Status-based actions */}
+                  {selectedBooking.status === "pending" && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button className="w-full" onClick={() => updateStatusMutation.mutate({ id: selectedBooking.id, status: "confirmed" })}>
+                        <CheckCircle className="mr-2 h-4 w-4" /> Confirm
+                      </Button>
+                      <Button className="w-full" variant="destructive" onClick={() => updateStatusMutation.mutate({ id: selectedBooking.id, status: "cancelled" })}>
+                        <XCircle className="mr-2 h-4 w-4" /> Reject
+                      </Button>
+                    </div>
+                  )}
+
+                  {selectedBooking.status === "confirmed" && !selectedBooking.checkInTime && (
+                    <Button className="w-full" onClick={() => checkInMutation.mutate(selectedBooking.id)}>
+                      <UserCheck className="mr-2 h-4 w-4" /> Check In Visitor
+                    </Button>
+                  )}
+
+                  {selectedBooking.checkInTime && !selectedBooking.checkOutTime && (
+                    <Button className="w-full" variant="secondary" onClick={() => checkOutMutation.mutate(selectedBooking.id)}>
+                      <LogOut className="mr-2 h-4 w-4" /> Check Out Visitor
+                    </Button>
+                  )}
+
+                  {/* Common actions always available */}
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+                    <Button variant="outline" className="w-full" onClick={() => handleAssignGuide(selectedBooking)}>
+                      <Users className="mr-2 h-4 w-4" /> {selectedBooking.guide ? "Change Guide" : "Assign Guide"}
+                    </Button>
+                    <Button variant="outline" className="w-full" onClick={() => handleSendEmail(selectedBooking)}>
+                      <Mail className="mr-2 h-4 w-4" /> Send Email
+                    </Button>
+                  </div>
+
+                  {/* Status info for completed/cancelled */}
+                  {selectedBooking.status === "completed" && (
+                    <div className="text-center py-2 bg-green-50 dark:bg-green-950/20 rounded-md">
+                      <p className="text-sm text-green-700 dark:text-green-400">✓ This booking has been completed</p>
+                      {selectedBooking.checkOutTime && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Checked out at {new Date(selectedBooking.checkOutTime).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedBooking.status === "cancelled" && (
+                    <div className="text-center py-2 bg-red-50 dark:bg-red-950/20 rounded-md">
+                      <p className="text-sm text-red-700 dark:text-red-400">✗ This booking was cancelled</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Admin Notes</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Textarea
+                    placeholder="Internal notes..."
+                    value={adminNotes}
+                    onChange={(e) => setAdminNotes(e.target.value)}
+                    className="min-h-[100px]"
+                  />
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    onClick={() => updateNotesMutation.mutate({ id: selectedBooking.id, notes: adminNotes })}
+                    disabled={updateNotesMutation.isPending}
+                  >
+                    Save Notes
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name or email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                  data-testid="input-search-bookings"
                 />
               </div>
-
-              <DialogFooter className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsDetailOpen(false)}
-                >
-                  Close
-                </Button>
-                {selectedBooking.paymentStatus !== "paid" && (
+              <div className="flex flex-wrap gap-2 items-center">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-44" data-testid="select-status-filter">
+                      <Filter className="mr-2 h-4 w-4" />
+                      {statusFilters.length === 0
+                        ? "All Status"
+                        : statusFilters.length === 1
+                          ? statusFilters[0].charAt(0).toUpperCase() + statusFilters[0].slice(1)
+                          : `${statusFilters.length} selected`}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-48 p-2" align="start">
+                    <div className="space-y-2">
+                      {["pending", "confirmed", "completed", "cancelled"].map((status) => (
+                        <div key={status} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`status-${status}`}
+                            checked={statusFilters.includes(status)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setStatusFilters([...statusFilters, status]);
+                              } else {
+                                setStatusFilters(statusFilters.filter((s) => s !== status));
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor={`status-${status}`}
+                            className="text-sm capitalize cursor-pointer"
+                          >
+                            {status}
+                          </label>
+                        </div>
+                      ))}
+                      {statusFilters.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full mt-2"
+                          onClick={() => setStatusFilters([])}
+                        >
+                          Clear all
+                        </Button>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-36"
+                  placeholder="From"
+                  data-testid="input-date-from"
+                />
+                <span className="text-muted-foreground">to</span>
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-36"
+                  placeholder="To"
+                  data-testid="input-date-to"
+                />
+                {(dateFrom || dateTo) && (
                   <Button
-                    variant="secondary"
-                    onClick={() =>
-                      updatePaymentMutation.mutate({
-                        id: selectedBooking.id,
-                        paymentStatus: "paid",
-                      })
-                    }
-                    disabled={updatePaymentMutation.isPending}
-                    data-testid="button-mark-paid"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setDateFrom(""); setDateTo(""); }}
+                    title="Clear dates"
                   >
-                    <DollarSign className="mr-2 h-4 w-4" />
-                    Mark as Paid
+                    <XCircle className="h-4 w-4" />
                   </Button>
                 )}
-                <Button
-                  onClick={() =>
-                    updateNotesMutation.mutate({
-                      id: selectedBooking.id,
-                      notes: adminNotes,
-                    })
-                  }
-                  disabled={updateNotesMutation.isPending}
-                  data-testid="button-save-notes"
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/bookings"] })}
+                title="Refresh bookings"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (!filteredBookings || filteredBookings.length === 0) return;
+
+                  // Define CSV headers
+                  const headers = [
+                    "Reference",
+                    "Visitor Name",
+                    "Visitor Email",
+                    "Visitor Phone",
+                    "Visit Date",
+                    "Visit Time",
+                    "Status",
+                    "Tour Type",
+                    "Group Size",
+                    "Number of People",
+                    "Total Amount",
+                    "Payment Method",
+                    "Payment Status",
+                    "Created At"
+                  ];
+
+                  // Map booking data to rows
+                  const rows = filteredBookings.map(b => {
+                    return [
+                      b.bookingReference || b.id.slice(0, 8),
+                      `"${b.visitorName.replace(/"/g, '""')}"`, // Escape quotes
+                      b.visitorEmail,
+                      b.visitorPhone || "",
+                      b.visitDate,
+                      b.visitTime || "",
+                      b.status || "pending",
+                      b.tourType || "",
+                      b.groupSize || "",
+                      b.numberOfPeople || 1,
+                      b.totalAmount || 0,
+                      b.paymentMethod || "",
+                      b.paymentStatus || "pending",
+                      b.createdAt ? new Date(b.createdAt).toISOString().split('T')[0] : ""
+                    ].join(",");
+                  });
+
+                  // Combine headers and rows
+                  const csvContent = [headers.join(","), ...rows].join("\n");
+
+                  // Create download link
+                  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.setAttribute("href", url);
+                  link.setAttribute("download", `bookings-export-${new Date().toISOString().split('T')[0]}.csv`);
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  URL.revokeObjectURL(url);
+                }}
+                disabled={!filteredBookings || filteredBookings.length === 0}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsHistoricalOpen(true)}
+                data-testid="button-historical-booking"
+              >
+                <Clock className="mr-2 h-4 w-4" />
+                Record Past Visit
+              </Button>
+              <Button
+                onClick={() => setIsCreateBookingOpen(true)}
+                data-testid="button-create-booking"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Create Booking
+              </Button>
+            </div>
+          </div>
+
+          {/* Bulk Actions Toolbar */}
+          {selectedBookingIds.size > 0 && (
+            <div className="flex items-center gap-4 p-3 bg-muted rounded-lg">
+              <span className="text-sm font-medium">
+                {selectedBookingIds.size} booking{selectedBookingIds.size > 1 ? "s" : ""} selected
+              </span>
+              <div className="flex gap-2 ml-auto">
+                <Select
+                  onValueChange={(status) => {
+                    if (status) {
+                      Array.from(selectedBookingIds).forEach((id) => {
+                        updateStatusMutation.mutate({ id, status: status as BookingStatus });
+                      });
+                      setSelectedBookingIds(new Set());
+                    }
+                  }}
                 >
-                  Save Notes
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Update status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Set Pending</SelectItem>
+                    <SelectItem value="confirmed">Set Confirmed</SelectItem>
+                    <SelectItem value="completed">Set Completed</SelectItem>
+                    <SelectItem value="cancelled">Set Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedBookingIds(new Set())}
+                >
+                  Clear Selection
                 </Button>
-              </DialogFooter>
+              </div>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
+
+          <Card>
+            {!filteredBookings || filteredBookings.length === 0 ? (
+              <CardContent className="p-6">
+                <EmptyState
+                  icon={BookOpen}
+                  title="No bookings found"
+                  description={
+                    searchQuery || statusFilters.length > 0
+                      ? "Try adjusting your search or filters."
+                      : "New booking requests will appear here when visitors submit them."
+                  }
+                />
+              </CardContent>
+            ) : (
+              <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                <Table className="min-w-[900px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">
+                        <Checkbox
+                          checked={filteredBookings?.length > 0 && selectedBookingIds.size === filteredBookings?.length}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedBookingIds(new Set(filteredBookings?.map(b => b.id) || []));
+                            } else {
+                              setSelectedBookingIds(new Set());
+                            }
+                          }}
+                        />
+                      </TableHead>
+                      <TableHead>Visitor</TableHead>
+                      <TableHead>Date & Time</TableHead>
+                      <TableHead>Group</TableHead>
+                      <TableHead>Tour Type</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Guide</TableHead>
+                      <TableHead className="w-12"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredBookings.map((booking) => (
+                      <TableRow
+                        key={booking.id}
+                        className="hover-elevate"
+                        data-testid={`booking-row-${booking.id}`}
+                      >
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedBookingIds.has(booking.id)}
+                            onCheckedChange={(checked) => {
+                              const newSet = new Set(selectedBookingIds);
+                              if (checked) {
+                                newSet.add(booking.id);
+                              } else {
+                                newSet.delete(booking.id);
+                              }
+                              setSelectedBookingIds(newSet);
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <button
+                              className="font-medium text-left hover:text-primary hover:underline cursor-pointer transition-colors"
+                              onClick={() => handleViewDetails(booking)}
+                            >
+                              {booking.visitorName}
+                            </button>
+                            <span className="text-xs text-muted-foreground">
+                              {booking.visitorEmail}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span>{formatDate(booking.visitDate)}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatTime(booking.visitTime)}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="capitalize">
+                            {booking.numberOfPeople}{" "}
+                            {booking.numberOfPeople === 1 ? "person" : "people"}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="capitalize">
+                            {getTourTypeName(booking.tourType)}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrency(booking.totalAmount || 0)}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={booking.status || "pending"} />
+                        </TableCell>
+                        <TableCell>
+                          {booking.guide ? (
+                            <span className="text-sm">
+                              {booking.guide.firstName} {booking.guide.lastName}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">
+                              Unassigned
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                data-testid={`button-actions-${booking.id}`}
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => handleViewDetails(booking)}
+                              >
+                                <Eye className="mr-2 h-4 w-4" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleAssignGuide(booking)}
+                              >
+                                <UserPlus className="mr-2 h-4 w-4" />
+                                Assign Guide
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleSendEmail(booking)}
+                              >
+                                <Mail className="mr-2 h-4 w-4" />
+                                Send Email
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              {booking.status === "pending" && (
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    updateStatusMutation.mutate({
+                                      id: booking.id,
+                                      status: "confirmed",
+                                    })
+                                  }
+                                >
+                                  <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
+                                  Confirm Booking
+                                </DropdownMenuItem>
+                              )}
+                              {booking.status !== "completed" && booking.status !== "cancelled" && (
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    updateStatusMutation.mutate({
+                                      id: booking.id,
+                                      status: "completed",
+                                    })
+                                  }
+                                >
+                                  <CheckCircle className="mr-2 h-4 w-4 text-blue-600" />
+                                  Mark Completed
+                                </DropdownMenuItem>
+                              )}
+                              {booking.status !== "cancelled" && (
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    updateStatusMutation.mutate({
+                                      id: booking.id,
+                                      status: "cancelled",
+                                    })
+                                  }
+                                  className="text-destructive"
+                                >
+                                  <XCircle className="mr-2 h-4 w-4" />
+                                  Cancel Booking
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              {booking.status === "confirmed" && !booking.checkInTime && (
+                                <DropdownMenuItem onClick={() => checkInMutation.mutate(booking.id)}>
+                                  <UserCheck className="mr-2 h-4 w-4 text-green-600" />
+                                  Check In
+                                </DropdownMenuItem>
+                              )}
+                              {booking.checkInTime && !booking.checkOutTime && (
+                                <DropdownMenuItem onClick={() => checkOutMutation.mutate(booking.id)}>
+                                  <LogOut className="mr-2 h-4 w-4 text-orange-600" />
+                                  Check Out
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+          </Card>
+        </>
+      )}
+
+
 
       <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
         <DialogContent>
@@ -1462,6 +1733,23 @@ export default function Bookings() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>How Did You Hear About Us?</Label>
+              <Select
+                value={newBooking.referralSource}
+                onValueChange={(value) => setNewBooking({ ...newBooking, referralSource: value })}
+              >
+                <SelectTrigger data-testid="select-new-referral-source">
+                  <SelectValue placeholder="Please select" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="social-media">Social Media</SelectItem>
+                  <SelectItem value="word-of-mouth">Word of Mouth</SelectItem>
+                  <SelectItem value="website">Website</SelectItem>
+                  <SelectItem value="other">Other (Please Specify)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Meeting Point</Label>
@@ -1764,6 +2052,6 @@ export default function Bookings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 }
