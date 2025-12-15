@@ -161,12 +161,17 @@ export default function CMSPage() {
               <CardDescription>Key features highlighted on the landing page.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {[1, 2, 3, 4].map((index) => (
+              {[
+                { index: 1, label: "Effortless Booking" },
+                { index: 2, label: "Meet Your Local Ambassador" },
+                { index: 3, label: "Immersive Experiences" },
+                { index: 4, label: "A Culture of Safety & Respect" },
+              ].map(({ index, label }) => (
                 <div key={index} className="space-y-2 border-b pb-4 last:border-b-0 last:pb-0">
-                  <h4 className="font-semibold text-lg">Feature {index}</h4>
+                  <h4 className="font-semibold text-lg">{label}</h4>
                   <div className="space-y-2">
                     <Label>Title</Label>
-                    <Input {...register(`feature_${index}_title` as const)} />
+                    <Input {...register(`feature_${index}_title` as const)} placeholder={label} />
                     {errors[`feature_${index}_title`] && <span className="text-red-500 text-xs">Required</span>}
                   </div>
                   <div className="space-y-2">

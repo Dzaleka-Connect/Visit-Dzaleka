@@ -100,12 +100,13 @@ function Router() {
   if (!isAuthenticated) {
     return (
       <Switch>
+        <Route path="/" component={Landing} />
+        <Route path="/login" component={AuthPage} />
         <Route path="/landing" component={Landing} />
         <Route path="/reset-password" component={ResetPassword} />
         <Route path="/verify-email" component={VerifyEmail} />
         <Route path="/accept-invite" component={AcceptInvite} />
-        <Route path="/" component={AuthPage} />
-        <Route component={AuthPage} />
+        <Route component={Landing} />
       </Switch>
     );
   }
