@@ -24,6 +24,7 @@ import {
   Activity,
   RefreshCw,
   BarChart3,
+  Code,
 } from "lucide-react";
 import {
   Sidebar,
@@ -234,6 +235,12 @@ const adminItems: NavItem[] = [
     title: "Settings",
     url: "/settings",
     icon: Settings,
+    roles: ["admin"],
+  },
+  {
+    title: "Developer",
+    url: "/developer",
+    icon: Code,
     roles: ["admin"],
   },
   {

@@ -4756,5 +4756,107 @@ export async function registerRoutes(
     }
   });
 
+  // ========== Developer Settings: API Keys ==========
+
+  // List API keys for current user
+  app.get("/api/developer/api-keys", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      const keys = await storage.getApiKeysByUser(userId);
+      // Don't return the hash, just the prefix for identification
+      const safeKeys = keys.map(k => ({
+        id: k.id,
+        name: k.name,
+        keyPrefix: k.keyPrefix,
+        scopes: k.scopes,
+        status: k.status,
+        lastUsedAt: k.lastUsedAt,
+        expiresAt: k.expiresAt,
+        requestCount: k.requestCount,
+        createdAt: k.createdAt,
+      }));
+      res.json(safeKeys);
+    } catch (error) {
+      logError("Error listing API keys", error, req.requestId);
+      res.status(500).json({ message: "Failed to list API keys" });
+    }
+  });
+
+  // Create a new API key
+  app.post("/api/developer/api-keys", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      const { name, scopes, expiresAt } = req.body;
+
+      if (!name || typeof name !== "string") {
+        return res.status(400).json({ message: "API key name is required" });
+      }
+
+      // Generate a random API key: dvz_<32 random hex chars>
+      const rawKey = `dvz_${crypto.randomBytes(24).toString('hex')}`;
+      const keyPrefix = rawKey.substring(0, 12); // dvz_xxxxxxxx for display
+      const keyHash = await hashPassword(rawKey);
+
+      const apiKey = await storage.createApiKey({
+        userId,
+        name,
+        keyHash,
+        keyPrefix,
+        scopes: scopes || [],
+        status: "active",
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+      });
+
+      await createAuditLog(userId, "create", "api_key", apiKey.id, null, { name, scopes }, req);
+
+      // Return the full key ONLY on creation (never stored in plain text)
+      res.json({
+        id: apiKey.id,
+        name: apiKey.name,
+        key: rawKey, // Only shown once!
+        keyPrefix: apiKey.keyPrefix,
+        scopes: apiKey.scopes,
+        status: apiKey.status,
+        expiresAt: apiKey.expiresAt,
+        createdAt: apiKey.createdAt,
+        message: "Store this key securely. It won't be shown again."
+      });
+    } catch (error) {
+      logError("Error creating API key", error, req.requestId);
+      res.status(500).json({ message: "Failed to create API key" });
+    }
+  });
+
+  // Revoke an API key
+  app.delete("/api/developer/api-keys/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      const { id } = req.params;
+
+      // Verify ownership
+      const keys = await storage.getApiKeysByUser(userId);
+      const keyToRevoke = keys.find(k => k.id === id);
+
+      if (!keyToRevoke) {
+        return res.status(404).json({ message: "API key not found" });
+      }
+
+      const revokedKey = await storage.revokeApiKey(id);
+
+      await createAuditLog(userId, "delete", "api_key", id, { status: keyToRevoke.status }, { status: "revoked" }, req);
+
+      res.json({ message: "API key revoked successfully", key: revokedKey });
+    } catch (error) {
+      logError("Error revoking API key", error, req.requestId);
+      res.status(500).json({ message: "Failed to revoke API key" });
+    }
+  });
+
   return httpServer;
 }

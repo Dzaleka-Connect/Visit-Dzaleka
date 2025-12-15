@@ -1382,3 +1382,39 @@ export const insertPageViewSchema = createInsertSchema(pageViews).omit({
 
 export type PageView = typeof pageViews.$inferSelect;
 export type InsertPageView = z.infer<typeof insertPageViewSchema>;
+
+// ===== API Keys (Developer Settings) =====
+export const apiKeyStatusEnum = pgEnum("api_key_status", [
+  "active",
+  "revoked",
+  "expired",
+]);
+
+export const apiKeys = pgTable("api_keys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(), // Owner of the API key
+  name: varchar("name").notNull(), // "Production Key", "Test Key"
+  keyHash: varchar("key_hash").notNull(), // bcrypt hash of the full key
+  keyPrefix: varchar("key_prefix").notNull(), // First 8 chars for display (dvz_xxxxxxxx)
+  scopes: text("scopes").array().default(sql`ARRAY[]::text[]`), // ['bookings:read', 'guides:read']
+  status: apiKeyStatusEnum("status").default("active"),
+  lastUsedAt: timestamp("last_used_at"),
+  expiresAt: timestamp("expires_at"),
+  revokedAt: timestamp("revoked_at"),
+  requestCount: integer("request_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_apikeys_user").on(table.userId),
+  index("IDX_apikeys_prefix").on(table.keyPrefix),
+]);
+
+export const insertApiKeySchema = createInsertSchema(apiKeys).omit({
+  id: true,
+  createdAt: true,
+  lastUsedAt: true,
+  revokedAt: true,
+  requestCount: true,
+});
+
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type InsertApiKey = z.infer<typeof insertApiKeySchema>;

@@ -73,6 +73,8 @@ import {
   type InsertGuidePayout,
   type ExternalCalendar,
   type InsertExternalCalendar,
+  type ApiKey,
+  type InsertApiKey,
 } from "@shared/schema";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import crypto from "crypto";
@@ -394,6 +396,13 @@ export interface IStorage {
   getChatParticipants(roomId: string): Promise<ChatParticipant[]>;
   addChatParticipant(participant: InsertChatParticipant): Promise<ChatParticipant>;
   updateLastRead(roomId: string, userId: string): Promise<void>;
+
+  // API Key operations (Developer Settings)
+  getApiKeysByUser(userId: string): Promise<ApiKey[]>;
+  getApiKeyByPrefix(prefix: string): Promise<ApiKey | undefined>;
+  createApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
+  revokeApiKey(id: string): Promise<ApiKey | undefined>;
+  incrementApiKeyUsage(id: string): Promise<void>;
 }
 
 export class SupabaseStorage implements IStorage {
@@ -2803,6 +2812,60 @@ export class SupabaseStorage implements IStorage {
       averageOrderValue,
       dailyConversions,
     };
+  }
+
+  // ===== API Key Operations =====
+  async getApiKeysByUser(userId: string): Promise<ApiKey[]> {
+    const { data, error } = await this.supabase
+      .from("api_keys")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []).map(transformToCamel<ApiKey>);
+  }
+
+  async getApiKeyByPrefix(prefix: string): Promise<ApiKey | undefined> {
+    const { data, error } = await this.supabase
+      .from("api_keys")
+      .select("*")
+      .eq("key_prefix", prefix)
+      .single();
+    return this.handleOptionalResponse<ApiKey>(data, error);
+  }
+
+  async createApiKey(apiKey: InsertApiKey): Promise<ApiKey> {
+    const insertData = transformToSnake(apiKey);
+    const { data, error } = await this.supabase
+      .from("api_keys")
+      .insert(insertData)
+      .select()
+      .single();
+    return this.handleResponse<ApiKey>(data, error);
+  }
+
+  async revokeApiKey(id: string): Promise<ApiKey | undefined> {
+    const { data, error } = await this.supabase
+      .from("api_keys")
+      .update({
+        status: "revoked",
+        revoked_at: new Date().toISOString()
+      })
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse<ApiKey>(data, error);
+  }
+
+  async incrementApiKeyUsage(id: string): Promise<void> {
+    // Use RPC or raw SQL for atomic increment
+    await this.supabase.rpc("increment_api_key_usage", { key_id: id });
+    // Fallback: simple update if RPC doesn't exist
+    // const { data } = await this.supabase.from("api_keys").select("request_count").eq("id", id).single();
+    // await this.supabase.from("api_keys").update({ 
+    //   request_count: (data?.request_count || 0) + 1,
+    //   last_used_at: new Date().toISOString()
+    // }).eq("id", id);
   }
 }
 

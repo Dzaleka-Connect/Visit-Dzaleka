@@ -49,6 +49,8 @@ import LiveOperations from "@/pages/live-ops";
 import CustomersPage from "@/pages/customers";
 import CustomerProfile from "@/pages/customer-profile";
 import Analytics from "@/pages/analytics";
+import DeveloperSettings from "@/pages/developer-settings";
+import EmbedBooking from "@/pages/embed-booking";
 import { usePageTracker } from "@/hooks/usePageTracker";
 
 
@@ -97,6 +99,16 @@ function Router() {
     );
   }
 
+  // Embed routes should be accessible without authenticated layout
+  const path = window.location.pathname;
+  if (path.startsWith("/embed/")) {
+    return (
+      <Switch>
+        <Route path="/embed/booking" component={EmbedBooking} />
+      </Switch>
+    );
+  }
+
   if (!isAuthenticated) {
     return (
       <Switch>
@@ -106,6 +118,7 @@ function Router() {
         <Route path="/reset-password" component={ResetPassword} />
         <Route path="/verify-email" component={VerifyEmail} />
         <Route path="/accept-invite" component={AcceptInvite} />
+        <Route path="/embed/booking" component={EmbedBooking} />
         <Route component={Landing} />
       </Switch>
     );
@@ -147,6 +160,7 @@ function Router() {
         <Route path="/customers/:id" component={CustomerProfile} />
         <Route path="/help" component={HelpCenter} />
         <Route path="/help-admin" component={HelpAdmin} />
+        <Route path="/developer" component={DeveloperSettings} />
         <Route path="/landing" component={Landing} />
         <Route component={NotFound} />
       </Switch>
