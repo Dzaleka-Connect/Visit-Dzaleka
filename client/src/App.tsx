@@ -51,6 +51,7 @@ import CustomerProfile from "@/pages/customer-profile";
 import Analytics from "@/pages/analytics";
 import DeveloperSettings from "@/pages/developer-settings";
 import EmbedBooking from "@/pages/embed-booking";
+import CommunityHub from "@/pages/community-hub";
 import { usePageTracker } from "@/hooks/usePageTracker";
 
 
@@ -161,6 +162,7 @@ function Router() {
         <Route path="/help" component={HelpCenter} />
         <Route path="/help-admin" component={HelpAdmin} />
         <Route path="/developer" component={DeveloperSettings} />
+        <Route path="/community" component={CommunityHub} />
         <Route path="/landing" component={Landing} />
         <Route component={NotFound} />
       </Switch>

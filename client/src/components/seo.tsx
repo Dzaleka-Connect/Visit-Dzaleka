@@ -22,7 +22,9 @@ export function SEO({
   structuredData
 }: SEOProps) {
   const defaultDescription = "Book guided tours of Dzaleka Refugee Camp in Malawi. Experience vibrant African culture, meet local artists and entrepreneurs, and support refugee-led initiatives. Book your transformative cultural experience today.";
+  const defaultOgImage = "https://services.dzaleka.com/images/Visit_Dzaleka.png";
   const fullDescription = description || defaultDescription;
+  const fullOgImage = ogImage || defaultOgImage;
   const defaultKeywords = "Dzaleka tours, refugee camp visit Malawi, cultural tourism Africa, book Dzaleka tour, Tumaini Festival, refugee camp tours, Malawi tourism, cultural exchange, guided tours Malawi, visit Dzaleka, book tour refugee camp, African cultural experience, responsible tourism Malawi";
 
   // Default structured data for tour service
@@ -118,15 +120,17 @@ export function SEO({
       <meta property="og:description" content={fullDescription} />
       <meta property="og:url" content="https://services.dzaleka.com/visit/" />
       <meta property="og:locale" content="en_US" />
-      {ogImage && <meta property="og:image" content={ogImage} />}
-      {ogImage && <meta property="og:image:alt" content="Visit Dzaleka - Cultural Tours" />}
+      <meta property="og:image" content={fullOgImage} />
+      <meta property="og:image:alt" content={`${title} | Visit Dzaleka`} />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
 
       {/* Twitter Card tags */}
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:site" content="@DzalekaOnline" />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={fullDescription} />
-      {ogImage && <meta name="twitter:image" content={ogImage} />}
+      <meta name="twitter:image" content={fullOgImage} />
 
       {/* Structured Data / JSON-LD */}
       <script type="application/ld+json">

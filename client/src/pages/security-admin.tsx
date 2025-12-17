@@ -70,6 +70,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { SEO } from "@/components/seo";
 
 // Types
 interface AllowedIp {
@@ -279,6 +280,10 @@ export default function SecurityAdmin() {
 
     return (
         <div className="space-y-6">
+            <SEO
+                title="Security Admin"
+                description="Manage IP whitelist, view login history, and send user invitations."
+            />
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Security Admin</h1>

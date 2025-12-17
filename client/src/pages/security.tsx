@@ -59,6 +59,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { SEO } from "@/components/seo";
 
 interface BookingWithGuide extends Booking {
   guide?: Guide;
@@ -281,6 +282,10 @@ export default function Security() {
 
   return (
     <div className="space-y-6">
+      <SEO
+        title="Security"
+        description="Visitor check-in/out, booking verification, and incident management."
+      />
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">Security</h1>
         <p className="text-muted-foreground">

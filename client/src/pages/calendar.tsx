@@ -47,6 +47,7 @@ import {
   setHours,
   getDay,
 } from "date-fns";
+import { SEO } from "@/components/seo";
 
 interface BookingWithGuide extends Booking {
   guide?: Guide;
@@ -210,6 +211,10 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
+      <SEO
+        title="Calendar"
+        description="View and manage tour schedules for Dzaleka Refugee Camp. Drag bookings to reschedule."
+      />
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">Calendar</h1>
         <p className="text-muted-foreground">

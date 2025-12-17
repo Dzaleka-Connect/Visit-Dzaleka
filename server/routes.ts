@@ -4858,5 +4858,115 @@ export async function registerRoutes(
     }
   });
 
+  // =============================================================
+  // Community Hub - Proxy endpoints for Dzaleka Online Services API
+  // =============================================================
+
+  const DZALEKA_API_BASE = "https://services.dzaleka.com/api";
+
+  // Helper to fetch from external API with caching headers
+  async function fetchDzalekaApi(endpoint: string, res: Response) {
+    try {
+      const response = await fetch(`${DZALEKA_API_BASE}${endpoint}`);
+      if (!response.ok) {
+        throw new Error(`API responded with ${response.status}`);
+      }
+      const data = await response.json();
+
+      // Set caching headers (5 min TTL)
+      res.set("Cache-Control", "public, max-age=300");
+      res.set("X-Cache-Source", "dzaleka-services");
+
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // GET /api/community/services - Fetch service organizations
+  app.get("/api/community/services", async (req, res) => {
+    try {
+      const data = await fetchDzalekaApi("/services", res);
+      res.json(data);
+    } catch (error) {
+      logError("Error fetching community services", error, req.requestId);
+      res.status(502).json({ message: "Failed to fetch services from Dzaleka Online" });
+    }
+  });
+
+  // GET /api/community/events - Fetch events
+  app.get("/api/community/events", async (req, res) => {
+    try {
+      const data = await fetchDzalekaApi("/events", res);
+      res.json(data);
+    } catch (error) {
+      logError("Error fetching community events", error, req.requestId);
+      res.status(502).json({ message: "Failed to fetch events from Dzaleka Online" });
+    }
+  });
+
+  // GET /api/community/resources - Fetch resources/documents
+  app.get("/api/community/resources", async (req, res) => {
+    try {
+      const data = await fetchDzalekaApi("/resources", res);
+      res.json(data);
+    } catch (error) {
+      logError("Error fetching community resources", error, req.requestId);
+      res.status(502).json({ message: "Failed to fetch resources from Dzaleka Online" });
+    }
+  });
+
+  // GET /api/community/news - Fetch news articles
+  app.get("/api/community/news", async (req, res) => {
+    try {
+      const data = await fetchDzalekaApi("/news", res);
+      res.json(data);
+    } catch (error) {
+      logError("Error fetching community news", error, req.requestId);
+      res.status(502).json({ message: "Failed to fetch news from Dzaleka Online" });
+    }
+  });
+
+  // GET /api/community/photos - Fetch photo gallery
+  app.get("/api/community/photos", async (req, res) => {
+    try {
+      const data = await fetchDzalekaApi("/photos", res);
+      res.json(data);
+    } catch (error) {
+      logError("Error fetching community photos", error, req.requestId);
+      res.status(502).json({ message: "Failed to fetch photos from Dzaleka Online" });
+    }
+  });
+
+  // GET /api/community/jobs - Fetch job listings
+  app.get("/api/community/jobs", async (req, res) => {
+    try {
+      const data = await fetchDzalekaApi("/jobs", res);
+      res.json(data);
+    } catch (error) {
+      logError("Error fetching community jobs", error, req.requestId);
+      res.status(502).json({ message: "Failed to fetch jobs from Dzaleka Online" });
+    }
+  });
+
+  // GET /api/community/search - Search across collections
+  app.get("/api/community/search", async (req, res) => {
+    try {
+      const { q, collections, limit } = req.query;
+      const params = new URLSearchParams();
+      if (q) params.set("q", q as string);
+      if (collections) params.set("collections", collections as string);
+      if (limit) params.set("limit", limit as string);
+
+      const data = await fetchDzalekaApi(`/search?${params.toString()}`, res);
+      res.json(data);
+    } catch (error) {
+      logError("Error searching community", error, req.requestId);
+      res.status(502).json({ message: "Failed to search Dzaleka Online" });
+    }
+  });
+
+
+
   return httpServer;
 }

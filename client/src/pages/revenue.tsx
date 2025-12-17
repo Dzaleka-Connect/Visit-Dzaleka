@@ -60,6 +60,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
+import { SEO } from "@/components/seo";
 
 interface RevenueDashboard {
   totalRevenue: number;
@@ -767,6 +768,10 @@ export default function Revenue() {
 
   return (
     <div className="space-y-6">
+      <SEO
+        title="Revenue"
+        description="Track revenue and payments at Visit Dzaleka."
+      />
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-semibold tracking-tight">Revenue</h1>

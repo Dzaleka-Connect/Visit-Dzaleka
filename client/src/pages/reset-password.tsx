@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { SEO } from "@/components/seo";
 
 export default function ResetPassword() {
     const [, setLocation] = useLocation();
@@ -122,6 +123,10 @@ export default function ResetPassword() {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
+            <SEO
+                title="Reset Password"
+                description="Reset your Visit Dzaleka account password."
+            />
             <Card className="w-full max-w-md">
                 <CardHeader className="text-center">
                     <div className="mx-auto w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-4">

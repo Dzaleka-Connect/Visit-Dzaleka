@@ -25,6 +25,7 @@ import {
   RefreshCw,
   BarChart3,
   Code,
+  Globe,
 } from "lucide-react";
 import {
   Sidebar,
@@ -143,6 +144,12 @@ const mainNavigationItems: NavItem[] = [
     url: "/help",
     icon: HelpCircle,
     roles: ["visitor", "guide"],
+  },
+  {
+    title: "Community Hub",
+    url: "/community",
+    icon: Globe,
+    roles: ["admin", "coordinator", "guide", "security", "visitor"],
   },
 ];
 

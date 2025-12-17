@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { SEO } from "@/components/seo";
 
 interface RecurringBooking {
     id: string;
@@ -98,6 +99,10 @@ export default function RecurringBookingsPage() {
 
     return (
         <div className="space-y-6">
+            <SEO
+                title="Recurring Schedules"
+                description="Manage template-based recurring visits for organizations and schools."
+            />
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Recurring Schedules</h1>

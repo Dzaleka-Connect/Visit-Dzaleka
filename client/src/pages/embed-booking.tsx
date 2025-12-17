@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Calendar, Users, CheckCircle } from "lucide-react";
+import { SEO } from "@/components/seo";
 
 interface MeetingPoint {
     id: string;
@@ -110,6 +111,10 @@ export default function EmbedBooking() {
 
     return (
         <div className={`min-h-screen p-4 ${bgClass}`}>
+            <SEO
+                title="Book Your Visit"
+                description="Book a guided tour of Dzaleka Refugee Camp. Experience the vibrant community."
+            />
             <Card className={isDark ? "bg-gray-800 border-gray-700" : ""}>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2" style={{ color: primaryColor }}>

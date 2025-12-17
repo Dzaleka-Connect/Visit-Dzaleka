@@ -58,6 +58,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { User, UserRole } from "@shared/schema";
+import { SEO } from "@/components/seo";
 
 interface UserStats {
   totalUsers: number;
@@ -355,6 +356,10 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
+      <SEO
+        title="User Management"
+        description="Manage user roles and permissions across the system."
+      />
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-semibold tracking-tight">User Management</h1>

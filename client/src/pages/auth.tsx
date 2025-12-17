@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { SEO } from "@/components/seo";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email"),
@@ -150,12 +151,16 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <SEO
+        title="Sign In"
+        description="Sign in to your Visit Dzaleka account to manage tour bookings and access the dashboard."
+      />
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <div className="flex justify-center mb-4">
-            <img 
-              src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" 
-              alt="Dzaleka Digital Heritage Logo" 
+            <img
+              src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png"
+              alt="Dzaleka Digital Heritage Logo"
               className="h-16 w-auto"
             />
           </div>
@@ -527,9 +532,9 @@ export default function AuthPage() {
 
         <p className="text-xs text-muted-foreground text-center mt-6">
           By continuing, you agree to the Visit Dzaleka{" "}
-          <a 
-            href="https://services.dzaleka.com/terms/" 
-            target="_blank" 
+          <a
+            href="https://services.dzaleka.com/terms/"
+            target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline"
             data-testid="link-terms"
@@ -537,9 +542,9 @@ export default function AuthPage() {
             Terms
           </a>{" "}
           and{" "}
-          <a 
-            href="https://services.dzaleka.com/privacy/" 
-            target="_blank" 
+          <a
+            href="https://services.dzaleka.com/privacy/"
+            target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline"
             data-testid="link-privacy"
@@ -550,9 +555,9 @@ export default function AuthPage() {
 
         <p className="text-xs text-muted-foreground text-center mt-4">
           Want to book a visit?{" "}
-          <a 
-            href="https://services.dzaleka.com/visit/" 
-            target="_blank" 
+          <a
+            href="https://services.dzaleka.com/visit/"
+            target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline"
             data-testid="link-book-visit"
@@ -564,11 +569,11 @@ export default function AuthPage() {
         <div className="mt-8 pt-6 border-t border-border/40 text-center">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Code of Practice</h3>
           <p className="text-[10px] text-muted-foreground leading-relaxed px-4">
-            Information technology resources are essential for accomplishing Dzaleka Online Services's mission. 
-            Members and users of the Visit Dzaleka community are granted shared access to these resources on 
-            condition they are used in accordance with the organisation's Information Technology Code of Practice. 
-            This Code of Practice applies irrespective of where the technology resources are accessed and used, 
-            and includes use at home. You can expect sanctions if you act irresponsibly and disregard your 
+            Information technology resources are essential for accomplishing Dzaleka Online Services's mission.
+            Members and users of the Visit Dzaleka community are granted shared access to these resources on
+            condition they are used in accordance with the organisation's Information Technology Code of Practice.
+            This Code of Practice applies irrespective of where the technology resources are accessed and used,
+            and includes use at home. You can expect sanctions if you act irresponsibly and disregard your
             obligations under the <a href="https://services.dzaleka.com/terms/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Terms and Conditions</a>. It is your responsibility to become familiar with the <a href="https://services.dzaleka.com/terms/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Terms and Conditions</a>.
           </p>
         </div>

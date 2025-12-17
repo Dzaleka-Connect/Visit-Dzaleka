@@ -50,6 +50,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatDate, formatTime, formatCurrency } from "@/lib/constants";
 import type { Booking, MeetingPoint, Zone, Guide } from "@shared/schema";
+import { SEO } from "@/components/seo";
 
 interface BookingWithGuide extends Booking {
   guide?: {
@@ -353,6 +354,10 @@ export default function MyBookings() {
 
   return (
     <div className="space-y-6">
+      <SEO
+        title="My Bookings"
+        description="View and manage your tour bookings at Dzaleka Refugee Camp. Request new visits, reschedule, or cancel existing bookings."
+      />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">

@@ -2,6 +2,7 @@ import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Home, RefreshCw } from "lucide-react";
+import { SEO } from "@/components/seo";
 
 interface ServerErrorProps {
   error?: Error;
@@ -21,6 +22,10 @@ export default function ServerError({ error, resetError }: ServerErrorProps) {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-100 p-4">
+      <SEO
+        title="500 - Server Error"
+        description="Something went wrong on our end."
+      />
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 w-16 h-16 rounded-full flex items-center justify-center bg-red-100">
@@ -46,14 +51,14 @@ export default function ServerError({ error, resetError }: ServerErrorProps) {
           )}
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button 
+            <Button
               onClick={handleRetry}
               className="bg-red-600 hover:bg-red-700"
             >
               <RefreshCw className="mr-2 h-4 w-4" />
               Try Again
             </Button>
-            <Button 
+            <Button
               onClick={() => setLocation("/")}
               variant="outline"
             >

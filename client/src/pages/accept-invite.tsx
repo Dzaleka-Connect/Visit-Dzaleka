@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { SEO } from "@/components/seo";
 
 const acceptInviteSchema = z.object({
     firstName: z.string().min(1, "First name is required"),
@@ -155,6 +156,10 @@ export default function AcceptInvite() {
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+            <SEO
+                title="Accept Invitation"
+                description="Complete your registration to join Visit Dzaleka and start managing tours."
+            />
             <Card className="w-full max-w-md">
                 <CardHeader className="text-center">
                     <CardTitle className="text-2xl">Welcome to Visit Dzaleka</CardTitle>

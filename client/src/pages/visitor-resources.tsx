@@ -28,6 +28,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import type { TrainingModule } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { SEO } from "@/components/seo";
 
 export default function VisitorResourcesPage() {
   const { toast } = useToast();
@@ -101,6 +102,10 @@ export default function VisitorResourcesPage() {
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+      <SEO
+        title="Learning Center"
+        description="Essential information and guides for your visit to Dzaleka."
+      />
       <div className="flex flex-col md:flex-row md:items-center justify-between space-y-2">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Learning Center</h2>
@@ -188,7 +193,7 @@ export default function VisitorResourcesPage() {
                       <div className="prose prose-sm max-w-none text-muted-foreground">
                         {module.description}
                       </div>
-                      
+
                       {module.content && (
                         <div className="mt-4 p-4 bg-muted/50 rounded-lg text-sm leading-relaxed whitespace-pre-wrap">
                           {module.content}
@@ -197,7 +202,7 @@ export default function VisitorResourcesPage() {
 
                       {module.externalUrl && (
                         <div className="pt-4 flex items-center gap-2">
-                          <Button asChild variant="link" className="px-0 h-auto">
+                          <Button asChild variant="ghost" className="px-0 h-auto text-primary hover:underline">
                             <a
                               href={module.externalUrl}
                               target="_blank"

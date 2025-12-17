@@ -44,6 +44,7 @@ import {
     Pie,
     Cell,
 } from "recharts";
+import { SEO } from "@/components/seo";
 
 interface PageViewStats {
     totalPageViews: number;
@@ -114,6 +115,10 @@ export default function Analytics() {
 
     return (
         <div className="space-y-4 sm:space-y-6">
+            <SEO
+                title="Website Analytics"
+                description="Track page views, visitor behavior, device usage, and conversion metrics for Visit Dzaleka."
+            />
             {/* Header */}
             <div className="flex flex-col gap-1 sm:gap-2">
                 <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Website Analytics</h1>

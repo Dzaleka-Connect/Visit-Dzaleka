@@ -1,4 +1,6 @@
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
 import { Link } from "wouter";
 import { useState } from "react";
 import {
@@ -55,6 +57,7 @@ import { formatDate, formatTime, formatCurrency } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
 import { WeeklyBookingTrends, PopularZonesChart, GuidePerformanceChart, BookingTimeHeatmap, SeasonalTrendsChart, GuideComparisonChart, RevenueByChannelChart, ReferralSourceChart, ConversionRateChart } from "@/components/dashboard-charts";
 import type { Booking, Guide, Incident } from "@shared/schema";
+import { SEO } from "@/components/seo";
 
 interface DashboardStats {
   totalBookings: number;
@@ -139,7 +142,7 @@ function AdminDashboard() {
 
   const quickConfirmMutation = useMutation({
     mutationFn: async (bookingId: string) => {
-      await apiRequest("PATCH", `/api/bookings/${bookingId}/status`, { status: "confirmed" });
+      await apiRequest("PATCH", `/ api / bookings / ${bookingId}/status`, { status: "confirmed" });
     },
     onSuccess: () => {
       queryClientDashboard.invalidateQueries({ queryKey: ["/api/bookings/recent"] });
@@ -177,6 +180,10 @@ function AdminDashboard() {
 
   return (
     <div className="space-y-6 overflow-x-hidden">
+      <SEO
+        title="Dashboard"
+        description="Manage your Dzaleka tours, bookings, guides, and analytics from your admin dashboard."
+      />
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">
@@ -1322,6 +1329,9 @@ function VisitorDashboard() {
         </p>
       </div>
 
+
+
+
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard
           title="Total Bookings"
@@ -1342,6 +1352,28 @@ function VisitorDashboard() {
           icon={CheckCircle2}
         />
       </div>
+
+      {/* Community Hub Promotion */}
+      <Card className="bg-gradient-to-r from-primary/10 via-primary/5 to-background border-primary/20">
+        <CardContent className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+              <Globe className="h-6 w-6 text-primary" />
+            </div>
+            <div className="space-y-1 text-center sm:text-left">
+              <h3 className="font-semibold text-lg">Dzaleka Online Community</h3>
+              <p className="text-sm text-muted-foreground max-w-lg">
+                Connect with essential services, stay informed on local news, and support the refugee-led initiatives driving economic empowerment and self-reliance in Dzaleka.
+              </p>
+            </div>
+          </div>
+          <Button asChild size="lg" className="shrink-0 w-full sm:w-auto mt-2 sm:mt-0">
+            <Link href="/community">
+              Visit Community Hub <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-4">
@@ -1528,10 +1560,10 @@ function VisitorDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-4">
             <div className="flex items-center gap-2">
-              <CardTitle className="text-lg font-semibold">Past Visits</CardTitle>
-              <Badge variant="secondary">{completedBookings.length}</Badge>
+              <CardTitle className="text-lg font-semibold">Your Travel Memories</CardTitle>
+              <Badge variant="secondary" className="rounded-full">{completedBookings.length}</Badge>
             </div>
-            {completedBookings.length > 3 && (
+            {completedBookings.length > 2 && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -1543,54 +1575,96 @@ function VisitorDashboard() {
             )}
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {(showAllPastVisits ? completedBookings : completedBookings.slice(0, 3)).map((booking) => (
-                <div key={booking.id} className="rounded-lg border p-3 space-y-2">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
-                      <CheckCircle2 className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium">{booking.tourType?.replace("_", " ")} Tour</div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatDate(booking.visitDate)}
+            <div className="space-y-6">
+              {(showAllPastVisits ? completedBookings : completedBookings.slice(0, 2)).map((booking) => (
+                <div key={booking.id} className="group relative overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm transition-all hover:shadow-md">
+                  {/* Decorative Gradient Bar */}
+                  <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-green-500 to-emerald-600"></div>
+
+                  <div className="p-5 pl-7">
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                      {/* Main Info */}
+                      <div className="flex-1 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="font-semibold text-lg tracking-tight">
+                              {booking.tourType?.replace("_", " ")} Tour
+                            </h4>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                              <span className="flex items-center gap-1 bg-muted px-2 py-0.5 rounded-md">
+                                <Calendar className="h-3.5 w-3.5" />
+                                {formatDate(booking.visitDate)}
+                              </span>
+                              <span className="flex items-center gap-1 bg-muted px-2 py-0.5 rounded-md">
+                                <Clock className="h-3.5 w-3.5" />
+                                {formatTime(booking.visitTime)}
+                              </span>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 shrink-0 ml-2">
+                            Completed
+                          </Badge>
+                        </div>
+
                         {booking.assignedGuideId && getGuideName(booking.assignedGuideId) && (
-                          <span className="ml-2">• Guide: {getGuideName(booking.assignedGuideId)}</span>
+                          <div className="flex items-center gap-2 text-sm">
+                            <Avatar className="h-6 w-6 border">
+                              <AvatarFallback className="text-[10px] bg-primary/5 text-primary">
+                                {getGuideName(booking.assignedGuideId)?.charAt(0)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-muted-foreground">
+                              Guided by <span className="font-medium text-foreground">{getGuideName(booking.assignedGuideId)}</span>
+                            </span>
+                          </div>
                         )}
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        Completed
-                      </Badge>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {formatCurrency(booking.totalAmount || 0)}
+
+                      {/* Actions */}
+                      <div className="flex flex-row md:flex-col gap-2 shrink-0 border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-4 mt-2 md:mt-0">
+                        <Button size="sm" variant="outline" className="w-full justify-start gap-2" asChild>
+                          <Link href="/bookings">
+                            <TrendingUp className="h-4 w-4 text-primary" />
+                            Book Again
+                          </Link>
+                        </Button>
+                        <Button size="sm" variant="ghost" className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground">
+                          <Download className="h-4 w-4" />
+                          Receipt
+                        </Button>
                       </div>
                     </div>
+
+                    {/* Rating Section - Enhanced */}
+                    {booking.assignedGuideId && (
+                      <div className="mt-5 pt-4 border-t border-dashed">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                          <div className="text-sm">
+                            <span className="font-medium text-foreground block mb-0.5">How was your experience?</span>
+                            <span className="text-muted-foreground text-xs">Rate your guide and help us improve.</span>
+                          </div>
+                          <div className="flex gap-1.5 p-1.5 bg-muted/30 rounded-full border border-transparent hover:border-border transition-colors">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <button
+                                key={star}
+                                onClick={() => handleRateGuide(booking.id, star)}
+                                disabled={rateGuideMutation.isPending}
+                                className="group/star p-0.5 focus:outline-none"
+                                title={`Rate ${star} stars`}
+                              >
+                                <Star
+                                  className={`h-5 w-5 transition-all duration-200 ${selectedRating?.bookingId === booking.id && star <= selectedRating.rating
+                                    ? "fill-yellow-400 text-yellow-400 scale-110"
+                                    : "text-muted-foreground/40 group-hover/star:text-yellow-400 group-hover/star:fill-yellow-400 group-hover/star:scale-110"
+                                    }`}
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  {/* Rating UI */}
-                  {booking.assignedGuideId && (
-                    <div className="flex items-center gap-2 pt-1 border-t">
-                      <span className="text-xs text-muted-foreground">Rate your guide:</span>
-                      <div className="flex gap-1">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <button
-                            key={star}
-                            onClick={() => handleRateGuide(booking.id, star)}
-                            disabled={rateGuideMutation.isPending}
-                            className="p-1 hover:scale-110 transition-transform disabled:opacity-50"
-                          >
-                            <Star
-                              className={`h-4 w-4 ${(selectedRating?.bookingId === booking.id && star <= selectedRating.rating)
-                                ? "fill-yellow-400 text-yellow-400"
-                                : "text-muted-foreground hover:text-yellow-400 hover:fill-yellow-400"
-                                }`}
-                            />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>

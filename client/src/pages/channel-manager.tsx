@@ -42,6 +42,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertExternalCalendarSchema, type ExternalCalendar } from "@shared/schema";
 import { Loader2, Plus, RefreshCw, Trash2, Calendar, Link } from "lucide-react";
+import { SEO } from "@/components/seo";
 // import { CopyButton } from "@/components/ui/copy-button"; // Removed as it might not exist
 
 export default function ChannelManager() {
@@ -105,6 +106,10 @@ export default function ChannelManager() {
 
     return (
         <div className="container mx-auto p-6 space-y-8">
+            <SEO
+                title="Channel Manager"
+                description="Sync availability with OTA platforms like Airbnb, Booking.com, and Viator."
+            />
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Channel Manager</h1>

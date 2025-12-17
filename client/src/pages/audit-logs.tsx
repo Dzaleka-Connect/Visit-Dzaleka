@@ -51,6 +51,7 @@ import { useToast } from "@/hooks/use-toast";
 import { EmptyState } from "@/components/empty-state";
 import { apiRequest } from "@/lib/queryClient";
 import type { AuditLog } from "@shared/schema";
+import { SEO } from "@/components/seo";
 
 const actionIcons: Record<string, any> = {
     create: UserPlus,
@@ -157,6 +158,10 @@ export default function AuditLogs() {
 
     return (
         <div className="space-y-6">
+            <SEO
+                title="Audit Logs"
+                description="Track all system activities and changes made by users in Visit Dzaleka."
+            />
             <div className="flex flex-col gap-2">
                 <h1 className="text-3xl font-semibold tracking-tight">Audit Logs</h1>
                 <p className="text-muted-foreground">

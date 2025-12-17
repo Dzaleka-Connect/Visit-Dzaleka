@@ -26,6 +26,7 @@ import {
 import { Mail, Edit2, Save, Clock, UserCheck, MessageSquare, Info, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { SEO } from "@/components/seo";
 
 interface EmailTemplate {
     id: string;
@@ -221,6 +222,10 @@ export default function EmailSettings() {
 
     return (
         <div className="space-y-6">
+            <SEO
+                title="Email Templates"
+                description="Customize email messages sent to visitors for bookings, reminders, and feedback."
+            />
             <div className="flex flex-col gap-2">
                 <h1 className="text-3xl font-semibold tracking-tight">Email Templates</h1>
                 <p className="text-muted-foreground">

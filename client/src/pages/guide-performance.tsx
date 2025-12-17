@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TrendingUp, Calendar, DollarSign, Users, Star, CheckCircle, Clock, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/constants";
 import type { Guide, Booking } from "@shared/schema";
+import { SEO } from "@/components/seo";
 
 interface GuideEarnings {
     month: string;
@@ -135,6 +136,10 @@ export default function GuidePerformance() {
 
     return (
         <div className="space-y-6">
+            <SEO
+                title="Guide Performance"
+                description="Track guide earnings, tour completion rates, and availability at Visit Dzaleka."
+            />
             <div className="flex flex-col gap-2">
                 <h1 className="text-3xl font-semibold tracking-tight">Guide Performance</h1>
                 <p className="text-muted-foreground">

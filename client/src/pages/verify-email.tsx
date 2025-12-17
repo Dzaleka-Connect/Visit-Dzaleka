@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Loader2, Mail } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { SEO } from "@/components/seo";
 
 export default function VerifyEmail() {
   const [, setLocation] = useLocation();
@@ -43,6 +44,10 @@ export default function VerifyEmail() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 p-4">
+      <SEO
+        title="Verify Email"
+        description="Verify your Visit Dzaleka account email address."
+      />
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 w-16 h-16 rounded-full flex items-center justify-center bg-green-100">
@@ -70,7 +75,7 @@ export default function VerifyEmail() {
                   You can now sign in to your account.
                 </p>
               </div>
-              <Button 
+              <Button
                 onClick={() => setLocation("/auth")}
                 className="mt-4 bg-green-600 hover:bg-green-700"
               >
@@ -88,7 +93,7 @@ export default function VerifyEmail() {
                   Please contact support if this issue persists.
                 </p>
               </div>
-              <Button 
+              <Button
                 onClick={() => setLocation("/auth")}
                 variant="outline"
                 className="mt-4"
@@ -107,7 +112,7 @@ export default function VerifyEmail() {
                   Please check your email for the verification link.
                 </p>
               </div>
-              <Button 
+              <Button
                 onClick={() => setLocation("/auth")}
                 variant="outline"
                 className="mt-4"

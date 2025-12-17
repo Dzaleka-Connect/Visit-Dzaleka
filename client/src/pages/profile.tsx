@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { supabase } from "@/lib/supabase";
+import { SEO } from "@/components/seo";
 
 export default function Profile() {
   const { toast } = useToast();
@@ -159,6 +160,10 @@ export default function Profile() {
 
   return (
     <div className="space-y-6">
+      <SEO
+        title="My Profile"
+        description="Manage your Visit Dzaleka account settings and personal information."
+      />
       <div>
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">
           My Profile

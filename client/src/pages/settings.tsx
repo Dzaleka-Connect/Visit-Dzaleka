@@ -22,6 +22,7 @@ import { useState } from "react";
 import type { PricingConfig } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { NotificationSender } from "@/components/notification-sender";
+import { SEO } from "@/components/seo";
 
 export default function Settings() {
   const { toast } = useToast();
@@ -126,6 +127,10 @@ export default function Settings() {
 
   return (
     <div className="space-y-6">
+      <SEO
+        title="Settings"
+        description="Manage your account and system settings at Visit Dzaleka."
+      />
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
         <p className="text-muted-foreground">
