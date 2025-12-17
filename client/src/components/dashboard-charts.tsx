@@ -594,7 +594,7 @@ export function RevenueByChannelChart() {
         <CardDescription>Direct vs Third Party earnings breakdown</CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={channelRevenueConfig} className="h-[250px]">
+        <ChartContainer config={channelRevenueConfig} className="h-[250px] aspect-auto w-full">
           <PieChart>
             <ChartTooltip content={<ChartTooltipContent />} />
             <Pie
