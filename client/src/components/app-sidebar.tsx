@@ -24,6 +24,7 @@ import {
   Activity,
   RefreshCw,
   BarChart3,
+  Calendar,
   Code,
   Globe,
 } from "lucide-react";
@@ -86,9 +87,9 @@ const mainNavigationItems: NavItem[] = [
     roles: ["visitor"],
   },
   {
-    title: "Calendar",
+    title: "Schedule",
     url: "/calendar",
-    icon: CalendarDays,
+    icon: Calendar,
     roles: ["admin", "coordinator", "guide"],
   },
   {
@@ -319,9 +320,11 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="border-b border-sidebar-border px-4 py-4">
         <Link href="/" className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <MapPin className="h-5 w-5" />
-          </div>
+          <img
+            src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png"
+            alt="Dzaleka Logo"
+            className="h-9 w-9 rounded-lg object-contain bg-white p-0.5"
+          />
           <div className="flex flex-col">
             <span className="text-sm font-semibold text-sidebar-foreground">
               Visit Dzaleka
@@ -458,26 +461,28 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t border-sidebar-border p-4">
         <div className="flex items-center gap-3">
-          <Avatar className="h-9 w-9">
-            <AvatarImage
-              src={user?.profileImageUrl || undefined}
-              alt={`${user?.firstName || "Admin"}'s avatar`}
-              className="object-cover"
-            />
-            <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-              {getInitials(user?.firstName, user?.lastName)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <span className="truncate text-sm font-medium text-sidebar-foreground">
-              {user?.firstName
-                ? `${user.firstName} ${user.lastName || ""}`.trim()
-                : "Admin User"}
-            </span>
-            <Badge className={`w-fit text-[10px] ${roleColors[userRole]}`} data-testid="user-role-badge">
-              {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
-            </Badge>
-          </div>
+          <Link href="/profile" className="flex flex-1 items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
+            <Avatar className="h-9 w-9">
+              <AvatarImage
+                src={user?.profileImageUrl || undefined}
+                alt={`${user?.firstName || "Admin"}'s avatar`}
+                className="object-cover"
+              />
+              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                {getInitials(user?.firstName, user?.lastName)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex flex-1 flex-col overflow-hidden">
+              <span className="truncate text-sm font-medium text-sidebar-foreground">
+                {user?.firstName
+                  ? `${user.firstName} ${user.lastName || ""}`.trim()
+                  : "Admin User"}
+              </span>
+              <Badge className={`w-fit text-[10px] ${roleColors[userRole]}`} data-testid="user-role-badge">
+                {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
+              </Badge>
+            </div>
+          </Link>
           <Button
             variant="ghost"
             size="icon"

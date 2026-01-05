@@ -60,11 +60,11 @@ interface PageViewStats {
 const chartConfig = {
     views: {
         label: "Page Views",
-        color: "hsl(var(--chart-1))",
+        color: "var(--chart-1)",
     },
     uniqueVisitors: {
         label: "Unique Visitors",
-        color: "hsl(var(--chart-2))",
+        color: "var(--chart-2)",
     },
 } satisfies ChartConfig;
 
@@ -75,11 +75,11 @@ const DEVICE_ICONS: Record<string, any> = {
 };
 
 const COLORS = [
-    "hsl(var(--chart-1))",
-    "hsl(var(--chart-2))",
-    "hsl(var(--chart-3))",
-    "hsl(var(--chart-4))",
-    "hsl(var(--chart-5))",
+    "var(--chart-1)",
+    "var(--chart-2)",
+    "var(--chart-3)",
+    "var(--chart-4)",
+    "var(--chart-5)",
 ];
 
 export default function Analytics() {
@@ -214,18 +214,18 @@ export default function Analytics() {
                                     <Area
                                         type="monotone"
                                         dataKey="views"
-                                        fill="hsl(var(--chart-1))"
+                                        fill="var(--chart-1)"
                                         fillOpacity={0.3}
-                                        stroke="hsl(var(--chart-1))"
+                                        stroke="var(--chart-1)"
                                         strokeWidth={2}
                                         name="Page Views"
                                     />
                                     <Area
                                         type="monotone"
                                         dataKey="uniqueVisitors"
-                                        fill="hsl(var(--chart-2))"
+                                        fill="var(--chart-2)"
                                         fillOpacity={0.3}
-                                        stroke="hsl(var(--chart-2))"
+                                        stroke="var(--chart-2)"
                                         strokeWidth={2}
                                         name="Unique Visitors"
                                     />

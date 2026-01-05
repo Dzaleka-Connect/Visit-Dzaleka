@@ -16,6 +16,7 @@ import ResetPassword from "@/pages/reset-password";
 import VerifyEmail from "@/pages/verify-email";
 import Dashboard from "@/pages/dashboard";
 import Bookings from "@/pages/bookings";
+import BookingDetails from "@/pages/booking-details";
 import MyBookings from "@/pages/my-bookings";
 import Guides from "@/pages/guides";
 import GuideProfile from "@/pages/guide-profile";
@@ -130,6 +131,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/bookings" component={Bookings} />
+        <Route path="/bookings/:id" component={BookingDetails} />
         <Route path="/recurring-bookings" component={RecurringBookingsPage} />
         <Route path="/my-bookings" component={MyBookings} />
         <Route path="/calendar" component={CalendarPage} />

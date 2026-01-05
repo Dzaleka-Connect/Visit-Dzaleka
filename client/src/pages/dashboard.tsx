@@ -192,99 +192,97 @@ function AdminDashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="overflow-x-auto -mx-4 px-4 pb-2 scrollbar-hide">
-        <div className="flex gap-2 sm:gap-3 min-w-max sm:min-w-0 sm:flex-wrap">
-          {user?.role === "admin" && (
-            <>
-              <Link href="/bookings">
-                <Button variant="outline" size="sm" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 h-auto py-2 px-3 sm:py-2 sm:px-3 min-w-[60px] sm:min-w-0">
-                  <Plus className="h-5 w-5 sm:h-4 sm:w-4" />
-                  <span className="text-[10px] sm:text-sm">Booking</span>
-                </Button>
-              </Link>
-              <Link href="/analytics">
-                <Button variant="outline" size="sm" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 h-auto py-2 px-3 sm:py-2 sm:px-3 min-w-[60px] sm:min-w-0">
-                  <BarChart3 className="h-5 w-5 sm:h-4 sm:w-4" />
-                  <span className="text-[10px] sm:text-sm">Analytics</span>
-                </Button>
-              </Link>
-              <Link href="/guides">
-                <Button variant="outline" size="sm" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 h-auto py-2 px-3 sm:py-2 sm:px-3 min-w-[60px] sm:min-w-0">
-                  <UserPlus className="h-5 w-5 sm:h-4 sm:w-4" />
-                  <span className="text-[10px] sm:text-sm">Guides</span>
-                </Button>
-              </Link>
-              <Link href="/send-email">
-                <Button variant="outline" size="sm" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 h-auto py-2 px-3 sm:py-2 sm:px-3 min-w-[60px] sm:min-w-0">
-                  <Mail className="h-5 w-5 sm:h-4 sm:w-4" />
-                  <span className="text-[10px] sm:text-sm">Email</span>
-                </Button>
-              </Link>
-              <Link href="/revenue">
-                <Button variant="outline" size="sm" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 h-auto py-2 px-3 sm:py-2 sm:px-3 min-w-[60px] sm:min-w-0">
-                  <DollarSign className="h-5 w-5 sm:h-4 sm:w-4" />
-                  <span className="text-[10px] sm:text-sm">Revenue</span>
-                </Button>
-              </Link>
-            </>
-          )}
-          {user?.role === "guide" && (
-            <>
-              <Link href="/calendar">
-                <Button variant="outline" size="sm" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 h-auto py-2 px-3 sm:py-2 sm:px-3 min-w-[60px] sm:min-w-0">
-                  <Calendar className="h-5 w-5 sm:h-4 sm:w-4" />
-                  <span className="text-[10px] sm:text-sm">Schedule</span>
-                </Button>
-              </Link>
-              <Link href="/tasks">
-                <Button variant="outline" size="sm" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 h-auto py-2 px-3 sm:py-2 sm:px-3 min-w-[60px] sm:min-w-0">
-                  <ListTodo className="h-5 w-5 sm:h-4 sm:w-4" />
-                  <span className="text-[10px] sm:text-sm">Tasks</span>
-                </Button>
-              </Link>
-              <Link href="/messages">
-                <Button variant="outline" size="sm" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 h-auto py-2 px-3 sm:py-2 sm:px-3 min-w-[60px] sm:min-w-0">
-                  <MessageCircle className="h-5 w-5 sm:h-4 sm:w-4" />
-                  <span className="text-[10px] sm:text-sm">Messages</span>
-                </Button>
-              </Link>
-              <Link href="/guide-training">
-                <Button variant="outline" size="sm" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 h-auto py-2 px-3 sm:py-2 sm:px-3 min-w-[60px] sm:min-w-0">
-                  <BookOpen className="h-5 w-5 sm:h-4 sm:w-4" />
-                  <span className="text-[10px] sm:text-sm">Training</span>
-                </Button>
-              </Link>
-            </>
-          )}
-          {user?.role === "visitor" && (
-            <>
-              <Link href="/bookings">
-                <Button variant="outline" size="sm" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 h-auto py-2 px-3 sm:py-2 sm:px-3 min-w-[60px] sm:min-w-0">
-                  <Ticket className="h-5 w-5 sm:h-4 sm:w-4" />
-                  <span className="text-[10px] sm:text-sm">Book</span>
-                </Button>
-              </Link>
-              <Link href="/my-bookings">
-                <Button variant="outline" size="sm" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 h-auto py-2 px-3 sm:py-2 sm:px-3 min-w-[60px] sm:min-w-0">
-                  <Calendar className="h-5 w-5 sm:h-4 sm:w-4" />
-                  <span className="text-[10px] sm:text-sm">Bookings</span>
-                </Button>
-              </Link>
-              <Link href="/messages">
-                <Button variant="outline" size="sm" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 h-auto py-2 px-3 sm:py-2 sm:px-3 min-w-[60px] sm:min-w-0">
-                  <MessageCircle className="h-5 w-5 sm:h-4 sm:w-4" />
-                  <span className="text-[10px] sm:text-sm">Messages</span>
-                </Button>
-              </Link>
-              <Link href="/resources">
-                <Button variant="outline" size="sm" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 h-auto py-2 px-3 sm:py-2 sm:px-3 min-w-[60px] sm:min-w-0">
-                  <BookOpen className="h-5 w-5 sm:h-4 sm:w-4" />
-                  <span className="text-[10px] sm:text-sm">Resources</span>
-                </Button>
-              </Link>
-            </>
-          )}
-        </div>
+      <div className="flex flex-wrap gap-2">
+        {user?.role === "admin" && (
+          <>
+            <Link href="/bookings">
+              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
+                <Plus className="h-3.5 w-3.5" />
+                <span>Booking</span>
+              </Button>
+            </Link>
+            <Link href="/analytics">
+              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
+                <BarChart3 className="h-3.5 w-3.5" />
+                <span>Analytics</span>
+              </Button>
+            </Link>
+            <Link href="/guides">
+              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
+                <UserPlus className="h-3.5 w-3.5" />
+                <span>Guides</span>
+              </Button>
+            </Link>
+            <Link href="/send-email">
+              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
+                <Mail className="h-3.5 w-3.5" />
+                <span>Email</span>
+              </Button>
+            </Link>
+            <Link href="/revenue">
+              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
+                <DollarSign className="h-3.5 w-3.5" />
+                <span>Revenue</span>
+              </Button>
+            </Link>
+          </>
+        )}
+        {user?.role === "guide" && (
+          <>
+            <Link href="/calendar">
+              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
+                <Calendar className="h-3.5 w-3.5" />
+                <span>Schedule</span>
+              </Button>
+            </Link>
+            <Link href="/tasks">
+              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
+                <ListTodo className="h-3.5 w-3.5" />
+                <span>Tasks</span>
+              </Button>
+            </Link>
+            <Link href="/messages">
+              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
+                <MessageCircle className="h-3.5 w-3.5" />
+                <span>Messages</span>
+              </Button>
+            </Link>
+            <Link href="/guide-training">
+              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
+                <BookOpen className="h-3.5 w-3.5" />
+                <span>Training</span>
+              </Button>
+            </Link>
+          </>
+        )}
+        {user?.role === "visitor" && (
+          <>
+            <Link href="/bookings">
+              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
+                <Ticket className="h-3.5 w-3.5" />
+                <span>Book</span>
+              </Button>
+            </Link>
+            <Link href="/my-bookings">
+              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
+                <Calendar className="h-3.5 w-3.5" />
+                <span>Bookings</span>
+              </Button>
+            </Link>
+            <Link href="/messages">
+              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
+                <MessageCircle className="h-3.5 w-3.5" />
+                <span>Messages</span>
+              </Button>
+            </Link>
+            <Link href="/resources">
+              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
+                <BookOpen className="h-3.5 w-3.5" />
+                <span>Resources</span>
+              </Button>
+            </Link>
+          </>
+        )}
       </div>
 
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
@@ -621,7 +619,7 @@ function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </div >
   );
 }
 

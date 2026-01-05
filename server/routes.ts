@@ -1288,6 +1288,64 @@ export async function registerRoutes(
     }
   });
 
+  // Get single booking by ID
+  app.get("/api/bookings/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const booking = await storage.getBooking(id);
+
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      // Authorization check
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const isVisitor = user.role === "visitor";
+      const isGuide = user.role === "guide";
+      const isAdminOrCoord = ["admin", "coordinator", "security"].includes(user.role || "");
+
+      if (isVisitor && booking.visitorUserId !== user.id && booking.visitorEmail !== user.email) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      if (isGuide) {
+        const guide = await storage.getGuideByUserId(user.id);
+        if (!guide || guide.id !== booking.assignedGuideId) {
+          return res.status(403).json({ message: "Forbidden" });
+        }
+      }
+
+      // If not admin/coord and access not granted above, block (though logic above handles visitor/guide specific checks)
+      // Actually simpler:
+      if (!isAdminOrCoord) {
+        if (isVisitor && booking.visitorUserId !== user.id && booking.visitorEmail !== user.email) {
+          return res.status(403).json({ message: "Forbidden" });
+        }
+        if (isGuide) {
+          const guide = await storage.getGuideByUserId(user.id);
+          if (!guide || guide.id !== booking.assignedGuideId) {
+            return res.status(403).json({ message: "Forbidden" });
+          }
+        }
+      }
+
+      // Fetch guide details if assigned
+      let guide = null;
+      if (booking.assignedGuideId) {
+        guide = await storage.getGuide(booking.assignedGuideId);
+      }
+
+      res.json({ ...booking, guide });
+    } catch (error) {
+      logError("Error fetching booking details", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch booking details" });
+    }
+  });
+
   app.post("/api/bookings", async (req, res) => {
     try {
       const bookingData = insertBookingSchema.parse(req.body);

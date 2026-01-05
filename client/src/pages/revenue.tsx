@@ -111,26 +111,26 @@ interface PayoutSummary {
 const revenueConfig = {
   revenue: {
     label: "Revenue",
-    color: "hsl(var(--chart-1))",
+    color: "var(--chart-1)",
   },
 } satisfies ChartConfig;
 
 const paymentMethodConfig = {
   airtel_money: {
     label: "Airtel Money",
-    color: "hsl(var(--chart-2))",
+    color: "var(--chart-2)",
   },
   tnm_mpamba: {
     label: "TNM Mpamba",
-    color: "hsl(var(--chart-3))",
+    color: "var(--chart-3)",
   },
   cash: {
     label: "Cash",
-    color: "hsl(var(--chart-4))",
+    color: "var(--chart-4)",
   },
   unknown: {
     label: "Unknown",
-    color: "hsl(var(--chart-5))",
+    color: "var(--chart-5)",
   },
 } satisfies ChartConfig;
 

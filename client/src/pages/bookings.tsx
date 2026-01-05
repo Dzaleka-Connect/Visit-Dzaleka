@@ -756,7 +756,7 @@ export default function Bookings() {
                   <CardTitle>Visitor Information</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label className="text-xs text-muted-foreground">Name</Label>
                       <p className="font-medium">{selectedBooking.visitorName}</p>
@@ -785,7 +785,7 @@ export default function Bookings() {
                   <CardTitle>Tour Information</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label className="text-xs text-muted-foreground">Date</Label>
                       <p className="flex items-center gap-2 font-medium">
@@ -952,7 +952,7 @@ export default function Bookings() {
                     <span className="text-muted-foreground">Total Amount</span>
                     <span className="text-xl font-bold">{formatCurrency(selectedBooking.totalAmount || 0)}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label className="text-xs text-muted-foreground">Method</Label>
                       <p className="capitalize font-medium">{(selectedBooking.paymentMethod || "cash").replace("_", " ")}</p>
@@ -986,7 +986,7 @@ export default function Bookings() {
                 <CardContent className="space-y-3">
                   {/* Status-based actions */}
                   {selectedBooking.status === "pending" && (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <Button className="w-full" onClick={() => updateStatusMutation.mutate({ id: selectedBooking.id, status: "confirmed" })}>
                         <CheckCircle className="mr-2 h-4 w-4" /> Confirm
                       </Button>
@@ -1009,7 +1009,7 @@ export default function Bookings() {
                   )}
 
                   {/* Common actions always available */}
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t">
                     <Button variant="outline" className="w-full" onClick={() => handleAssignGuide(selectedBooking)}>
                       <Users className="mr-2 h-4 w-4" /> {selectedBooking.guide ? "Change Guide" : "Assign Guide"}
                     </Button>
@@ -1077,10 +1077,10 @@ export default function Bookings() {
                   data-testid="input-search-bookings"
                 />
               </div>
-              <div className="flex flex-wrap gap-2 items-center">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-44" data-testid="select-status-filter">
+                    <Button variant="outline" className="w-full sm:w-44" data-testid="select-status-filter">
                       <Filter className="mr-2 h-4 w-4" />
                       {statusFilters.length === 0
                         ? "All Status"
@@ -1125,33 +1125,35 @@ export default function Bookings() {
                     </div>
                   </PopoverContent>
                 </Popover>
-                <Input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-36"
-                  placeholder="From"
-                  data-testid="input-date-from"
-                />
-                <span className="text-muted-foreground">to</span>
-                <Input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-36"
-                  placeholder="To"
-                  data-testid="input-date-to"
-                />
-                {(dateFrom || dateTo) && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => { setDateFrom(""); setDateTo(""); }}
-                    title="Clear dates"
-                  >
-                    <XCircle className="h-4 w-4" />
-                  </Button>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="w-full sm:w-36"
+                    placeholder="From"
+                    data-testid="input-date-from"
+                  />
+                  <span className="text-muted-foreground hidden sm:inline">to</span>
+                  <Input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="w-full sm:w-36"
+                    placeholder="To"
+                    data-testid="input-date-to"
+                  />
+                  {(dateFrom || dateTo) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { setDateFrom(""); setDateTo(""); }}
+                      title="Clear dates"
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -1609,7 +1611,7 @@ export default function Bookings() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="visitor-name">Visitor Name *</Label>
                 <Input
@@ -1642,7 +1644,7 @@ export default function Bookings() {
                 data-testid="input-new-visitor-email"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="visit-date">Visit Date *</Label>
                 <Input
@@ -1664,7 +1666,7 @@ export default function Bookings() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Group Size *</Label>
                 <Select
@@ -1696,7 +1698,7 @@ export default function Bookings() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Tour Type *</Label>
                 <Select
@@ -1812,7 +1814,7 @@ export default function Bookings() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             {/* Row 1: Name & Email */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="hist-name">Visitor Name *</Label>
                 <Input
@@ -1835,7 +1837,7 @@ export default function Bookings() {
             </div>
 
             {/* Row 2: Phone & Date/Time */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="hist-phone">Phone</Label>
                 <Input
@@ -1867,7 +1869,7 @@ export default function Bookings() {
             </div>
 
             {/* Row 3: Tour Type & Group Size & Number */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="hist-tour">Tour Type</Label>
                 <Select
@@ -1913,7 +1915,7 @@ export default function Bookings() {
             </div>
 
             {/* Row 4: Meeting Point & Guide */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="hist-meeting">Meeting Point</Label>
                 <Select
@@ -1955,7 +1957,7 @@ export default function Bookings() {
             </div>
 
             {/* Row 5: Payment Method, Status & Amount */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="hist-payment-method">Payment Method</Label>
                 <Select
@@ -2004,7 +2006,7 @@ export default function Bookings() {
             {zones && zones.length > 0 && (
               <div className="space-y-2">
                 <Label>Visited Zones</Label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {zones.map((zone) => (
                     <div key={zone.id} className="flex items-center gap-2">
                       <Checkbox

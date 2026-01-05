@@ -161,7 +161,7 @@ export default function AuthPage() {
             <img
               src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png"
               alt="Dzaleka Digital Heritage Logo"
-              className="h-16 w-auto"
+              className="h-16 w-auto mix-blend-multiply dark:mix-blend-normal dark:invert dark:brightness-0 dark:contrast-200"
             />
           </div>
           <h1 className="text-3xl font-bold text-foreground">Visit Dzaleka</h1>

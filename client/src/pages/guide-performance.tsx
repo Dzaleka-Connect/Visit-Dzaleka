@@ -37,7 +37,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 const monthlyEarningsConfig = {
     earnings: {
         label: "Earnings",
-        color: "hsl(var(--chart-1))",
+        color: "var(--chart-1)",
     },
 } satisfies ChartConfig;
 

@@ -24,11 +24,11 @@ interface GuidePerformance {
 const weeklyChartConfig = {
   bookings: {
     label: "Bookings",
-    color: "hsl(var(--chart-1))",
+    color: "var(--chart-1)",
   },
   revenue: {
     label: "Revenue",
-    color: "hsl(var(--chart-2))",
+    color: "var(--chart-2)",
   },
 } satisfies ChartConfig;
 
@@ -132,7 +132,7 @@ export function PopularZonesChart() {
   // Assign colors dynamically for the pie chart config
   const chartData = (data || []).slice(0, 5).map((item, index) => ({
     ...item,
-    fill: `hsl(var(--chart-${(index % 5) + 1}))`
+    fill: `var(--chart-${(index % 5) + 1})`
   }));
 
   const dynamicConfig = {
@@ -177,7 +177,7 @@ export function PopularZonesChart() {
 const guidePerformanceConfig = {
   tours: {
     label: "Tours",
-    color: "hsl(var(--chart-2))",
+    color: "var(--chart-2)",
   },
 } satisfies ChartConfig;
 
@@ -254,7 +254,7 @@ interface HeatmapData {
 const heatmapConfig = {
   value: {
     label: "Bookings",
-    color: "hsl(var(--chart-1))",
+    color: "var(--chart-1)",
   },
 } satisfies ChartConfig;
 
@@ -348,7 +348,7 @@ export function BookingTimeHeatmap() {
                 {chartData.map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
-                    fill={`hsl(var(--chart-1))`}
+                    fill={`var(--chart-1)`}
                     fillOpacity={0.2 + (Math.min(entry.value, 15) / 15) * 0.8}
                   />
                 ))}
@@ -370,11 +370,11 @@ interface MonthlyTrendData {
 const seasonalConfig = {
   bookings: {
     label: "Bookings",
-    color: "hsl(var(--chart-1))",
+    color: "var(--chart-1)",
   },
   revenue: {
     label: "Revenue",
-    color: "hsl(var(--chart-2))",
+    color: "var(--chart-2)",
   },
 } satisfies ChartConfig;
 
@@ -450,11 +450,11 @@ export function SeasonalTrendsChart() {
 const guideComparisonConfig = {
   rating: {
     label: "Rating",
-    color: "hsl(var(--chart-3))",
+    color: "var(--chart-3)",
   },
   tours: {
     label: "Tours",
-    color: "hsl(var(--chart-4))",
+    color: "var(--chart-4)",
   }
 } satisfies ChartConfig;
 
@@ -521,7 +521,7 @@ export function GuideComparisonChart() {
               {/* @ts-ignore */}
               <Scatter name="Guides" data={chartData} fill="var(--color-tours)">
                 {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={`hsl(var(--chart-${(index % 5) + 1}))`} />
+                  <Cell key={`cell-${index}`} fill={`var(--chart-${(index % 5) + 1})`} />
                 ))}
               </Scatter>
             </ScatterChart>
@@ -542,7 +542,7 @@ interface ChannelRevenueData {
 const channelRevenueConfig = {
   revenue: {
     label: "Revenue",
-    color: "hsl(var(--chart-1))",
+    color: "var(--chart-1)",
   },
 } satisfies ChartConfig;
 
@@ -585,7 +585,7 @@ export function RevenueByChannelChart() {
     channelData.push({ channel: key, ...value });
   });
 
-  const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))"];
+  const COLORS = ["var(--chart-1)", "var(--chart-2)"];
 
   return (
     <Card>
@@ -638,7 +638,7 @@ interface ReferralData {
 const referralConfig = {
   count: {
     label: "Bookings",
-    color: "hsl(var(--chart-3))",
+    color: "var(--chart-3)",
   },
 } satisfies ChartConfig;
 
@@ -683,11 +683,11 @@ export function ReferralSourceChart() {
   referralData.sort((a, b) => b.count - a.count);
 
   const COLORS = [
-    "hsl(var(--chart-1))",
-    "hsl(var(--chart-2))",
-    "hsl(var(--chart-3))",
-    "hsl(var(--chart-4))",
-    "hsl(var(--chart-5))",
+    "var(--chart-1)",
+    "var(--chart-2)",
+    "var(--chart-3)",
+    "var(--chart-4)",
+    "var(--chart-5)",
   ];
 
   return (
@@ -714,7 +714,7 @@ export function ReferralSourceChart() {
             />
             <Bar
               dataKey="count"
-              fill="hsl(var(--chart-3))"
+              fill="var(--chart-3)"
               radius={[0, 4, 4, 0]}
             >
               {referralData.map((entry, index) => (
@@ -739,15 +739,15 @@ interface ConversionData {
 const conversionConfig = {
   visitors: {
     label: "Visitors",
-    color: "hsl(var(--chart-1))",
+    color: "var(--chart-1)",
   },
   bookings: {
     label: "Bookings",
-    color: "hsl(var(--chart-2))",
+    color: "var(--chart-2)",
   },
   rate: {
     label: "Conversion Rate",
-    color: "hsl(var(--chart-3))",
+    color: "var(--chart-3)",
   },
 } satisfies ChartConfig;
 
@@ -816,18 +816,18 @@ export function ConversionRateChart() {
               yAxisId="left"
               type="monotone"
               dataKey="visitors"
-              fill="hsl(var(--chart-1))"
+              fill="var(--chart-1)"
               fillOpacity={0.3}
-              stroke="hsl(var(--chart-1))"
+              stroke="var(--chart-1)"
               name="Visitors"
             />
             <Area
               yAxisId="left"
               type="monotone"
               dataKey="bookings"
-              fill="hsl(var(--chart-2))"
+              fill="var(--chart-2)"
               fillOpacity={0.3}
-              stroke="hsl(var(--chart-2))"
+              stroke="var(--chart-2)"
               name="Bookings"
             />
           </AreaChart>
@@ -865,11 +865,11 @@ interface PageViewStats {
 const pageViewsConfig = {
   views: {
     label: "Page Views",
-    color: "hsl(var(--chart-1))",
+    color: "var(--chart-1)",
   },
   uniqueVisitors: {
     label: "Unique Visitors",
-    color: "hsl(var(--chart-2))",
+    color: "var(--chart-2)",
   },
 } satisfies ChartConfig;
 
@@ -932,9 +932,9 @@ export function PageViewsChart() {
             <Area
               type="monotone"
               dataKey="views"
-              fill="hsl(var(--chart-1))"
+              fill="var(--chart-1)"
               fillOpacity={0.3}
-              stroke="hsl(var(--chart-1))"
+              stroke="var(--chart-1)"
               name="Views"
             />
           </AreaChart>
