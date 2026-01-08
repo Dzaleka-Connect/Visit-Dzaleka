@@ -85,16 +85,7 @@ import {
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { cache, CACHE_TTL, CACHE_KEYS } from "./utils/cache";
-import fs from "fs";
-import path from "path";
 
-const DATA_DIR = path.join(process.cwd(), "server", "data");
-const ANALYTICS_FILE = path.join(DATA_DIR, "analytics.json");
-
-// Ensure data directory exists
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
 
 // Generate booking reference (e.g., DVS-2024-ABC123)
 function generateBookingReference(): string {
@@ -2939,48 +2930,29 @@ export class SupabaseStorage implements IStorage {
     })).sort((a, b) => a.date.localeCompare(b.date));
   }
 
-  // Analytics Settings (File-based)
+  // Analytics Settings (Database)
   async getAnalyticsSettings(): Promise<AnalyticsSetting | undefined> {
-    try {
-      if (!fs.existsSync(ANALYTICS_FILE)) {
-        return undefined;
-      }
-      const raw = fs.readFileSync(ANALYTICS_FILE, "utf-8");
-      const data = JSON.parse(raw);
-      if (data.updatedAt) {
-        data.updatedAt = new Date(data.updatedAt);
-      }
-      return data as AnalyticsSetting;
-    } catch (error) {
-      console.error("Error reading analytics settings file:", error);
-      return undefined;
-    }
+    const { data, error } = await this.supabase.from("analytics_settings").select("*").limit(1).single();
+    if (error && error.code === 'PGRST116') return undefined;
+    return this.handleOptionalResponse(data, error);
   }
 
   async updateAnalyticsSettings(settings: InsertAnalyticsSetting): Promise<AnalyticsSetting> {
     const current = await this.getAnalyticsSettings();
-    const now = new Date();
+    const snakeData = transformToSnake(settings);
 
-    // Merge with existing or default
-    const updated: AnalyticsSetting = {
-      id: current?.id || crypto.randomUUID(),
-      ga4MeasurementId: settings.ga4MeasurementId || null,
-      googleAdsConversionId: settings.googleAdsConversionId || null,
-      googleAdsConversionLabel: settings.googleAdsConversionLabel || null,
-      facebookPixelId: settings.facebookPixelId || null,
-      customHtml: settings.customHtml || null,
-      isEnabled: settings.isEnabled ?? true,
-      updatedAt: now,
-    };
-
-    try {
-      fs.writeFileSync(ANALYTICS_FILE, JSON.stringify(updated, null, 2));
-    } catch (error) {
-      console.error("Error writing analytics settings file:", error);
-      throw new Error("Failed to save settings to file");
+    // Ensure we update the existing record if it exists
+    if (current) {
+      snakeData.id = current.id;
     }
 
-    return updated;
+    const { data, error } = await this.supabase
+      .from("analytics_settings")
+      .upsert({ ...snakeData, updated_at: new Date() })
+      .select()
+      .single();
+
+    return this.handleResponse(data, error);
   }
 
   // Itinerary operations
