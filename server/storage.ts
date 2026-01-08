@@ -75,10 +75,26 @@ import {
   type InsertExternalCalendar,
   type ApiKey,
   type InsertApiKey,
+  type AnalyticsSetting,
+  type InsertAnalyticsSetting,
+  type Itinerary,
+  type InsertItinerary,
+  type BlogPost,
+  type InsertBlogPost,
 } from "@shared/schema";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { cache, CACHE_TTL, CACHE_KEYS } from "./utils/cache";
+import fs from "fs";
+import path from "path";
+
+const DATA_DIR = path.join(process.cwd(), "server", "data");
+const ANALYTICS_FILE = path.join(DATA_DIR, "analytics.json");
+
+// Ensure data directory exists
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
 
 // Generate booking reference (e.g., DVS-2024-ABC123)
 function generateBookingReference(): string {
@@ -244,6 +260,15 @@ export interface IStorage {
 
   // Email Log operations
   getEmailLogs(): Promise<EmailLog[]>;
+  createEmailLog(log: InsertEmailLog): Promise<EmailLog>;
+
+  // Blog operations
+  getBlogPosts(publishedOnly?: boolean): Promise<BlogPost[]>;
+  getBlogPostBySlug(slug: string): Promise<BlogPost | undefined>;
+  getBlogPost(id: string): Promise<BlogPost | undefined>;
+  createBlogPost(post: InsertBlogPost): Promise<BlogPost>;
+  updateBlogPost(id: string, post: Partial<InsertBlogPost>): Promise<BlogPost | undefined>;
+  deleteBlogPost(id: string): Promise<void>;
   getEmailLog(id: string): Promise<EmailLog | undefined>;
   createEmailLog(log: InsertEmailLog): Promise<EmailLog>;
   updateEmailLogStatus(id: string, status: string): Promise<EmailLog | undefined>;
@@ -309,6 +334,13 @@ export interface IStorage {
     byRole: Record<string, number>;
     recentActivity: { action: string; userId: string; userName: string; timestamp: Date }[];
   }>;
+
+  // Reporting
+  getEmailStats(startDate: Date, endDate: Date): Promise<any[]>;
+
+  // Analytics Settings
+  getAnalyticsSettings(): Promise<AnalyticsSetting | undefined>;
+  updateAnalyticsSettings(settings: InsertAnalyticsSetting): Promise<AnalyticsSetting>;
 
   // Notification operations
   getNotifications(userId: string, limit?: number): Promise<Notification[]>;
@@ -403,6 +435,11 @@ export interface IStorage {
   createApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
   revokeApiKey(id: string): Promise<ApiKey | undefined>;
   incrementApiKeyUsage(id: string): Promise<void>;
+
+  // Itinerary operations
+  createItinerary(itinerary: InsertItinerary): Promise<Itinerary>;
+  getItineraryByBookingId(bookingId: string): Promise<Itinerary | undefined>;
+  getItinerariesByUser(userId: string): Promise<Itinerary[]>;
 }
 
 export class SupabaseStorage implements IStorage {
@@ -1193,27 +1230,37 @@ export class SupabaseStorage implements IStorage {
   }
 
   async getEmailLog(id: string): Promise<EmailLog | undefined> {
-    const { data, error } = await this.supabase.from("email_logs").select("*").eq("id", id).single();
-    if (error && error.code === 'PGRST116') return undefined;
-    return this.handleOptionalResponse(data, error);
+    const { data, error } = await this.supabase
+      .from("email_logs")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    return this.handleResponse(data, error);
   }
 
   async createEmailLog(log: InsertEmailLog): Promise<EmailLog> {
-    const snakeData = transformToSnake(log);
-    const { data, error } = await this.supabase.from("email_logs").insert(snakeData).select().single();
+    const { data, error } = await this.supabase
+      .from("email_logs")
+      .insert(log)
+      .select()
+      .single();
+
     return this.handleResponse(data, error);
   }
 
   async updateEmailLogStatus(id: string, status: string): Promise<EmailLog | undefined> {
     const { data, error } = await this.supabase
       .from("email_logs")
-      .update({ status })
+      .update({ status, updated_at: new Date().toISOString() })
       .eq("id", id)
       .select()
       .single();
-    if (error && error.code === 'PGRST116') return undefined;
-    return this.handleOptionalResponse(data, error);
+
+    return this.handleResponse(data, error);
   }
+
+
 
   async archiveEmailLog(id: string): Promise<EmailLog | undefined> {
     const { data, error } = await this.supabase
@@ -2860,12 +2907,193 @@ export class SupabaseStorage implements IStorage {
   async incrementApiKeyUsage(id: string): Promise<void> {
     // Use RPC or raw SQL for atomic increment
     await this.supabase.rpc("increment_api_key_usage", { key_id: id });
-    // Fallback: simple update if RPC doesn't exist
-    // const { data } = await this.supabase.from("api_keys").select("request_count").eq("id", id).single();
-    // await this.supabase.from("api_keys").update({ 
-    //   request_count: (data?.request_count || 0) + 1,
-    //   last_used_at: new Date().toISOString()
-    // }).eq("id", id);
+  }
+  // Reporting
+  async getEmailStats(startDate: Date, endDate: Date): Promise<any[]> {
+    const { data, error } = await this.supabase
+      .from("email_logs")
+      .select("created_at, status")
+      .gte("created_at", startDate.toISOString())
+      .lte("created_at", endDate.toISOString());
+
+    if (error) {
+      console.error("Error fetching email stats:", error);
+      return [];
+    }
+
+    // Client-side aggregation (since simple SQL group by is harder with standardized select)
+    const stats = new Map<string, { total: number, delivered: number, failed: number }>();
+
+    data.forEach(log => {
+      const date = new Date(log.created_at).toISOString().split('T')[0];
+      const current = stats.get(date) || { total: 0, delivered: 0, failed: 0 };
+      current.total++;
+      if (log.status === 'sent' || log.status === 'delivered') current.delivered++;
+      else if (log.status === 'failed') current.failed++;
+      stats.set(date, current);
+    });
+
+    return Array.from(stats.entries()).map(([date, counts]) => ({
+      date,
+      ...counts
+    })).sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  // Analytics Settings (File-based)
+  async getAnalyticsSettings(): Promise<AnalyticsSetting | undefined> {
+    try {
+      if (!fs.existsSync(ANALYTICS_FILE)) {
+        return undefined;
+      }
+      const raw = fs.readFileSync(ANALYTICS_FILE, "utf-8");
+      const data = JSON.parse(raw);
+      if (data.updatedAt) {
+        data.updatedAt = new Date(data.updatedAt);
+      }
+      return data as AnalyticsSetting;
+    } catch (error) {
+      console.error("Error reading analytics settings file:", error);
+      return undefined;
+    }
+  }
+
+  async updateAnalyticsSettings(settings: InsertAnalyticsSetting): Promise<AnalyticsSetting> {
+    const current = await this.getAnalyticsSettings();
+    const now = new Date();
+
+    // Merge with existing or default
+    const updated: AnalyticsSetting = {
+      id: current?.id || crypto.randomUUID(),
+      ga4MeasurementId: settings.ga4MeasurementId || null,
+      googleAdsConversionId: settings.googleAdsConversionId || null,
+      googleAdsConversionLabel: settings.googleAdsConversionLabel || null,
+      facebookPixelId: settings.facebookPixelId || null,
+      customHtml: settings.customHtml || null,
+      isEnabled: settings.isEnabled ?? true,
+      updatedAt: now,
+    };
+
+    try {
+      fs.writeFileSync(ANALYTICS_FILE, JSON.stringify(updated, null, 2));
+    } catch (error) {
+      console.error("Error writing analytics settings file:", error);
+      throw new Error("Failed to save settings to file");
+    }
+
+    return updated;
+  }
+
+  // Itinerary operations
+  async createItinerary(itinerary: InsertItinerary): Promise<Itinerary> {
+    const snakeData = transformToSnake(itinerary);
+    // Since content is jsonb, we might need to stringify it if supabase client needs it,
+    // but usually keys are camelCased. We used transformToSnake.
+    // However, content matches DB column 'content'.
+    const { data, error } = await this.supabase
+      .from("itineraries")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async getItineraryByBookingId(bookingId: string): Promise<Itinerary | undefined> {
+    const { data, error } = await this.supabase
+      .from("itineraries")
+      .select("*")
+      .eq("booking_id", bookingId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    if (error && error.code === 'PGRST116') return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async getItinerariesByUser(userId: string): Promise<Itinerary[]> {
+    const user = await this.getUser(userId);
+    if (!user) return [];
+
+    const { data: bookings } = await this.supabase
+      .from("bookings")
+      .select("id")
+      .or(`visitor_user_id.eq.${userId},visitor_email.eq.${user.email}`);
+
+    if (!bookings || bookings.length === 0) return [];
+
+    const bookingIds = bookings.map(b => b.id);
+
+    const { data, error } = await this.supabase
+      .from("itineraries")
+      .select("*")
+      .in("booking_id", bookingIds);
+
+    return this.handleResponse(data, error);
+  }
+  // Blog Implementations
+  async getBlogPosts(publishedOnly?: boolean): Promise<BlogPost[]> {
+    let query = this.supabase
+      .from("blog_posts")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (publishedOnly) {
+      query = query.eq("published", true);
+    }
+
+    const { data, error } = await query;
+    return this.handleResponse(data, error);
+  }
+
+  async getBlogPostBySlug(slug: string): Promise<BlogPost | undefined> {
+    const { data, error } = await this.supabase
+      .from("blog_posts")
+      .select("*")
+      .eq("slug", slug)
+      .single();
+    if (error && error.code === 'PGRST116') return undefined; // Should handle this consistently
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async getBlogPost(id: string): Promise<BlogPost | undefined> {
+    const { data, error } = await this.supabase
+      .from("blog_posts")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error && error.code === 'PGRST116') return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createBlogPost(post: InsertBlogPost): Promise<BlogPost> {
+    const snakeData = transformToSnake(post);
+    const { data, error } = await this.supabase
+      .from("blog_posts")
+      .insert(snakeData)
+      .select()
+      .single();
+
+    return this.handleResponse(data, error);
+  }
+
+  async updateBlogPost(id: string, post: Partial<InsertBlogPost>): Promise<BlogPost | undefined> {
+    const snakeData = transformToSnake({ ...post, updatedAt: new Date().toISOString() });
+    const { data, error } = await this.supabase
+      .from("blog_posts")
+      .update(snakeData)
+      .eq("id", id)
+      .select()
+      .single();
+    if (error && error.code === 'PGRST116') return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async deleteBlogPost(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("blog_posts")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
   }
 }
 

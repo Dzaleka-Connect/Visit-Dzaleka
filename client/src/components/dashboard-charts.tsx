@@ -245,7 +245,7 @@ export function GuidePerformanceChart() {
   );
 }
 
-interface HeatmapData {
+export interface HeatmapData {
   day: string;
   hour: number;
   value: number;
@@ -260,12 +260,13 @@ const heatmapConfig = {
 
 // Heatmap still requires some manual work as ScatterChart isn't fully standardized in the same way for color mapping by value
 // But we can still wrap it in ChartContainer for tooltips
-export function BookingTimeHeatmap() {
-  const { data, isLoading } = useQuery<HeatmapData[]>({
+export function BookingTimeHeatmap({ customData }: { customData?: HeatmapData[] }) {
+  const { data: fetchedData, isLoading } = useQuery<HeatmapData[]>({
     queryKey: ["/api/stats/heatmap"],
+    enabled: !customData,
   });
 
-  if (isLoading) {
+  if (isLoading && !customData) {
     return (
       <Card>
         <CardHeader>
@@ -278,6 +279,8 @@ export function BookingTimeHeatmap() {
       </Card>
     );
   }
+
+  const data = customData || fetchedData || [];
 
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const chartData = (data || []).map(d => ({
@@ -361,7 +364,7 @@ export function BookingTimeHeatmap() {
   );
 }
 
-interface MonthlyTrendData {
+export interface MonthlyTrendData {
   month: string;
   bookings: number;
   revenue: number;
@@ -378,12 +381,13 @@ const seasonalConfig = {
   },
 } satisfies ChartConfig;
 
-export function SeasonalTrendsChart() {
-  const { data, isLoading } = useQuery<MonthlyTrendData[]>({
+export function SeasonalTrendsChart({ customData }: { customData?: MonthlyTrendData[] }) {
+  const { data: fetchedData, isLoading } = useQuery<MonthlyTrendData[]>({
     queryKey: ["/api/stats/seasonal"],
+    enabled: !customData,
   });
 
-  if (isLoading) {
+  if (isLoading && !customData) {
     return (
       <Card>
         <CardHeader>
@@ -397,7 +401,7 @@ export function SeasonalTrendsChart() {
     );
   }
 
-  const chartData = data || [];
+  const chartData = customData || fetchedData || [];
 
   return (
     <Card>
@@ -951,6 +955,458 @@ export function PageViewsChart() {
               </div>
             ))}
           </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ===== NEW: Status Breakdown Chart (Cancellations, etc.) =====
+export interface StatusBreakdownData {
+  total: number;
+  breakdown: { status: string; count: number; percentage: number }[];
+  cancellationRate: number;
+  completionRate: number;
+}
+
+const statusBreakdownConfig = {
+  count: {
+    label: "Bookings",
+  },
+} satisfies ChartConfig;
+
+const STATUS_COLORS: Record<string, string> = {
+  pending: "var(--chart-3)",
+  confirmed: "var(--chart-1)",
+  completed: "var(--chart-2)",
+  cancelled: "var(--chart-5)",
+  no_show: "var(--chart-4)",
+};
+
+export function StatusBreakdownChart({ customData }: { customData?: StatusBreakdownData }) {
+  const { data: fetchedData, isLoading } = useQuery<StatusBreakdownData>({
+    queryKey: ["/api/stats/status-breakdown"],
+    enabled: !customData,
+  });
+
+  const data = customData || fetchedData;
+
+  if (isLoading && !customData) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Booking Status</CardTitle>
+          <CardDescription>Status breakdown & cancellation rate</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const chartData = data?.breakdown || [];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Booking Status</CardTitle>
+        <CardDescription>
+          {data?.total || 0} total bookings | {data?.cancellationRate || 0}% cancelled
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="h-48 w-full">
+          <ChartContainer config={statusBreakdownConfig} className="h-full w-full aspect-auto">
+            <PieChart>
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Pie
+                data={chartData}
+                dataKey="count"
+                nameKey="status"
+                cx="50%"
+                cy="50%"
+                innerRadius={40}
+                outerRadius={70}
+                paddingAngle={2}
+                label={({ status, percentage }) => `${status} (${percentage}%)`}
+              >
+                {chartData.map((entry) => (
+                  <Cell key={entry.status} fill={STATUS_COLORS[entry.status] || "var(--chart-1)"} />
+                ))}
+              </Pie>
+            </PieChart>
+          </ChartContainer>
+        </div>
+        <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t">
+          <div className="text-center">
+            <p className="text-2xl font-bold text-green-600">{data?.completionRate || 0}%</p>
+            <p className="text-xs text-muted-foreground">Completion Rate</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-red-600">{data?.cancellationRate || 0}%</p>
+            <p className="text-xs text-muted-foreground">Cancellation Rate</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ===== NEW: POI/Zone Frequency Chart =====
+export interface POIFrequencyData {
+  zones: { id: string; name: string; count: number; percentage: number }[];
+  pointsOfInterest: { id: string; name: string; count: number; percentage: number }[];
+  bookingsWithZones: number;
+  bookingsWithPois: number;
+  totalBookings: number;
+}
+
+const poiFrequencyConfig = {
+  count: {
+    label: "Times Selected",
+    color: "var(--chart-2)",
+  },
+} satisfies ChartConfig;
+
+export function POIFrequencyChart({ customData }: { customData?: POIFrequencyData }) {
+  const { data: fetchedData, isLoading } = useQuery<POIFrequencyData>({
+    queryKey: ["/api/stats/poi-frequency"],
+    enabled: !customData,
+  });
+
+  const data = customData || fetchedData;
+
+  if (isLoading && !customData) {
+    return (
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <CardTitle className="text-lg">Zone & POI Selection</CardTitle>
+          <CardDescription>How often each option is selected</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const zoneData = (data?.zones || []).slice(0, 8);
+  const poiData = (data?.pointsOfInterest || []).slice(0, 8);
+
+  return (
+    <Card className="lg:col-span-2">
+      <CardHeader>
+        <CardTitle className="text-lg">Zone & POI Selection Frequency</CardTitle>
+        <CardDescription>
+          {data?.bookingsWithZones || 0} bookings with zones selected,{" "}
+          {data?.bookingsWithPois || 0} with POIs
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Zones Chart */}
+          <div>
+            <p className="text-sm font-medium mb-2">Camp Zones</p>
+            <ChartContainer config={poiFrequencyConfig} className="h-48">
+              <BarChart data={zoneData} layout="vertical" margin={{ left: 0, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                <XAxis type="number" tick={{ fontSize: 10 }} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={80}
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={(v) => v.length > 12 ? v.slice(0, 12) + "..." : v}
+                />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="count" fill="var(--chart-1)" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ChartContainer>
+          </div>
+          {/* POIs Chart */}
+          <div>
+            <p className="text-sm font-medium mb-2">Points of Interest</p>
+            <ChartContainer config={poiFrequencyConfig} className="h-48">
+              <BarChart data={poiData} layout="vertical" margin={{ left: 0, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                <XAxis type="number" tick={{ fontSize: 10 }} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={80}
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={(v) => v.length > 12 ? v.slice(0, 12) + "..." : v}
+                />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="count" fill="var(--chart-2)" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ChartContainer>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ===== NEW: Guide Utilization Chart =====
+export interface GuideUtilizationData {
+  guides: {
+    id: string;
+    name: string;
+    assignedTours: number;
+    completedTours: number;
+    cancelledTours: number;
+    completionRate: number;
+    isActive: boolean;
+  }[];
+  summary: {
+    totalGuides: number;
+    activeGuides: number;
+    totalAssignedTours: number;
+    averageToursPerGuide: number;
+  };
+}
+
+const guideUtilizationConfig = {
+  assignedTours: {
+    label: "Assigned",
+    color: "var(--chart-1)",
+  },
+  completedTours: {
+    label: "Completed",
+    color: "var(--chart-2)",
+  },
+} satisfies ChartConfig;
+
+export function GuideUtilizationChart({ customData }: { customData?: GuideUtilizationData }) {
+  const { data: fetchedData, isLoading } = useQuery<GuideUtilizationData>({
+    queryKey: ["/api/stats/guide-utilization"],
+    enabled: !customData,
+  });
+
+  const data = customData || fetchedData;
+
+  if (isLoading && !customData) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Guide Utilization</CardTitle>
+          <CardDescription>Tours assigned vs completed per guide</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const guideData = (data?.guides || []).slice(0, 6);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Guide Utilization</CardTitle>
+        <CardDescription>
+          {data?.summary?.activeGuides || 0} active guides |{" "}
+          {data?.summary?.averageToursPerGuide || 0} avg tours/guide
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="h-56">
+          <ChartContainer config={guideUtilizationConfig} className="h-full w-full">
+            <BarChart data={guideData} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                dataKey="name"
+                tick={{ fontSize: 10 }}
+                tickFormatter={(v) => v.split(" ")[0]}
+                interval={0}
+                angle={-45}
+                textAnchor="end"
+                height={50}
+              />
+              <YAxis tick={{ fontSize: 10 }} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartLegend content={<ChartLegendContent />} />
+              <Bar dataKey="assignedTours" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="completedTours" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ChartContainer>
+        </div>
+        <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t">
+          <div className="text-center">
+            <p className="text-2xl font-bold">{data?.summary?.totalAssignedTours || 0}</p>
+            <p className="text-xs text-muted-foreground">Total Tours Assigned</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold">{data?.summary?.averageToursPerGuide || 0}</p>
+            <p className="text-xs text-muted-foreground">Avg Tours/Guide</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ===== NEW: Participants Stats Card =====
+export interface ParticipantsData {
+  totalParticipants: number;
+  confirmedParticipants: number;
+  averageGroupSize: number;
+  totalBookings: number;
+  monthlyBreakdown: { month: string; participants: number }[];
+}
+
+const participantsConfig = {
+  participants: {
+    label: "Participants",
+    color: "var(--chart-3)",
+  },
+} satisfies ChartConfig;
+
+export function ParticipantsChart({ customData }: { customData?: ParticipantsData }) {
+  const { data: fetchedData, isLoading } = useQuery<ParticipantsData>({
+    queryKey: ["/api/stats/participants"],
+    enabled: !customData,
+  });
+
+  const data = customData || fetchedData;
+
+  if (isLoading && !customData) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Participants</CardTitle>
+          <CardDescription>Total visitors and group sizes</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-48">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Participants Overview</CardTitle>
+        <CardDescription>
+          {data?.totalBookings || 0} bookings | {data?.averageGroupSize || 0} avg group size
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="text-center p-3 bg-muted/50 rounded-lg">
+            <p className="text-3xl font-bold text-primary">{data?.totalParticipants || 0}</p>
+            <p className="text-xs text-muted-foreground">Total Participants</p>
+          </div>
+          <div className="text-center p-3 bg-muted/50 rounded-lg">
+            <p className="text-3xl font-bold text-green-600">{data?.confirmedParticipants || 0}</p>
+            <p className="text-xs text-muted-foreground">Confirmed</p>
+          </div>
+        </div>
+        {(data?.monthlyBreakdown?.length ?? 0) > 0 && (
+          <ChartContainer config={participantsConfig} className="h-32">
+            <AreaChart data={data?.monthlyBreakdown || []}>
+              <XAxis
+                dataKey="month"
+                tick={{ fontSize: 9 }}
+                tickFormatter={(v) => v.slice(5)}
+              />
+              <YAxis hide />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Area
+                type="monotone"
+                dataKey="participants"
+                fill="var(--chart-3)"
+                fillOpacity={0.3}
+                stroke="var(--chart-3)"
+              />
+            </AreaChart>
+          </ChartContainer>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export interface RevenueByTourData {
+  tourType: string;
+  revenue: number;
+  count: number;
+}
+
+const revenueByTourConfig = {
+  revenue: { label: "Revenue", color: "hsl(var(--primary))" },
+} satisfies ChartConfig;
+
+export function RevenueByTourChart({ data }: { data: RevenueByTourData[] }) {
+  if (!data || data.length === 0) {
+    return (<Card><CardHeader><CardTitle>Revenue by Tour Type</CardTitle><CardDescription>No data available</CardDescription></CardHeader><CardContent className="h-64 flex items-center justify-center text-muted-foreground">No data available</CardContent></Card>);
+  }
+  return (
+    <Card>
+      <CardHeader><CardTitle>Revenue by Tour Type</CardTitle><CardDescription>Total revenue generated per tour category</CardDescription></CardHeader>
+      <CardContent>
+        <div className="h-80">
+          <ChartContainer config={revenueByTourConfig} className="h-full w-full">
+            <BarChart data={data} layout="vertical" margin={{ left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" hide />
+              <YAxis
+                dataKey="tourType"
+                type="category"
+                tickLine={false}
+                axisLine={false}
+                width={120}
+                tickFormatter={(value) => value.replace(/_/g, " ")}
+                tick={{ fontSize: 12, textTransform: 'capitalize' }}
+              />
+              <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+              <Bar dataKey="revenue" fill="var(--color-revenue)" radius={4}>
+              </Bar>
+            </BarChart>
+          </ChartContainer>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export interface EmailStatsData {
+  date: string;
+  total: number;
+  delivered: number;
+  failed: number;
+}
+
+const emailStatsConfig = {
+  total: { label: "Total Sent", color: "hsl(var(--primary))" },
+  delivered: { label: "Delivered", color: "rgb(34, 197, 94)" },
+  failed: { label: "Failed", color: "rgb(239, 68, 68)" },
+} satisfies ChartConfig;
+
+export function EmailStatsChart({ data }: { data: EmailStatsData[] }) {
+  if (!data || data.length === 0) {
+    return (<Card><CardHeader><CardTitle>Email Activity</CardTitle><CardDescription>No activity recorded</CardDescription></CardHeader><CardContent className="h-64 flex items-center justify-center text-muted-foreground">No activity recorded</CardContent></Card>);
+  }
+  return (
+    <Card>
+      <CardHeader><CardTitle>Email Activity</CardTitle><CardDescription>Emails sent over time</CardDescription></CardHeader>
+      <CardContent>
+        <div className="h-80">
+          <ChartContainer config={emailStatsConfig} className="h-full w-full">
+            <BarChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} minTickGap={32} />
+              <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartLegend content={<ChartLegendContent />} />
+              <Bar dataKey="delivered" stackId="a" fill="var(--color-delivered)" radius={[0, 0, 4, 4]} />
+              <Bar dataKey="failed" stackId="a" fill="var(--color-failed)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ChartContainer>
         </div>
       </CardContent>
     </Card>

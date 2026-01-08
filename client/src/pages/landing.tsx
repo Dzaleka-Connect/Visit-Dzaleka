@@ -26,6 +26,7 @@ import { Link } from "wouter";
 import { useState } from "react";
 import { SEO } from "@/components/seo";
 import { useQuery } from "@tanstack/react-query";
+import { SiteFooter } from "@/components/site-footer";
 
 const features = [
   {
@@ -194,9 +195,7 @@ export default function Landing() {
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-              <MapPin className="h-5 w-5" />
-            </div>
+            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Dzaleka Visit Logo" className="h-10 w-10 rounded-lg shadow-sm" />
             <div className="flex flex-col">
               <span className="text-sm font-bold tracking-tight">Dzaleka Visit</span>
               <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
@@ -209,10 +208,31 @@ export default function Landing() {
           <nav className="hidden md:flex items-center gap-4">
             <a href="#features" className="text-sm font-medium hover:text-primary transition-colors">Features</a>
             <a href="#why-dzaleka" className="text-sm font-medium hover:text-primary transition-colors">Why Dzaleka</a>
+
+            <div className="relative group">
+              <Link href="/things-to-do" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
+                Things To Do
+                <svg className="h-3 w-3 transition-transform group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </Link>
+              <div className="absolute left-0 top-full mt-1 w-48 rounded-md border bg-background shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                <div className="py-1">
+                  <Link href="/things-to-do" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">All Experiences</Link>
+                  <Link href="/things-to-do/arts-culture" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Arts & Culture</Link>
+                  <Link href="/things-to-do/shopping" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Shopping & Markets</Link>
+                  <Link href="/things-to-do/sports-recreation" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Sports & Recreation</Link>
+                  <Link href="/things-to-do/host-community" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Host Community</Link>
+                </div>
+              </div>
+            </div>
+            <Link href="/whats-on" className="text-sm font-medium hover:text-primary transition-colors">What's On</Link>
+            <Link href="/plan-your-trip" className="text-sm font-medium hover:text-primary transition-colors">Plan Your Trip</Link>
             <a href="#experiences" className="text-sm font-medium hover:text-primary transition-colors">Experiences</a>
             <a href="#community" className="text-sm font-medium hover:text-primary transition-colors">Community</a>
             <a href="#pricing" className="text-sm font-medium hover:text-primary transition-colors">Pricing</a>
             <a href="#testimonials" className="text-sm font-medium hover:text-primary transition-colors">Stories</a>
+            <Link href="/blog" className="text-sm font-medium hover:text-primary transition-colors">Blog</Link>
             <div className="flex items-center gap-2 ml-2">
               <Button asChild variant="outline" size="sm">
                 <Link href="/login">Sign In</Link>
@@ -237,10 +257,18 @@ export default function Landing() {
           <div className="md:hidden border-t bg-background p-4 space-y-3">
             <a href="#features" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Features</a>
             <a href="#why-dzaleka" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Why Dzaleka</a>
+            <Link href="/things-to-do" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Things To Do</Link>
+            <Link href="/things-to-do/arts-culture" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Arts & Culture</Link>
+            <Link href="/things-to-do/shopping" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Shopping & Markets</Link>
+            <Link href="/things-to-do/sports-recreation" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Sports & Recreation</Link>
+            <Link href="/things-to-do/host-community" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Host Community</Link>
+            <Link href="/whats-on" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>What's On</Link>
+            <Link href="/plan-your-trip" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Plan Your Trip</Link>
             <a href="#experiences" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Experiences</a>
             <a href="#community" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Community</a>
             <a href="#pricing" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
             <a href="#testimonials" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Stories</a>
+            <Link href="/blog" className="block text-sm font-medium py-1 text-primary" onClick={() => setMobileMenuOpen(false)}>Blog</Link>
             <div className="flex gap-2 pt-2">
               <Button asChild variant="outline" className="flex-1">
                 <Link href="/login">Sign In</Link>
@@ -669,45 +697,7 @@ export default function Landing() {
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t bg-background py-12">
-        <div className="container mx-auto px-4">
-          <div className="grid gap-8 md:grid-cols-4 mb-8">
-            <div className="col-span-1 md:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <MapPin className="h-5 w-5 text-primary" />
-                <span className="font-bold text-lg">Dzaleka Visit</span>
-              </div>
-              <p className="text-muted-foreground max-w-xs">
-                {getContent("footer_description", "Connecting visitors with the vibrant community of Dzaleka Refugee Camp through guided tours and cultural exchange.")}
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Quick Links</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#features" className="hover:text-primary">Features</a></li>
-                <li><a href="#pricing" className="hover:text-primary">Pricing</a></li>
-                <li><a href="#testimonials" className="hover:text-primary">Stories</a></li>
-                <li><Link href="/auth" className="hover:text-primary">Sign In</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Contact</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>{getContent("footer_contact_email", "visit@dzaleka.com")}</li>
-                <li>{getContent("footer_contact_phone", "+265 123 456 789")}</li>
-                <li>Dowa District, Malawi</li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-            <p>© {new Date().getFullYear()} Dzaleka Visit. All rights reserved.</p>
-            <p>
-              Part of <a href="https://services.dzaleka.com" className="text-primary hover:underline">Dzaleka Online Services</a>
-            </p>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

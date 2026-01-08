@@ -448,6 +448,30 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
   }),
 }));
 
+// Blog Posts table
+export const blogPosts = pgTable("blog_posts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  title: text("title").notNull(),
+  slug: text("slug").notNull().unique(),
+  content: text("content").notNull(), // HTML or Markdown content
+  excerpt: text("excerpt"),
+  coverImage: text("cover_image"),
+  authorId: uuid("author_id").references(() => users.id),
+  published: boolean("published").default(false).notNull(),
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertBlogPostSchema = createInsertSchema(blogPosts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type BlogPost = typeof blogPosts.$inferSelect;
+export type InsertBlogPost = typeof blogPosts.$inferInsert;
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   auditLogs: many(auditLogs),
@@ -1418,3 +1442,40 @@ export const insertApiKeySchema = createInsertSchema(apiKeys).omit({
 
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
+
+// ===== Analytics Settings =====
+export const analyticsSettings = pgTable("analytics_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ga4MeasurementId: varchar("ga4_measurement_id"),
+  googleAdsConversionId: varchar("google_ads_conversion_id"),
+  googleAdsConversionLabel: varchar("google_ads_conversion_label"),
+  facebookPixelId: varchar("facebook_pixel_id"),
+  customHtml: text("custom_html"),
+  isEnabled: boolean("is_enabled").default(true).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAnalyticsSettingsSchema = createInsertSchema(analyticsSettings).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type AnalyticsSetting = typeof analyticsSettings.$inferSelect;
+export type InsertAnalyticsSetting = z.infer<typeof insertAnalyticsSettingsSchema>;
+
+export const itineraries = pgTable("itineraries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  bookingId: varchar("booking_id").notNull().references(() => bookings.id),
+  content: jsonb("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertItinerarySchema = createInsertSchema(itineraries).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Itinerary = typeof itineraries.$inferSelect;
+export type InsertItinerary = z.infer<typeof insertItinerarySchema>;

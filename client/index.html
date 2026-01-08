@@ -1,21 +1,81 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>Visit Dzaleka - Cultural Tours & Experiences</title>
-    <meta name="description" content="Book guided tours, meet local artists, and experience the vibrant culture of Dzaleka Refugee Camp. Secure, organized, and impactful visits." />
-    <meta property="og:title" content="Visit Dzaleka - Cultural Tours & Experiences" />
-    <meta property="og:description" content="Book guided tours, meet local artists, and experience the vibrant culture of Dzaleka Refugee Camp." />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://services.dzaleka.com/images/Visit_Dzaleka.png" />
-    <link rel="icon" type="image/png" href="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap" rel="stylesheet">
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+
+  <!-- Default title only - other meta tags injected by react-helmet per page -->
+  <title>Visit Dzaleka - Cultural Tours & Experiences in Malawi</title>
+
+  <!-- Geo tags for local SEO (same for all pages) -->
+  <meta name="geo.region" content="MW" />
+  <meta name="geo.placename" content="Dzaleka, Dowa, Malawi" />
+  <meta name="geo.position" content="-13.7833;33.9833" />
+  <meta name="ICBM" content="-13.7833, 33.9833" />
+
+  <!-- Favicon and Icons -->
+  <link rel="icon" type="image/png" href="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" />
+  <link rel="apple-touch-icon" href="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap" rel="stylesheet">
+
+  <!-- Structured Data (Organization-level, shared across all pages) -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "TouristAttraction",
+          "name": "Dzaleka Refugee Camp Cultural Tours",
+          "description": "Book guided tours of Dzaleka Refugee Camp in Malawi. Experience vibrant African culture, meet local artists and entrepreneurs.",
+          "url": "https://visit.dzaleka.com",
+          "address": {
+            "@type": "PostalAddress",
+            "addressLocality": "Dowa",
+            "addressRegion": "Central Region",
+            "addressCountry": "MW"
+          },
+          "geo": {
+            "@type": "GeoCoordinates",
+            "latitude": "-13.7833",
+            "longitude": "33.9833"
+          }
+        },
+        {
+          "@type": "WebSite",
+          "name": "Visit Dzaleka",
+          "url": "https://visit.dzaleka.com",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://visit.dzaleka.com/blog?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "Organization",
+          "name": "Visit Dzaleka",
+          "url": "https://visit.dzaleka.com",
+          "logo": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png",
+          "sameAs": [
+            "https://www.facebook.com/dzalekaonline/",
+            "https://www.instagram.com/dzalekaonline/",
+            "https://twitter.com/dzalekaconnect",
+            "https://www.linkedin.com/company/dzalekaconnect/",
+            "https://www.tiktok.com/@dzaleka"
+          ]
+        }
+      ]
+    }
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
 </html>

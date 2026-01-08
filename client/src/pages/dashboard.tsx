@@ -32,8 +32,9 @@ import {
   ListTodo,
   Ticket,
   Download,
+  FileDown,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -114,6 +115,11 @@ function AdminDashboard() {
 
   const { data: todaysTours, isLoading: toursLoading } = useQuery<RecentBooking[]>({
     queryKey: ["/api/bookings/today"],
+  });
+
+  const { data: itineraries } = useQuery<{ bookingId: string }[]>({
+    queryKey: ["/api/my-itineraries"],
+    enabled: !!user,
   });
 
   const sendEmailMutation = useMutation({
@@ -1216,6 +1222,11 @@ function VisitorDashboard() {
     queryKey: ["/api/bookings/my-bookings"],
   });
 
+  const { data: itineraries } = useQuery<{ bookingId: string }[]>({
+    queryKey: ["/api/my-itineraries"],
+    enabled: !!user,
+  });
+
   const { data: guides } = useQuery<Guide[]>({
     queryKey: ["/api/guides"],
   });
@@ -1506,7 +1517,14 @@ function VisitorDashboard() {
 
                     {/* Payment Toggle */}
                     {booking.paymentStatus !== "paid" && (
-                      <div className="flex justify-end pt-2 border-t">
+                      <div className="flex justify-end pt-2 border-t gap-2">
+                        {itineraries?.some((i) => i.bookingId === booking.id) && (
+                          <Button size="sm" variant="default" asChild>
+                            <Link href={`/bookings/${booking.id}/itinerary`}>
+                              <FileDown className="mr-2 h-4 w-4" /> View Itinerary
+                            </Link>
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
@@ -1533,7 +1551,14 @@ function VisitorDashboard() {
                       </div>
                     )}
                     {booking.paymentStatus === "paid" && (
-                      <div className="flex justify-end pt-2 border-t">
+                      <div className="flex justify-end pt-2 border-t gap-2">
+                        {itineraries?.some((i) => i.bookingId === booking.id) && (
+                          <Button size="sm" variant="default" asChild>
+                            <Link href={`/bookings/${booking.id}/itinerary`}>
+                              <FileDown className="mr-2 h-4 w-4" /> View Itinerary
+                            </Link>
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
@@ -1620,6 +1645,13 @@ function VisitorDashboard() {
 
                       {/* Actions */}
                       <div className="flex flex-row md:flex-col gap-2 shrink-0 border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-4 mt-2 md:mt-0">
+                        {itineraries?.some((i) => i.bookingId === booking.id) && (
+                          <Button size="sm" variant="default" className="w-full justify-start gap-2" asChild>
+                            <Link href={`/bookings/${booking.id}/itinerary`}>
+                              <FileDown className="h-4 w-4" /> View Itinerary
+                            </Link>
+                          </Button>
+                        )}
                         <Button size="sm" variant="outline" className="w-full justify-start gap-2" asChild>
                           <Link href="/bookings">
                             <TrendingUp className="h-4 w-4 text-primary" />

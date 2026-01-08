@@ -7,12 +7,25 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Calendar, Users, CheckCircle } from "lucide-react";
 import { SEO } from "@/components/seo";
 
 interface MeetingPoint {
+    id: string;
+    name: string;
+    description?: string;
+}
+
+interface Zone {
+    id: string;
+    name: string;
+    description?: string;
+}
+
+interface PointOfInterest {
     id: string;
     name: string;
     description?: string;
@@ -42,12 +55,23 @@ export default function EmbedBooking() {
         paymentMethod: "cash",
         referralSource: "",
         specialRequests: "",
+        selectedZones: [] as string[],
+        selectedInterests: [] as string[],
     });
     const [submitted, setSubmitted] = useState(false);
 
-    // Fetch meeting points from API
+    // Fetch meeting points from API (public endpoint for embed forms)
     const { data: meetingPoints } = useQuery<MeetingPoint[]>({
-        queryKey: ["/api/meeting-points"],
+        queryKey: ["/api/public/meeting-points"],
+    });
+
+    // Fetch zones and POIs (public endpoints)
+    const { data: zones } = useQuery<Zone[]>({
+        queryKey: ["/api/public/zones"],
+    });
+
+    const { data: pointsOfInterest } = useQuery<PointOfInterest[]>({
+        queryKey: ["/api/public/points-of-interest"],
     });
 
     const bookingMutation = useMutation({
@@ -173,6 +197,20 @@ export default function EmbedBooking() {
                             </div>
                         </div>
 
+                        <div className="space-y-2">
+                            <Label className={isDark ? "text-gray-200" : ""}>Preferred Start Time *</Label>
+                            <Input
+                                type="time"
+                                required
+                                value={formData.visitTime}
+                                onChange={(e) => setFormData({ ...formData, visitTime: e.target.value })}
+                                className={inputClass}
+                            />
+                            <p className={`text-xs ${isDark ? "text-gray-400" : "text-muted-foreground"}`}>
+                                💡 Standard start times: 10:00 AM and 2:00 PM. Standard tours are 2 hours.
+                            </p>
+                        </div>
+
                         <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-2">
                                 <Label className={isDark ? "text-gray-200" : ""}>Group Size</Label>
@@ -254,6 +292,67 @@ export default function EmbedBooking() {
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        {/* Areas of Interest Section */}
+                        {((zones && zones.length > 0) || (pointsOfInterest && pointsOfInterest.length > 0)) && (
+                            <div className="space-y-3">
+                                <Label className={isDark ? "text-gray-200" : ""}>Areas of Interest (Select all that apply)</Label>
+                                {zones && zones.length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className={`text-sm font-medium ${isDark ? "text-gray-400" : "text-muted-foreground"}`}>Camp Zones</p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {zones.map((zone) => (
+                                                <div key={zone.id} className="flex items-center gap-2">
+                                                    <Checkbox
+                                                        id={`zone-${zone.id}`}
+                                                        checked={formData.selectedZones?.includes(zone.id) || false}
+                                                        onCheckedChange={(checked) => {
+                                                            const currentZones = formData.selectedZones || [];
+                                                            const newZones = checked
+                                                                ? [...currentZones, zone.id]
+                                                                : currentZones.filter((z: string) => z !== zone.id);
+                                                            setFormData({ ...formData, selectedZones: newZones });
+                                                        }}
+                                                    />
+                                                    <label htmlFor={`zone-${zone.id}`} className={`text-sm cursor-pointer ${isDark ? "text-gray-200" : ""}`}>
+                                                        {zone.name}
+                                                    </label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {pointsOfInterest && pointsOfInterest.length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className={`text-sm font-medium ${isDark ? "text-gray-400" : "text-muted-foreground"}`}>
+                                            Points of Interest ({pointsOfInterest.length} available)
+                                        </p>
+                                        <div className={`max-h-40 overflow-y-auto border rounded-md p-3 ${isDark ? "bg-gray-700/50 border-gray-600" : "bg-muted/20"}`}>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {pointsOfInterest.map((poi) => (
+                                                    <div key={poi.id} className="flex items-center gap-2">
+                                                        <Checkbox
+                                                            id={`poi-${poi.id}`}
+                                                            checked={formData.selectedInterests?.includes(poi.id) || false}
+                                                            onCheckedChange={(checked) => {
+                                                                const currentInterests = formData.selectedInterests || [];
+                                                                const newInterests = checked
+                                                                    ? [...currentInterests, poi.id]
+                                                                    : currentInterests.filter((p: string) => p !== poi.id);
+                                                                setFormData({ ...formData, selectedInterests: newInterests });
+                                                            }}
+                                                        />
+                                                        <label htmlFor={`poi-${poi.id}`} className={`text-sm cursor-pointer ${isDark ? "text-gray-200" : ""}`}>
+                                                            {poi.name}
+                                                        </label>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         <div className="space-y-2">
                             <Label className={isDark ? "text-gray-200" : ""}>Special Requests</Label>

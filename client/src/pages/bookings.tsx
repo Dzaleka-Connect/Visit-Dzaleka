@@ -82,7 +82,7 @@ import {
   MEETING_POINTS,
   TOUR_TYPES,
 } from "@/lib/constants";
-import type { Booking, Guide, Zone, MeetingPoint, BookingStatus } from "@shared/schema";
+import type { Booking, Guide, Zone, MeetingPoint, PointOfInterest, BookingStatus } from "@shared/schema";
 import { SEO } from "@/components/seo";
 import { jsPDF } from "jspdf";
 
@@ -298,6 +298,16 @@ export default function Bookings() {
 
   const { data: meetingPoints } = useQuery<MeetingPoint[]>({
     queryKey: ["/api/meeting-points"],
+  });
+
+  const { data: pointsOfInterest } = useQuery<PointOfInterest[]>({
+    queryKey: ["/api/points-of-interest"],
+  });
+
+  const { data: selectedItinerary } = useQuery({
+    queryKey: [`/api/bookings/${selectedBooking?.id}/itinerary`],
+    enabled: !!selectedBooking,
+    retry: false,
   });
 
   const updateStatusMutation = useMutation({
@@ -550,7 +560,7 @@ export default function Bookings() {
     visitorEmail: "",
     visitorPhone: "",
     visitDate: "",
-    visitTime: "",
+    visitTime: "10:00",
     groupSize: "individual" as "individual" | "small_group" | "large_group" | "custom",
     numberOfPeople: 1,
     tourType: "standard" as "standard" | "extended" | "custom",
@@ -575,7 +585,7 @@ export default function Bookings() {
         visitorEmail: "",
         visitorPhone: "",
         visitDate: "",
-        visitTime: "",
+        visitTime: "10:00",
         groupSize: "individual",
         numberOfPeople: 1,
         tourType: "standard",
@@ -745,6 +755,13 @@ export default function Bookings() {
               <Button size="sm" onClick={() => generateBookingPDF(selectedBooking, getMeetingPointName(selectedBooking.meetingPointId))}>
                 <FileDown className="mr-2 h-4 w-4" /> Export PDF
               </Button>
+              {selectedItinerary && (
+                <Button size="sm" variant="outline" asChild>
+                  <a href={`/bookings/${selectedBooking.id}/itinerary`} target="_blank" rel="noopener noreferrer">
+                    <FileDown className="mr-2 h-4 w-4" /> View Itinerary
+                  </a>
+                </Button>
+              )}
             </div>
           </div>
 
@@ -1656,7 +1673,7 @@ export default function Bookings() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="visit-time">Visit Time *</Label>
+                <Label htmlFor="visit-time">Preferred Start Time *</Label>
                 <Input
                   id="visit-time"
                   type="time"
@@ -1664,6 +1681,7 @@ export default function Bookings() {
                   onChange={(e) => setNewBooking({ ...newBooking, visitTime: e.target.value })}
                   data-testid="input-new-visit-time"
                 />
+                <p className="text-xs text-muted-foreground">💡 Standard start times: 10:00 AM and 2:00 PM. Standard tours are 2 hours. Additional hours at MWK 10,000/hr.</p>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1763,12 +1781,73 @@ export default function Bookings() {
                   <SelectValue placeholder="Select meeting point" />
                 </SelectTrigger>
                 <SelectContent>
-                  {MEETING_POINTS.map((mp) => (
+                  <SelectItem value="not_specified">Not specified</SelectItem>
+                  {meetingPoints?.map((mp) => (
                     <SelectItem key={mp.id} value={mp.id}>{mp.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+            {/* Areas of Interest Section */}
+            {((zones && zones.length > 0) || (pointsOfInterest && pointsOfInterest.length > 0)) && (
+              <div className="space-y-3">
+                <Label>Areas of Interest (Select all that apply)</Label>
+                {zones && zones.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-muted-foreground">Camp Zones</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {zones.map((zone) => (
+                        <div key={zone.id} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`zone-${zone.id}`}
+                            checked={newBooking.selectedZones?.includes(zone.id) || false}
+                            onCheckedChange={(checked) => {
+                              const currentZones = newBooking.selectedZones || [];
+                              const newZones = checked
+                                ? [...currentZones, zone.id]
+                                : currentZones.filter((z: string) => z !== zone.id);
+                              setNewBooking({ ...newBooking, selectedZones: newZones });
+                            }}
+                          />
+                          <label htmlFor={`zone-${zone.id}`} className="text-sm cursor-pointer">
+                            {zone.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {pointsOfInterest && pointsOfInterest.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Points of Interest ({pointsOfInterest.length} available)
+                    </p>
+                    <div className="max-h-48 overflow-y-auto border rounded-md p-3 bg-muted/20">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {pointsOfInterest.map((poi) => (
+                          <div key={poi.id} className="flex items-center gap-2">
+                            <Checkbox
+                              id={`poi-${poi.id}`}
+                              checked={newBooking.selectedInterests?.includes(poi.id) || false}
+                              onCheckedChange={(checked) => {
+                                const currentInterests = newBooking.selectedInterests || [];
+                                const newInterests = checked
+                                  ? [...currentInterests, poi.id]
+                                  : currentInterests.filter((p: string) => p !== poi.id);
+                                setNewBooking({ ...newBooking, selectedInterests: newInterests });
+                              }}
+                            />
+                            <label htmlFor={`poi-${poi.id}`} className="text-sm cursor-pointer">
+                              {poi.name}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="special-requests">Special Requests</Label>
               <Textarea

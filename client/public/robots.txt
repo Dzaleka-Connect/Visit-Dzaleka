@@ -1,5 +1,15 @@
+# Robots.txt for visit.dzaleka.com
+
 User-agent: *
 Allow: /
+Allow: /blog
+Allow: /things-to-do
+Allow: /accommodation
+Allow: /whats-on
+Allow: /plan-your-trip
+Allow: /login
+
+# Disallow admin and internal pages
 Disallow: /api/
 Disallow: /dashboard
 Disallow: /settings
@@ -7,5 +17,29 @@ Disallow: /users
 Disallow: /revenue
 Disallow: /email-history
 Disallow: /audit-logs
+Disallow: /admin/
+Disallow: /bookings
+Disallow: /guides
+Disallow: /calendar
+Disallow: /profile
+Disallow: /embed/
+Disallow: /developer
+Disallow: /customers
+Disallow: /messages
+Disallow: /tasks
+Disallow: /zones
+Disallow: /security
+Disallow: /analytics
+Disallow: /reports
+Disallow: /cms
+Disallow: /help-admin
+Disallow: /training-admin
+Disallow: /task-admin
+Disallow: /security-admin
+Disallow: /live-ops
 
+# Crawl-delay (optional - be polite to search engines)
+Crawl-delay: 1
+
+# Sitemap location
 Sitemap: https://visit.dzaleka.com/sitemap.xml

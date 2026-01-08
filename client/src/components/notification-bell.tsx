@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
     Bell,
     Check,
@@ -12,6 +12,7 @@ import {
     Shield,
     AlertCircle,
     X,
+    ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -104,12 +105,15 @@ export function NotificationBell() {
 
     const unreadCount = countData?.count || 0;
 
+    const [, setLocation] = useLocation();
+
     const handleNotificationClick = (notification: Notification) => {
         if (!notification.isRead) {
             markAsReadMutation.mutate(notification.id);
         }
+        setOpen(false);
         if (notification.link) {
-            setOpen(false);
+            setLocation(notification.link);
         }
     };
 
@@ -125,7 +129,7 @@ export function NotificationBell() {
                     <Bell className="h-5 w-5" />
                     {unreadCount > 0 && (
                         <Badge
-                            className="absolute -right-0.5 -top-0.5 h-4 w-4 rounded-full p-0 flex items-center justify-center text-[10px] bg-red-500 text-white hover:bg-red-600 border-2 border-background shadow-sm"
+                            className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-red-500 text-white hover:bg-red-600 border-2 border-background shadow-sm"
                         >
                             {unreadCount > 99 ? "99+" : unreadCount}
                         </Badge>
@@ -176,8 +180,9 @@ export function NotificationBell() {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-start justify-between gap-2">
-                                                <p className={`text-sm font-medium leading-tight ${!notification.isRead ? "text-foreground" : "text-muted-foreground"}`}>
+                                                <p className={`text-sm font-medium leading-tight flex items-center gap-2 ${!notification.isRead ? "text-foreground" : "text-muted-foreground"}`}>
                                                     {notification.title}
+                                                    {notification.link && <ExternalLink className="h-3 w-3 opacity-50" />}
                                                 </p>
                                                 <Button
                                                     variant="ghost"
@@ -191,7 +196,7 @@ export function NotificationBell() {
                                                     <X className="h-3 w-3" />
                                                 </Button>
                                             </div>
-                                            <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                                            <p className="text-xs text-muted-foreground mt-0.5 break-words">
                                                 {notification.message}
                                             </p>
                                             <p className="text-[10px] text-muted-foreground mt-1">

@@ -14,6 +14,9 @@ import {
   Kanban,
   LayoutList,
   BarChartHorizontal,
+  CheckCircle,
+  XCircle,
+  Layers,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,7 +33,7 @@ import { EmptyState } from "@/components/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatTime, STATUS_COLORS } from "@/lib/constants";
-import type { Booking, Guide } from "@shared/schema";
+import type { Booking, Guide, Zone, PointOfInterest } from "@shared/schema";
 import {
   format,
   startOfMonth,
@@ -91,6 +94,46 @@ export default function CalendarPage() {
 
   const { data: guides } = useQuery<Guide[]>({
     queryKey: ["/api/guides"],
+  });
+
+  const { data: zones } = useQuery<Zone[]>({
+    queryKey: ["/api/zones"],
+  });
+
+  const { data: pointsOfInterest } = useQuery<PointOfInterest[]>({
+    queryKey: ["/api/points-of-interest"],
+  });
+
+  // Helper functions for lookups
+  const getZoneName = (zoneId: string) => {
+    const zone = zones?.find((z) => z.id === zoneId);
+    return zone?.name || "Unknown Zone";
+  };
+
+  const getPoiName = (poiId: string) => {
+    const poi = pointsOfInterest?.find((p) => p.id === poiId);
+    return poi?.name || poiId;
+  };
+
+  // Assign guide mutation
+  const assignGuideMutation = useMutation({
+    mutationFn: async ({ bookingId, guideId }: { bookingId: string; guideId: string | null }) => {
+      await apiRequest("PATCH", `/api/bookings/${bookingId}/assign-guide`, { guideId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      toast({
+        title: "Guide assigned",
+        description: "The guide has been updated for this booking.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to assign guide. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
   // Reschedule mutation for drag-and-drop
@@ -253,76 +296,86 @@ export default function CalendarPage() {
 
       <div className={`grid gap-6 ${isWideView ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-3"}`}>
         <Card className={isWideView ? "" : "lg:col-span-2"}>
-          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4">
-            <div className="flex items-center gap-4">
-              <CardTitle className="text-lg font-semibold">
-                {viewMode === "month" || isWideView
-                  ? format(currentDate, "MMMM yyyy")
-                  : `Week of ${format(weekStart, "MMM d")} - ${format(weekEnd, "MMM d, yyyy")}`}
-              </CardTitle>
+          <CardHeader className="flex flex-col gap-4 space-y-0 pb-4">
+            {/* Top row: Month/Date and navigation */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 sm:gap-4">
+                <CardTitle className="text-base sm:text-lg font-semibold">
+                  {viewMode === "month" || isWideView
+                    ? format(currentDate, "MMMM yyyy")
+                    : `Week of ${format(weekStart, "MMM d")} - ${format(weekEnd, "MMM d, yyyy")}`}
+                </CardTitle>
+                {!isWideView && (
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={goToPrev} data-testid="button-prev">
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={goToNext} data-testid="button-next">
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
               {!isWideView && (
-                <div className="flex items-center gap-1">
-                  <Button variant="outline" size="icon" onClick={goToPrev} data-testid="button-prev">
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Button variant="outline" size="icon" onClick={goToNext} data-testid="button-next">
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
+                <Button variant="outline" size="sm" onClick={goToToday} data-testid="button-today">
+                  Today
+                </Button>
               )}
             </div>
+
+            {/* Bottom row: View buttons and filters */}
             <div className="flex flex-wrap items-center gap-2">
               {/* View Mode Toggle */}
               <div className="flex border rounded-lg overflow-hidden bg-background">
                 <Button
                   variant={viewMode === "list" ? "default" : "ghost"}
                   size="sm"
-                  className="rounded-none px-3"
+                  className="rounded-none px-2 sm:px-3 h-8"
                   onClick={() => setViewMode("list")}
                   title="List View"
                 >
-                  <LayoutList className="h-4 w-4 sm:mr-1" />
-                  <span className="hidden sm:inline">List</span>
+                  <LayoutList className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">List</span>
                 </Button>
                 <Button
                   variant={viewMode === "board" ? "default" : "ghost"}
                   size="sm"
-                  className="rounded-none px-3"
+                  className="rounded-none px-2 sm:px-3 h-8"
                   onClick={() => setViewMode("board")}
                   title="Board View"
                 >
-                  <Kanban className="h-4 w-4 sm:mr-1" />
-                  <span className="hidden sm:inline">Board</span>
+                  <Kanban className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">Board</span>
                 </Button>
                 <Button
                   variant={viewMode === "timeline" ? "default" : "ghost"}
                   size="sm"
-                  className="rounded-none px-3"
+                  className="rounded-none px-2 sm:px-3 h-8"
                   onClick={() => setViewMode("timeline")}
                   title="Timeline View"
                 >
-                  <BarChartHorizontal className="h-4 w-4 sm:mr-1" />
-                  <span className="hidden sm:inline">Timeline</span>
+                  <BarChartHorizontal className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">Timeline</span>
                 </Button>
                 <Button
                   variant={viewMode === "month" ? "default" : "ghost"}
                   size="sm"
-                  className="rounded-none px-3"
+                  className="rounded-none px-2 sm:px-3 h-8"
                   onClick={() => setViewMode("month")}
                   title="Month View"
                 >
-                  <CalendarIcon className="h-4 w-4 sm:mr-1" />
-                  <span className="hidden sm:inline">Month</span>
+                  <CalendarIcon className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">Month</span>
                 </Button>
                 <Button
                   variant={viewMode === "week" ? "default" : "ghost"}
                   size="sm"
-                  className="rounded-none px-3"
+                  className="rounded-none px-2 sm:px-3 h-8"
                   onClick={() => setViewMode("week")}
                   title="Week View"
                 >
-                  <List className="h-4 w-4 sm:mr-1" />
-                  <span className="hidden sm:inline">Week</span>
+                  <List className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">Week</span>
                 </Button>
               </div>
 
@@ -331,15 +384,16 @@ export default function CalendarPage() {
                 <Button
                   variant={showAvailability ? "default" : "outline"}
                   size="sm"
+                  className="h-8"
                   onClick={() => setShowAvailability(!showAvailability)}
                 >
-                  {showAvailability ? <Eye className="h-4 w-4 sm:mr-1" /> : <EyeOff className="h-4 w-4 sm:mr-1" />}
-                  <span className="hidden sm:inline">Availability</span>
+                  {showAvailability ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                  <span className="hidden sm:inline ml-1">Availability</span>
                 </Button>
               )}
 
               <Select value={guideFilter} onValueChange={setGuideFilter}>
-                <SelectTrigger className="w-32 sm:w-40" data-testid="select-guide-filter">
+                <SelectTrigger className="w-28 sm:w-36 h-8" data-testid="select-guide-filter">
                   <SelectValue placeholder="All Guides" />
                 </SelectTrigger>
                 <SelectContent>
@@ -352,12 +406,6 @@ export default function CalendarPage() {
                   ))}
                 </SelectContent>
               </Select>
-
-              {!isWideView && (
-                <Button variant="outline" onClick={goToToday} data-testid="button-today">
-                  Today
-                </Button>
-              )}
             </div>
           </CardHeader>
           <CardContent className={isWideView ? "p-0 sm:p-4" : ""}>
@@ -456,7 +504,11 @@ export default function CalendarPage() {
                                 draggable
                                 onDragStart={(e) => handleDragStart(e, booking)}
                                 onDragEnd={handleDragEnd}
-                                className={`flex flex-col gap-0.5 rounded px-1 sm:px-1.5 py-1 text-[10px] sm:text-xs cursor-grab active:cursor-grabbing border ${statusColor.bg} ${statusColor.text} border-transparent`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedBooking(booking);
+                                }}
+                                className={`flex flex-col gap-0.5 rounded px-1 sm:px-1.5 py-1 text-[10px] sm:text-xs cursor-pointer hover:opacity-80 border ${statusColor.bg} ${statusColor.text} border-transparent`}
                               >
                                 <div className="flex items-center gap-1">
                                   <GripVertical className="inline h-3 w-3 mr-0.5 opacity-50 shrink-0" />
@@ -730,26 +782,78 @@ export default function CalendarPage() {
                   </div>
                 </div>
 
-                {/* Assigned Guide */}
+                {/* Assigned Guide - With Assignment */}
                 <div className="flex items-start gap-3">
                   <div className="h-9 w-9 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 shrink-0">
                     <Users className="h-5 w-5" />
                   </div>
-                  <div>
-                    <p className="text-sm font-medium">Assigned Guide</p>
-                    {selectedBooking.guide ? (
-                      <div className="text-sm text-muted-foreground">
-                        {selectedBooking.guide.firstName} {selectedBooking.guide.lastName}
-                        <br />
-                        <span className="text-xs">{selectedBooking.guide.phone}</span>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-yellow-600 dark:text-yellow-500">
-                        No guide assigned yet
+                  <div className="flex-1">
+                    <p className="text-sm font-medium mb-2">Assigned Guide</p>
+                    <Select
+                      value={selectedBooking.assignedGuideId || "none"}
+                      onValueChange={(value) => {
+                        assignGuideMutation.mutate({
+                          bookingId: selectedBooking.id,
+                          guideId: value === "none" ? null : value,
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select a guide" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No guide assigned</SelectItem>
+                        {guides?.map((guide) => (
+                          <SelectItem key={guide.id} value={guide.id}>
+                            {guide.firstName} {guide.lastName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedBooking.guide && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        📞 {selectedBooking.guide.phone}
                       </p>
                     )}
                   </div>
                 </div>
+
+                {/* Areas of Interest */}
+                {(((selectedBooking.selectedZones as string[] | undefined)?.length ?? 0) > 0 ||
+                  ((selectedBooking.selectedInterests as string[] | undefined)?.length ?? 0) > 0) && (
+                    <div className="flex items-start gap-3">
+                      <div className="h-9 w-9 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600 shrink-0">
+                        <Layers className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">Areas of Interest</p>
+                        {((selectedBooking.selectedZones as string[] | undefined)?.length ?? 0) > 0 && (
+                          <div className="mt-1.5">
+                            <p className="text-xs text-muted-foreground mb-1">Camp Zones:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {(selectedBooking.selectedZones as string[]).map((zoneId) => (
+                                <Badge key={zoneId} variant="secondary" className="text-xs">
+                                  {getZoneName(zoneId)}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {((selectedBooking.selectedInterests as string[] | undefined)?.length ?? 0) > 0 && (
+                          <div className="mt-1.5">
+                            <p className="text-xs text-muted-foreground mb-1">Points of Interest:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {(selectedBooking.selectedInterests as string[]).map((poiId) => (
+                                <Badge key={poiId} variant="outline" className="text-xs">
+                                  {getPoiName(poiId)}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                 {/* Additional Info */}
                 <div className="p-4 rounded-lg bg-muted/50 border text-sm space-y-2">
@@ -780,7 +884,44 @@ export default function CalendarPage() {
                   </div>
                 )}
 
-                <div className="flex flex-col gap-2 pt-4">
+                {/* Quick Status Actions */}
+                <div className="flex flex-col gap-2 pt-4 border-t">
+                  <p className="text-sm font-medium">Quick Actions</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {selectedBooking.status === "pending" && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => statusMutation.mutate({ id: selectedBooking.id, status: "confirmed" })}
+                        disabled={statusMutation.isPending}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" /> Confirm
+                      </Button>
+                    )}
+                    {selectedBooking.status === "confirmed" && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => statusMutation.mutate({ id: selectedBooking.id, status: "completed" })}
+                        disabled={statusMutation.isPending}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" /> Complete
+                      </Button>
+                    )}
+                    {(selectedBooking.status === "pending" || selectedBooking.status === "confirmed") && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => statusMutation.mutate({ id: selectedBooking.id, status: "cancelled" })}
+                        disabled={statusMutation.isPending}
+                      >
+                        <XCircle className="h-4 w-4 mr-1" /> Cancel
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 pt-2">
                   <Button className="w-full" asChild>
                     <a href={`/bookings/${selectedBooking.id}`}>
                       View Full Details

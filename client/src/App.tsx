@@ -39,21 +39,38 @@ import SecurityAdmin from "@/pages/security-admin";
 import AcceptInvite from "@/pages/accept-invite";
 import GuideTraining from "@/pages/guide-training";
 import TrainingAdmin from "@/pages/training-admin";
+import ThingsToDo from "@/pages/things-to-do";
+import ArtsCulture from "@/pages/arts-culture";
+import ShoppingMarkets from "@/pages/shopping";
+import SportsRecreation from "@/pages/sports-recreation";
+import HostCommunity from "@/pages/host-community";
+import WhatsOn from "@/pages/whats-on";
+import PlanYourTrip from "@/pages/plan-your-trip";
+import Accommodation from "@/pages/accommodation";
 import VisitorResources from "@/pages/visitor-resources";
 import Tasks from "@/pages/tasks";
 import TaskAdmin from "@/pages/task-admin";
 import Messages from "@/pages/messages";
 import HelpCenter from "@/pages/help-center";
 import HelpAdmin from "@/pages/help-admin";
+import ItineraryBuilder from "@/pages/itinerary-builder";
+import ItineraryView from "@/pages/itinerary-view";
+import SharePhotos from "@/pages/share-photos";
 import RecurringBookingsPage from "@/pages/recurring-bookings";
 import LiveOperations from "@/pages/live-ops";
 import CustomersPage from "@/pages/customers";
 import CustomerProfile from "@/pages/customer-profile";
 import Analytics from "@/pages/analytics";
+import Reports from "@/pages/reports";
 import DeveloperSettings from "@/pages/developer-settings";
 import EmbedBooking from "@/pages/embed-booking";
 import CommunityHub from "@/pages/community-hub";
+import BlogList from "@/pages/blog";
+import BlogPostPage from "@/pages/blog-post";
+import AdminBlog from "@/pages/admin-blog";
+import AdminBlogEditor from "@/pages/admin-blog-editor";
 import { usePageTracker } from "@/hooks/usePageTracker";
+import { AnalyticsTracker } from "@/components/analytics-tracker";
 
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -90,6 +107,26 @@ function Router() {
   // Track page views for analytics
   usePageTracker();
 
+  // Embed and Blog routes should be accessible without authenticated layout
+  const path = window.location.pathname;
+  if (path.startsWith("/embed/") || path.startsWith("/blog") || path.startsWith("/things-to-do") || path.startsWith("/whats-on") || path.startsWith("/plan-your-trip") || path.startsWith("/accommodation")) {
+    return (
+      <Switch>
+        <Route path="/embed/booking" component={EmbedBooking} />
+        <Route path="/blog" component={BlogList} />
+        <Route path="/blog/:slug" component={BlogPostPage} />
+        <Route path="/things-to-do" component={ThingsToDo} />
+        <Route path="/things-to-do/arts-culture" component={ArtsCulture} />
+        <Route path="/things-to-do/shopping" component={ShoppingMarkets} />
+        <Route path="/things-to-do/sports-recreation" component={SportsRecreation} />
+        <Route path="/things-to-do/host-community" component={HostCommunity} />
+        <Route path="/whats-on" component={WhatsOn} />
+        <Route path="/plan-your-trip" component={PlanYourTrip} />
+        <Route path="/accommodation" component={Accommodation} />
+      </Switch>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -98,16 +135,6 @@ function Router() {
           <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
-    );
-  }
-
-  // Embed routes should be accessible without authenticated layout
-  const path = window.location.pathname;
-  if (path.startsWith("/embed/")) {
-    return (
-      <Switch>
-        <Route path="/embed/booking" component={EmbedBooking} />
-      </Switch>
     );
   }
 
@@ -121,6 +148,10 @@ function Router() {
         <Route path="/verify-email" component={VerifyEmail} />
         <Route path="/accept-invite" component={AcceptInvite} />
         <Route path="/embed/booking" component={EmbedBooking} />
+        <Route path="/things-to-do" component={ThingsToDo} />
+        <Route path="/whats-on" component={WhatsOn} />
+        <Route path="/plan-your-trip" component={PlanYourTrip} />
+        <Route path="/accommodation" component={Accommodation} />
         <Route component={Landing} />
       </Switch>
     );
@@ -132,6 +163,7 @@ function Router() {
         <Route path="/" component={Dashboard} />
         <Route path="/bookings" component={Bookings} />
         <Route path="/bookings/:id" component={BookingDetails} />
+        <Route path="/bookings/:id/itinerary" component={ItineraryView} />
         <Route path="/recurring-bookings" component={RecurringBookingsPage} />
         <Route path="/my-bookings" component={MyBookings} />
         <Route path="/calendar" component={CalendarPage} />
@@ -143,6 +175,7 @@ function Router() {
         <Route path="/training-admin" component={TrainingAdmin} />
         <Route path="/zones" component={Zones} />
         <Route path="/security" component={Security} />
+        <Route path="/share-photos" component={SharePhotos} />
         <Route path="/users" component={UsersPage} />
         <Route path="/settings" component={Settings} />
         <Route path="/profile" component={Profile} />
@@ -152,6 +185,7 @@ function Router() {
         <Route path="/visitors" component={Visitors} />
         <Route path="/audit-logs" component={AuditLogs} />
         <Route path="/analytics" component={Analytics} />
+        <Route path="/reports" component={Reports} />
         <Route path="/cms" component={CMSPage} />
         <Route path="/security-admin" component={SecurityAdmin} />
         <Route path="/resources" component={VisitorResources} />
@@ -163,9 +197,14 @@ function Router() {
         <Route path="/customers/:id" component={CustomerProfile} />
         <Route path="/help" component={HelpCenter} />
         <Route path="/help-admin" component={HelpAdmin} />
+        <Route path="/itinerary-builder" component={ItineraryBuilder} />
+        <Route path="/itinerary-builder/:bookingId" component={ItineraryBuilder} />
         <Route path="/developer" component={DeveloperSettings} />
         <Route path="/community" component={CommunityHub} />
         <Route path="/landing" component={Landing} />
+        <Route path="/admin/blog" component={AdminBlog} />
+        <Route path="/admin/blog/new" component={AdminBlogEditor} />
+        <Route path="/admin/blog/edit/:id" component={AdminBlogEditor} />
         <Route component={NotFound} />
       </Switch>
     </AuthenticatedLayout>
@@ -177,6 +216,7 @@ function App() {
     <HelmetProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
+          <AnalyticsTracker />
           <Toaster />
           <Router />
         </TooltipProvider>

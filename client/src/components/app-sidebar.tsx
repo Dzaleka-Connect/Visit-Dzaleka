@@ -26,7 +26,9 @@ import {
   BarChart3,
   Calendar,
   Code,
+  Camera,
   Globe,
+  PieChart,
 } from "lucide-react";
 import {
   Sidebar,
@@ -75,6 +77,12 @@ const mainNavigationItems: NavItem[] = [
     roles: ["admin", "coordinator"],
   },
   {
+    title: "Itinerary Builder",
+    url: "/itinerary-builder",
+    icon: FileText,
+    roles: ["admin", "coordinator"],
+  },
+  {
     title: "My Bookings",
     url: "/my-bookings",
     icon: Ticket,
@@ -84,6 +92,12 @@ const mainNavigationItems: NavItem[] = [
     title: "Learning Center",
     url: "/resources",
     icon: BookOpen,
+    roles: ["visitor"],
+  },
+  {
+    title: "Share Photos",
+    url: "/share-photos",
+    icon: Camera,
     roles: ["visitor"],
   },
   {
@@ -127,6 +141,12 @@ const mainNavigationItems: NavItem[] = [
     url: "/guide-training",
     icon: GraduationCap,
     roles: ["guide"],
+  },
+  {
+    title: "Blog",
+    url: "/admin/blog",
+    icon: FileText,
+    roles: ["admin", "coordinator"],
   },
   {
     title: "My Tasks",
@@ -199,6 +219,12 @@ const operationsItems: NavItem[] = [
     url: "/audit-logs",
     icon: FileText,
     roles: ["admin"],
+  },
+  {
+    title: "Reports",
+    url: "/reports",
+    icon: PieChart,
+    roles: ["admin", "coordinator"],
   },
   {
     title: "Website Analytics",

@@ -8,7 +8,9 @@ import {
   Bell,
   Database,
   Download,
+  Activity,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,8 +20,8 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { formatCurrency, PRICING } from "@/lib/constants";
-import { useState } from "react";
-import type { PricingConfig } from "@shared/schema";
+import { useState, useEffect } from "react";
+import type { PricingConfig, AnalyticsSetting, InsertAnalyticsSetting } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { NotificationSender } from "@/components/notification-sender";
 import { SEO } from "@/components/seo";
@@ -30,11 +32,11 @@ export default function Settings() {
   const isAdmin = user?.role === "admin";
 
   const [pricing, setPricing] = useState({
-    individual: PRICING.individual,
-    small_group: PRICING.small_group,
-    large_group: PRICING.large_group,
-    custom: PRICING.custom,
-    additional_hour: PRICING.additional_hour,
+    individual: PRICING.individual as number,
+    small_group: PRICING.small_group as number,
+    large_group: PRICING.large_group as number,
+    custom: PRICING.custom as number,
+    additional_hour: PRICING.additional_hour as number,
   });
 
   const [passwordForm, setPasswordForm] = useState({
@@ -46,6 +48,50 @@ export default function Settings() {
   const { data: pricingConfigs } = useQuery<PricingConfig[]>({
     queryKey: ["/api/pricing"],
   });
+
+  // Analytics Settings State & Logic
+  const [analyticsForm, setAnalyticsForm] = useState<InsertAnalyticsSetting>({
+    ga4MeasurementId: "",
+    googleAdsConversionId: "",
+    googleAdsConversionLabel: "",
+    facebookPixelId: "",
+    customHtml: "",
+    isEnabled: true
+  });
+
+  const { data: analyticsSettings } = useQuery<AnalyticsSetting>({
+    queryKey: ["/api/settings/analytics"],
+  });
+
+  useEffect(() => {
+    if (analyticsSettings) {
+      setAnalyticsForm({
+        ga4MeasurementId: analyticsSettings.ga4MeasurementId || "",
+        googleAdsConversionId: analyticsSettings.googleAdsConversionId || "",
+        googleAdsConversionLabel: analyticsSettings.googleAdsConversionLabel || "",
+        facebookPixelId: analyticsSettings.facebookPixelId || "",
+        customHtml: analyticsSettings.customHtml || "",
+        isEnabled: analyticsSettings.isEnabled
+      });
+    }
+  }, [analyticsSettings]);
+
+  const updateAnalyticsMutation = useMutation({
+    mutationFn: async (data: InsertAnalyticsSetting) => {
+      await apiRequest("PATCH", "/api/settings/analytics", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/analytics"] });
+      toast({ title: "Analytics updated", description: "Tracking settings saved." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: "Failed to update analytics settings.", variant: "destructive" });
+    }
+  });
+
+  const handleAnalyticsSave = () => {
+    updateAnalyticsMutation.mutate(analyticsForm);
+  };
 
   const updatePricingMutation = useMutation({
     mutationFn: async (data: typeof pricing) => {
@@ -219,6 +265,106 @@ export default function Settings() {
               </CardHeader>
               <CardContent>
                 <NotificationSender />
+              </CardContent>
+            </Card>
+
+            {/* Analytics Settings */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5" />
+                  Conversion Tracking & Analytics
+                </CardTitle>
+                <CardDescription>
+                  Configure ID integrations for Google Analytics 4, Google Ads, and Facebook Pixel.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-6">
+                  {/* Google Analytics 4 */}
+                  <div className="space-y-2">
+                    <h3 className="font-medium text-sm flex items-center gap-2">Google Analytics 4</h3>
+                    <div className="grid gap-2">
+                      <Label htmlFor="ga4-id" className="text-muted-foreground">Measurement ID (G-XXXXXXXXXX)</Label>
+                      <Input
+                        id="ga4-id"
+                        placeholder="G-12345678"
+                        value={analyticsForm.ga4MeasurementId || ""}
+                        onChange={(e) => setAnalyticsForm({ ...analyticsForm, ga4MeasurementId: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Google Ads */}
+                  <div className="space-y-2">
+                    <h3 className="font-medium text-sm flex items-center gap-2">Google Ads</h3>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="ads-id" className="text-muted-foreground">Conversion ID</Label>
+                        <Input
+                          id="ads-id"
+                          placeholder="1234567890"
+                          value={analyticsForm.googleAdsConversionId || ""}
+                          onChange={(e) => setAnalyticsForm({ ...analyticsForm, googleAdsConversionId: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="ads-label" className="text-muted-foreground">Conversion Label</Label>
+                        <Input
+                          id="ads-label"
+                          placeholder="abcXYZABC1234abc-XYZ"
+                          value={analyticsForm.googleAdsConversionLabel || ""}
+                          onChange={(e) => setAnalyticsForm({ ...analyticsForm, googleAdsConversionLabel: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Facebook Pixel */}
+                  <div className="space-y-2">
+                    <h3 className="font-medium text-sm flex items-center gap-2">Facebook Pixel</h3>
+                    <div className="grid gap-2">
+                      <Label htmlFor="pixel-id" className="text-muted-foreground">Pixel ID</Label>
+                      <Input
+                        id="pixel-id"
+                        placeholder="12345678901234"
+                        value={analyticsForm.facebookPixelId || ""}
+                        onChange={(e) => setAnalyticsForm({ ...analyticsForm, facebookPixelId: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Custom HTML */}
+                  <div className="space-y-2">
+                    <h3 className="font-medium text-sm flex items-center gap-2">Other tracking methods (Custom HTML)</h3>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      This code will be included at the bottom of the <strong>Booking Confirmation</strong> page.
+                      <br />Supported placeholders: {'{FIRSTNAME}'}, {'{LASTNAME}'}, {'{EMAIL}'}, {'{TOTALPAID}'}, {'{BOOKINGNUMBER}'}.
+                    </p>
+                    <Textarea
+                      className="font-mono text-xs min-h-[150px]"
+                      placeholder="<script>...</script>"
+                      value={analyticsForm.customHtml || ""}
+                      onChange={(e) => setAnalyticsForm({ ...analyticsForm, customHtml: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="flex justify-end pt-4">
+                    <Button
+                      onClick={handleAnalyticsSave}
+                      disabled={updateAnalyticsMutation.isPending}
+                    >
+                      {updateAnalyticsMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                      Save Tracking Settings
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 

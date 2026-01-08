@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { startTransition, useState, useEffect } from "react";
+import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Plus,
@@ -49,7 +50,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatDate, formatTime, formatCurrency } from "@/lib/constants";
-import type { Booking, MeetingPoint, Zone, Guide } from "@shared/schema";
+import type { Booking, MeetingPoint, Zone, PointOfInterest, Guide } from "@shared/schema";
 import { SEO } from "@/components/seo";
 
 interface BookingWithGuide extends Booking {
@@ -200,12 +201,20 @@ export default function MyBookings() {
     queryKey: ["/api/bookings/my-bookings"],
   });
 
+  const { data: itineraries } = useQuery<{ bookingId: string }[]>({
+    queryKey: ["/api/my-itineraries"],
+  });
+
   const { data: meetingPoints } = useQuery<MeetingPoint[]>({
-    queryKey: ["/api/meeting-points"],
+    queryKey: ["/api/public/meeting-points"],
   });
 
   const { data: zones } = useQuery<Zone[]>({
-    queryKey: ["/api/zones"],
+    queryKey: ["/api/public/zones"],
+  });
+
+  const { data: pointsOfInterest } = useQuery<PointOfInterest[]>({
+    queryKey: ["/api/public/points-of-interest"],
   });
 
   const createBookingMutation = useMutation({
@@ -337,6 +346,16 @@ export default function MyBookings() {
     return mp?.name || "Unknown";
   };
 
+  const getZoneName = (zoneId: string) => {
+    const zone = zones?.find((z) => z.id === zoneId);
+    return zone?.name || "Unknown Zone";
+  };
+
+  const getPoiName = (poiId: string) => {
+    const poi = pointsOfInterest?.find((p) => p.id === poiId);
+    return poi?.name || poiId;
+  };
+
   const isFormValid =
     newBooking.visitorName &&
     newBooking.visitorEmail &&
@@ -462,6 +481,37 @@ export default function MyBookings() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Areas of Interest Card */}
+              {((selectedBooking.selectedZones && selectedBooking.selectedZones.length > 0) || (selectedBooking.selectedInterests && selectedBooking.selectedInterests.length > 0)) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Areas of Interest</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {selectedBooking.selectedZones && selectedBooking.selectedZones.length > 0 && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Camp Zones</Label>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {(selectedBooking.selectedZones as string[]).map((zoneId) => (
+                            <Badge key={zoneId} variant="secondary">{getZoneName(zoneId)}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {selectedBooking.selectedInterests && selectedBooking.selectedInterests.length > 0 && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Points of Interest</Label>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {(selectedBooking.selectedInterests as string[]).map((poiId) => (
+                            <Badge key={poiId} variant="outline">{getPoiName(poiId)}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
             {/* Right Column: Guide & Payment */}
@@ -551,6 +601,14 @@ export default function MyBookings() {
               </Card>
 
               <div className="flex justify-end gap-2">
+                {itineraries?.some((i) => i.bookingId === selectedBooking.id) && (
+                  <Button variant="default" asChild>
+                    <Link href={`/bookings/${selectedBooking.id}/itinerary`}>
+                      <FileDown className="mr-2 h-4 w-4" /> View Itinerary
+                    </Link>
+                  </Button>
+                )}
+
                 <Button variant="outline" onClick={() => generateBookingPDF(selectedBooking, getMeetingPointName(selectedBooking.meetingPointId))} >
                   <FileDown className="mr-2 h-4 w-4" /> Download PDF
                 </Button>
@@ -810,6 +868,7 @@ export default function MyBookings() {
                       onChange={(e) => setNewBooking({ ...newBooking, visitTime: e.target.value })}
                       data-testid="input-visit-time"
                     />
+                    <p className="text-xs text-muted-foreground">💡 Standard start times: 10:00 AM and 2:00 PM. Standard tours are 2 hours. Additional hours at MWK 10,000/hr.</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -936,6 +995,31 @@ export default function MyBookings() {
                     ))}
                   </div>
                 </div>
+                {pointsOfInterest && pointsOfInterest.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Points of Interest ({pointsOfInterest.length} available)</Label>
+                    <div className="max-h-40 overflow-y-auto border rounded-md p-3 bg-muted/20">
+                      <div className="flex flex-wrap gap-2">
+                        {pointsOfInterest.map((poi) => (
+                          <Badge
+                            key={poi.id}
+                            variant={newBooking.selectedInterests.includes(poi.id) ? "default" : "outline"}
+                            className="cursor-pointer"
+                            onClick={() => {
+                              const selected = newBooking.selectedInterests.includes(poi.id)
+                                ? newBooking.selectedInterests.filter((p) => p !== poi.id)
+                                : [...newBooking.selectedInterests, poi.id];
+                              setNewBooking({ ...newBooking, selectedInterests: selected });
+                            }}
+                            data-testid={`badge-poi-${poi.id}`}
+                          >
+                            {poi.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="special-requests">Special Requests or Accessibility Needs</Label>
                   <Textarea

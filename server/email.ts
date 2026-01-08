@@ -680,3 +680,144 @@ export async function sendPasswordReset(data: PasswordResetData): Promise<boolea
 
   return result.success;
 }
+// Send itinerary email
+interface ItineraryItem {
+  time: string;
+  activity: string;
+}
+
+interface ItineraryData {
+  recipientEmail: string;
+  recipientName: string;
+  date: string;
+  duration: string;
+  items: ItineraryItem[];
+  totalCost?: string;
+  notes?: string;
+  guideName?: string;
+  guideContact?: string;
+  senderName?: string;
+  pois?: string[];
+  bookingReference?: string;
+}
+
+export async function sendItineraryEmail(data: ItineraryData): Promise<boolean> {
+  const resendClient = getResendClient();
+  if (!resendClient) return false;
+
+  const timelineHtml = data.items.map(item => `
+    <tr>
+      <td style="padding: 12px 0; width: 90px; font-weight: 600; vertical-align: top; color: #0284C7; font-size: 15px;">${item.time}</td>
+      <td style="padding: 12px 0; vertical-align: top; color: #334155;">${item.activity}</td>
+    </tr>
+  `).join('');
+
+  const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f3f4f6;">
+          <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+            
+            <div style="background: linear-gradient(135deg, #0284C7 0%, #0369a1 100%); padding: 40px 30px; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">Visit Dzaleka</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px; letter-spacing: 0.5px;">CURATED ITINERARY</p>
+            </div>
+            
+            <div style="padding: 40px 30px;">
+              <p style="font-size: 16px; margin-bottom: 25px;">Dear ${data.recipientName},</p>
+              
+              <p style="font-size: 16px; color: #4b5563; margin-bottom: 30px;">
+                We are delighted to present your personalized itinerary for <strong>${data.date}</strong>. 
+                Our team has carefully designed this schedule to ensure you have a meaningful and insightful experience at Dzaleka.
+              </p>
+
+              ${data.bookingReference ? `
+              <div style="background: #f8fafc; border-left: 4px solid #0284C7; padding: 15px; margin-bottom: 30px;">
+                <p style="margin: 0; font-size: 14px; color: #64748b;">Booking Reference</p>
+                <p style="margin: 5px 0 0 0; font-size: 18px; font-weight: 700; color: #0f172a;">${data.bookingReference}</p>
+              </div>
+              ` : ''}
+              
+              <div style="margin-bottom: 35px;">
+                <h3 style="color: #0f172a; font-size: 18px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 20px;">Your Journey</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                  ${timelineHtml}
+                </table>
+              </div>
+
+              ${data.pois && data.pois.length > 0 ? `
+              <div style="margin-bottom: 35px;">
+                <h3 style="color: #0f172a; font-size: 18px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 20px;">Experience Highlights</h3>
+                <ul style="padding-left: 20px; color: #4b5563;">
+                  ${data.pois.map(poi => `<li style="margin-bottom: 8px;">${poi}</li>`).join('')}
+                </ul>
+              </div>
+              ` : ''}
+
+              <div style="background: #f8fafc; border-radius: 8px; padding: 25px; margin-bottom: 30px;">
+                <h3 style="color: #0f172a; font-size: 16px; margin: 0 0 15px 0;">Trip Details</h3>
+                
+                ${data.totalCost ? `
+                <div style="margin-bottom: 15px;">
+                  <p style="margin: 0; font-size: 14px; color: #64748b;">Estimated Cost</p>
+                  <p style="margin: 2px 0 0 0; font-size: 16px; font-weight: 600; color: #0f172a;">${data.totalCost}</p>
+                  <p style="margin: 2px 0 0 0; font-size: 12px; color: #64748b;">Payment collected upon arrival (Cash).</p>
+                </div>
+                ` : ''}
+
+                ${data.guideName ? `
+                <div>
+                  <p style="margin: 0; font-size: 14px; color: #64748b;">Your Expert Guide</p>
+                  <p style="margin: 2px 0 0 0; font-size: 16px; font-weight: 600; color: #0f172a;">${data.guideName}</p>
+                  ${data.guideContact ? `<p style="margin: 2px 0 0 0; font-size: 14px; color: #4b5563;">${data.guideContact}</p>` : ''}
+                </div>
+                ` : ''}
+              </div>
+
+              ${data.notes ? `
+              <div style="background: #fff7ed; border-radius: 8px; padding: 20px; margin-bottom: 35px; border: 1px solid #fed7aa;">
+                <h4 style="margin: 0 0 10px 0; color: #9a3412; font-size: 16px;">Important Info</h4>
+                <p style="margin: 0; font-size: 14px; color: #431407;">${data.notes.replace(/\n/g, '<br>')}</p>
+              </div>
+              ` : ''}
+
+              <div style="background: #0f172a; color: white; padding: 25px; border-radius: 8px; margin-bottom: 30px; text-align: center;">
+                <h3 style="color: white; margin: 0 0 15px 0; font-size: 18px;">Before You Visit</h3>
+                <p style="margin: 0 0 20px 0; font-size: 14px; opacity: 0.9;">Please review our guidelines to ensure a respectful and prepared visit.</p>
+                <div style="margin-bottom: 15px;">
+                    <a href="https://services.dzaleka.com/visit/travel-guide/" style="display: inline-block; background: #0284C7; color: white; text-decoration: none; padding: 10px 20px; border-radius: 5px; font-weight: 600; margin: 0 5px;">Travel Guide</a>
+                </div>
+                <div>
+                    <a href="https://services.dzaleka.com/visit/guidelines/" style="color: #60a5fa; text-decoration: none; font-size: 14px;">View Visitor Guidelines &rarr;</a>
+                </div>
+              </div>
+
+              <div style="border-top: 1px solid #e2e8f0; padding-top: 25px; margin-top: 40px; text-align: center; color: #64748b; font-size: 14px;">
+                <p style="margin: 0 0 5px 0;">Warm regards,</p>
+                <p style="margin: 0; font-weight: 600;">${data.senderName || 'The Visit Dzaleka Team'}</p>
+              </div>
+
+            </div>
+          </div>
+          
+          <div style="text-align: center; margin-top: 20px; color: #9ca3af; font-size: 12px;">
+            <p>© ${new Date().getFullYear()} Dzaleka Online Services</p>
+          </div>
+        </body>
+      </html>
+    `;
+
+  const result = await sendEmailWithRetry({
+    from: resendClient.fromEmail,
+    replyTo: resendClient.replyTo,
+    to: data.recipientEmail,
+    subject: `Your Curation - Visit Dzaleka`,
+    html
+  });
+
+  return result.success;
+}

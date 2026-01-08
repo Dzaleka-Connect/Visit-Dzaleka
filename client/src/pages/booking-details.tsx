@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import { useRoute, Link } from "wouter";
 import {
     ArrowLeft,
@@ -31,7 +32,8 @@ import {
 } from "@/lib/constants";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { Booking, Guide } from "@shared/schema";
+import type { Booking, Guide, Zone, PointOfInterest, AnalyticsSetting, Itinerary } from "@shared/schema";
+import { useEffect } from "react";
 import { jsPDF } from "jspdf";
 
 interface BookingWithGuide extends Booking {
@@ -102,6 +104,48 @@ function BookingTimeline({ bookingId }: { bookingId: string }) {
             ))}
         </div>
     );
+}
+
+function ConversionTracker({ booking, html }: { booking: Booking, html: string }) {
+    useEffect(() => {
+        if (!html) return;
+
+        const key = `tracked_booking_${booking.id}`;
+        if (sessionStorage.getItem(key)) return;
+
+        // Replace placeholders
+        const firstName = booking.visitorName ? booking.visitorName.split(' ')[0] : "";
+        const lastName = booking.visitorName && booking.visitorName.includes(' ') ? booking.visitorName.split(' ').slice(1).join(' ') : "";
+
+        let processedHtml = html
+            .replace(/{FIRSTNAME}/g, firstName)
+            .replace(/{LASTNAME}/g, lastName)
+            .replace(/{EMAIL}/g, booking.visitorEmail || "")
+            .replace(/{TOTALPAID}/g, (booking.totalAmount || 0).toString())
+            .replace(/{BOOKINGNUMBER}/g, booking.bookingReference || "");
+
+        // 1. Create hidden div to load non-script elements (like img pixels)
+        const trackerDiv = document.createElement("div");
+        trackerDiv.style.display = "none";
+        trackerDiv.innerHTML = processedHtml;
+        document.body.appendChild(trackerDiv);
+
+        // 2. Extract and execute scripts (innerHTML scripts don't run automatically)
+        const embeddedScripts = trackerDiv.getElementsByTagName("script");
+        Array.from(embeddedScripts).forEach(script => {
+            const newScript = document.createElement("script");
+            Array.from(script.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+            newScript.appendChild(document.createTextNode(script.innerHTML));
+            document.body.appendChild(newScript);
+        });
+
+        sessionStorage.setItem(key, "true");
+
+        // Cleanup? Tracking scripts usually need to stay.
+
+    }, [booking, html]);
+
+    return null;
 }
 
 const getTourTypeName = (type: string) => {
@@ -197,6 +241,7 @@ const generateBookingPDF = (booking: BookingWithGuide, meetingPointName: string)
 };
 
 export default function BookingDetails() {
+    const { user } = useAuth();
     const [, params] = useRoute("/bookings/:id");
     const id = params?.id || "";
     const { toast } = useToast();
@@ -206,8 +251,22 @@ export default function BookingDetails() {
         enabled: !!id,
     });
 
+    const { data: itinerary } = useQuery<Itinerary>({
+        queryKey: [`/api/bookings/${id}/itinerary`],
+        retry: false,
+        enabled: !!id
+    });
+
     const { data: meetingPoints } = useQuery<{ id: string, name: string }[]>({
-        queryKey: ["/api/meeting-points"],
+        queryKey: ["/api/public/meeting-points"],
+    });
+
+    const { data: zones } = useQuery<Zone[]>({
+        queryKey: ["/api/public/zones"],
+    });
+
+    const { data: pointsOfInterest } = useQuery<PointOfInterest[]>({
+        queryKey: ["/api/public/points-of-interest"],
     });
 
     const updateStatusMutation = useMutation({
@@ -237,6 +296,22 @@ export default function BookingDetails() {
             if (mp) return mp.name;
         }
         return MEETING_POINTS.find((p) => p.id === mpId)?.name || "Meeting Point";
+    };
+
+    const getZoneName = (zoneId: string) => {
+        if (zones) {
+            const zone = zones.find((z) => z.id === zoneId);
+            if (zone) return zone.name;
+        }
+        return "Unknown Zone";
+    };
+
+    const getPoiName = (poiId: string) => {
+        if (pointsOfInterest) {
+            const poi = pointsOfInterest.find((p) => p.id === poiId);
+            if (poi) return poi.name;
+        }
+        return poiId;
     };
 
     if (isLoading) {
@@ -295,6 +370,20 @@ export default function BookingDetails() {
                             onClick={() => updateStatusMutation.mutate({ status: "cancelled" })}
                         >
                             Cancel Booking
+                        </Button>
+                    )}
+                    {(user?.role === "admin" || user?.role === "coordinator") && (
+                        <Button size="sm" variant="outline" asChild>
+                            <Link href={`/itinerary-builder/${booking.id}`}>
+                                <Mail className="mr-2 h-4 w-4" /> Send Proposal
+                            </Link>
+                        </Button>
+                    )}
+                    {itinerary && (
+                        <Button size="sm" variant="outline" asChild>
+                            <Link href={`/bookings/${booking.id}/itinerary`}>
+                                <FileDown className="mr-2 h-4 w-4" /> View Itinerary
+                            </Link>
                         </Button>
                     )}
                     <Button size="sm" onClick={() => generateBookingPDF(booking, getMeetingPointName(booking.meetingPointId))}>
@@ -365,6 +454,37 @@ export default function BookingDetails() {
                             </div>
                         </CardContent>
                     </Card>
+
+                    {/* Selected Areas Card */}
+                    {((booking.selectedZones && booking.selectedZones.length > 0) || (booking.selectedInterests && booking.selectedInterests.length > 0)) && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Areas of Interest</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {booking.selectedZones && booking.selectedZones.length > 0 && (
+                                    <div>
+                                        <Label className="text-xs text-muted-foreground">Camp Zones</Label>
+                                        <div className="flex flex-wrap gap-2 mt-2">
+                                            {(booking.selectedZones as string[]).map((zoneId) => (
+                                                <Badge key={zoneId} variant="secondary">{getZoneName(zoneId)}</Badge>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {booking.selectedInterests && booking.selectedInterests.length > 0 && (
+                                    <div>
+                                        <Label className="text-xs text-muted-foreground">Points of Interest</Label>
+                                        <div className="flex flex-wrap gap-2 mt-2">
+                                            {(booking.selectedInterests as string[]).map((poiId) => (
+                                                <Badge key={poiId} variant="outline">{getPoiName(poiId)}</Badge>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
 
                     {booking.guide ? (
                         <Card>

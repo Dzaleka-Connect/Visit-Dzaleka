@@ -12,6 +12,8 @@ import {
   insertIncidentSchema,
   insertBookingCompanionSchema,
   insertAllowedIpSchema,
+  insertAnalyticsSettingsSchema,
+  insertBlogPostSchema,
   type UserRole,
 } from "@shared/schema";
 import { generateIcalFeed, parseIcalFeed } from "./lib/ical";
@@ -23,7 +25,8 @@ import {
   sendGuideAssignment,
   sendCheckInNotification,
   sendPasswordReset,
-  sendInvitationEmail
+  sendInvitationEmail,
+  sendItineraryEmail
 } from "./email";
 import {
   notifyBookingCreated,
@@ -1052,6 +1055,193 @@ export async function registerRoutes(
     }
   });
 
+  // Status Breakdown Stats (Cancellations, Completed, Pending, etc.)
+  app.get("/api/stats/status-breakdown", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const bookings = await storage.getBookings();
+      const statusCounts: Record<string, number> = {
+        pending: 0,
+        confirmed: 0,
+        completed: 0,
+        cancelled: 0,
+        no_show: 0,
+      };
+
+      bookings.forEach(booking => {
+        const status = booking.status || "pending";
+        if (statusCounts[status] !== undefined) {
+          statusCounts[status]++;
+        } else {
+          statusCounts[status] = 1;
+        }
+      });
+
+      const breakdown = Object.entries(statusCounts).map(([status, count]) => ({
+        status,
+        count,
+        percentage: bookings.length > 0 ? Math.round((count / bookings.length) * 100) : 0,
+      }));
+
+      res.json({
+        total: bookings.length,
+        breakdown,
+        cancellationRate: bookings.length > 0 ? Math.round((statusCounts.cancelled / bookings.length) * 100) : 0,
+        completionRate: bookings.length > 0 ? Math.round((statusCounts.completed / bookings.length) * 100) : 0,
+      });
+    } catch (error) {
+      logError("Error fetching status breakdown", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch status breakdown" });
+    }
+  });
+
+  // Total Participants Stats
+  app.get("/api/stats/participants", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const bookings = await storage.getBookings();
+      const totalParticipants = bookings.reduce((sum, b) => sum + (b.numberOfPeople || 1), 0);
+      const confirmedParticipants = bookings
+        .filter(b => b.status === "confirmed" || b.status === "completed")
+        .reduce((sum, b) => sum + (b.numberOfPeople || 1), 0);
+      const averageGroupSize = bookings.length > 0 ? Math.round((totalParticipants / bookings.length) * 10) / 10 : 0;
+
+      // Monthly breakdown
+      const monthlyData: Record<string, number> = {};
+      bookings.forEach(booking => {
+        if (booking.visitDate) {
+          const month = new Date(booking.visitDate).toISOString().slice(0, 7);
+          monthlyData[month] = (monthlyData[month] || 0) + (booking.numberOfPeople || 1);
+        }
+      });
+
+      res.json({
+        totalParticipants,
+        confirmedParticipants,
+        averageGroupSize,
+        totalBookings: bookings.length,
+        monthlyBreakdown: Object.entries(monthlyData)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .slice(-12)
+          .map(([month, participants]) => ({ month, participants })),
+      });
+    } catch (error) {
+      logError("Error fetching participant stats", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch participant stats" });
+    }
+  });
+
+  // POI/Zone Selection Frequency
+  app.get("/api/stats/poi-frequency", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const bookings = await storage.getBookings();
+      const zones = await storage.getZones();
+      const pois = await storage.getPointsOfInterest();
+
+      const zoneCounts: Record<string, number> = {};
+      const poiCounts: Record<string, number> = {};
+      let bookingsWithZones = 0;
+      let bookingsWithPois = 0;
+
+      bookings.forEach(booking => {
+        const selectedZones = booking.selectedZones as string[] | null;
+        const selectedInterests = booking.selectedInterests as string[] | null;
+
+        if (selectedZones && selectedZones.length > 0) {
+          bookingsWithZones++;
+          selectedZones.forEach(zoneId => {
+            zoneCounts[zoneId] = (zoneCounts[zoneId] || 0) + 1;
+          });
+        }
+
+        if (selectedInterests && selectedInterests.length > 0) {
+          bookingsWithPois++;
+          selectedInterests.forEach(poiId => {
+            poiCounts[poiId] = (poiCounts[poiId] || 0) + 1;
+          });
+        }
+      });
+
+      const zoneFrequency = zones.map(zone => ({
+        id: zone.id,
+        name: zone.name,
+        count: zoneCounts[zone.id] || 0,
+        percentage: bookings.length > 0 ? Math.round(((zoneCounts[zone.id] || 0) / bookings.length) * 100) : 0,
+      })).sort((a, b) => b.count - a.count);
+
+      const poiFrequency = pois.map(poi => ({
+        id: poi.id,
+        name: poi.name,
+        count: poiCounts[poi.id] || 0,
+        percentage: bookings.length > 0 ? Math.round(((poiCounts[poi.id] || 0) / bookings.length) * 100) : 0,
+      })).sort((a, b) => b.count - a.count);
+
+      res.json({
+        zones: zoneFrequency,
+        pointsOfInterest: poiFrequency,
+        bookingsWithZones,
+        bookingsWithPois,
+        totalBookings: bookings.length,
+      });
+    } catch (error) {
+      logError("Error fetching POI frequency", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch POI frequency" });
+    }
+  });
+
+  // Guide Utilization Stats
+  app.get("/api/stats/guide-utilization", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const bookings = await storage.getBookings();
+      const guides = await storage.getGuides();
+
+      const guideStats: Record<string, { assigned: number; completed: number; cancelled: number }> = {};
+
+      // Initialize all guides
+      guides.forEach(guide => {
+        guideStats[guide.id] = { assigned: 0, completed: 0, cancelled: 0 };
+      });
+
+      // Count bookings per guide
+      bookings.forEach(booking => {
+        if (booking.assignedGuideId && guideStats[booking.assignedGuideId]) {
+          guideStats[booking.assignedGuideId].assigned++;
+          if (booking.status === "completed") {
+            guideStats[booking.assignedGuideId].completed++;
+          } else if (booking.status === "cancelled") {
+            guideStats[booking.assignedGuideId].cancelled++;
+          }
+        }
+      });
+
+      const utilization = guides.map(guide => ({
+        id: guide.id,
+        name: `${guide.firstName} ${guide.lastName}`,
+        assignedTours: guideStats[guide.id]?.assigned || 0,
+        completedTours: guideStats[guide.id]?.completed || 0,
+        cancelledTours: guideStats[guide.id]?.cancelled || 0,
+        completionRate: guideStats[guide.id]?.assigned > 0
+          ? Math.round((guideStats[guide.id].completed / guideStats[guide.id].assigned) * 100)
+          : 0,
+        isActive: guide.isActive !== false,
+      })).sort((a, b) => b.assignedTours - a.assignedTours);
+
+      const totalAssigned = utilization.reduce((sum, g) => sum + g.assignedTours, 0);
+      const activeGuides = utilization.filter(g => g.isActive).length;
+
+      res.json({
+        guides: utilization,
+        summary: {
+          totalGuides: guides.length,
+          activeGuides,
+          totalAssignedTours: totalAssigned,
+          averageToursPerGuide: activeGuides > 0 ? Math.round((totalAssigned / activeGuides) * 10) / 10 : 0,
+        },
+      });
+    } catch (error) {
+      logError("Error fetching guide utilization", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch guide utilization" });
+    }
+  });
+
   // Bookings endpoints - admin, coordinator, security can view all bookings
   app.get("/api/bookings", isAuthenticated, requireRole("admin", "coordinator", "security"), async (req, res) => {
     try {
@@ -1285,6 +1475,50 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error verifying booking", error, req.requestId);
       res.status(500).json({ message: "Failed to verify booking" });
+    }
+  });
+
+  app.get("/api/bookings/:id/itinerary", isAuthenticated, async (req, res) => {
+    try {
+      const bookingId = req.params.id;
+      const booking = await storage.getBooking(bookingId);
+
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      // Check ownership or admin role
+      const user = await storage.getUser(req.session?.userId || "");
+      const isIdMatch = booking.visitorUserId && req.session?.userId && booking.visitorUserId.toString() === req.session.userId.toString();
+      const isEmailMatch = user && booking.visitorEmail === user.email;
+
+      const isOwner = isIdMatch || isEmailMatch;
+      const isAdmin = user && (user.role === "admin" || user.role === "coordinator");
+
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const itinerary = await storage.getItineraryByBookingId(bookingId);
+      if (!itinerary) {
+        return res.status(404).json({ message: "Itinerary not found" });
+      }
+
+      res.json(itinerary);
+    } catch (error) {
+      logError("Error fetching itinerary", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch itinerary" });
+    }
+  });
+
+  app.get("/api/my-itineraries", isAuthenticated, async (req, res) => {
+    try {
+      if (!req.session?.userId) return res.status(401).json({ message: "Unauthorized" });
+      const itineraries = await storage.getItinerariesByUser(req.session.userId);
+      res.json(itineraries);
+    } catch (error) {
+      logError("Error fetching user itineraries", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch itineraries" });
     }
   });
 
@@ -2481,6 +2715,25 @@ export async function registerRoutes(
     }
   });
 
+
+  // Public Zones endpoint (for embed forms and public pages)
+  app.get("/api/public/zones", async (req, res) => {
+    try {
+      const zonesList = await storage.getZones();
+      // Return only active zones with limited fields
+      const publicList = zonesList.filter(z => z.isActive !== false).map(z => ({
+        id: z.id,
+        name: z.name,
+        description: z.description,
+        icon: z.icon,
+      }));
+      res.json(publicList);
+    } catch (error) {
+      logError("Error fetching public zones", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch zones" });
+    }
+  });
+
   // Zones endpoints - admin and coordinator can manage
   app.get("/api/zones", isAuthenticated, async (req, res) => {
     try {
@@ -2541,6 +2794,25 @@ export async function registerRoutes(
     }
   });
 
+
+  // Public Points of Interest endpoint (for embed forms)
+  app.get("/api/public/points-of-interest", async (req, res) => {
+    try {
+      const poiList = await storage.getPointsOfInterest();
+      // Return only active POIs with limited fields
+      const publicList = poiList.filter(poi => poi.isActive !== false).map(poi => ({
+        id: poi.id,
+        name: poi.name,
+        description: poi.description,
+        category: poi.category,
+      }));
+      res.json(publicList);
+    } catch (error) {
+      logError("Error fetching public points of interest", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch points of interest" });
+    }
+  });
+
   // Points of Interest endpoints - admin and coordinator can manage, guide can view
   app.get("/api/points-of-interest", isAuthenticated, requireRole("admin", "coordinator", "guide"), async (req, res) => {
     try {
@@ -2587,6 +2859,24 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error deleting POI", error, req.requestId);
       res.status(500).json({ message: "Failed to delete point of interest" });
+    }
+  });
+
+
+  // Public Meeting Points endpoint (for embed forms)
+  app.get("/api/public/meeting-points", async (req, res) => {
+    try {
+      const mpList = await storage.getMeetingPoints();
+      // Return only active meeting points with limited fields
+      const publicList = mpList.filter(mp => mp.isActive !== false).map(mp => ({
+        id: mp.id,
+        name: mp.name,
+        description: mp.description,
+      }));
+      res.json(publicList);
+    } catch (error) {
+      logError("Error fetching public meeting points", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch meeting points" });
     }
   });
 
@@ -2838,6 +3128,20 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/reports/email-stats", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      const start = startDate ? new Date(startDate as string) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const end = endDate ? new Date(endDate as string) : new Date();
+
+      const stats = await storage.getEmailStats(start, end);
+      res.json(stats);
+    } catch (error) {
+      logError("Error fetching email stats", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch email stats" });
+    }
+  });
+
   // Pricing endpoints
   app.get("/api/pricing", isAuthenticated, async (req, res) => {
     try {
@@ -2917,6 +3221,71 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error sending email", error, req.requestId);
       res.status(500).json({ message: "Failed to send email" });
+    }
+  });
+
+  // Send Itinerary
+  app.post("/api/itinerary/send", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
+    try {
+      const data = req.body;
+      if (!data.recipientEmail || !data.items || !data.date) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      const user = await storage.getUser(req.session?.userId);
+      const senderName = user ? `${user.firstName} ${user.lastName}` : "Visit Dzaleka Team";
+
+      const success = await sendItineraryEmail({
+        ...data,
+        senderName
+      });
+
+      if (success) {
+        if (data.bookingId) {
+          try {
+            await storage.createItinerary({
+              bookingId: data.bookingId,
+              content: data
+            });
+          } catch (e) {
+            console.error("Failed to save itinerary to DB", e);
+          }
+        }
+
+        await storage.createEmailLog({
+          sentBy: req.session?.userId,
+          recipientName: data.recipientName,
+          recipientEmail: data.recipientEmail,
+          subject: "Proposed Itinerary",
+          message: [
+            `Itinerary for ${data.recipientName} on ${data.date} (${data.duration})`,
+            data.bookingReference ? `Ref: ${data.bookingReference}` : '',
+            `\nTimeline:`,
+            ...data.items.map((i: any) => `- ${i.time}: ${i.activity}`),
+            (data.pois && data.pois.length > 0) ? `\nHighlights: ${data.pois.join(', ')}` : '',
+            data.totalCost ? `Cost: ${data.totalCost}` : '',
+            data.guideName ? `Guide: ${data.guideName}` : '',
+            data.notes ? `\nNotes: ${data.notes}` : ''
+          ].filter(Boolean).join('\n'),
+          templateType: "itinerary",
+          status: "sent",
+        });
+        res.json({ success: true, message: "Itinerary sent successfully" });
+      } else {
+        await storage.createEmailLog({
+          sentBy: req.session?.userId,
+          recipientName: data.recipientName,
+          recipientEmail: data.recipientEmail,
+          subject: "Proposed Itinerary",
+          message: "Failed to send",
+          templateType: "itinerary",
+          status: "failed",
+        });
+        res.status(500).json({ message: "Failed to send email" });
+      }
+    } catch (error) {
+      logError("Error sending itinerary", error, req.requestId);
+      res.status(500).json({ message: "Failed to send itinerary" });
     }
   });
 
@@ -5025,6 +5394,191 @@ export async function registerRoutes(
   });
 
 
+
+  // ===== Analytics Settings Routes =====
+
+  // Get analytics settings
+  app.get("/api/settings/analytics", requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const settings = await storage.getAnalyticsSettings();
+      // If no settings exist yet, return a default object or null
+      res.json(settings || {});
+    } catch (error) {
+      logError("Failed to fetch analytics settings", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch settings" });
+    }
+  });
+
+  // Update analytics settings
+  app.patch("/api/settings/analytics", requireRole("admin"), async (req, res) => {
+    try {
+      const data = insertAnalyticsSettingsSchema.parse(req.body);
+      const updated = await storage.updateAnalyticsSettings(data);
+
+      await createAuditLog(
+        req.session!.userId!,
+        "update",
+        "analytics_settings",
+        updated.id,
+        null,
+        data,
+        req
+      );
+
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Invalid settings data", errors: error.errors });
+      } else {
+        logError("Failed to update analytics settings", error, req.requestId);
+        res.status(500).json({ message: "Failed to update settings" });
+      }
+    }
+  });
+
+
+  // Blog Routes
+
+  // Get all blog posts (public or admin)
+  app.get("/api/blog", async (req, res) => {
+    try {
+      // If admin, show all (including drafts), otherwise only published
+      // For now we trust the client logic or query param, but ideally we check role
+      // But since we want public access to published posts, we check query param
+      // and maybe enforce strictness if needed. 
+      // Actually, storage method supports publishedOnly flag.
+      // If user is NOT admin, we force publishedOnly = true.
+
+      const session = req.session;
+      let isAdmin = false;
+      if (session && session.userId) {
+        const user = await storage.getUser(session.userId);
+        if (user && (user.role === "admin" || user.role === "coordinator")) {
+          isAdmin = true;
+        }
+      }
+
+      const publishedOnly = !isAdmin;
+      const posts = await storage.getBlogPosts(publishedOnly);
+      res.json(posts);
+    } catch (error) {
+      logError("Failed to fetch blog posts", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch blog posts" });
+    }
+  });
+
+  // Get single blog post by slug (public)
+  app.get("/api/blog/:slug", async (req, res) => {
+    try {
+      const post = await storage.getBlogPostBySlug(req.params.slug);
+      if (!post) {
+        return res.status(404).json({ message: "Blog post not found" });
+      }
+
+      // If not published and user is not admin, deny
+      if (!post.published) {
+        const session = req.session;
+        let isAdmin = false;
+        if (session && session.userId) {
+          const user = await storage.getUser(session.userId);
+          if (user && (user.role === "admin" || user.role === "coordinator")) {
+            isAdmin = true;
+          }
+        }
+        if (!isAdmin) {
+          return res.status(404).json({ message: "Blog post not found" });
+        }
+      }
+
+      res.json(post);
+    } catch (error) {
+      logError("Failed to fetch blog post", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch blog post" });
+    }
+  });
+
+  // Get single blog post by ID (admin only - for editing)
+  app.get("/api/blog/id/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const post = await storage.getBlogPost(req.params.id);
+      if (!post) {
+        return res.status(404).json({ message: "Blog post not found" });
+      }
+      res.json(post);
+    } catch (error) {
+      logError("Failed to fetch blog post by ID", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch blog post" });
+    }
+  });
+
+  // Create blog post (admin only)
+  app.post("/api/blog", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const data = insertBlogPostSchema.parse(req.body);
+      const post = await storage.createBlogPost({
+        ...data,
+        authorId: req.session!.userId!,
+        publishedAt: data.published ? new Date() : null,
+      });
+      res.status(201).json(post);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Invalid blog post data", errors: error.errors });
+      } else {
+        logError("Failed to create blog post", error, req.requestId);
+        res.status(500).json({ message: "Failed to create blog post" });
+      }
+    }
+  });
+
+  // Update blog post (admin only)
+  app.patch("/api/blog/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      // Partial update
+      const data = insertBlogPostSchema.partial().parse(req.body);
+
+      // Handle publishedAt logic if published status changes
+      if (data.published === true) {
+        // If becoming published and no date set, set it
+        // We might need to check current state if we want to preserve original publish date
+        // For simplicity, we update publishedAt if explicitly sent or if switching to published
+        if (!data.publishedAt) {
+          // We'll let the frontend decide or handle it here?
+          // Let's check existing post
+          const existing = await storage.getBlogPost(req.params.id);
+          if (existing && !existing.published) {
+            (data as any).publishedAt = new Date();
+          }
+        }
+      } else if (data.published === false) {
+        (data as any).publishedAt = null;
+      }
+
+      const updated = await storage.updateBlogPost(req.params.id, data);
+      if (!updated) {
+        return res.status(404).json({ message: "Blog post not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Invalid blog post data", errors: error.errors });
+      } else {
+        logError("Failed to update blog post", error, req.requestId);
+        res.status(500).json({ message: "Failed to update blog post" });
+      }
+    }
+  });
+
+  // Delete blog post (admin only)
+  app.delete("/api/blog/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      await storage.deleteBlogPost(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      logError("Failed to delete blog post", error, req.requestId);
+      res.status(500).json({ message: "Failed to delete blog post" });
+    }
+  });
 
   return httpServer;
 }
