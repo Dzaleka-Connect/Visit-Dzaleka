@@ -450,13 +450,13 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
 
 // Blog Posts table
 export const blogPosts = pgTable("blog_posts", {
-  id: uuid("id").defaultRandom().primaryKey(),
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   title: text("title").notNull(),
   slug: text("slug").notNull().unique(),
   content: text("content").notNull(), // HTML or Markdown content
   excerpt: text("excerpt"),
   coverImage: text("cover_image"),
-  authorId: uuid("author_id").references(() => users.id),
+  authorId: varchar("author_id").references(() => users.id),
   published: boolean("published").default(false).notNull(),
   publishedAt: timestamp("published_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
