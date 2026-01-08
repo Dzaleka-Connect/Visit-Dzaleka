@@ -10,7 +10,12 @@ import {
     Users,
     Eye,
     ArrowUpRight,
+    Activity,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -90,9 +95,17 @@ export default function Analytics() {
         return <Redirect to="/dashboard" />;
     }
 
+    const { data: liveData } = useQuery<{ count: number }>({
+        queryKey: ["/api/analytics/live"],
+        refetchInterval: 30000,
+    });
+
     const { data, isLoading } = useQuery<PageViewStats>({
         queryKey: ["/api/analytics/pageviews"],
     });
+
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
     if (isLoading) {
         return (
@@ -113,6 +126,13 @@ export default function Analytics() {
         channelBreakdown: [],
     };
 
+    const formatCompactNumber = (num: number) => {
+        return new Intl.NumberFormat("en-US", {
+            notation: "compact",
+            maximumFractionDigits: 1,
+        }).format(num);
+    };
+
     return (
         <div className="space-y-4 sm:space-y-6">
             <SEO
@@ -128,14 +148,25 @@ export default function Analytics() {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+                <Card className="col-span-2 lg:col-span-1">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Live Visitors</CardTitle>
+                        <Activity className="h-4 w-4 text-green-500 animate-pulse" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{formatCompactNumber(liveData?.count ?? 0)}</div>
+                        <p className="text-xs text-muted-foreground">Active in last 5 min</p>
+                    </CardContent>
+                </Card>
+
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total Page Views</CardTitle>
                         <Eye className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{stats.totalPageViews.toLocaleString()}</div>
+                        <div className="text-2xl font-bold">{formatCompactNumber(stats.totalPageViews)}</div>
                         <p className="text-xs text-muted-foreground">All tracked page views</p>
                     </CardContent>
                 </Card>
@@ -146,7 +177,7 @@ export default function Analytics() {
                         <Users className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{stats.uniqueVisitors.toLocaleString()}</div>
+                        <div className="text-2xl font-bold">{formatCompactNumber(stats.uniqueVisitors)}</div>
                         <p className="text-xs text-muted-foreground">Unique browser sessions</p>
                     </CardContent>
                 </Card>
@@ -344,22 +375,24 @@ export default function Analytics() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {stats.pageBreakdown.slice(0, 20).map((page) => (
-                                    <TableRow key={page.page}>
-                                        <TableCell className="font-medium">
-                                            <div className="flex items-center gap-2">
-                                                <ArrowUpRight className="h-4 w-4 text-muted-foreground hidden sm:block" />
-                                                <span className="truncate max-w-[120px] sm:max-w-none">{page.page}</span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-right">{page.views.toLocaleString()}</TableCell>
-                                        <TableCell className="text-right hidden sm:table-cell">
-                                            {stats.totalPageViews > 0
-                                                ? ((page.views / stats.totalPageViews) * 100).toFixed(1)
-                                                : 0}%
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                                {stats.pageBreakdown
+                                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                    .map((page) => (
+                                        <TableRow key={page.page}>
+                                            <TableCell className="font-medium">
+                                                <div className="flex items-center gap-2">
+                                                    <ArrowUpRight className="h-4 w-4 text-muted-foreground hidden sm:block" />
+                                                    <span className="truncate max-w-[120px] sm:max-w-none" title={page.page}>{page.page}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right">{page.views.toLocaleString()}</TableCell>
+                                            <TableCell className="text-right hidden sm:table-cell">
+                                                {stats.totalPageViews > 0
+                                                    ? ((page.views / stats.totalPageViews) * 100).toFixed(1)
+                                                    : 0}%
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
                             </TableBody>
                         </Table>
                     ) : (
@@ -367,8 +400,34 @@ export default function Analytics() {
                             No page data yet. Visit some pages to see analytics.
                         </div>
                     )}
+
+                    {stats.pageBreakdown.length > itemsPerPage && (
+                        <div className="flex items-center justify-between space-x-2 py-4">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                            >
+                                <ChevronLeft className="h-4 w-4 mr-2" />
+                                Previous
+                            </Button>
+                            <div className="text-sm text-muted-foreground">
+                                Page {currentPage} of {Math.ceil(stats.pageBreakdown.length / itemsPerPage)}
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCurrentPage((p) => Math.min(Math.ceil(stats.pageBreakdown.length / itemsPerPage), p + 1))}
+                                disabled={currentPage >= Math.ceil(stats.pageBreakdown.length / itemsPerPage)}
+                            >
+                                Next
+                                <ChevronRight className="h-4 w-4 ml-2" />
+                            </Button>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
-        </div>
+        </div >
     );
 }

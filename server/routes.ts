@@ -5151,6 +5151,19 @@ export async function registerRoutes(
     }
   });
 
+  // Get live visitor count (public or admin? assuming public/semi-public for dashboard)
+  app.get("/api/analytics/live", async (req: Request, res: Response) => {
+    try {
+      // Default to 5 minutes window
+      const minutes = 5;
+      const count = await storage.getLiveVisitors(minutes);
+      res.json({ count });
+    } catch (error) {
+      logError("Error getting live visitors", error, req.requestId);
+      res.status(500).json({ message: "Failed to get live visitors" });
+    }
+  });
+
   // Get page view statistics (admin only)
   app.get("/api/analytics/pageviews", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
     try {

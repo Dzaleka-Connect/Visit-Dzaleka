@@ -330,6 +330,7 @@ export interface IStorage {
   getEmailStats(startDate: Date, endDate: Date): Promise<any[]>;
 
   // Analytics Settings
+  getLiveVisitors(minutes: number): Promise<number>;
   getAnalyticsSettings(): Promise<AnalyticsSetting | undefined>;
   updateAnalyticsSettings(settings: InsertAnalyticsSetting): Promise<AnalyticsSetting>;
 
@@ -2953,6 +2954,24 @@ export class SupabaseStorage implements IStorage {
       .single();
 
     return this.handleResponse(data, error);
+  }
+
+  async getLiveVisitors(minutes: number): Promise<number> {
+    const timeThreshold = new Date(Date.now() - minutes * 60 * 1000).toISOString();
+
+    const { data, error } = await this.supabase
+      .from("page_views")
+      .select("session_id")
+      .gt("created_at", timeThreshold);
+
+    if (error) {
+      console.error("Error getting live visitors:", error);
+      return 0;
+    }
+
+    // Count unique session_ids using a Set
+    const uniqueSessions = new Set(data?.map(d => d.session_id) || []);
+    return uniqueSessions.size;
   }
 
   // Itinerary operations
