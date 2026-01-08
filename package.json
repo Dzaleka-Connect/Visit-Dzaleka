@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "NODE_ENV=development tsx watch server/index.ts",
-    "build": "npx tsx script/build.ts && npx tsx script/prerender.ts",
+    "build": "npx puppeteer browsers install chrome && npx tsx script/build.ts && npx tsx script/prerender.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
     "db:push": "drizzle-kit push"
