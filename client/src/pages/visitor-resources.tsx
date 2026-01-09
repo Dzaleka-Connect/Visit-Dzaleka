@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Card,
   CardContent,
@@ -106,15 +108,15 @@ export default function VisitorResourcesPage() {
         title="Learning Center"
         description="Essential information and guides for your visit to Dzaleka."
       />
-      <div className="flex flex-col md:flex-row md:items-center justify-between space-y-2">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:space-y-0">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Learning Center</h2>
           <p className="text-muted-foreground">
             Essential information and guides for your visit to Dzaleka.
           </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <Card className="bg-primary/5 border-primary/20">
+        <div className="flex items-center w-full md:w-auto">
+          <Card className="bg-primary/5 border-primary/20 w-full md:w-auto">
             <CardContent className="p-4 flex items-center space-x-4">
               <div className="p-2 bg-primary/10 rounded-full">
                 <BookOpen className="h-6 w-6 text-primary" />
@@ -133,8 +135,8 @@ export default function VisitorResourcesPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <div className="col-span-4 lg:col-span-5">
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-7">
+        <div className="col-span-1 md:col-span-2 lg:col-span-5">
           <Tabs defaultValue={categories[0]} className="space-y-4">
             <ScrollArea className="w-full whitespace-nowrap rounded-md border">
               <div className="flex w-max space-x-4 p-4">
@@ -153,12 +155,12 @@ export default function VisitorResourcesPage() {
                 {modulesByCategory?.[category]?.map((module) => (
                   <Card key={module.id} className="overflow-hidden">
                     <CardHeader className="bg-muted/30">
-                      <div className="flex items-start justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                         <div className="space-y-1">
-                          <CardTitle className="text-xl flex items-center gap-2">
+                          <CardTitle className="text-xl flex flex-wrap items-center gap-2 leading-tight">
                             {module.title}
                             {readModules[module.id] && (
-                              <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-100">
+                              <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-100 whitespace-nowrap">
                                 <CheckCircle className="h-3 w-3 mr-1" />
                                 Read
                               </Badge>
@@ -173,7 +175,7 @@ export default function VisitorResourcesPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-muted-foreground"
+                            className="text-muted-foreground w-full sm:w-auto"
                             disabled
                           >
                             Completed
@@ -182,6 +184,7 @@ export default function VisitorResourcesPage() {
                           <Button
                             variant="outline"
                             size="sm"
+                            className="w-full sm:w-auto shrink-0"
                             onClick={() => markAsRead(module.id)}
                           >
                             Mark as Read
@@ -191,12 +194,18 @@ export default function VisitorResourcesPage() {
                     </CardHeader>
                     <CardContent className="p-6 space-y-4">
                       <div className="prose prose-sm max-w-none text-muted-foreground">
-                        {module.description}
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {module.description}
+                        </ReactMarkdown>
                       </div>
 
                       {module.content && (
-                        <div className="mt-4 p-4 bg-muted/50 rounded-lg text-sm leading-relaxed whitespace-pre-wrap">
-                          {module.content}
+                        <div className="mt-4 p-4 bg-muted/50 rounded-lg text-sm leading-relaxed">
+                          <div className="prose prose-sm max-w-none">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {module.content}
+                            </ReactMarkdown>
+                          </div>
                         </div>
                       )}
 
@@ -222,7 +231,7 @@ export default function VisitorResourcesPage() {
           </Tabs>
         </div>
 
-        <div className="col-span-4 lg:col-span-2 space-y-4">
+        <div className="col-span-1 md:col-span-2 space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Quick Tips</CardTitle>

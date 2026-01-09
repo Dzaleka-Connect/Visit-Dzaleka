@@ -29,6 +29,10 @@ import {
   Camera,
   Globe,
   PieChart,
+  Wallet,
+  ClipboardList,
+  Heart,
+  Map,
 } from "lucide-react";
 import {
   Sidebar,
@@ -46,6 +50,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { AccountSwitcher } from "@/components/account-switcher";
 import type { LucideIcon } from "lucide-react";
 
 type UserRole = "admin" | "coordinator" | "guide" | "security" | "visitor";
@@ -101,6 +106,18 @@ const mainNavigationItems: NavItem[] = [
     roles: ["visitor"],
   },
   {
+    title: "Saved Itineraries",
+    url: "/saved-itineraries",
+    icon: Map,
+    roles: ["visitor"],
+  },
+  {
+    title: "Favorite Guides",
+    url: "/favorite-guides",
+    icon: Heart,
+    roles: ["visitor"],
+  },
+  {
     title: "Schedule",
     url: "/calendar",
     icon: Calendar,
@@ -140,6 +157,24 @@ const mainNavigationItems: NavItem[] = [
     title: "Guide Training",
     url: "/guide-training",
     icon: GraduationCap,
+    roles: ["guide"],
+  },
+  {
+    title: "My Tours",
+    url: "/my-tours",
+    icon: ClipboardList,
+    roles: ["guide"],
+  },
+  {
+    title: "My Earnings",
+    url: "/my-earnings",
+    icon: Wallet,
+    roles: ["guide"],
+  },
+  {
+    title: "My Availability",
+    url: "/my-availability",
+    icon: Calendar,
     roles: ["guide"],
   },
   {
@@ -293,7 +328,7 @@ const adminItems: NavItem[] = [
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { user, logout, isLoggingOut } = useAuth();
+  const { user, logout, isLoggingOut, isImpersonating } = useAuth();
 
   // Fetch pending task count for badge
   const { data: tasks } = useQuery<{ id: string; status: string }[]>({
@@ -521,6 +556,12 @@ export function AppSidebar() {
             <LogOut className="h-4 w-4" />
           </Button>
         </div>
+        {/* Account Switcher for Admins */}
+        {(user?.role === "admin" || isImpersonating) && (
+          <div className="mt-3 pt-3 border-t border-sidebar-border/50">
+            <AccountSwitcher />
+          </div>
+        )}
       </SidebarFooter>
     </Sidebar>
   );

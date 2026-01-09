@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Search,
   Filter,
@@ -250,6 +252,15 @@ const generateBookingPDF = (booking: BookingWithGuide, meetingPointName: string)
 };
 
 export default function Bookings() {
+  const { user } = useAuth();
+  const [location, setLocation] = useLocation();
+
+  // Redirect visitors to their own bookings page
+  if (user?.role === "visitor") {
+    setLocation("/my-bookings");
+    return null;
+  }
+
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilters, setStatusFilters] = useState<string[]>([]);

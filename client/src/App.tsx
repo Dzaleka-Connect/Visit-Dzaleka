@@ -58,6 +58,11 @@ import ItineraryView from "@/pages/itinerary-view";
 import SharePhotos from "@/pages/share-photos";
 import RecurringBookingsPage from "@/pages/recurring-bookings";
 import LiveOperations from "@/pages/live-ops";
+import MyTours from "@/pages/my-tours";
+import MyEarnings from "@/pages/my-earnings";
+import MyAvailability from "@/pages/my-availability";
+import SavedItineraries from "@/pages/saved-itineraries";
+import FavoriteGuides from "@/pages/favorite-guides";
 import CustomersPage from "@/pages/customers";
 import CustomerProfile from "@/pages/customer-profile";
 import Analytics from "@/pages/analytics";
@@ -166,12 +171,17 @@ function Router() {
         <Route path="/bookings/:id/itinerary" component={ItineraryView} />
         <Route path="/recurring-bookings" component={RecurringBookingsPage} />
         <Route path="/my-bookings" component={MyBookings} />
+        <Route path="/saved-itineraries" component={SavedItineraries} />
+        <Route path="/favorite-guides" component={FavoriteGuides} />
         <Route path="/calendar" component={CalendarPage} />
         <Route path="/channel-manager" component={ChannelManager} />
         <Route path="/guide-performance" component={GuidePerformance} />
         <Route path="/guides" component={Guides} />
         <Route path="/guide/:slug" component={GuideProfile} />
         <Route path="/guide-training" component={GuideTraining} />
+        <Route path="/my-tours" component={MyTours} />
+        <Route path="/my-earnings" component={MyEarnings} />
+        <Route path="/my-availability" component={MyAvailability} />
         <Route path="/training-admin" component={TrainingAdmin} />
         <Route path="/zones" component={Zones} />
         <Route path="/security" component={Security} />

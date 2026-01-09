@@ -11,6 +11,15 @@ function getSessionId(): string {
     return sessionId;
 }
 
+// Normalize URL path to prevent duplicate tracking
+function normalizePath(path: string): string {
+    // Remove trailing slash (except for root "/")
+    if (path.length > 1 && path.endsWith("/")) {
+        return path.slice(0, -1);
+    }
+    return path;
+}
+
 /**
  * Hook that tracks page views automatically on route changes.
  * Should be called once at the app root level.
@@ -20,15 +29,18 @@ export function usePageTracker() {
     const lastTrackedPath = useRef<string | null>(null);
 
     useEffect(() => {
+        // Normalize the path to prevent duplicate tracking
+        const normalizedPath = normalizePath(location);
+
         // Avoid duplicate tracking for the same path
-        if (lastTrackedPath.current === location) {
+        if (lastTrackedPath.current === normalizedPath) {
             return;
         }
-        lastTrackedPath.current = location;
+        lastTrackedPath.current = normalizedPath;
 
         // Don't track admin/internal pages if needed (optional filtering)
         // Skip tracking for API routes or assets
-        if (location.startsWith("/api/") || location.includes(".")) {
+        if (normalizedPath.startsWith("/api/") || normalizedPath.includes(".")) {
             return;
         }
 
@@ -41,7 +53,7 @@ export function usePageTracker() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                page: location,
+                page: normalizedPath,
                 sessionId,
                 referrer,
                 userAgent,

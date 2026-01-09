@@ -1,4 +1,6 @@
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import {
@@ -343,24 +345,9 @@ export default function HelpCenter() {
                                                         <CollapsibleContent>
                                                             <CardContent className="pt-0">
                                                                 <div className="prose prose-sm dark:prose-invert max-w-none">
-                                                                    {article.content.split("\n").map((line, i) => {
-                                                                        if (line.startsWith("## ")) {
-                                                                            return <h2 key={i} className="text-lg font-semibold mt-4 mb-2">{line.slice(3)}</h2>;
-                                                                        }
-                                                                        if (line.startsWith("### ")) {
-                                                                            return <h3 key={i} className="text-base font-semibold mt-3 mb-1">{line.slice(4)}</h3>;
-                                                                        }
-                                                                        if (line.startsWith("- ")) {
-                                                                            return <li key={i} className="ml-4">{line.slice(2)}</li>;
-                                                                        }
-                                                                        if (line.match(/^\d+\. /)) {
-                                                                            return <li key={i} className="ml-4">{line.replace(/^\d+\. /, "")}</li>;
-                                                                        }
-                                                                        if (line.trim() === "") {
-                                                                            return <br key={i} />;
-                                                                        }
-                                                                        return <p key={i} className="mb-2">{line}</p>;
-                                                                    })}
+                                                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                                        {article.content}
+                                                                    </ReactMarkdown>
                                                                 </div>
                                                             </CardContent>
                                                         </CollapsibleContent>

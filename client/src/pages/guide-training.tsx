@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Link } from "wouter";
 import {
     BookOpen,
@@ -170,7 +172,7 @@ export default function GuideTraining() {
             />
 
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold">Guide Training</h1>
                     <p className="text-muted-foreground">
@@ -181,20 +183,20 @@ export default function GuideTraining() {
 
             {/* Progress Overview */}
             <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
-                <CardContent className="p-6">
+                <CardContent className="p-4 sm:p-6">
                     <div className="flex flex-col md:flex-row md:items-center gap-6">
                         <div className="flex items-center gap-4">
-                            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/20">
-                                <Award className="h-8 w-8 text-primary" />
+                            <div className="flex h-12 w-12 sm:h-16 sm:w-16 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                                <Award className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
                             </div>
                             <div>
-                                <h2 className="text-xl font-bold">Your Progress</h2>
-                                <p className="text-muted-foreground">
+                                <h2 className="text-lg sm:text-xl font-bold">Your Progress</h2>
+                                <p className="text-sm sm:text-base text-muted-foreground">
                                     {stats?.completed || 0} of {stats?.total || 0} required modules completed
                                 </p>
                             </div>
                         </div>
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-2">
                                 <span className="text-sm font-medium">Completion</span>
                                 <span className="text-sm text-muted-foreground">{stats?.percentage || 0}%</span>
@@ -202,7 +204,7 @@ export default function GuideTraining() {
                             <Progress value={stats?.percentage || 0} className="h-3" />
                         </div>
                         {stats?.percentage === 100 && (
-                            <Badge className="bg-green-500 text-white px-4 py-2 text-sm">
+                            <Badge className="bg-green-500 text-white px-4 py-2 text-sm justify-center">
                                 <CheckCircle className="mr-2 h-4 w-4" />
                                 Certified Guide
                             </Badge>
@@ -212,11 +214,11 @@ export default function GuideTraining() {
             </Card>
 
             {/* Filters */}
-            <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-muted-foreground" />
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
                     <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                        <SelectTrigger className="w-48">
+                        <SelectTrigger className="w-full sm:w-48">
                             <SelectValue placeholder="Filter by category" />
                         </SelectTrigger>
                         <SelectContent>
@@ -249,23 +251,25 @@ export default function GuideTraining() {
                                     onOpenChange={() => toggleExpanded(module.id)}
                                 >
                                     <CollapsibleTrigger asChild>
-                                        <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-3">
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-3">
-                                                        <CardTitle className="text-base">{module.title}</CardTitle>
-                                                        <Badge className={STATUS_COLORS[module.progress.status as TrainingProgressStatus]}>
-                                                            {STATUS_LABELS[module.progress.status as TrainingProgressStatus]}
-                                                        </Badge>
-                                                        {module.isRequired && (
-                                                            <Badge variant="outline" className="text-xs">Required</Badge>
-                                                        )}
+                                        <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-3 p-4 sm:p-6">
+                                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                                                        <CardTitle className="text-base leading-tight mr-1">{module.title}</CardTitle>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            <Badge className={`${STATUS_COLORS[module.progress.status as TrainingProgressStatus]} whitespace-nowrap`}>
+                                                                {STATUS_LABELS[module.progress.status as TrainingProgressStatus]}
+                                                            </Badge>
+                                                            {module.isRequired && (
+                                                                <Badge variant="outline" className="text-xs whitespace-nowrap">Required</Badge>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <CardDescription className="mt-1">
+                                                    <CardDescription className="mt-2 line-clamp-2 sm:line-clamp-none">
                                                         {module.description}
                                                     </CardDescription>
                                                 </div>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto mt-1 sm:mt-0">
                                                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                                         <Clock className="h-4 w-4" />
                                                         {module.estimatedMinutes}m
@@ -281,15 +285,19 @@ export default function GuideTraining() {
                                     </CollapsibleTrigger>
 
                                     <CollapsibleContent>
-                                        <CardContent className="pt-0 space-y-4">
+                                        <CardContent className="pt-0 p-4 sm:p-6 sm:pt-0 space-y-4">
                                             {module.content && (
                                                 <div className="p-4 rounded-lg bg-muted/50">
-                                                    <p className="text-sm">{module.content}</p>
+                                                    <div className="prose prose-sm max-w-none">
+                                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                            {module.content}
+                                                        </ReactMarkdown>
+                                                    </div>
                                                 </div>
                                             )}
 
                                             {module.externalUrl && (
-                                                <Button asChild variant="outline" className="w-full">
+                                                <Button asChild variant="outline" className="w-full sm:w-auto">
                                                     <a href={module.externalUrl} target="_blank" rel="noopener noreferrer">
                                                         <ExternalLink className="mr-2 h-4 w-4" />
                                                         Open Training Resource
@@ -303,15 +311,17 @@ export default function GuideTraining() {
                                                     placeholder="Add notes about what you learned..."
                                                     value={notes[module.id] || module.progress.notes || ""}
                                                     onChange={(e) => setNotes(prev => ({ ...prev, [module.id]: e.target.value }))}
-                                                    rows={2}
+                                                    rows={3}
+                                                    className="resize-y"
                                                 />
                                             </div>
 
-                                            <div className="flex items-center gap-2 pt-2">
+                                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-2">
                                                 {module.progress.status === "not_started" && (
                                                     <Button
                                                         onClick={() => handleStatusChange(module.id, "in_progress")}
                                                         disabled={updateProgressMutation.isPending}
+                                                        className="w-full sm:w-auto"
                                                     >
                                                         <Play className="mr-2 h-4 w-4" />
                                                         Start Module
@@ -321,14 +331,14 @@ export default function GuideTraining() {
                                                     <Button
                                                         onClick={() => handleStatusChange(module.id, "completed")}
                                                         disabled={updateProgressMutation.isPending}
-                                                        className="bg-green-600 hover:bg-green-700"
+                                                        className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
                                                     >
                                                         <CheckCircle className="mr-2 h-4 w-4" />
                                                         Mark as Completed
                                                     </Button>
                                                 )}
                                                 {module.progress.status === "completed" && (
-                                                    <div className="flex items-center gap-2 text-green-600">
+                                                    <div className="flex items-center gap-2 text-green-600 bg-green-50 dark:bg-green-900/10 p-2 rounded-md justify-center sm:justify-start">
                                                         <CheckCircle className="h-5 w-5" />
                                                         <span className="font-medium">Completed</span>
                                                         {module.progress.completedAt && (

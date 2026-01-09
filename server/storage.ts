@@ -81,6 +81,10 @@ import {
   type InsertItinerary,
   type BlogPost,
   type InsertBlogPost,
+  type SavedItinerary,
+  type InsertSavedItinerary,
+  type FavoriteGuide,
+  type InsertFavoriteGuide,
 } from "@shared/schema";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import crypto from "crypto";
@@ -432,6 +436,17 @@ export interface IStorage {
   createItinerary(itinerary: InsertItinerary): Promise<Itinerary>;
   getItineraryByBookingId(bookingId: string): Promise<Itinerary | undefined>;
   getItinerariesByUser(userId: string): Promise<Itinerary[]>;
+
+  // Saved Itineraries (Visitor Feature)
+  getSavedItineraries(userId: string): Promise<SavedItinerary[]>;
+  createSavedItinerary(itinerary: InsertSavedItinerary): Promise<SavedItinerary>;
+  deleteSavedItinerary(id: string, userId: string): Promise<void>;
+
+  // Favorite Guides (Visitor Feature)
+  getFavoriteGuides(userId: string): Promise<FavoriteGuide[]>;
+  getFavoriteGuide(userId: string, guideId: string): Promise<FavoriteGuide | undefined>;
+  createFavoriteGuide(favorite: InsertFavoriteGuide): Promise<FavoriteGuide>;
+  deleteFavoriteGuide(userId: string, guideId: string): Promise<void>;
 }
 
 export class SupabaseStorage implements IStorage {
@@ -3083,6 +3098,86 @@ export class SupabaseStorage implements IStorage {
       .from("blog_posts")
       .delete()
       .eq("id", id);
+
+    if (error) throw error;
+  }
+
+  // ==================== Saved Itineraries ====================
+
+  async getSavedItineraries(userId: string): Promise<SavedItinerary[]> {
+    const { data, error } = await this.supabase
+      .from("saved_itineraries")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (error) throw new Error(error.message);
+    return (data || []).map(item => transformToCamel<SavedItinerary>(item));
+  }
+
+  async createSavedItinerary(itinerary: InsertSavedItinerary): Promise<SavedItinerary> {
+    const snakeData = transformToSnake(itinerary);
+    const { data, error } = await this.supabase
+      .from("saved_itineraries")
+      .insert(snakeData)
+      .select()
+      .single();
+
+    return this.handleResponse(data, error);
+  }
+
+  async deleteSavedItinerary(id: string, userId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("saved_itineraries")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", userId);
+
+    if (error) throw error;
+  }
+
+  // ==================== Favorite Guides ====================
+
+  async getFavoriteGuides(userId: string): Promise<FavoriteGuide[]> {
+    const { data, error } = await this.supabase
+      .from("favorite_guides")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (error) throw new Error(error.message);
+    return (data || []).map(item => transformToCamel<FavoriteGuide>(item));
+  }
+
+  async getFavoriteGuide(userId: string, guideId: string): Promise<FavoriteGuide | undefined> {
+    const { data, error } = await this.supabase
+      .from("favorite_guides")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("guide_id", guideId)
+      .single();
+
+    if (error && error.code === 'PGRST116') return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createFavoriteGuide(favorite: InsertFavoriteGuide): Promise<FavoriteGuide> {
+    const snakeData = transformToSnake(favorite);
+    const { data, error } = await this.supabase
+      .from("favorite_guides")
+      .insert(snakeData)
+      .select()
+      .single();
+
+    return this.handleResponse(data, error);
+  }
+
+  async deleteFavoriteGuide(userId: string, guideId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("favorite_guides")
+      .delete()
+      .eq("user_id", userId)
+      .eq("guide_id", guideId);
 
     if (error) throw error;
   }

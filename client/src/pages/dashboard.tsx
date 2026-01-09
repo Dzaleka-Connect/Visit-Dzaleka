@@ -18,6 +18,7 @@ import {
   UserCheck,
   Star,
   ExternalLink,
+  FileText,
   Mail,
   Send,
   Loader2,
@@ -33,8 +34,15 @@ import {
   Ticket,
   Download,
   FileDown,
+  Phone,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +59,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { StatCard } from "@/components/stat-card";
+import { ReportIncidentDialog } from "@/components/report-incident-dialog";
+import { IncidentsList } from "@/components/incidents-list";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { DashboardSkeleton } from "@/components/loading-skeleton";
@@ -1587,14 +1597,46 @@ function VisitorDashboard() {
               <Badge variant="secondary" className="rounded-full">{completedBookings.length}</Badge>
             </div>
             {completedBookings.length > 2 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowAllPastVisits(!showAllPastVisits)}
-              >
-                {showAllPastVisits ? "Show Less" : "View All"}
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      const res = await apiRequest("GET", "/api/visitors/export-history");
+                      const data = await res.json();
+
+                      // Convert JSON to formatted string for download
+                      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                      const url = window.URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `visit-history-${formatDate(new Date())}.json`;
+                      document.body.appendChild(a);
+                      a.click();
+                      window.URL.revokeObjectURL(url);
+                      document.body.removeChild(a);
+
+                      toast({ title: "History Exported", description: "Your visit history has been downloaded." });
+                    } catch (error) {
+                      toast({ title: "Export Failed", description: "Could not export visit history.", variant: "destructive" });
+                    }
+                  }}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Export History
+                </Button>
+                {completedBookings.length > 2 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAllPastVisits(!showAllPastVisits)}
+                  >
+                    {showAllPastVisits ? "Show Less" : "View All"}
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             )}
           </CardHeader>
           <CardContent>
@@ -1604,27 +1646,27 @@ function VisitorDashboard() {
                   {/* Decorative Gradient Bar */}
                   <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-green-500 to-emerald-600"></div>
 
-                  <div className="p-5 pl-7">
+                  <div className="p-4 sm:p-5 pl-5 sm:pl-7">
                     <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                       {/* Main Info */}
                       <div className="flex-1 space-y-3">
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-start justify-between gap-2">
                           <div>
                             <h4 className="font-semibold text-lg tracking-tight">
                               {booking.tourType?.replace("_", " ")} Tour
                             </h4>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                              <span className="flex items-center gap-1 bg-muted px-2 py-0.5 rounded-md">
+                            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mt-1">
+                              <span className="flex items-center gap-1 bg-muted px-2 py-0.5 rounded-md whitespace-nowrap">
                                 <Calendar className="h-3.5 w-3.5" />
                                 {formatDate(booking.visitDate)}
                               </span>
-                              <span className="flex items-center gap-1 bg-muted px-2 py-0.5 rounded-md">
+                              <span className="flex items-center gap-1 bg-muted px-2 py-0.5 rounded-md whitespace-nowrap">
                                 <Clock className="h-3.5 w-3.5" />
                                 {formatTime(booking.visitTime)}
                               </span>
                             </div>
                           </div>
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 shrink-0 ml-2">
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 shrink-0">
                             Completed
                           </Badge>
                         </div>
@@ -1643,8 +1685,7 @@ function VisitorDashboard() {
                         )}
                       </div>
 
-                      {/* Actions */}
-                      <div className="flex flex-row md:flex-col gap-2 shrink-0 border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-4 mt-2 md:mt-0">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:flex md:flex-col gap-2 shrink-0 border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-4 mt-2 md:mt-0">
                         {itineraries?.some((i) => i.bookingId === booking.id) && (
                           <Button size="sm" variant="default" className="w-full justify-start gap-2" asChild>
                             <Link href={`/bookings/${booking.id}/itinerary`}>
@@ -1702,56 +1743,112 @@ function VisitorDashboard() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">Explore Dzaleka</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-primary/30 hover:border-primary hover:bg-primary/5" asChild>
-              <a href="https://services.dzaleka.com/visit/travel-guide/" target="_blank" rel="noopener noreferrer">
-                <MapPin className="h-5 w-5 text-primary" />
-                <div className="text-left">
-                  <div className="font-medium">Travel Guide</div>
-                  <div className="text-xs text-muted-foreground">Getting to Dzaleka</div>
-                </div>
-                <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
-              </a>
-            </Button>
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-amber-500/30 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20" asChild>
-              <a href="https://services.dzaleka.com/visit/guidelines/" target="_blank" rel="noopener noreferrer">
-                <Shield className="h-5 w-5 text-amber-600" />
-                <div className="text-left">
-                  <div className="font-medium">Visitor Guidelines</div>
-                  <div className="text-xs text-muted-foreground">What to know before you go</div>
-                </div>
-                <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
-              </a>
-            </Button>
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-purple-500/30 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20" asChild>
-              <a href="https://services.dzaleka.com/dzaleka-time-capsule/" target="_blank" rel="noopener noreferrer">
-                <Clock className="h-5 w-5 text-purple-600" />
-                <div className="text-left">
-                  <div className="font-medium">Time Capsule</div>
-                  <div className="text-xs text-muted-foreground">Dzaleka's history & stories</div>
-                </div>
-                <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
-              </a>
-            </Button>
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-blue-500/30 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20" asChild>
-              <a href="https://services.dzaleka.com" target="_blank" rel="noopener noreferrer">
-                <Globe className="h-5 w-5 text-blue-600" />
-                <div className="text-left">
-                  <div className="font-medium">Dzaleka Online Services</div>
-                  <div className="text-xs text-muted-foreground">Full platform & resources</div>
-                </div>
-                <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
-              </a>
-            </Button>
+
+      {/* Safety & Support Card */}
+      <Card className="mt-6 border-l-4 border-l-orange-500 shadow-sm">
+  <CardHeader className="pb-3">
+    <CardTitle className="text-lg flex items-center gap-2">
+      <Shield className="h-5 w-5 text-orange-600" />
+      Safety & Support
+    </CardTitle>
+    <CardDescription>
+      We prioritize your safety. If you encounter any issues or need assistance, please report it immediately or contact our team.
+    </CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="flex flex-col md:flex-row gap-6">
+      <div className="flex-1 space-y-4">
+        <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+          <div className="bg-primary/10 p-2 rounded-full mt-0.5">
+            <Phone className="h-4 w-4 text-primary" />
           </div>
-        </CardContent>
-      </Card>
+          <div>
+            <h4 className="font-semibold text-sm">Emergency Contacts</h4>
+            <p className="text-sm text-foreground/80 mt-1">Admin: <a href="tel:+61498956715" className="text-primary hover:underline font-medium">+61 498 956 715</a></p>
+            <p className="text-sm text-foreground/80">Email: <a href="mailto:dzalekaconnect@gmail.com" className="text-primary hover:underline font-medium">dzalekaconnect@gmail.com</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 flex flex-col justify-center items-start border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-6">
+        <h4 className="font-semibold text-sm mb-2">Report an Incident</h4>
+        <p className="text-sm text-muted-foreground mb-4">
+          Witnessed something concerning? Let us know so we can address it.
+        </p>
+        <ReportIncidentDialog />
+      </div>
     </div>
+  </CardContent>
+</Card>
+
+{/* My Reports History - Only for visitors */ }
+{
+  user?.role === "visitor" && (
+    <Card className="mt-6">
+      <CardHeader>
+        <CardTitle className="text-lg flex items-center gap-2">
+          <ListTodo className="h-5 w-5 text-primary" />
+          My Reported Issues
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <IncidentsList />
+      </CardContent>
+    </Card>
+  )
+}
+
+{/* Explore Dzaleka Section */ }
+<Card>
+  <CardHeader>
+    <CardTitle className="text-lg font-semibold">Explore Dzaleka</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-primary/30 hover:border-primary hover:bg-primary/5" asChild>
+        <a href="https://services.dzaleka.com/visit/travel-guide/" target="_blank" rel="noopener noreferrer">
+          <MapPin className="h-5 w-5 text-primary" />
+          <div className="text-left">
+            <div className="font-medium">Travel Guide</div>
+            <div className="text-xs text-muted-foreground">Getting to Dzaleka</div>
+          </div>
+          <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
+        </a>
+      </Button>
+      <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-amber-500/30 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20" asChild>
+        <a href="https://services.dzaleka.com/visit/guidelines/" target="_blank" rel="noopener noreferrer">
+          <Shield className="h-5 w-5 text-amber-600" />
+          <div className="text-left">
+            <div className="font-medium">Visitor Guidelines</div>
+            <div className="text-xs text-muted-foreground">What to know before you go</div>
+          </div>
+          <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
+        </a>
+      </Button>
+      <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-purple-500/30 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20" asChild>
+        <a href="https://services.dzaleka.com/dzaleka-time-capsule/" target="_blank" rel="noopener noreferrer">
+          <Clock className="h-5 w-5 text-purple-600" />
+          <div className="text-left">
+            <div className="font-medium">Time Capsule</div>
+            <div className="text-xs text-muted-foreground">Dzaleka's history & stories</div>
+          </div>
+          <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
+        </a>
+      </Button>
+      <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-blue-500/30 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20" asChild>
+        <a href="https://services.dzaleka.com" target="_blank" rel="noopener noreferrer">
+          <Globe className="h-5 w-5 text-blue-600" />
+          <div className="text-left">
+            <div className="font-medium">Dzaleka Online Services</div>
+            <div className="text-xs text-muted-foreground">Full platform & resources</div>
+          </div>
+          <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
+        </a>
+      </Button>
+    </div>
+  </CardContent>
+</Card>
+    </div >
   );
 }
 

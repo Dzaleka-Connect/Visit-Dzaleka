@@ -15,6 +15,7 @@ import {
   insertAnalyticsSettingsSchema,
   insertBlogPostSchema,
   type UserRole,
+  type Booking,
 } from "@shared/schema";
 import { generateIcalFeed, parseIcalFeed } from "./lib/ical";
 import { z } from "zod";
@@ -148,7 +149,7 @@ function requireRole(...allowedRoles: UserRole[]) {
 // Audit logging helper
 async function createAuditLog(
   userId: string,
-  action: "create" | "update" | "delete" | "login" | "logout" | "check_in" | "check_out" | "verify",
+  action: "create" | "update" | "delete" | "login" | "logout" | "check_in" | "check_out" | "verify" | "impersonate" | "stop_impersonate",
   entityType: string,
   entityId?: string,
   oldValues?: any,
@@ -719,12 +720,113 @@ export async function registerRoutes(
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
+
+      // Sync session role with database (handles role changes by admin)
+      if (user.role && req.session.userRole !== user.role) {
+        req.session.userRole = user.role;
+      }
+
       // Return user without password
       const { password: _, ...safeUser } = user;
-      res.json(safeUser);
+
+      // Include impersonation info
+      const response: any = { ...safeUser };
+      if (req.session.isImpersonating && req.session.originalAdminId) {
+        response.isImpersonating = true;
+        response.originalAdminId = req.session.originalAdminId;
+      }
+
+      res.json(response);
     } catch (error) {
       logError("Error fetching user", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Admin impersonation - start impersonating a user
+  app.post("/api/admin/impersonate/:userId", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const targetUserId = req.params.userId;
+      const adminId = req.session.userId!;
+
+      // Prevent impersonating self
+      if (targetUserId === adminId) {
+        return res.status(400).json({ message: "Cannot impersonate yourself" });
+      }
+
+      // Get target user
+      const targetUser = await storage.getUser(targetUserId);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Prevent impersonating other admins
+      if (targetUser.role === "admin") {
+        return res.status(403).json({ message: "Cannot impersonate other administrators" });
+      }
+
+      // Store original admin session info
+      req.session.originalAdminId = adminId;
+      req.session.originalAdminRole = req.session.userRole;
+      req.session.isImpersonating = true;
+
+      // Switch to target user
+      req.session.userId = targetUserId;
+      req.session.userRole = targetUser.role || "visitor";
+
+      // Log the impersonation
+      await createAuditLog(adminId, "impersonate", "user", targetUserId, null, {
+        targetUserEmail: targetUser.email,
+        targetUserName: `${targetUser.firstName} ${targetUser.lastName}`,
+      }, req);
+
+      const { password: _, ...safeUser } = targetUser;
+      res.json({
+        message: "Now impersonating user",
+        user: safeUser,
+        isImpersonating: true,
+      });
+    } catch (error) {
+      logError("Error starting impersonation", error, req.requestId);
+      res.status(500).json({ message: "Failed to start impersonation" });
+    }
+  });
+
+  // Admin impersonation - stop impersonating
+  app.post("/api/admin/stop-impersonation", isAuthenticated, async (req, res) => {
+    try {
+      if (!req.session.isImpersonating || !req.session.originalAdminId) {
+        return res.status(400).json({ message: "Not currently impersonating" });
+      }
+
+      const impersonatedUserId = req.session.userId;
+      const originalAdminId = req.session.originalAdminId;
+
+      // Restore original admin session
+      req.session.userId = originalAdminId;
+      req.session.userRole = req.session.originalAdminRole || "admin";
+      req.session.isImpersonating = false;
+      delete req.session.originalAdminId;
+      delete req.session.originalAdminRole;
+
+      // Get admin user
+      const adminUser = await storage.getUser(originalAdminId);
+      if (!adminUser) {
+        return res.status(404).json({ message: "Admin user not found" });
+      }
+
+      // Log the end of impersonation
+      await createAuditLog(originalAdminId, "stop_impersonate", "user", impersonatedUserId!, null, {}, req);
+
+      const { password: _, ...safeUser } = adminUser;
+      res.json({
+        message: "Stopped impersonating",
+        user: safeUser,
+        isImpersonating: false,
+      });
+    } catch (error) {
+      logError("Error stopping impersonation", error, req.requestId);
+      res.status(500).json({ message: "Failed to stop impersonation" });
     }
   });
 
@@ -1242,14 +1344,14 @@ export async function registerRoutes(
     }
   });
 
-  // Bookings endpoints - admin, coordinator, security can view all bookings
-  app.get("/api/bookings", isAuthenticated, requireRole("admin", "coordinator", "security"), async (req, res) => {
+  // Bookings endpoints - admin, coordinator, security can view all bookings; guides see only their assigned bookings
+  app.get("/api/bookings", isAuthenticated, requireRole("admin", "coordinator", "security", "guide"), async (req: any, res) => {
     try {
       // Support optional pagination via query params
       const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
 
-      let bookingsList;
+      let bookingsList: Booking[];
       let paginationMeta;
 
       if (page !== undefined) {
@@ -1260,6 +1362,19 @@ export async function registerRoutes(
       } else {
         // Original behavior - return all
         bookingsList = await storage.getBookings();
+      }
+
+      // If user is a guide, filter to only their assigned bookings
+      const currentUser = req.currentUser;
+      if (currentUser?.role === "guide") {
+        // Find the guide profile for this user
+        const guideProfile = await storage.getGuideByUserId(currentUser.id);
+        if (guideProfile) {
+          bookingsList = bookingsList.filter(b => b.assignedGuideId === guideProfile.id);
+        } else {
+          // No guide profile - return empty list
+          bookingsList = [];
+        }
       }
 
       // Batch fetch guides
@@ -1421,6 +1536,172 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error fetching my bookings", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch bookings" });
+    }
+  });
+
+  // ==================== VISITOR FEATURES ====================
+
+  // Saved Itineraries - List
+  app.get("/api/visitors/saved-itineraries", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const itineraries = await storage.getSavedItineraries(userId);
+      res.json(itineraries);
+    } catch (error) {
+      logError("Error fetching saved itineraries", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch saved itineraries" });
+    }
+  });
+
+  // Saved Itineraries - Create
+  app.post("/api/visitors/saved-itineraries", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const { name, tourType, groupSize, numberOfPeople, selectedZones, selectedInterests, customDuration, meetingPointId, specialRequests } = req.body;
+
+      const itinerary = await storage.createSavedItinerary({
+        userId,
+        name,
+        tourType,
+        groupSize,
+        numberOfPeople,
+        selectedZones,
+        selectedInterests,
+        customDuration,
+        meetingPointId,
+        specialRequests,
+      });
+
+      res.status(201).json(itinerary);
+    } catch (error) {
+      logError("Error saving itinerary", error, req.requestId);
+      res.status(500).json({ message: "Failed to save itinerary" });
+    }
+  });
+
+  // Saved Itineraries - Delete
+  app.delete("/api/visitors/saved-itineraries/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const itineraryId = req.params.id;
+
+      await storage.deleteSavedItinerary(itineraryId, userId);
+      res.json({ success: true });
+    } catch (error) {
+      logError("Error deleting saved itinerary", error, req.requestId);
+      res.status(500).json({ message: "Failed to delete itinerary" });
+    }
+  });
+
+  // Favorite Guides - List
+  app.get("/api/visitors/favorite-guides", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const favorites = await storage.getFavoriteGuides(userId);
+
+      // Get full guide details for each favorite
+      const guideIds = favorites.map(f => f.guideId);
+      const guides = await storage.getGuidesByIds(guideIds);
+
+      const result = favorites.map(fav => ({
+        ...fav,
+        guide: guides.find(g => g.id === fav.guideId) || null,
+      }));
+
+      res.json(result);
+    } catch (error) {
+      logError("Error fetching favorite guides", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch favorite guides" });
+    }
+  });
+
+  // Favorite Guides - Add
+  app.post("/api/visitors/favorite-guides/:guideId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const guideId = req.params.guideId;
+
+      // Check if already favorited
+      const existing = await storage.getFavoriteGuide(userId, guideId);
+      if (existing) {
+        return res.status(400).json({ message: "Guide already in favorites" });
+      }
+
+      const favorite = await storage.createFavoriteGuide({ userId, guideId });
+      res.status(201).json(favorite);
+    } catch (error) {
+      logError("Error adding favorite guide", error, req.requestId);
+      res.status(500).json({ message: "Failed to add favorite guide" });
+    }
+  });
+
+  // Favorite Guides - Remove
+  app.delete("/api/visitors/favorite-guides/:guideId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const guideId = req.params.guideId;
+
+      await storage.deleteFavoriteGuide(userId, guideId);
+      res.json({ success: true });
+    } catch (error) {
+      logError("Error removing favorite guide", error, req.requestId);
+      res.status(500).json({ message: "Failed to remove favorite guide" });
+    }
+  });
+
+  // Visit History Export (simple JSON for now, frontend will generate PDF)
+  app.get("/api/visitors/export-history", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Get all completed bookings for this user
+      const allBookings = await storage.getBookings();
+      const completedBookings = allBookings.filter(b =>
+        (b.visitorUserId === userId || b.visitorEmail === user.email) &&
+        b.status === "completed"
+      );
+
+      // Get guide details
+      const guides = await storage.getGuides();
+      const zones = await storage.getZones();
+
+      const exportData = {
+        visitor: {
+          name: `${user.firstName} ${user.lastName}`,
+          email: user.email,
+        },
+        exportDate: new Date().toISOString(),
+        totalVisits: completedBookings.length,
+        visits: completedBookings.map(booking => {
+          const guide = booking.assignedGuideId
+            ? guides.find(g => g.id === booking.assignedGuideId)
+            : null;
+          const zoneNames = (booking.selectedZones || [])
+            .map(zId => zones.find(z => z.id === zId)?.name)
+            .filter(Boolean);
+
+          return {
+            bookingReference: booking.bookingReference,
+            visitDate: booking.visitDate,
+            visitTime: booking.visitTime,
+            tourType: booking.tourType,
+            numberOfPeople: booking.numberOfPeople,
+            zones: zoneNames,
+            guide: guide ? `${guide.firstName} ${guide.lastName}` : null,
+            totalAmount: booking.totalAmount,
+            rating: booking.visitorRating,
+          };
+        }).sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime()),
+      };
+
+      res.json(exportData);
+    } catch (error) {
+      logError("Error exporting visit history", error, req.requestId);
+      res.status(500).json({ message: "Failed to export visit history" });
     }
   });
 
@@ -2292,6 +2573,236 @@ export async function registerRoutes(
     }
   });
 
+  // Guide earnings endpoint
+  app.get("/api/guides/me/earnings", isAuthenticated, requireRole("guide"), async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const guide = await storage.getGuideByUserId(userId);
+      if (!guide) {
+        return res.status(404).json({ message: "Guide profile not found" });
+      }
+
+      // Get all completed bookings for this guide
+      const allBookings = await storage.getBookings();
+      const guideBookings = allBookings.filter(b =>
+        b.assignedGuideId === guide.id && b.status === "completed"
+      );
+
+      // Calculate earnings - use guidePayment if set, otherwise use 100% of totalAmount
+      const GUIDE_PERCENTAGE = 1.0; // 100% of booking goes to guide
+
+      const getEarnings = (booking: typeof allBookings[0]) => {
+        if (booking.guidePayment && booking.guidePayment > 0) {
+          return booking.guidePayment;
+        }
+        // Fallback: calculate as percentage of total amount
+        return Math.round((booking.totalAmount || 0) * GUIDE_PERCENTAGE);
+      };
+
+      const now = new Date();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      const totalEarnings = guideBookings.reduce((sum, b) => sum + getEarnings(b), 0);
+      const weeklyEarnings = guideBookings
+        .filter(b => new Date(b.visitDate) >= startOfWeek)
+        .reduce((sum, b) => sum + getEarnings(b), 0);
+      const monthlyEarnings = guideBookings
+        .filter(b => new Date(b.visitDate) >= startOfMonth)
+        .reduce((sum, b) => sum + getEarnings(b), 0);
+
+      // Get detailed earnings list
+      const earningsList = guideBookings.map(b => ({
+        id: b.id,
+        visitorName: b.visitorName,
+        visitDate: b.visitDate,
+        tourType: b.tourType,
+        numberOfPeople: b.numberOfPeople,
+        guidePayment: getEarnings(b),
+        totalAmount: b.totalAmount || 0,
+      })).sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime());
+
+      res.json({
+        totalEarnings,
+        weeklyEarnings,
+        monthlyEarnings,
+        totalTours: guideBookings.length,
+        earnings: earningsList,
+      });
+    } catch (error) {
+      logError("Error fetching guide earnings", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch earnings" });
+    }
+  });
+
+  // Guide's assigned tours (upcoming, in-progress, completed)
+  app.get("/api/guides/me/tours", isAuthenticated, requireRole("guide"), async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const guide = await storage.getGuideByUserId(userId);
+      if (!guide) {
+        return res.status(404).json({ message: "Guide profile not found" });
+      }
+
+      const allBookings = await storage.getBookings();
+      const guideBookings = allBookings
+        .filter(b => b.assignedGuideId === guide.id)
+        .sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime());
+
+      res.json(guideBookings);
+    } catch (error) {
+      logError("Error fetching guide tours", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch tours" });
+    }
+  });
+
+  // Guide check-in visitor
+  app.post("/api/bookings/:id/guide-check-in", isAuthenticated, requireRole("guide"), async (req: any, res) => {
+    try {
+      const bookingId = req.params.id;
+      const userId = req.session?.userId;
+
+      const guide = await storage.getGuideByUserId(userId);
+      if (!guide) {
+        return res.status(404).json({ message: "Guide profile not found" });
+      }
+
+      const booking = await storage.getBooking(bookingId);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      if (booking.assignedGuideId !== guide.id) {
+        return res.status(403).json({ message: "You are not assigned to this booking" });
+      }
+
+      // Update status to in_progress
+      const updatedBooking = await storage.updateBookingStatus(bookingId, "in_progress");
+
+      // Log check-in with check-in time (note: checkInTime would need to be handled separately or via admin notes)
+      await createAuditLog(userId, "check_in", "booking", bookingId,
+        { status: booking.status }, { status: "in_progress" }, req);
+
+      res.json(updatedBooking);
+    } catch (error) {
+      logError("Error checking in visitor", error, req.requestId);
+      res.status(500).json({ message: "Failed to check in visitor" });
+    }
+  });
+
+  // Guide check-out visitor
+  app.post("/api/bookings/:id/guide-check-out", isAuthenticated, requireRole("guide"), async (req: any, res) => {
+    try {
+      const bookingId = req.params.id;
+      const userId = req.session?.userId;
+
+      const guide = await storage.getGuideByUserId(userId);
+      if (!guide) {
+        return res.status(404).json({ message: "Guide profile not found" });
+      }
+
+      const booking = await storage.getBooking(bookingId);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      if (booking.assignedGuideId !== guide.id) {
+        return res.status(403).json({ message: "You are not assigned to this booking" });
+      }
+
+      // Update status to completed
+      const updatedBooking = await storage.updateBookingStatus(bookingId, "completed");
+
+      // Update guide's completed tours count
+      await storage.updateGuide(guide.id, {
+        completedTours: (guide.completedTours || 0) + 1,
+        totalTours: (guide.totalTours || 0) + 1,
+      });
+
+      await createAuditLog(userId, "check_out", "booking", bookingId,
+        { status: booking.status }, { status: "completed" }, req);
+
+      res.json(updatedBooking);
+    } catch (error) {
+      logError("Error checking out visitor", error, req.requestId);
+      res.status(500).json({ message: "Failed to check out visitor" });
+    }
+  });
+
+  // Get guide availability
+  app.get("/api/guides/me/availability", isAuthenticated, requireRole("guide"), async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const guide = await storage.getGuideByUserId(userId);
+      if (!guide) {
+        return res.status(404).json({ message: "Guide profile not found" });
+      }
+
+      // Return guide's availability settings
+      res.json({
+        guideId: guide.id,
+        availability: guide.availability || {},
+        workingHours: guide.workingHours || { start: "08:00", end: "17:00" },
+        isActive: guide.isActive,
+      });
+    } catch (error) {
+      logError("Error fetching guide availability", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch availability" });
+    }
+  });
+
+  // Update guide availability
+  app.patch("/api/guides/me/availability", isAuthenticated, requireRole("guide"), async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const guide = await storage.getGuideByUserId(userId);
+      if (!guide) {
+        return res.status(404).json({ message: "Guide profile not found" });
+      }
+
+      const { availability, workingHours } = req.body;
+
+      const updates: any = {};
+      if (availability !== undefined) updates.availability = availability;
+      if (workingHours !== undefined) updates.workingHours = workingHours;
+
+      const updatedGuide = await storage.updateGuide(guide.id, updates);
+
+      await createAuditLog(userId, "update", "guide", guide.id,
+        { availability: guide.availability, workingHours: guide.workingHours },
+        updates, req);
+
+      res.json({
+        guideId: updatedGuide?.id,
+        availability: updatedGuide?.availability || {},
+        workingHours: updatedGuide?.workingHours || { start: "08:00", end: "17:00" },
+        isActive: updatedGuide?.isActive,
+      });
+    } catch (error) {
+      logError("Error updating guide availability", error, req.requestId);
+      res.status(500).json({ message: "Failed to update availability" });
+    }
+  });
+
   app.get("/api/guides", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
     try {
       const guidesList = await storage.getGuides();
@@ -2366,11 +2877,30 @@ export async function registerRoutes(
   app.post("/api/guides", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
     try {
       const guideData = insertGuideSchema.parse(req.body);
-      const guide = await storage.createGuide(guideData);
 
-      const userId = req.session?.userId;
-      if (userId) {
-        await createAuditLog(userId, "create", "guide", guide.id, null, guideData, req);
+      // Check if there is an existing user with this email
+      let userId = null;
+      if (guideData.email) {
+        const existingUser = await storage.getUserByEmail(guideData.email);
+        if (existingUser) {
+          userId = existingUser.id;
+
+          // Ensure user has "guide" role if they are currently just a visitor
+          // Note: We don't overwrite if they are already 'admin' or 'coordinator'
+          if (existingUser.role === "visitor") {
+            await storage.updateUserRole(existingUser.id, "guide");
+          }
+        }
+      }
+
+      const guide = await storage.createGuide({
+        ...guideData,
+        userId: userId // Use found userId or null
+      });
+
+      const sessionUserId = req.session?.userId;
+      if (sessionUserId) {
+        await createAuditLog(sessionUserId, "create", "guide", guide.id, null, guideData, req);
       }
 
       res.status(201).json(guide);
@@ -2929,11 +3459,21 @@ export async function registerRoutes(
     }
   });
 
-  // Incidents endpoints (Security module) - security, admin, coordinator
-  app.get("/api/incidents", isAuthenticated, requireRole("admin", "coordinator", "security"), async (req, res) => {
+  // Incidents endpoints - Allow all auth users (visiters see own, admins all)
+  app.get("/api/incidents", isAuthenticated, async (req, res) => {
     try {
-      const incidentsList = await storage.getIncidents();
-      res.json(incidentsList);
+      const user = await storage.getUser(req.session.userId);
+      const allIncidents = await storage.getIncidents();
+
+      let visibleIncidents;
+      if (user?.role === "admin" || user?.role === "coordinator" || user?.role === "security") {
+        visibleIncidents = allIncidents;
+      } else {
+        // Visitors only see their own reports
+        visibleIncidents = allIncidents.filter(i => i.reportedBy === req.session.userId);
+      }
+
+      res.json(visibleIncidents);
     } catch (error) {
       logError("Error fetching incidents", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch incidents" });
@@ -2953,12 +3493,14 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/incidents", isAuthenticated, requireRole("admin", "coordinator", "security"), async (req: any, res) => {
+  // Create incident - Allow visitors to report (removed restricted role requirement)
+  app.post("/api/incidents", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session?.userId;
       const incidentData = insertIncidentSchema.parse({
         ...req.body,
         reportedBy: userId,
+        status: "reported", // Enforce initial status
       });
       const incident = await storage.createIncident(incidentData);
 

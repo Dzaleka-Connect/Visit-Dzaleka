@@ -561,7 +561,7 @@ export default function Landing() {
                   </CardContent>
                   <CardFooter>
                     <Button className="w-full" variant={plan.highlight ? "default" : "outline"} asChild>
-                      <Link href="/auth">Choose Plan</Link>
+                      <Link href="/login">Choose Plan</Link>
                     </Button>
                   </CardFooter>
                 </Card>
@@ -688,7 +688,7 @@ export default function Landing() {
               {getContent("cta_desc", "Create an account to check availability, book your tour, and manage your itinerary.")}
             </p>
             <Button size="lg" className="h-12 px-8 text-base" asChild>
-              <Link href="/auth">
+              <Link href="/login">
                 Get Started Now
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>

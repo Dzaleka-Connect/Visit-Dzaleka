@@ -81,6 +81,8 @@ export const auditActionEnum = pgEnum("audit_action", [
   "check_in",
   "check_out",
   "verify",
+  "impersonate",
+  "stop_impersonate",
 ]);
 
 // Session storage table for express-session
@@ -169,6 +171,9 @@ export const guides = pgTable("guides", {
   totalEarnings: integer("total_earnings").default(0),
   rating: integer("rating").default(0),
   totalRatings: integer("total_ratings").default(0),
+  // Self-managed availability
+  availability: jsonb("availability"), // { monday: true, tuesday: false, ... }
+  workingHours: jsonb("working_hours"), // { start: "08:00", end: "17:00" }
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -258,6 +263,8 @@ export const bookings = pgTable("bookings", {
   checkInBy: varchar("check_in_by"),
   checkOutBy: varchar("check_out_by"),
   visitorRating: integer("visitor_rating"), // Rating given by visitor (1-5)
+  guidePayment: integer("guide_payment"), // Amount paid to guide for this tour
+  visitorOrganization: varchar("visitor_organization"), // e.g., company name
   version: integer("version").default(1).notNull(), // Optimistic locking version
   recurringBookingId: varchar("recurring_booking_id"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -683,6 +690,42 @@ export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit
   updatedAt: true,
 });
 
+// Saved Itineraries - for visitors to save and reuse tour plans
+export const savedItineraries = pgTable("saved_itineraries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  name: varchar("name").notNull(),
+  tourType: tourTypeEnum("tour_type").notNull(),
+  groupSize: groupSizeEnum("group_size"),
+  numberOfPeople: integer("number_of_people").default(1),
+  selectedZones: text("selected_zones").array().default(sql`ARRAY[]::text[]`),
+  selectedInterests: text("selected_interests").array().default(sql`ARRAY[]::text[]`),
+  customDuration: integer("custom_duration"),
+  meetingPointId: varchar("meeting_point_id"),
+  specialRequests: text("special_requests"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSavedItinerarySchema = createInsertSchema(savedItineraries).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Favorite Guides - for visitors to save preferred guides
+export const favoriteGuides = pgTable("favorite_guides", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  guideId: varchar("guide_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertFavoriteGuideSchema = createInsertSchema(favoriteGuides).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -731,6 +774,12 @@ export type Notification = typeof notifications.$inferSelect;
 
 export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
 export type EmailTemplate = typeof emailTemplates.$inferSelect;
+
+export type InsertSavedItinerary = z.infer<typeof insertSavedItinerarySchema>;
+export type SavedItinerary = typeof savedItineraries.$inferSelect;
+
+export type InsertFavoriteGuide = z.infer<typeof insertFavoriteGuideSchema>;
+export type FavoriteGuide = typeof favoriteGuides.$inferSelect;
 
 // Enum types
 export type BookingStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
