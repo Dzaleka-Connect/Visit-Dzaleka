@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Calendar, MapPin, Menu, X, ExternalLink, Clock, Tag, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar, MapPin, Menu, X, ExternalLink, Clock, Tag, ChevronLeft, ChevronRight, Lightbulb } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { SEO } from "@/components/seo";
@@ -197,10 +197,21 @@ export default function WhatsOn() {
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="text-center py-12 bg-muted/10 rounded-xl border border-dashed">
-                                        <Calendar className="h-10 w-10 text-muted-foreground mx-auto mb-4 opacity-50" />
-                                        <h3 className="text-lg font-medium">No upcoming events scheduled</h3>
-                                        <p className="text-muted-foreground">Check back soon for new announcements!</p>
+                                    <div className="md:col-span-3">
+                                        <Card className="bg-primary/5 border-primary/20 text-center">
+                                            <CardContent className="flex flex-col items-center justify-center p-8 md:p-12">
+                                                <Lightbulb className="h-10 w-10 text-primary mb-4" />
+                                                <h3 className="text-xl font-semibold mb-2">No upcoming events at the moment – check back soon!</h3>
+                                                <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
+                                                    There's always something happening in Dzaleka Refugee Camp. If you're organizing an event, workshop, or community gathering, share it with us and we'll help spread the word.
+                                                </p>
+                                                <Button asChild size="lg">
+                                                    <a href="https://services.dzaleka.com/events/organize" target="_blank" rel="noopener noreferrer">
+                                                        Submit Event
+                                                    </a>
+                                                </Button>
+                                            </CardContent>
+                                        </Card>
                                     </div>
                                 )}
                             </section>

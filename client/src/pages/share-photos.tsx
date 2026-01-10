@@ -12,7 +12,7 @@ export default function SharePhotos() {
             />
 
             <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-semibold tracking-tight">Share Your Experience</h1>
+                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Share Your Experience</h1>
                 <p className="text-muted-foreground">
                     Capture the moment? Help us tell the story of Dzaleka.
                 </p>

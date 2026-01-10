@@ -85,6 +85,8 @@ import {
   type InsertSavedItinerary,
   type FavoriteGuide,
   type InsertFavoriteGuide,
+  type Event,
+  type InsertEvent,
 } from "@shared/schema";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import crypto from "crypto";
@@ -447,6 +449,10 @@ export interface IStorage {
   getFavoriteGuide(userId: string, guideId: string): Promise<FavoriteGuide | undefined>;
   createFavoriteGuide(favorite: InsertFavoriteGuide): Promise<FavoriteGuide>;
   deleteFavoriteGuide(userId: string, guideId: string): Promise<void>;
+
+  // Events
+  getEvents(): Promise<Event[]>;
+  createEvent(event: InsertEvent): Promise<Event>;
 }
 
 export class SupabaseStorage implements IStorage {
@@ -3180,6 +3186,25 @@ export class SupabaseStorage implements IStorage {
       .eq("guide_id", guideId);
 
     if (error) throw error;
+  }
+
+  // Events
+  async getEvents(): Promise<Event[]> {
+    const { data, error } = await this.supabase
+      .from("events")
+      .select("*")
+      .order("created_at", { ascending: false });
+    return this.handleResponse(data, error);
+  }
+
+  async createEvent(event: InsertEvent): Promise<Event> {
+    const snakeData = transformToSnake(event);
+    const { data, error } = await this.supabase
+      .from("events")
+      .insert({ ...snakeData, created_at: new Date(), updated_at: new Date() })
+      .select()
+      .single();
+    return this.handleResponse(data, error);
   }
 }
 

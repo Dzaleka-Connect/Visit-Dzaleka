@@ -200,7 +200,7 @@ export default function ItineraryBuilder() {
                     Back
                 </Button>
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Itinerary Builder</h1>
+                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Itinerary Builder</h1>
                     <p className="text-muted-foreground">Create a custom itinerary and email it to the visitor.</p>
                 </div>
             </div>

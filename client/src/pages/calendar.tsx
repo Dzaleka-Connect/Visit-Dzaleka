@@ -288,7 +288,7 @@ export default function CalendarPage() {
         description="View and manage tour schedules for Dzaleka Refugee Camp. Drag bookings to reschedule."
       />
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Schedule</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Schedule</h1>
         <p className="text-muted-foreground">
           View and manage tour schedules. Drag bookings to reschedule.
         </p>

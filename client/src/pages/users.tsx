@@ -362,7 +362,7 @@ export default function UsersPage() {
       />
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold tracking-tight">User Management</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">User Management</h1>
           <p className="text-muted-foreground">
             Manage user roles and permissions across the system.
           </p>

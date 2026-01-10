@@ -287,7 +287,7 @@ export default function Security() {
         description="Visitor check-in/out, booking verification, and incident management."
       />
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Security</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Security</h1>
         <p className="text-muted-foreground">
           Visitor check-in/out, booking verification, and incident management.
         </p>

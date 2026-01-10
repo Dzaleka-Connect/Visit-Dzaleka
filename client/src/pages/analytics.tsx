@@ -90,11 +90,6 @@ const COLORS = [
 export default function Analytics() {
     const { user } = useAuth();
 
-    // Only admins can view analytics
-    if (user?.role !== "admin") {
-        return <Redirect to="/dashboard" />;
-    }
-
     const { data: liveData } = useQuery<{ count: number }>({
         queryKey: ["/api/analytics/live"],
         refetchInterval: 30000,
@@ -106,6 +101,11 @@ export default function Analytics() {
 
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
+
+    // Only admins can view analytics - placed after hooks to comply with React rules
+    if (user?.role !== "admin") {
+        return <Redirect to="/dashboard" />;
+    }
 
     if (isLoading) {
         return (
@@ -428,6 +428,6 @@ export default function Analytics() {
                     )}
                 </CardContent>
             </Card>
-        </div >
+        </div>
     );
 }

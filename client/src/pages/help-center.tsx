@@ -184,7 +184,7 @@ export default function HelpCenter() {
             <div className="space-y-6">
                 {/* Header */}
                 <div className="text-center space-y-4 py-6">
-                    <h1 className="text-3xl font-bold">How can we help you?</h1>
+                    <h1 className="text-2xl sm:text-3xl font-bold">How can we help you?</h1>
                     <p className="text-muted-foreground max-w-2xl mx-auto">
                         Find answers to common questions, learn how to use the platform, or contact our support team.
                     </p>

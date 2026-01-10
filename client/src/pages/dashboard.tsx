@@ -201,7 +201,7 @@ function AdminDashboard() {
         description="Manage your Dzaleka tours, bookings, guides, and analytics from your admin dashboard."
       />
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">
           Welcome back, {user?.firstName}. Here is your daily overview.
         </p>
@@ -670,7 +670,7 @@ function CoordinatorDashboard() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Coordinator Dashboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Coordinator Dashboard</h1>
         <p className="text-muted-foreground">
           Manage bookings, guides, and tour scheduling.
         </p>
@@ -894,7 +894,7 @@ function GuideDashboard() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Guide Dashboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Guide Dashboard</h1>
         <p className="text-muted-foreground">
           Welcome back, {user?.firstName}! Here are your assigned tours.
         </p>
@@ -1057,7 +1057,7 @@ function SecurityDashboard() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Security Dashboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Security Dashboard</h1>
         <p className="text-muted-foreground">
           Monitor visitor check-ins, verify bookings, and manage incidents.
         </p>
@@ -1342,7 +1342,7 @@ function VisitorDashboard() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Welcome, {user?.firstName}!</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Welcome, {user?.firstName}!</h1>
         <p className="text-muted-foreground">
           Manage your visit bookings and explore Dzaleka Refugee Camp.
         </p>

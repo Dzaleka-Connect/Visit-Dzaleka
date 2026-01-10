@@ -71,7 +71,7 @@ export default function SavedItineraries() {
 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-semibold tracking-tight">Saved Itineraries</h1>
+                    <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Saved Itineraries</h1>
                     <p className="text-muted-foreground">
                         Quickly book a tour using your saved preferences.
                     </p>

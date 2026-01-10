@@ -274,7 +274,7 @@ export default function Messages() {
                 {/* Header - Desktop only */}
                 <div className="hidden md:flex items-center justify-between mb-6">
                     <div>
-                        <h1 className="text-3xl font-bold">Messages</h1>
+                        <h1 className="text-2xl sm:text-3xl font-bold">Messages</h1>
                         <p className="text-muted-foreground">
                             Chat with team members and guides
                         </p>

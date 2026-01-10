@@ -1528,3 +1528,28 @@ export const insertItinerarySchema = createInsertSchema(itineraries).omit({
 
 export type Itinerary = typeof itineraries.$inferSelect;
 export type InsertItinerary = z.infer<typeof insertItinerarySchema>;
+
+// Events table for public events (festivals, markets, etc.)
+export const events = pgTable("events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  date: text("date").notNull(), // Using text to allow flexible date formats like "Every Tuesday" or "November 2026"
+  time: text("time"),
+  location: text("location"),
+  image: text("image"),
+  link: text("link"),
+  category: text("category").notNull(), // e.g., 'Festival', 'Market', 'Sports'
+  isFeatured: boolean("is_featured").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertEventSchema = createInsertSchema(events).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Event = typeof events.$inferSelect;
+export type InsertEvent = z.infer<typeof insertEventSchema>;

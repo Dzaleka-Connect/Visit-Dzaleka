@@ -3325,6 +3325,62 @@ export async function registerRoutes(
   });
 
 
+  // Public Events endpoint
+  app.get("/api/events", async (req, res) => {
+    try {
+      // Try fetching from external API first
+      try {
+        const response = await fetch("https://services.dzaleka.com/api/events");
+        if (response.ok) {
+          const json = await response.json();
+          const externalEvents = json.data?.events || [];
+
+          const mappedEvents = externalEvents
+            .filter((e: any) => {
+              if (e.status !== 'upcoming') return false;
+              // Check date/endDate to ensure it hasn't passed
+              // Use endDate if available, otherwise assume event ends on the day of 'date'
+              const end = e.endDate ? new Date(e.endDate) : new Date(new Date(e.date).setHours(23, 59, 59, 999));
+              return end >= new Date();
+            })
+            .map((e: any) => ({
+              id: e.id,
+              title: e.title,
+              description: e.description,
+              date: new Date(e.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+              time: new Date(e.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+              location: e.location,
+              image: e.image?.startsWith('http') ? e.image : `https://services.dzaleka.com${e.image}`,
+              link: e.registration?.url || e.url || "#",
+              category: e.category,
+              isFeatured: e.featured
+            }));
+
+          // Return filtered logic from external API as authoritative source
+          return res.json(mappedEvents);
+
+          /* 
+          // Previous logic: fallback if empty. 
+          // Removing this because it causes confusion if external has 0 events but local has data.
+          if (mappedEvents.length > 0) {
+            return res.json(mappedEvents);
+          }
+          */
+        }
+      } catch (externalError) {
+        logError("External events API failed, falling back to local DB", externalError, req.requestId);
+      }
+
+      // Fallback to local DB (no seeding)
+      // This allows the frontend to show the "No Events" empty state
+      let events = await storage.getEvents();
+      res.json(events);
+    } catch (error) {
+      logError("Error fetching events", error, req.requestId);
+      res.json([]); // Return empty array to trigger empty state on frontend
+    }
+  });
+
   // Public Points of Interest endpoint (for embed forms)
   app.get("/api/public/points-of-interest", async (req, res) => {
     try {

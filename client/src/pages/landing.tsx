@@ -1,6 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   MapPin,
   Users,
@@ -21,6 +23,12 @@ import {
   Camera,
   Upload,
   Image as ImageIcon,
+  Clock,
+  CreditCard,
+  Headphones,
+  RefreshCw,
+  Search,
+  CalendarDays,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useState } from "react";
@@ -147,27 +155,75 @@ const whyDzaleka = [
   }
 ];
 
+// Trust badges for credibility
+const trustBadges = [
+  { icon: Shield, text: "Verified Local Guides" },
+  { icon: RefreshCw, text: "Free Cancellation" },
+  { icon: CreditCard, text: "Secure Booking" },
+  { icon: Headphones, text: "24/7 Support" },
+  { icon: Clock, text: "Instant Confirmation" },
+];
+
+// Dzaleka Highlights - Inspiration articles
+const dzalekaHighlights = [
+  {
+    title: "24 Hours in Dzaleka",
+    description: "Make the most of your day with our curated itinerary",
+    image: "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhQC52NEfamRlqaUT7uLWcP8ZKNUDp3_opelPFqoO6E5hyphenhyphen09lp-zxRXXig5aEnaH3PbRsia1ciM8y-vOdzDe9RMvbQApON7rdM0SrBmtVVWAPIzmiId-jvcwSa46-Y-qRApCBTmozhIbWhNZWxcLFY3bp6Q4uNk_LFB5MpYFlXywwX7vYlUQeRoirJWm50/s2048/533061219_1079243081018233_5344782622295089839_n.jpg",
+    link: "/blog/24-hours-in-dzaleka"
+  },
+  {
+    title: "Best Markets & Shopping",
+    description: "Discover Mardi Marché and artisan crafts",
+    image: "https://services.dzaleka.com/images/Dzaleka_Marketplace.jpeg",
+    link: "/things-to-do/shopping"
+  },
+  {
+    title: "Arts & Culture Guide",
+    description: "From Tumaini Festival to local theater groups",
+    image: "https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg",
+    link: "/things-to-do/arts-culture"
+  },
+  {
+    title: "Food Experiences",
+    description: "Taste King's Chapati and authentic Congolese cuisine",
+    image: "https://live.staticflickr.com/65535/49083236178_c692c9746d_c.jpg",
+    link: "/things-to-do"
+  },
+];
+
+import { type Event } from "@shared/schema";
+
+// Featured events (would be pulled from API in production)
+// const featuredEvents = []; // Now fetching from API
+
 const featuredExperiences = [
   {
     title: "Experience the Tumaini Festival",
-    description: "The world's only cultural festival within a refugee camp, attracting thousands of visitors and performers from over 25 countries. A powerful symbol of hope.",
-    hook: "Plan your trip around this extraordinary event and witness the power of art to unite and inspire.",
+    description: "The world's only cultural festival within a refugee camp, attracting thousands of visitors and performers from over 25 countries.",
+    hook: "Plan your trip around this extraordinary event.",
     link: "https://tumainiletu.org/tumaini-festival/",
-    image: "🎭"
+    image: "ttps://idsb.tmgrup.com.tr/ly/uploads/images/2024/11/04/353422.jpg",
+    duration: "3 Days",
+    rating: "5.0"
   },
   {
-    title: "Meet the Makers: Innovation Stories",
-    description: "Discover tech labs, fashion designers, and film companies that thrive against all odds, creating a unique micro-economy.",
-    hook: "Connect with the digital pioneers and creative entrepreneurs shaping their own future.",
-    link: "https://services.dzaleka.com/inspirational-stories/",
-    image: "💡"
+    title: "Meet the Makers: Innovation Tour",
+    description: "Discover tech labs, fashion designers, and film companies that thrive against all odds.",
+    hook: "Connect with digital pioneers shaping their future.",
+    link: "/things-to-do",
+    image: "https://openlearning.mit.edu/sites/default/files/styles/event_news_detail/public/news-events/2024-02/ADAI-Circle-MIT-Emerging-Talent-00_0.JPG?itok=2H1_RlIh",
+    duration: "2 Hours",
+    rating: "5.0"
   },
   {
-    title: "Your Visit, Your Impact",
-    description: "A UN volunteer's account of the community's determination and creativity as a source of dignity in a place never meant to be permanent.",
-    hook: "Discover how your visit makes a difference. Read the firsthand account of a UN volunteer.",
-    link: "https://www.unv.org/Success-stories/where-time-stands-still-life-dzaleka-refugee-camp",
-    image: "🌍"
+    title: "Cultural Food Experience",
+    description: "Taste authentic Congolese, Burundian, and Rwandan cuisine prepared by local chefs.",
+    hook: "A culinary journey through the Great Lakes region.",
+    link: "/things-to-do",
+    image: "https://www.wfp.org/sites/default/files/styles/media_embed/public/2022-06/WF1568463_20220519_MWI_Badre_Bahaji--_0.jpg?itok=0TrCCVT-", // Food placeholder
+    duration: "3 Hours",
+    rating: "5.0"
   }
 ];
 
@@ -178,6 +234,10 @@ export default function Landing() {
     staleTime: 10 * 1000, // Consider stale after 10 seconds
     refetchInterval: 30 * 1000, // Refetch every 30 seconds
     refetchOnWindowFocus: true, // Refetch when tab becomes active
+  });
+
+  const { data: events, isLoading: isLoadingEvents } = useQuery<Event[]>({
+    queryKey: ["/api/events"],
   });
 
   const getContent = (key: string, fallback: string) => content?.[key] || fallback;
@@ -205,34 +265,54 @@ export default function Landing() {
           </div>
 
           {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-4">
-            <a href="#features" className="text-sm font-medium hover:text-primary transition-colors">Features</a>
-            <a href="#why-dzaleka" className="text-sm font-medium hover:text-primary transition-colors">Why Dzaleka</a>
-
+          <nav className="hidden md:flex items-center gap-3">
+            {/* Discover Dropdown */}
             <div className="relative group">
-              <Link href="/things-to-do" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
-                Things To Do
+              <button className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
+                Discover
+                <svg className="h-3 w-3 transition-transform group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <div className="absolute left-0 top-full mt-1 w-56 rounded-md border bg-background shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                <div className="py-1">
+                  <p className="px-4 py-1 text-xs text-muted-foreground uppercase tracking-wider">About</p>
+                  <Link href="/about-dzaleka" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">About Dzaleka</Link>
+                  <Link href="/life-in-dzaleka" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Life in Dzaleka</Link>
+                  <div className="border-t my-1" />
+                  <p className="px-4 py-1 text-xs text-muted-foreground uppercase tracking-wider">Things To Do</p>
+                  <Link href="/things-to-do" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">All Experiences</Link>
+                  <Link href="/things-to-do/arts-culture" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Arts & Culture</Link>
+                  <Link href="/things-to-do/shopping" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Shopping & Markets</Link>
+                  <Link href="/things-to-do/sports-recreation" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Sports & Recreation</Link>
+                  <Link href="/things-to-do/host-community" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Host Community</Link>
+                  <div className="border-t my-1" />
+                  <Link href="/whats-on" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">What's On</Link>
+                  <Link href="/blog" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Blog</Link>
+                </div>
+              </div>
+            </div>
+
+            {/* Plan Your Trip Dropdown */}
+            <div className="relative group">
+              <Link href="/plan-your-trip" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
+                Plan Your Trip
                 <svg className="h-3 w-3 transition-transform group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </Link>
               <div className="absolute left-0 top-full mt-1 w-48 rounded-md border bg-background shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
                 <div className="py-1">
-                  <Link href="/things-to-do" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">All Experiences</Link>
-                  <Link href="/things-to-do/arts-culture" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Arts & Culture</Link>
-                  <Link href="/things-to-do/shopping" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Shopping & Markets</Link>
-                  <Link href="/things-to-do/sports-recreation" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Sports & Recreation</Link>
-                  <Link href="/things-to-do/host-community" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Host Community</Link>
+                  <Link href="/plan-your-trip" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Trip Planner</Link>
+                  <Link href="/plan-your-trip/visitor-essentials" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Visitor Essentials</Link>
+                  <Link href="/accommodation" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Accommodation</Link>
                 </div>
               </div>
             </div>
-            <Link href="/whats-on" className="text-sm font-medium hover:text-primary transition-colors">What's On</Link>
-            <Link href="/plan-your-trip" className="text-sm font-medium hover:text-primary transition-colors">Plan Your Trip</Link>
-            <a href="#experiences" className="text-sm font-medium hover:text-primary transition-colors">Experiences</a>
-            <a href="#community" className="text-sm font-medium hover:text-primary transition-colors">Community</a>
+
             <a href="#pricing" className="text-sm font-medium hover:text-primary transition-colors">Pricing</a>
             <a href="#testimonials" className="text-sm font-medium hover:text-primary transition-colors">Stories</a>
-            <Link href="/blog" className="text-sm font-medium hover:text-primary transition-colors">Blog</Link>
+
             <div className="flex items-center gap-2 ml-2">
               <Button asChild variant="outline" size="sm">
                 <Link href="/login">Sign In</Link>
@@ -254,21 +334,26 @@ export default function Landing() {
 
         {/* Mobile Nav */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t bg-background p-4 space-y-3">
-            <a href="#features" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Features</a>
-            <a href="#why-dzaleka" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Why Dzaleka</a>
-            <Link href="/things-to-do" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Things To Do</Link>
-            <Link href="/things-to-do/arts-culture" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Arts & Culture</Link>
-            <Link href="/things-to-do/shopping" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Shopping & Markets</Link>
-            <Link href="/things-to-do/sports-recreation" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Sports & Recreation</Link>
-            <Link href="/things-to-do/host-community" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Host Community</Link>
-            <Link href="/whats-on" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>What's On</Link>
-            <Link href="/plan-your-trip" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Plan Your Trip</Link>
-            <a href="#experiences" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Experiences</a>
-            <a href="#community" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Community</a>
-            <a href="#pricing" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
-            <a href="#testimonials" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Stories</a>
-            <Link href="/blog" className="block text-sm font-medium py-1 text-primary" onClick={() => setMobileMenuOpen(false)}>Blog</Link>
+          <div className="md:hidden border-t bg-background p-4 space-y-2 max-h-[70vh] overflow-y-auto">
+            {/* Discover Section */}
+            <p className="text-xs text-muted-foreground uppercase tracking-wider pt-1">Discover</p>
+            <Link href="/about-dzaleka" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>About Dzaleka</Link>
+            <Link href="/life-in-dzaleka" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>Life in Dzaleka</Link>
+            <Link href="/things-to-do" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>Things To Do</Link>
+            <Link href="/whats-on" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>What's On</Link>
+            <Link href="/blog" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>Blog</Link>
+
+            <div className="border-t my-2" />
+
+            {/* Plan Section */}
+            <p className="text-xs text-muted-foreground uppercase tracking-wider pt-1">Plan Your Trip</p>
+            <Link href="/plan-your-trip" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>Trip Planner</Link>
+            <Link href="/plan-your-trip/visitor-essentials" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>Visitor Essentials</Link>
+            <Link href="/accommodation" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>Accommodation</Link>
+
+            <div className="border-t my-2" />
+
+            {/* Buttons */}
             <div className="flex gap-2 pt-2">
               <Button asChild variant="outline" className="flex-1">
                 <Link href="/login">Sign In</Link>
@@ -352,12 +437,221 @@ export default function Landing() {
           </div>
         </section>
 
+        {/* Trust Badges Bar */}
+        <section className="border-b bg-muted/30">
+          <div className="container mx-auto px-4">
+            <div className="flex flex-wrap justify-center gap-4 md:gap-8 py-4">
+              {trustBadges.map((badge) => (
+                <div key={badge.text} className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <badge.icon className="h-4 w-4 text-primary" />
+                  <span className="font-medium">{badge.text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Quick Booking Widget */}
+        <section className="py-8 bg-background border-b">
+          <div className="container mx-auto px-4">
+            <Card className="max-w-4xl mx-auto shadow-lg border-primary/20">
+              <CardContent className="p-4 md:p-6">
+                <div className="flex flex-col md:flex-row gap-4 w-full md:items-end">
+                  <div className="flex-1 space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">When are you visiting?</label>
+                    <div className="relative">
+                      <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="date"
+                        className="pl-10"
+                        min={new Date().toISOString().split('T')[0]}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">Group Size</label>
+                    <Select defaultValue="1">
+                      <SelectTrigger>
+                        <Users className="mr-2 h-4 w-4 text-muted-foreground" />
+                        <SelectValue placeholder="Select group size" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 Person</SelectItem>
+                        <SelectItem value="2-5">2-5 People</SelectItem>
+                        <SelectItem value="6-10">6-10 People</SelectItem>
+                        <SelectItem value="10+">10+ People</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">Experience Type</label>
+                    <Select defaultValue="cultural">
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select experience" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="cultural">Cultural Tour</SelectItem>
+                        <SelectItem value="food">Food Experience</SelectItem>
+                        <SelectItem value="innovation">Innovation Tour</SelectItem>
+                        <SelectItem value="arts">Arts & Crafts</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button size="lg" className="w-full md:w-auto px-8" asChild>
+                    <Link href="/login">
+                      <Search className="mr-2 h-4 w-4" />
+                      Find Tours
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        {/* Dzaleka Highlights - Inspiration Section */}
+        <section className="py-16 bg-background">
+          <div className="container mx-auto px-4">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Dzaleka Highlights</h2>
+              <Button variant="ghost" asChild className="group">
+                <Link href="/things-to-do">
+                  View All
+                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </Link>
+              </Button>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {dzalekaHighlights.map((highlight) => (
+                <Link key={highlight.title} href={highlight.link}>
+                  <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer group h-full">
+                    <div className="aspect-[4/3] relative overflow-hidden">
+                      <img
+                        src={highlight.image}
+                        alt={highlight.title}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg";
+                        }}
+                      />
+                    </div>
+                    <CardContent className="p-4">
+                      <h3 className="font-semibold text-lg mb-1 group-hover:text-primary transition-colors">{highlight.title}</h3>
+                      <p className="text-sm text-muted-foreground">{highlight.description}</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Featured Events - What's On */}
+        <section className="py-16 bg-muted/30">
+          <div className="container mx-auto px-4">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-2xl md:text-3xl font-bold tracking-tight">What's On</h2>
+              <Button variant="ghost" asChild className="group">
+                <Link href="/whats-on">
+                  See All Events
+                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </Link>
+              </Button>
+            </div>
+            <div className="grid gap-6 md:grid-cols-3">
+              {isLoadingEvents ? (
+                // Loading Skeletons
+                Array.from({ length: 3 }).map((_, i) => (
+                  <Card key={i} className="overflow-hidden h-full">
+                    <div className="aspect-[16/9] bg-muted animate-pulse" />
+                    <CardContent className="p-4">
+                      <div className="h-6 w-3/4 bg-muted rounded animate-pulse mb-2" />
+                      <div className="h-4 w-1/2 bg-muted rounded animate-pulse" />
+                    </CardContent>
+                  </Card>
+                ))
+              ) : events?.length === 0 ? (
+                <div className="md:col-span-3">
+                  <Card className="bg-primary/5 border-primary/20 text-center">
+                    <CardContent className="flex flex-col items-center justify-center p-8 md:p-12">
+                      <Lightbulb className="h-10 w-10 text-primary mb-4" />
+                      <h3 className="text-xl font-semibold mb-2">No upcoming events at the moment – check back soon!</h3>
+                      <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
+                        There's always something happening in Dzaleka Refugee Camp. If you're organizing an event, workshop, or community gathering, share it with us and we'll help spread the word.
+                      </p>
+                      <Button asChild size="lg">
+                        <a href="https://services.dzaleka.com/events/organize" target="_blank" rel="noopener noreferrer">
+                          Submit Event
+                        </a>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
+                events?.map((event) => (
+                  <a
+                    key={event.id}
+                    href={event.link || "#"}
+                    target={event.link?.startsWith('http') ? '_blank' : undefined}
+                    rel={event.link?.startsWith('http') ? 'noopener noreferrer' : undefined}
+                  >
+                    <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer group h-full">
+                      <div className="aspect-[16/9] relative overflow-hidden">
+                        <img
+                          src={event.image || "https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg"}
+                          alt={event.title}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg";
+                          }}
+                        />
+                        <Badge className="absolute top-3 left-3 bg-primary text-primary-foreground">
+                          <Calendar className="mr-1 h-3 w-3" />
+                          {event.date}
+                        </Badge>
+                      </div>
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <Badge variant="outline" className="text-xs font-normal border-primary/20 text-primary">{event.category}</Badge>
+                        </div>
+                        <h3 className="font-semibold text-lg mb-1 group-hover:text-primary transition-colors">{event.title}</h3>
+
+                        <div className="flex items-center text-xs text-muted-foreground mb-2 flex-wrap">
+                          <div className="flex items-center mr-3">
+                            <CalendarDays className="h-3 w-3 mr-1" />
+                            <span>{event.date}</span>
+                          </div>
+                          {event.time && (
+                            <div className="flex items-center">
+                              <Clock className="h-3 w-3 mr-1" />
+                              <span>{event.time}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {event.location && (
+                          <div className="flex items-center text-xs text-muted-foreground mb-2">
+                            <MapPin className="h-3 w-3 mr-1" />
+                            <span className="truncate">{event.location}</span>
+                          </div>
+                        )}
+
+                        <p className="text-sm text-muted-foreground line-clamp-2">{event.description}</p>
+                      </CardContent>
+                    </Card>
+                  </a>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
+
         {/* Features Section */}
-        <section id="features" className="py-24 bg-muted/30">
+        <section id="features" className="py-24 bg-background">
           <div className="container mx-auto px-4">
             <div className="mb-16 text-center max-w-3xl mx-auto">
               <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
-                Seamless & Meaningful Visits: We Handle the Details
+                Seamless & Meaningful Visits
               </h2>
               <p className="text-lg text-muted-foreground">
                 We've streamlined the entire process so you can focus on authentic connections
@@ -483,37 +777,69 @@ export default function Landing() {
         </section>
 
         {/* Featured Experiences Section */}
-        <section id="experiences" className="py-24">
+        <section id="experiences" className="py-24 bg-muted/30">
           <div className="container mx-auto px-4">
-            <div className="mb-16 text-center max-w-3xl mx-auto">
+            <div className="mb-12 text-center max-w-3xl mx-auto">
               <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
-                Featured Experiences & Stories
+                Top Experiences
               </h2>
               <p className="text-lg text-muted-foreground">
-                Explore verified stories and experiences from Dzaleka.
+                Discover our most popular tours and cultural experiences.
               </p>
             </div>
 
-            <div className="grid gap-8 md:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-3">
               {featuredExperiences.map((experience, index) => (
-                <Card key={index} className="flex flex-col hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <div className="text-4xl mb-4">{experience.image}</div>
-                    <CardTitle className="text-xl">{experience.title}</CardTitle>
-                    <CardDescription>{experience.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex-1">
-                    <p className="text-sm italic text-muted-foreground mb-4">"{experience.hook}"</p>
-                  </CardContent>
-                  <CardFooter>
-                    <Button variant="outline" className="w-full gap-2" asChild>
-                      <a href={experience.link} target="_blank" rel="noopener noreferrer">
-                        Learn More <ExternalLink className="h-4 w-4" />
-                      </a>
-                    </Button>
-                  </CardFooter>
-                </Card>
+                <a
+                  key={index}
+                  href={experience.link}
+                  target={experience.link.startsWith('http') ? '_blank' : undefined}
+                  rel={experience.link.startsWith('http') ? 'noopener noreferrer' : undefined}
+                >
+                  <Card className="overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer group h-full">
+                    <div className="aspect-[4/3] relative overflow-hidden">
+                      <img
+                        src={experience.image}
+                        alt={experience.title}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg";
+                        }}
+                      />
+                      {/* Duration badge */}
+                      <Badge className="absolute top-3 left-3 bg-black/70 text-white backdrop-blur-sm">
+                        <Clock className="mr-1 h-3 w-3" />
+                        {experience.duration}
+                      </Badge>
+                      {/* Free cancellation badge */}
+                      <Badge variant="secondary" className="absolute top-3 right-3 bg-green-500/90 text-white">
+                        Free Cancellation
+                      </Badge>
+                    </div>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-1 mb-2">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <span className="font-semibold text-sm">{experience.rating}</span>
+                        <span className="text-sm text-muted-foreground">(Reviews)</span>
+                      </div>
+                      <h3 className="font-semibold text-lg mb-2 group-hover:text-primary transition-colors line-clamp-2">
+                        {experience.title}
+                      </h3>
+                      <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{experience.description}</p>
+                      <p className="text-xs italic text-muted-foreground">"{experience.hook}"</p>
+                    </CardContent>
+                  </Card>
+                </a>
               ))}
+            </div>
+
+            <div className="text-center mt-10">
+              <Button size="lg" asChild>
+                <Link href="/things-to-do">
+                  View All Experiences
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
             </div>
           </div>
         </section>

@@ -105,7 +105,7 @@ export default function RecurringBookingsPage() {
             />
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Recurring Schedules</h1>
+                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Recurring Schedules</h1>
                     <p className="text-muted-foreground mt-2">
                         Manage template-based recurring visits for organizations and schools.
                     </p>

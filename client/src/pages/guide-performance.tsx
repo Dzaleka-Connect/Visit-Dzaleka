@@ -141,7 +141,7 @@ export default function GuidePerformance() {
                 description="Track guide earnings, tour completion rates, and availability at Visit Dzaleka."
             />
             <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-semibold tracking-tight">Guide Performance</h1>
+                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Guide Performance</h1>
                 <p className="text-muted-foreground">
                     Track guide earnings, tour completion rates, and availability.
                 </p>

@@ -481,7 +481,7 @@ export default function Zones() {
         description="Explore the different zones of Dzaleka Refugee Camp. Find points of interest, markets, and cultural centers."
       />
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
           Zones & Points of Interest
         </h1>
         <p className="text-muted-foreground">

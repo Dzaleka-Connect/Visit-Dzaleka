@@ -46,6 +46,10 @@ import SportsRecreation from "@/pages/sports-recreation";
 import HostCommunity from "@/pages/host-community";
 import WhatsOn from "@/pages/whats-on";
 import PlanYourTrip from "@/pages/plan-your-trip";
+import VisitorEssentials from "@/pages/visitor-essentials";
+import LifeInDzaleka from "@/pages/life-in-dzaleka";
+import AboutDzaleka from "@/pages/about-dzaleka";
+import ITCodeOfPractice from "@/pages/it-code-of-practice";
 import Accommodation from "@/pages/accommodation";
 import VisitorResources from "@/pages/visitor-resources";
 import Tasks from "@/pages/tasks";
@@ -127,6 +131,9 @@ function Router() {
         <Route path="/things-to-do/host-community" component={HostCommunity} />
         <Route path="/whats-on" component={WhatsOn} />
         <Route path="/plan-your-trip" component={PlanYourTrip} />
+        <Route path="/plan-your-trip/visitor-essentials" component={VisitorEssentials} />
+        <Route path="/life-in-dzaleka" component={LifeInDzaleka} />
+        <Route path="/about-dzaleka" component={AboutDzaleka} />
         <Route path="/accommodation" component={Accommodation} />
       </Switch>
     );
@@ -156,6 +163,10 @@ function Router() {
         <Route path="/things-to-do" component={ThingsToDo} />
         <Route path="/whats-on" component={WhatsOn} />
         <Route path="/plan-your-trip" component={PlanYourTrip} />
+        <Route path="/plan-your-trip/visitor-essentials" component={VisitorEssentials} />
+        <Route path="/life-in-dzaleka" component={LifeInDzaleka} />
+        <Route path="/about-dzaleka" component={AboutDzaleka} />
+        <Route path="/it-code-of-practice" component={ITCodeOfPractice} />
         <Route path="/accommodation" component={Accommodation} />
         <Route component={Landing} />
       </Switch>

@@ -52,7 +52,7 @@ export default function MyEarnings() {
             />
 
             <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-semibold tracking-tight">My Earnings</h1>
+                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">My Earnings</h1>
                 <p className="text-muted-foreground">
                     Track your earnings from completed tours.
                 </p>

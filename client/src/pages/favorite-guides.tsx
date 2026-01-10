@@ -76,7 +76,7 @@ export default function FavoriteGuides() {
             />
 
             <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-semibold tracking-tight">Favorite Guides</h1>
+                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Favorite Guides</h1>
                 <p className="text-muted-foreground">
                     Guides you've saved for future bookings.
                 </p>

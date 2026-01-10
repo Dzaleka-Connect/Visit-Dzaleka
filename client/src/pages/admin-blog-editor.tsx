@@ -107,7 +107,7 @@ export default function AdminBlogEditor() {
                     <Link href="/admin/blog"><ArrowLeft className="h-4 w-4" /></Link>
                 </Button>
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">{isEditing ? "Edit Blog Post" : "Create New Blog Post"}</h1>
+                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{isEditing ? "Edit Blog Post" : "Create New Blog Post"}</h1>
                     <p className="text-muted-foreground">{isEditing ? "Make changes to your article." : "Write a new story for your audience."}</p>
                 </div>
             </div>

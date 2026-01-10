@@ -178,7 +178,7 @@ export default function Settings() {
         description="Manage your account and system settings at Visit Dzaleka."
       />
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Settings</h1>
         <p className="text-muted-foreground">
           Manage your account and system settings.
         </p>

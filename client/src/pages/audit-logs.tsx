@@ -163,7 +163,7 @@ export default function AuditLogs() {
                 description="Track all system activities and changes made by users in Visit Dzaleka."
             />
             <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-semibold tracking-tight">Audit Logs</h1>
+                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Audit Logs</h1>
                 <p className="text-muted-foreground">
                     Track all system activities and changes made by users.
                 </p>

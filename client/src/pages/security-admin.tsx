@@ -286,7 +286,7 @@ export default function SecurityAdmin() {
             />
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Security Admin</h1>
+                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Security Admin</h1>
                     <p className="text-muted-foreground">
                         Manage IP whitelist, view login history, and send user invitations
                     </p>

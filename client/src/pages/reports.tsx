@@ -413,9 +413,9 @@ export default function Reports() {
         <div className="space-y-6">
             <SEO title="Reports" description="Monitor your business with detailed reports and analytics." />
 
-            <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-semibold tracking-tight">Reports</h1>
-                <p className="text-muted-foreground">Monitor your business with detailed reports and data exports.</p>
+            <div className="flex flex-col gap-1 sm:gap-2">
+                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Reports</h1>
+                <p className="text-sm sm:text-base text-muted-foreground">Monitor your business with detailed reports and data exports.</p>
             </div>
 
             {/* Tabs */}
@@ -588,14 +588,14 @@ export default function Reports() {
                 {/* Bookings Tab */}
                 <TabsContent value="bookings" className="mt-4">
                     <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
+                        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div>
-                                <CardTitle>Bookings Report</CardTitle>
-                                <CardDescription>
+                                <CardTitle className="text-base sm:text-lg">Bookings Report</CardTitle>
+                                <CardDescription className="text-xs sm:text-sm">
                                     {filteredBookings.length} bookings from {dateFrom} to {dateTo}
                                 </CardDescription>
                             </div>
-                            <Button onClick={exportToCSV} variant="outline" size="sm">
+                            <Button onClick={exportToCSV} variant="outline" size="sm" className="w-full sm:w-auto">
                                 <Download className="h-4 w-4 mr-2" />
                                 Export CSV
                             </Button>
@@ -614,14 +614,14 @@ export default function Reports() {
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead>Reference</TableHead>
-                                                <TableHead>Visitor</TableHead>
-                                                <TableHead>Date & Time</TableHead>
-                                                <TableHead>Tour</TableHead>
-                                                <TableHead className="text-center">Guests</TableHead>
-                                                <TableHead>Status</TableHead>
-                                                <TableHead>Guide</TableHead>
-                                                <TableHead className="text-right">Amount</TableHead>
+                                                <TableHead className="text-xs">Reference</TableHead>
+                                                <TableHead className="text-xs">Visitor</TableHead>
+                                                <TableHead className="text-xs hidden sm:table-cell">Date & Time</TableHead>
+                                                <TableHead className="text-xs hidden md:table-cell">Tour</TableHead>
+                                                <TableHead className="text-xs text-center hidden lg:table-cell">Guests</TableHead>
+                                                <TableHead className="text-xs">Status</TableHead>
+                                                <TableHead className="text-xs hidden lg:table-cell">Guide</TableHead>
+                                                <TableHead className="text-xs text-right">Amount</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -631,20 +631,20 @@ export default function Reports() {
                                                         {booking.bookingReference || booking.id.slice(0, 8)}
                                                     </TableCell>
                                                     <TableCell>
-                                                        <div className="font-medium">{booking.visitorName}</div>
-                                                        <div className="text-xs text-muted-foreground">{booking.visitorEmail}</div>
+                                                        <div className="font-medium text-sm truncate max-w-[100px] sm:max-w-none">{booking.visitorName}</div>
+                                                        <div className="text-xs text-muted-foreground truncate max-w-[100px] sm:max-w-none">{booking.visitorEmail}</div>
                                                     </TableCell>
-                                                    <TableCell>
-                                                        <div>{formatDate(booking.visitDate)}</div>
+                                                    <TableCell className="hidden sm:table-cell">
+                                                        <div className="text-xs sm:text-sm">{formatDate(booking.visitDate)}</div>
                                                         <div className="text-xs text-muted-foreground">{formatTime(booking.visitTime)}</div>
                                                     </TableCell>
-                                                    <TableCell className="capitalize">{booking.tourType}</TableCell>
-                                                    <TableCell className="text-center">{booking.numberOfPeople || 1}</TableCell>
+                                                    <TableCell className="capitalize text-xs hidden md:table-cell">{booking.tourType}</TableCell>
+                                                    <TableCell className="text-center hidden lg:table-cell">{booking.numberOfPeople || 1}</TableCell>
                                                     <TableCell>
                                                         <StatusBadge status={booking.status || "pending"} />
                                                     </TableCell>
-                                                    <TableCell>{getGuideName(booking.assignedGuideId)}</TableCell>
-                                                    <TableCell className="text-right font-medium">
+                                                    <TableCell className="hidden lg:table-cell text-xs">{getGuideName(booking.assignedGuideId)}</TableCell>
+                                                    <TableCell className="text-right font-medium text-xs sm:text-sm">
                                                         {formatCurrency(booking.totalAmount || 0)}
                                                     </TableCell>
                                                 </TableRow>

@@ -227,7 +227,7 @@ export default function EmailSettings() {
                 description="Customize email messages sent to visitors for bookings, reminders, and feedback."
             />
             <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-semibold tracking-tight">Email Templates</h1>
+                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Email Templates</h1>
                 <p className="text-muted-foreground">
                     Customize the email messages sent to visitors for bookings, reminders, and feedback.
                 </p>

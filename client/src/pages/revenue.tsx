@@ -728,7 +728,7 @@ export default function Revenue() {
     return (
       <div className="space-y-6">
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold tracking-tight">Revenue</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Revenue</h1>
           <p className="text-muted-foreground">Track revenue and payments.</p>
         </div>
         <div className="flex items-center justify-center py-12">
@@ -742,7 +742,7 @@ export default function Revenue() {
     return (
       <div className="space-y-6">
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold tracking-tight">Revenue</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Revenue</h1>
           <p className="text-muted-foreground">Track revenue and payments.</p>
         </div>
         <Card>
@@ -774,7 +774,7 @@ export default function Revenue() {
       />
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold tracking-tight">Revenue</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Revenue</h1>
           <p className="text-muted-foreground">
             Track revenue and payments.
           </p>

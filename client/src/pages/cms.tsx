@@ -91,7 +91,7 @@ export default function CMSPage() {
       <SEO title="Content Management" description="Manage landing page content." />
 
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Content Management</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Content Management</h1>
         <p className="text-muted-foreground">
           Update the text and messaging on your public landing page.
         </p>

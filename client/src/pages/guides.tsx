@@ -344,7 +344,7 @@ export default function Guides() {
         description="Meet our expert local guides. Each guide brings a unique perspective and deep knowledge of Dzaleka's history and culture."
       />
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Guides</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Guides</h1>
         <p className="text-muted-foreground">
           Manage your tour guides and their availability.
         </p>
