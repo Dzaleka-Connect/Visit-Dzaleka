@@ -112,22 +112,29 @@ const pricing = [
   {
     title: "Individual",
     price: "MWK 15,000",
-    description: "Personalized 2-hour cultural immersion with your own dedicated local ambassador. Flexible pace and focus.",
-    features: ["2-hour guided tour", "Dedicated local ambassador", "Flexible pace", "Personal attention"],
+    description: "A personal, one-on-one cultural immersion tailored to your specific interests. Connect deeply with your guide at your own pace.",
+    features: ["Fully Personalized Itinerary", "Dedicated Local Host", "Flexible Pace & Focus", "1-on-1 Cultural Exchange"],
     highlight: false
   },
   {
     title: "Small Group",
     price: "MWK 50,000",
-    description: "For 2-5 people. Ideal for families & friends. Our most popular choice for an interactive, high-value group experience.",
-    features: ["Private guide", "Interactive experience", "Family-friendly", "Group discount"],
+    description: "Perfect for couples or small families (2-5 people) seeking an intimate, interactive experience. Share the journey together.",
+    features: ["Interactive Group Tour", "Experienced Guide", "Family-Friendly", "Shared Experience"],
     highlight: true
   },
   {
-    title: "Large Group",
+    title: "Medium Group",
     price: "MWK 80,000",
-    description: "For 6-10 people. Ideal for organizations or student groups. A structured, impactful tour with custom focus options.",
-    features: ["2 guides included", "Structured program", "Custom focus options", "Best value per person"],
+    description: "Ideal for extended families, friend groups, or small teams (6-10 people). A balanced experience ensuring everyone engages.",
+    features: ["Structured Group Experience", "Senior Guide", "Engaging for All Ages", "Custom Focus Options"],
+    highlight: false
+  },
+  {
+    title: "Large Group",
+    price: "MWK 100,000",
+    description: "Designed for schools, organizations, or delegations (10+ people). Includes dedicated logistics and multiple guides for a smooth visit.",
+    features: ["Full Logistics Support", "Multiple Dedicated Guides", "Educational Focus", "Q&A & Debrief Session"],
     highlight: false
   }
 ];
@@ -457,36 +464,36 @@ export default function Landing() {
             <Card className="max-w-4xl mx-auto shadow-lg border-primary/20">
               <CardContent className="p-4 md:p-6">
                 <div className="flex flex-col md:flex-row gap-4 w-full md:items-end">
-                  <div className="flex-1 space-y-2">
+                  <div className="flex-1 space-y-2 min-w-0">
                     <label className="text-sm font-medium text-muted-foreground">When are you visiting?</label>
                     <div className="relative">
                       <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         type="date"
-                        className="pl-10"
+                        className="pl-10 w-full h-12 text-base"
                         min={new Date().toISOString().split('T')[0]}
                       />
                     </div>
                   </div>
-                  <div className="flex-1 space-y-2">
+                  <div className="flex-1 space-y-2 min-w-0">
                     <label className="text-sm font-medium text-muted-foreground">Group Size</label>
                     <Select defaultValue="1">
-                      <SelectTrigger>
+                      <SelectTrigger className="h-12 text-base">
                         <Users className="mr-2 h-4 w-4 text-muted-foreground" />
                         <SelectValue placeholder="Select group size" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="1">1 Person</SelectItem>
                         <SelectItem value="2-5">2-5 People</SelectItem>
-                        <SelectItem value="6-10">6-10 People</SelectItem>
-                        <SelectItem value="10+">10+ People</SelectItem>
+                        <SelectItem value="6-10">Medium Group (6-10 People)</SelectItem>
+                        <SelectItem value="10+">Large Group (10+ People)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex-1 space-y-2">
+                  <div className="flex-1 space-y-2 min-w-0">
                     <label className="text-sm font-medium text-muted-foreground">Experience Type</label>
                     <Select defaultValue="cultural">
-                      <SelectTrigger>
+                      <SelectTrigger className="h-12 text-base">
                         <SelectValue placeholder="Select experience" />
                       </SelectTrigger>
                       <SelectContent>
@@ -497,7 +504,7 @@ export default function Landing() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button size="lg" className="w-full md:w-auto px-8" asChild>
+                  <Button size="lg" className="w-full md:w-auto px-8 h-12 text-base" asChild>
                     <Link href="/login">
                       <Search className="mr-2 h-4 w-4" />
                       Find Tours
@@ -856,7 +863,7 @@ export default function Landing() {
               </p>
             </div>
 
-            <div className="grid gap-8 md:grid-cols-3 max-w-6xl mx-auto">
+            <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4 max-w-7xl mx-auto">
               {pricing.map((plan) => (
                 <Card
                   key={plan.title}

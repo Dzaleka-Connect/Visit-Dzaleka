@@ -37,10 +37,10 @@ export const TOUR_TYPES = [
 
 // Group Sizes
 export const GROUP_SIZES = [
-  { id: "individual", name: "1 person", min: 1, max: 1 },
-  { id: "small_group", name: "2-5 people", min: 2, max: 5 },
-  { id: "large_group", name: "6-10 people", min: 6, max: 10 },
-  { id: "custom", name: "10+ people", min: 10, max: null },
+  { id: "individual", name: "Solo Explorer (1 person)", min: 1, max: 1 },
+  { id: "small_group", name: "Small Group (2-5 people)", min: 2, max: 5 },
+  { id: "large_group", name: "Medium Group (6-10 people)", min: 6, max: 10 },
+  { id: "custom", name: "Large Group (10+ people)", min: 10, max: null },
 ] as const;
 
 // Pricing in MWK

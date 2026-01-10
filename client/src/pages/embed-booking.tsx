@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Calendar, Users, CheckCircle } from "lucide-react";
 import { SEO } from "@/components/seo";
+import { GROUP_SIZES } from "@/lib/constants";
 
 interface MeetingPoint {
     id: string;
@@ -222,9 +223,11 @@ export default function EmbedBooking() {
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="individual">Individual (1-2)</SelectItem>
-                                        <SelectItem value="small_group">Small Group (3-10)</SelectItem>
-                                        <SelectItem value="large_group">Large Group (11+)</SelectItem>
+                                        {GROUP_SIZES.map((size) => (
+                                            <SelectItem key={size.id} value={size.id}>
+                                                {size.name}
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>

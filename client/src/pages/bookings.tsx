@@ -83,6 +83,7 @@ import {
   formatCurrency,
   MEETING_POINTS,
   TOUR_TYPES,
+  GROUP_SIZES,
 } from "@/lib/constants";
 import type { Booking, Guide, Zone, MeetingPoint, PointOfInterest, BookingStatus } from "@shared/schema";
 import { SEO } from "@/components/seo";
@@ -1708,10 +1709,11 @@ export default function Bookings() {
                     <SelectValue placeholder="Select group size" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="individual">Individual (1 person)</SelectItem>
-                    <SelectItem value="small_group">Small Group (2-5 people)</SelectItem>
-                    <SelectItem value="large_group">Large Group (6-15 people)</SelectItem>
-                    <SelectItem value="custom">Custom (16+ people)</SelectItem>
+                    {GROUP_SIZES.map((size) => (
+                      <SelectItem key={size.id} value={size.id}>
+                        {size.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1986,9 +1988,11 @@ export default function Bookings() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="individual">Individual</SelectItem>
-                    <SelectItem value="small_group">Small Group (2-5)</SelectItem>
-                    <SelectItem value="large_group">Large Group (6+)</SelectItem>
+                    {GROUP_SIZES.map((size) => (
+                      <SelectItem key={size.id} value={size.id}>
+                        {size.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

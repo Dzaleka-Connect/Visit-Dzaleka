@@ -49,7 +49,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { formatDate, formatTime, formatCurrency } from "@/lib/constants";
+import { formatDate, formatTime, formatCurrency, GROUP_SIZES } from "@/lib/constants";
 import type { Booking, MeetingPoint, Zone, PointOfInterest, Guide } from "@shared/schema";
 import { SEO } from "@/components/seo";
 
@@ -902,10 +902,11 @@ export default function MyBookings() {
                         <SelectValue placeholder="Select group size" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="individual">Individual (1 person)</SelectItem>
-                        <SelectItem value="small_group">Small Group (2-5 people)</SelectItem>
-                        <SelectItem value="large_group">Large Group (6-15 people)</SelectItem>
-                        <SelectItem value="custom">Custom (16+ people)</SelectItem>
+                        {GROUP_SIZES.map((size) => (
+                          <SelectItem key={size.id} value={size.id}>
+                            {size.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

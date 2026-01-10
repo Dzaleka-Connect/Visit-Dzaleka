@@ -79,7 +79,7 @@ const structuredData = {
                     "name": "How much does a tour cost?",
                     "acceptedAnswer": {
                         "@type": "Answer",
-                        "text": "Individual tours cost MWK 15,000, small groups (2-5 people) cost MWK 50,000, and large groups (6-10) cost MWK 80,000. Payment is accepted via Cash (MWK), Airtel Money, or TNM Mpamba."
+                        "text": "Individual tours cost MWK 15,000, Small Groups (2-5) cost MWK 50,000, Medium Groups (6-10) cost MWK 80,000, and Large Groups (10+) cost MWK 100,000. Payment is accepted via Cash (MWK), Airtel Money, or TNM Mpamba."
                     }
                 },
                 {
@@ -370,22 +370,39 @@ export default function VisitorEssentials() {
                                     </TableHeader>
                                     <TableBody>
                                         <TableRow>
-                                            <TableCell className="font-medium text-xs sm:text-sm">Individual</TableCell>
+                                            <TableCell className="font-medium text-xs sm:text-sm">Individual (1)</TableCell>
                                             <TableCell className="text-xs sm:text-sm font-semibold">MWK 15,000</TableCell>
-                                            <TableCell className="text-xs sm:text-sm text-muted-foreground">Personalized 2-hour cultural immersion with your own dedicated local ambassador. Flexible pace and focus.</TableCell>
+                                            <TableCell className="text-xs sm:text-sm text-muted-foreground">
+                                                A personal, one-on-one cultural immersion tailored to your interests.
+                                                <br /><span className="font-medium text-foreground/80">Includes:</span> Fully Personalized Itinerary, Dedicated Local Host, Flexible Pace.
+                                            </TableCell>
                                         </TableRow>
                                         <TableRow className="bg-primary/5">
                                             <TableCell className="font-medium text-xs sm:text-sm">
                                                 Small Group (2-5)
-                                                <Badge variant="secondary" className="ml-2 text-[10px]">Popular</Badge>
+                                                <Badge variant="secondary" className="ml-2 text-[10px]">Most Popular</Badge>
                                             </TableCell>
                                             <TableCell className="text-xs sm:text-sm font-semibold">MWK 50,000</TableCell>
-                                            <TableCell className="text-xs sm:text-sm text-muted-foreground">Ideal for families & friends. Interactive, high-value group experience with a private guide.</TableCell>
+                                            <TableCell className="text-xs sm:text-sm text-muted-foreground">
+                                                Intimate, interactive experience perfect for couples or small families.
+                                                <br /><span className="font-medium text-foreground/80">Includes:</span> Interactive Group Tour, Experienced Guide, Shared Experience.
+                                            </TableCell>
                                         </TableRow>
                                         <TableRow>
-                                            <TableCell className="font-medium text-xs sm:text-sm">Large Group (6-10)</TableCell>
+                                            <TableCell className="font-medium text-xs sm:text-sm">Medium Group (6-10)</TableCell>
                                             <TableCell className="text-xs sm:text-sm font-semibold">MWK 80,000</TableCell>
-                                            <TableCell className="text-xs sm:text-sm text-muted-foreground">Ideal for organizations or student groups. Structured program with 2 guides and custom focus options.</TableCell>
+                                            <TableCell className="text-xs sm:text-sm text-muted-foreground">
+                                                Balanced experience for extended families or teams ensuring everyone engages.
+                                                <br /><span className="font-medium text-foreground/80">Includes:</span> Structured Experience, Senior Guide, Custom Focus Options.
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell className="font-medium text-xs sm:text-sm">Large Group (10+)</TableCell>
+                                            <TableCell className="text-xs sm:text-sm font-semibold">MWK 100,000</TableCell>
+                                            <TableCell className="text-xs sm:text-sm text-muted-foreground">
+                                                Designed for schools or delegations with smooth logistics.
+                                                <br /><span className="font-medium text-foreground/80">Includes:</span> Full Logistics Support, Multiple Guides, Q&A Session.
+                                            </TableCell>
                                         </TableRow>
                                     </TableBody>
                                 </Table>

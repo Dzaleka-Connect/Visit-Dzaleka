@@ -448,7 +448,7 @@ export default function Settings() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="large-group-price">Large Group (6-10 people)</Label>
+                    <Label htmlFor="large-group-price">Medium Group (6-10 people)</Label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                         MWK
@@ -470,7 +470,7 @@ export default function Settings() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="custom-price">Custom Group (10+ people)</Label>
+                    <Label htmlFor="custom-price">Large Group (10+ people)</Label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                         MWK
@@ -566,7 +566,7 @@ export default function Settings() {
                     </div>
                   </div>
                   <div className="rounded-lg border p-4">
-                    <div className="text-sm text-muted-foreground">Large Group</div>
+                    <div className="text-sm text-muted-foreground">Medium Group</div>
                     <div className="mt-1 text-2xl font-bold">
                       {formatCurrency(pricing.large_group)}
                     </div>
@@ -575,7 +575,7 @@ export default function Settings() {
                     </div>
                   </div>
                   <div className="rounded-lg border p-4">
-                    <div className="text-sm text-muted-foreground">Custom</div>
+                    <div className="text-sm text-muted-foreground">Large Group</div>
                     <div className="mt-1 text-2xl font-bold">
                       {formatCurrency(pricing.custom)}
                     </div>
