@@ -466,11 +466,11 @@ export default function Landing() {
                 <div className="flex flex-col md:flex-row gap-4 w-full md:items-end">
                   <div className="flex-1 space-y-2 min-w-0">
                     <label className="text-sm font-medium text-muted-foreground">When are you visiting?</label>
-                    <div className="relative">
-                      <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <div className="relative w-full overflow-hidden">
+                      <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
                       <Input
                         type="date"
-                        className="pl-10 w-full h-12 text-base"
+                        className="pl-10 w-full max-w-full h-12 text-base"
                         min={new Date().toISOString().split('T')[0]}
                       />
                     </div>
@@ -723,6 +723,84 @@ export default function Landing() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </section>
+
+        {/* Video Showcase Section */}
+        <section id="videos" className="py-24 bg-muted/30">
+          <div className="container mx-auto px-4">
+            <div className="mb-12 text-center max-w-3xl mx-auto">
+              <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
+                See Dzaleka
+              </h2>
+              <p className="text-lg text-muted-foreground">
+                Watch these videos to get a glimpse of life, culture, and community in Dzaleka Refugee Camp.
+              </p>
+            </div>
+
+            <div className="grid gap-8 md:grid-cols-2 max-w-5xl mx-auto">
+              {/* Video 1 */}
+              <a
+                href="https://www.youtube.com/watch?v=T4oSsqeraHE"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group block"
+              >
+                <Card className="overflow-hidden shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+                  <div className="aspect-video relative bg-black">
+                    <img
+                      src="https://img.youtube.com/vi/T4oSsqeraHE/maxresdefault.jpg"
+                      alt="Dzaleka Video"
+                      className="w-full h-full object-cover transition-opacity group-hover:opacity-80"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "https://img.youtube.com/vi/T4oSsqeraHE/hqdefault.jpg";
+                      }}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-lg transition-transform group-hover:scale-110">
+                        <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                  <CardContent className="p-4">
+                    <p className="font-semibold group-hover:text-primary transition-colors">Watch on YouTube →</p>
+                  </CardContent>
+                </Card>
+              </a>
+
+              {/* Video 2 */}
+              <a
+                href="https://www.youtube.com/watch?v=BQvjRVqsyZM"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group block"
+              >
+                <Card className="overflow-hidden shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+                  <div className="aspect-video relative bg-black">
+                    <img
+                      src="https://img.youtube.com/vi/BQvjRVqsyZM/maxresdefault.jpg"
+                      alt="Dzaleka Video"
+                      className="w-full h-full object-cover transition-opacity group-hover:opacity-80"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "https://img.youtube.com/vi/BQvjRVqsyZM/hqdefault.jpg";
+                      }}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-lg transition-transform group-hover:scale-110">
+                        <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                  <CardContent className="p-4">
+                    <p className="font-semibold group-hover:text-primary transition-colors">Watch on YouTube →</p>
+                  </CardContent>
+                </Card>
+              </a>
             </div>
           </div>
         </section>

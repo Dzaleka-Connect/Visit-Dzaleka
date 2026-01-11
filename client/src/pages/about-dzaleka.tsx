@@ -215,6 +215,69 @@ export default function AboutDzaleka() {
                         </Card>
                     </section>
 
+                    {/* Camp Zones */}
+                    <section>
+                        <div className="flex items-center gap-3 mb-6">
+                            <MapPin className="h-6 w-6 text-primary" />
+                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Camp Zones</h2>
+                        </div>
+                        <p className="text-muted-foreground mb-6 text-sm sm:text-base">
+                            The camp is divided into zones named after Malawian towns and cities, each with its own unique character. The government set up the zones for administrative purposes.
+                        </p>
+
+                        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                            <Card className="text-center p-4">
+                                <CardContent className="p-0">
+                                    <p className="font-semibold">Lisungwi</p>
+                                </CardContent>
+                            </Card>
+                            <Card className="text-center p-4">
+                                <CardContent className="p-0">
+                                    <p className="font-semibold">Kawale 1 & 2</p>
+                                </CardContent>
+                            </Card>
+                            <Card className="text-center p-4">
+                                <CardContent className="p-0">
+                                    <p className="font-semibold">Likuni 1 & 2</p>
+                                </CardContent>
+                            </Card>
+                            <Card className="text-center p-4">
+                                <CardContent className="p-0">
+                                    <p className="font-semibold">Zomba</p>
+                                </CardContent>
+                            </Card>
+                            <Card className="text-center p-4">
+                                <CardContent className="p-0">
+                                    <p className="font-semibold">Blantyre</p>
+                                </CardContent>
+                            </Card>
+                            <Card className="text-center p-4">
+                                <CardContent className="p-0">
+                                    <p className="font-semibold">Katubza</p>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        <div className="mt-6 grid gap-4 md:grid-cols-2">
+                            <Card className="border-primary/30 bg-primary/5">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-base sm:text-lg">New Katubza</CardTitle>
+                                </CardHeader>
+                                <CardContent className="text-sm text-muted-foreground">
+                                    An extension area of the Dzaleka refugee camp, developed to reduce overcrowding and provide better living conditions for refugees and asylum seekers.
+                                </CardContent>
+                            </Card>
+                            <Card className="border-primary/30 bg-primary/5">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-base sm:text-lg">Dzaleka Hill</CardTitle>
+                                </CardHeader>
+                                <CardContent className="text-sm text-muted-foreground">
+                                    A natural landmark offering views of the camp and surrounding area. The hill provides a popular viewpoint to see the large and growing settlement, including areas like New Katubza.
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </section>
+
                     {/* Governance */}
                     <section>
                         <div className="flex items-center gap-3 mb-6">

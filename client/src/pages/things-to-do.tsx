@@ -8,6 +8,150 @@ import { useState } from "react";
 import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
 
+// Structured Data for Google "Things to do" - TouristAttraction + TouristTrip
+const structuredData = {
+    "@context": "https://schema.org",
+    "@graph": [
+        {
+            "@type": "TouristAttraction",
+            "@id": "https://visit.dzaleka.com/things-to-do#attraction",
+            "name": "Dzaleka Refugee Camp Cultural Tours",
+            "description": "Guided cultural tours of Dzaleka Refugee Camp in Malawi. Experience diverse African cultures, meet local artisans, visit community markets, and learn about refugee resilience and innovation.",
+            "url": "https://visit.dzaleka.com/things-to-do",
+            "image": [
+                "https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg",
+                "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhQC52NEfamRlqaUT7uLWcP8ZKNUDp3_opelPFqoO6E5hyphenhyphen09lp-zxRXXig5aEnaH3PbRsia1ciM8y-vOdzDe9RMvbQApON7rdM0SrBmtVVWAPIzmiId-jvcwSa46-Y-qRApCBTmozhIbWhNZWxcLFY3bp6Q4uNk_LFB5MpYFlXywwX7vYlUQeRoirJWm50/s16000-rw/533061219_1079243081018233_5344782622295089839_n.jpg"
+            ],
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "Dowa",
+                "addressRegion": "Central Region",
+                "addressCountry": "MW"
+            },
+            "geo": {
+                "@type": "GeoCoordinates",
+                "latitude": "-13.7833",
+                "longitude": "33.9833"
+            },
+            "touristType": ["Cultural tourists", "Educational visitors", "Volunteer travelers"],
+            "availableLanguage": ["English", "French", "Swahili", "Chichewa"],
+            "isAccessibleForFree": false,
+            "publicAccess": true
+        },
+        {
+            "@type": "TouristTrip",
+            "@id": "https://visit.dzaleka.com/things-to-do#individual",
+            "name": "Individual Cultural Tour",
+            "description": "A personal, one-on-one cultural immersion tailored to your interests. Connect deeply with your guide at your own pace.",
+            "touristType": ["Cultural tourists", "Educational visitors"],
+            "itinerary": {
+                "@type": "ItemList",
+                "itemListElement": [
+                    { "@type": "ListItem", "position": 1, "name": "Welcome and orientation" },
+                    { "@type": "ListItem", "position": 2, "name": "Walk through camp zones" },
+                    { "@type": "ListItem", "position": 3, "name": "Visit local market and businesses" },
+                    { "@type": "ListItem", "position": 4, "name": "Meet community artisans" },
+                    { "@type": "ListItem", "position": 5, "name": "Q&A with residents" }
+                ]
+            },
+            "offers": {
+                "@type": "Offer",
+                "price": "15000",
+                "priceCurrency": "MWK",
+                "availability": "https://schema.org/InStock",
+                "validFrom": "2024-01-01",
+                "url": "https://visit.dzaleka.com/login"
+            },
+            "provider": {
+                "@type": "Organization",
+                "name": "Visit Dzaleka",
+                "url": "https://visit.dzaleka.com"
+            }
+        },
+        {
+            "@type": "TouristTrip",
+            "@id": "https://visit.dzaleka.com/things-to-do#small-group",
+            "name": "Small Group Experience",
+            "description": "Perfect for couples or small families (2-5 people) seeking an intimate, interactive experience.",
+            "touristType": ["Cultural tourists", "Families", "Small groups"],
+            "offers": {
+                "@type": "Offer",
+                "price": "50000",
+                "priceCurrency": "MWK",
+                "availability": "https://schema.org/InStock",
+                "validFrom": "2024-01-01",
+                "url": "https://visit.dzaleka.com/login"
+            },
+            "provider": {
+                "@type": "Organization",
+                "name": "Visit Dzaleka",
+                "url": "https://visit.dzaleka.com"
+            }
+        },
+        {
+            "@type": "TouristTrip",
+            "@id": "https://visit.dzaleka.com/things-to-do#medium-group",
+            "name": "Medium Group Tour",
+            "description": "Ideal for extended families, friend groups, or small teams (6-10 people). A balanced experience ensuring everyone engages.",
+            "touristType": ["Educational visitors", "Groups"],
+            "offers": {
+                "@type": "Offer",
+                "price": "80000",
+                "priceCurrency": "MWK",
+                "url": "https://visit.dzaleka.com/login"
+            },
+            "provider": {
+                "@type": "Organization",
+                "name": "Visit Dzaleka",
+                "url": "https://visit.dzaleka.com"
+            }
+        },
+        {
+            "@type": "TouristTrip",
+            "@id": "https://visit.dzaleka.com/things-to-do#large-group",
+            "name": "Large Group Tour",
+            "description": "Designed for schools, organizations, or delegations (10+ people). Includes dedicated logistics and multiple guides.",
+            "touristType": ["Researchers", "Special interest groups", "Large delegations"],
+            "offers": {
+                "@type": "Offer",
+                "price": "100000",
+                "priceCurrency": "MWK",
+                "url": "https://visit.dzaleka.com/login"
+            },
+            "provider": {
+                "@type": "Organization",
+                "name": "Visit Dzaleka",
+                "url": "https://visit.dzaleka.com"
+            }
+        },
+        {
+            "@type": "Event",
+            "@id": "https://visit.dzaleka.com/things-to-do#tumaini-festival",
+            "name": "Tumaini Festival",
+            "description": "Annual arts and music festival celebrating refugee creativity and peaceful coexistence. Features international and local performances, dance, poetry, and theater.",
+            "startDate": "2026-11-01",
+            "endDate": "2026-11-02",
+            "eventStatus": "https://schema.org/EventScheduled",
+            "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+            "location": {
+                "@type": "Place",
+                "name": "Dzaleka Refugee Camp",
+                "address": {
+                    "@type": "PostalAddress",
+                    "addressLocality": "Dowa",
+                    "addressCountry": "MW"
+                }
+            },
+            "isAccessibleForFree": true,
+            "organizer": {
+                "@type": "Organization",
+                "name": "Tumaini Letu",
+                "url": "https://tumainiletu.org"
+            }
+        }
+    ]
+};
+
 export default function ThingsToDo() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -20,6 +164,13 @@ export default function ThingsToDo() {
                 canonical="https://visit.dzaleka.com/things-to-do"
                 ogImage="https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg"
             />
+
+            {/* Structured Data JSON-LD for Google Things to do */}
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+            />
+
             {/* Header - Reused from Landing */}
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
                 <div className="container mx-auto flex h-16 items-center justify-between px-4">
@@ -170,6 +321,98 @@ export default function ThingsToDo() {
                             <Button asChild size="lg" className="mt-4">
                                 <Link href="/login">Book a Tour</Link>
                             </Button>
+                        </div>
+                    </section>
+
+                    {/* Tour Options - Explicit Inventory for Google Ads Compliance */}
+                    <section className="space-y-12">
+                        <div className="text-center max-w-3xl mx-auto">
+                            <h2 className="text-3xl font-bold tracking-tight mb-4">Tour Options</h2>
+                            <p className="text-muted-foreground text-lg">
+                                Choose the experience that fits your group size and interests. All tours are led by certified local guides.
+                            </p>
+                        </div>
+
+                        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {/* Individual */}
+                            <Card id="individual" className="flex flex-col h-full border-muted shadow-lg hover:shadow-xl transition-shadow scroll-mt-24">
+                                <CardContent className="p-6 flex flex-col h-full">
+                                    <Badge className="w-fit mb-4" variant="secondary">Popular</Badge>
+                                    <h3 className="text-xl font-bold mb-2">Individual</h3>
+                                    <p className="text-muted-foreground text-sm mb-4 flex-grow">
+                                        A personal, one-on-one cultural immersion tailored to your interests. Connect deeply with your guide at your own pace.
+                                    </p>
+                                    <div className="mt-auto pt-4 border-t">
+                                        <div className="flex items-baseline gap-1 mb-4">
+                                            <span className="text-2xl font-bold">MWK 15,000</span>
+                                            <span className="text-muted-foreground text-sm">/ person</span>
+                                        </div>
+                                        <Button asChild className="w-full">
+                                            <Link href="/login">Book Individual</Link>
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Small Group */}
+                            <Card id="small-group" className="flex flex-col h-full border-muted shadow-lg hover:shadow-xl transition-shadow scroll-mt-24">
+                                <CardContent className="p-6 flex flex-col h-full">
+                                    <Badge className="w-fit mb-4 bg-primary/10 text-primary hover:bg-primary/20">Best Value</Badge>
+                                    <h3 className="text-xl font-bold mb-2">Small Group</h3>
+                                    <p className="text-muted-foreground text-sm mb-4 flex-grow">
+                                        Perfect for couples or small families (2-5 people) seeking an intimate, interactive experience.
+                                    </p>
+                                    <div className="mt-auto pt-4 border-t">
+                                        <div className="flex items-baseline gap-1 mb-4">
+                                            <span className="text-2xl font-bold">MWK 50,000</span>
+                                            <span className="text-muted-foreground text-sm">/ group</span>
+                                        </div>
+                                        <Button asChild className="w-full">
+                                            <Link href="/login">Book Small Group</Link>
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Medium Group */}
+                            <Card id="medium-group" className="flex flex-col h-full border-muted shadow-lg hover:shadow-xl transition-shadow scroll-mt-24">
+                                <CardContent className="p-6 flex flex-col h-full">
+                                    <Badge className="w-fit mb-4" variant="outline">Groups</Badge>
+                                    <h3 className="text-xl font-bold mb-2">Medium Group</h3>
+                                    <p className="text-muted-foreground text-sm mb-4 flex-grow">
+                                        Ideal for extended families, friend groups, or small teams (6-10 people). A balanced experience ensuring everyone engages.
+                                    </p>
+                                    <div className="mt-auto pt-4 border-t">
+                                        <div className="flex items-baseline gap-1 mb-4">
+                                            <span className="text-2xl font-bold">MWK 80,000</span>
+                                            <span className="text-muted-foreground text-sm">/ group</span>
+                                        </div>
+                                        <Button asChild className="w-full">
+                                            <Link href="/login">Book Medium Group</Link>
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Large Group */}
+                            <Card id="large-group" className="flex flex-col h-full border-muted shadow-lg hover:shadow-xl transition-shadow scroll-mt-24">
+                                <CardContent className="p-6 flex flex-col h-full">
+                                    <Badge className="w-fit mb-4" variant="outline">Educational</Badge>
+                                    <h3 className="text-xl font-bold mb-2">Large Group</h3>
+                                    <p className="text-muted-foreground text-sm mb-4 flex-grow">
+                                        Designed for schools, organizations, or delegations (10+ people). Includes dedicated logistics and multiple guides.
+                                    </p>
+                                    <div className="mt-auto pt-4 border-t">
+                                        <div className="flex items-baseline gap-1 mb-4">
+                                            <span className="text-2xl font-bold">MWK 100,000</span>
+                                            <span className="text-muted-foreground text-sm">/ group</span>
+                                        </div>
+                                        <Button asChild className="w-full">
+                                            <Link href="/login">Book Large Group</Link>
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </div>
                     </section>
 

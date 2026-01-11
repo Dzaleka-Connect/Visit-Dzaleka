@@ -23,6 +23,7 @@ export const bookingStatusEnum = pgEnum("booking_status", [
   "in_progress",
   "completed",
   "cancelled",
+  "no_show",
 ]);
 
 export const groupSizeEnum = pgEnum("group_size", [
@@ -83,6 +84,7 @@ export const auditActionEnum = pgEnum("audit_action", [
   "verify",
   "impersonate",
   "stop_impersonate",
+  "mark_no_show",
 ]);
 
 // Session storage table for express-session
@@ -782,7 +784,7 @@ export type InsertFavoriteGuide = z.infer<typeof insertFavoriteGuideSchema>;
 export type FavoriteGuide = typeof favoriteGuides.$inferSelect;
 
 // Enum types
-export type BookingStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
+export type BookingStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled" | "no_show";
 export type GroupSize = "individual" | "small_group" | "large_group" | "custom";
 export type TourType = "standard" | "extended" | "custom";
 export type PaymentMethod = "airtel_money" | "tnm_mpamba" | "cash";

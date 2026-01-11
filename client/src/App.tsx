@@ -9,6 +9,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
 import { useAuth } from "@/hooks/useAuth";
+import { ProtectedRoute } from "@/lib/protected-route";
 import { useRealtimeSubscriptions } from "@/hooks/useRealtime";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
@@ -78,6 +79,7 @@ import BlogList from "@/pages/blog";
 import BlogPostPage from "@/pages/blog-post";
 import AdminBlog from "@/pages/admin-blog";
 import AdminBlogEditor from "@/pages/admin-blog-editor";
+import Unauthorized from "@/pages/unauthorized";
 import { usePageTracker } from "@/hooks/usePageTracker";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
 
@@ -197,35 +199,36 @@ function Router() {
         <Route path="/zones" component={Zones} />
         <Route path="/security" component={Security} />
         <Route path="/share-photos" component={SharePhotos} />
-        <Route path="/users" component={UsersPage} />
+        <ProtectedRoute path="/users" component={UsersPage} allowedRoles={["admin"]} />
         <Route path="/settings" component={Settings} />
         <Route path="/profile" component={Profile} />
         <Route path="/send-email" component={EmailHistory} />
         <Route path="/email-settings" component={EmailSettings} />
-        <Route path="/revenue" component={Revenue} />
+        <ProtectedRoute path="/revenue" component={Revenue} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/audit-logs" component={AuditLogs} allowedRoles={["admin"]} />
+        <ProtectedRoute path="/analytics" component={Analytics} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/reports" component={Reports} allowedRoles={["admin", "coordinator"]} />
         <Route path="/visitors" component={Visitors} />
-        <Route path="/audit-logs" component={AuditLogs} />
-        <Route path="/analytics" component={Analytics} />
-        <Route path="/reports" component={Reports} />
-        <Route path="/cms" component={CMSPage} />
-        <Route path="/security-admin" component={SecurityAdmin} />
+        <ProtectedRoute path="/cms" component={CMSPage} allowedRoles={["admin"]} />
+        <ProtectedRoute path="/security-admin" component={SecurityAdmin} allowedRoles={["admin"]} />
         <Route path="/resources" component={VisitorResources} />
         <Route path="/tasks" component={Tasks} />
         <Route path="/task-admin" component={TaskAdmin} />
         <Route path="/messages" component={Messages} />
-        <Route path="/live-ops" component={LiveOperations} />
+        <ProtectedRoute path="/live-ops" component={LiveOperations} allowedRoles={["admin", "coordinator"]} />
         <Route path="/customers" component={CustomersPage} />
         <Route path="/customers/:id" component={CustomerProfile} />
         <Route path="/help" component={HelpCenter} />
-        <Route path="/help-admin" component={HelpAdmin} />
+        <ProtectedRoute path="/help-admin" component={HelpAdmin} allowedRoles={["admin"]} />
         <Route path="/itinerary-builder" component={ItineraryBuilder} />
         <Route path="/itinerary-builder/:bookingId" component={ItineraryBuilder} />
-        <Route path="/developer" component={DeveloperSettings} />
+        <ProtectedRoute path="/developer" component={DeveloperSettings} allowedRoles={["admin"]} />
         <Route path="/community" component={CommunityHub} />
         <Route path="/landing" component={Landing} />
-        <Route path="/admin/blog" component={AdminBlog} />
-        <Route path="/admin/blog/new" component={AdminBlogEditor} />
-        <Route path="/admin/blog/edit/:id" component={AdminBlogEditor} />
+        <ProtectedRoute path="/admin/blog" component={AdminBlog} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/admin/blog/new" component={AdminBlogEditor} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/admin/blog/edit/:id" component={AdminBlogEditor} allowedRoles={["admin", "coordinator"]} />
+        <Route path="/unauthorized" component={Unauthorized} />
         <Route component={NotFound} />
       </Switch>
     </AuthenticatedLayout>

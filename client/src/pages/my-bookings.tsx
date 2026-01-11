@@ -46,6 +46,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge, PaymentStatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { QRCodeDisplay } from "@/components/qr-scanner-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -599,6 +600,22 @@ export default function MyBookings() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* QR Code for Check-in */}
+              {(selectedBooking.status === "confirmed" || selectedBooking.status === "pending") && selectedBooking.bookingReference && (
+                <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Your Check-in QR Code</CardTitle>
+                    <CardDescription>Show this to your guide at check-in</CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-col items-center">
+                    <QRCodeDisplay value={selectedBooking.bookingReference} size={180} />
+                    <p className="text-xs text-muted-foreground mt-4 text-center">
+                      Present this QR code when you arrive for quick check-in
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
 
               <div className="flex justify-end gap-2">
                 {itineraries?.some((i) => i.bookingId === selectedBooking.id) && (

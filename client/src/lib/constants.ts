@@ -74,6 +74,7 @@ export const STATUS_COLORS = {
   in_progress: { bg: "bg-purple-100", text: "text-purple-800", dark: "dark:bg-purple-900/30 dark:text-purple-400" },
   completed: { bg: "bg-blue-100", text: "text-blue-800", dark: "dark:bg-blue-900/30 dark:text-blue-400" },
   cancelled: { bg: "bg-red-100", text: "text-red-800", dark: "dark:bg-red-900/30 dark:text-red-400" },
+  no_show: { bg: "bg-orange-100", text: "text-orange-800", dark: "dark:bg-orange-900/30 dark:text-orange-400" },
 } as const;
 
 // Payment status colors

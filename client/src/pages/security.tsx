@@ -10,6 +10,8 @@ import {
   CheckCircle,
   Eye,
   Plus,
+  ScanLine,
+  Ban,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -60,6 +62,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { SEO } from "@/components/seo";
+import { QRScannerDialog } from "@/components/qr-scanner-dialog";
 
 interface BookingWithGuide extends Booking {
   guide?: Guide;
@@ -96,6 +99,7 @@ export default function Security() {
   const [searchReference, setSearchReference] = useState("");
   const [verifiedBooking, setVerifiedBooking] = useState<BookingWithGuide | null>(null);
   const [isIncidentFormOpen, setIsIncidentFormOpen] = useState(false);
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
 
   const { data: activeVisits, isLoading: activeLoading } = useQuery<BookingWithGuide[]>({
     queryKey: ["/api/bookings/active"],
@@ -210,6 +214,41 @@ export default function Security() {
     },
   });
 
+  const noShowMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("POST", `/api/bookings/${id}/no-show`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings/active"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings/today"] });
+      setVerifiedBooking(null);
+      setSearchReference("");
+      toast({
+        title: "Marked as No-Show",
+        description: "Visitor has been marked as a no-show.",
+      });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to mark visitor as no-show.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const createIncidentMutation = useMutation({
     mutationFn: async (data: IncidentFormValues) => {
       await apiRequest("POST", "/api/incidents", data);
@@ -280,6 +319,13 @@ export default function Security() {
     }
   };
 
+  const handleQRScan = (result: string) => {
+    // QR code scanned - extract booking reference and verify
+    const reference = result.trim().toUpperCase();
+    setSearchReference(reference);
+    verifyMutation.mutate(reference);
+  };
+
   return (
     <div className="space-y-6">
       <SEO
@@ -334,6 +380,14 @@ export default function Security() {
                 >
                   <Eye className="mr-2 h-4 w-4" />
                   Verify
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsQRScannerOpen(true)}
+                  data-testid="button-scan-qr"
+                >
+                  <ScanLine className="mr-2 h-4 w-4" />
+                  Scan QR
                 </Button>
               </div>
             </CardContent>
@@ -408,14 +462,26 @@ export default function Security() {
 
                 <div className="mt-6 flex gap-4">
                   {!verifiedBooking.checkInTime && verifiedBooking.status === "confirmed" && (
-                    <Button
-                      onClick={() => checkInMutation.mutate(verifiedBooking.id)}
-                      disabled={checkInMutation.isPending}
-                      data-testid="button-check-in"
-                    >
-                      <UserCheck className="mr-2 h-4 w-4" />
-                      Check In Visitor
-                    </Button>
+                    <>
+                      <Button
+                        onClick={() => checkInMutation.mutate(verifiedBooking.id)}
+                        disabled={checkInMutation.isPending}
+                        data-testid="button-check-in"
+                      >
+                        <UserCheck className="mr-2 h-4 w-4" />
+                        Check In Visitor
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => noShowMutation.mutate(verifiedBooking.id)}
+                        disabled={noShowMutation.isPending}
+                        className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                        data-testid="button-no-show"
+                      >
+                        <Ban className="mr-2 h-4 w-4" />
+                        No-Show
+                      </Button>
+                    </>
                   )}
                   {verifiedBooking.checkInTime && !verifiedBooking.checkOutTime && (
                     <Button
@@ -860,6 +926,15 @@ export default function Security() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* QR Scanner Dialog */}
+      <QRScannerDialog
+        open={isQRScannerOpen}
+        onOpenChange={setIsQRScannerOpen}
+        onScan={handleQRScan}
+        title="Scan Booking QR Code"
+        description="Point your camera at the visitor's QR code to verify and check them in."
+      />
     </div>
   );
 }

@@ -15,6 +15,10 @@ import {
   Banknote,
   Smartphone,
   History,
+  Percent,
+  PieChart as PieChartIcon,
+  BarChart3,
+  HelpCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +52,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -106,6 +116,34 @@ interface PayoutSummary {
   totalPending: number;
   thisMonthPaid: number;
   guidesAwaitingPayment: number;
+}
+
+interface RevenueKPIs {
+  grossMargin: {
+    percent: number;
+    platformRevenue: number;
+    totalRevenue: number;
+    totalGuidePayout: number;
+  };
+  revenueShare: {
+    platformSharePercent: number;
+    guideSharePercent: number;
+    platformAmount: number;
+    guideAmount: number;
+  };
+  avgPriceByType: { tourType: string; count: number; total: number; avgPrice: number }[];
+  netTicketMargin: {
+    percent: number;
+    actualRevenue: number;
+    expectedRevenue: number;
+    difference: number;
+  };
+  revenueEfficiency: {
+    completedRevenue: number;
+    noShowLostRevenue: number;
+    completedCount: number;
+    noShowCount: number;
+  };
 }
 
 const revenueConfig = {
@@ -724,6 +762,10 @@ export default function Revenue() {
     queryKey: ["/api/revenue"],
   });
 
+  const { data: kpis } = useQuery<RevenueKPIs>({
+    queryKey: ["/api/revenue/kpis"],
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -794,6 +836,170 @@ export default function Revenue() {
               <Download className="mr-2 h-4 w-4" />
               Export CSV
             </Button>
+          </div>
+
+          {/* Revenue KPIs Section */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold">Key Performance Indicators</h2>
+            </div>
+
+            <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+              {/* Gross Margin */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <div className="flex items-center gap-1">
+                    <CardTitle className="text-sm font-medium">Gross Margin</CardTitle>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[250px]">
+                          <p className="text-sm">Platform profit margin after paying guides. Calculated as: (Total Revenue - Guide Payouts) ÷ Total Revenue × 100</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <Percent className="h-4 w-4 text-green-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">
+                    {kpis?.grossMargin.percent ?? 0}%
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Platform: {formatCurrency(kpis?.grossMargin.platformRevenue ?? 0)}
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Platform Share */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <div className="flex items-center gap-1">
+                    <CardTitle className="text-sm font-medium">Platform Share</CardTitle>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[250px]">
+                          <p className="text-sm">Revenue split between platform and guides. Currently guides receive 100% of tour revenue.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <PieChartIcon className="h-4 w-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {kpis?.revenueShare.platformSharePercent ?? 0}%
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Guide: {kpis?.revenueShare.guideSharePercent ?? 0}%
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Net Ticket Margin */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <div className="flex items-center gap-1">
+                    <CardTitle className="text-sm font-medium">Net Margin</CardTitle>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[300px]">
+                          <p className="text-sm">Actual revenue vs expected baseline prices. Positive = charging above baseline. Baselines: Individual MK 15K, Small Group MK 50K, Large Group MK 80K, Custom MK 100K.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  {(kpis?.netTicketMargin.percent ?? 0) >= 0 ? (
+                    <ArrowUpRight className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <ArrowDownRight className="h-4 w-4 text-red-500" />
+                  )}
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-2xl font-bold ${(kpis?.netTicketMargin.percent ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {kpis?.netTicketMargin.percent ?? 0}%
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    vs expected: {formatCurrency(kpis?.netTicketMargin.difference ?? 0)}
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* No-Show Lost Revenue */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <div className="flex items-center gap-1">
+                    <CardTitle className="text-sm font-medium">No-Show Loss</CardTitle>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[250px]">
+                          <p className="text-sm">Total revenue lost from visitors who did not show up for their confirmed bookings.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <RefreshCcw className="h-4 w-4 text-orange-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-orange-600">
+                    {formatCurrency(kpis?.revenueEfficiency.noShowLostRevenue ?? 0)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {kpis?.revenueEfficiency.noShowCount ?? 0} no-shows
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Avg Price by Tour Type */}
+            {(kpis?.avgPriceByType?.length ?? 0) > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" />
+                    Average Tour Price by Type
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {kpis?.avgPriceByType.map((item, index) => (
+                      <div key={item.tourType} className="flex items-center gap-4">
+                        <div className="w-20 text-sm font-medium capitalize">{item.tourType}</div>
+                        <div className="flex-1">
+                          <div className="h-4 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${Math.min(100, (item.avgPrice / (kpis?.avgPriceByType[0]?.avgPrice || 1)) * 100)}%`,
+                                backgroundColor: index === 0 ? 'var(--chart-1)' : index === 1 ? 'var(--chart-2)' : 'var(--chart-3)',
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <div className="w-28 text-right text-sm font-bold">
+                          {formatCurrency(item.avgPrice)}
+                        </div>
+                        <div className="w-20 text-right text-xs text-muted-foreground">
+                          {item.count} tours
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           <div className="grid gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">

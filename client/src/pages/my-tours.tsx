@@ -21,13 +21,17 @@ import {
     CheckCircle,
     Loader2,
     User,
+    ScanLine,
+    UserX,
 } from "lucide-react";
 import type { Booking } from "@shared/schema";
+import { QRScannerDialog } from "@/components/qr-scanner-dialog";
 
 export default function MyTours() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState("upcoming");
+    const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
 
     const { data: tours = [], isLoading } = useQuery<Booking[]>({
         queryKey: ["/api/guides/me/tours"],
@@ -63,6 +67,20 @@ export default function MyTours() {
         },
     });
 
+    const noShowMutation = useMutation({
+        mutationFn: async (bookingId: string) => {
+            const response = await apiRequest("POST", `/api/bookings/${bookingId}/guide-no-show`);
+            return response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/guides/me/tours"] });
+            toast({ title: "Marked as No-Show", description: "The visitor has been marked as a no-show." });
+        },
+        onError: (error: Error) => {
+            toast({ title: "Failed", description: error.message, variant: "destructive" });
+        },
+    });
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -74,6 +92,23 @@ export default function MyTours() {
     const inProgressTours = tours.filter(t => t.status === "in_progress");
 
     const completedTours = tours.filter(t => t.status === "completed");
+
+    const handleQRScan = (result: string) => {
+        // Find the matching booking by reference
+        const reference = result.trim().toUpperCase();
+        const matchingTour = tours.find(
+            t => t.bookingReference?.toUpperCase() === reference && t.status === "confirmed"
+        );
+        if (matchingTour) {
+            checkInMutation.mutate(matchingTour.id);
+        } else {
+            toast({
+                title: "Booking Not Found",
+                description: `No matching tour found for reference: ${reference}`,
+                variant: "destructive",
+            });
+        }
+    };
 
     const renderTourCard = (tour: Booking) => (
         <Card key={tour.id} className="hover:shadow-md transition-shadow">
@@ -149,18 +184,33 @@ export default function MyTours() {
                     {/* Actions */}
                     <div className="border-t pt-3 flex gap-2">
                         {tour.status === "confirmed" && (
-                            <Button
-                                onClick={() => checkInMutation.mutate(tour.id)}
-                                disabled={checkInMutation.isPending}
-                                className="flex-1"
-                            >
-                                {checkInMutation.isPending && checkInMutation.variables === tour.id ? (
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                ) : (
-                                    <Play className="mr-2 h-4 w-4" />
-                                )}
-                                Check In Visitor
-                            </Button>
+                            <>
+                                <Button
+                                    onClick={() => checkInMutation.mutate(tour.id)}
+                                    disabled={checkInMutation.isPending}
+                                    className="flex-1"
+                                >
+                                    {checkInMutation.isPending && checkInMutation.variables === tour.id ? (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <Play className="mr-2 h-4 w-4" />
+                                    )}
+                                    Check In Visitor
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => noShowMutation.mutate(tour.id)}
+                                    disabled={noShowMutation.isPending}
+                                    className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                                >
+                                    {noShowMutation.isPending && noShowMutation.variables === tour.id ? (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <UserX className="mr-2 h-4 w-4" />
+                                    )}
+                                    No-Show
+                                </Button>
+                            </>
                         )}
                         {tour.status === "in_progress" && (
                             <Button
@@ -205,7 +255,16 @@ export default function MyTours() {
             />
 
             <div className="flex flex-col gap-2">
-                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">My Tours</h1>
+                <div className="flex items-center justify-between">
+                    <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">My Tours</h1>
+                    <Button
+                        variant="outline"
+                        onClick={() => setIsQRScannerOpen(true)}
+                    >
+                        <ScanLine className="mr-2 h-4 w-4" />
+                        Scan QR
+                    </Button>
+                </div>
                 <p className="text-muted-foreground">
                     View and manage all your assigned tours.
                 </p>
@@ -292,6 +351,15 @@ export default function MyTours() {
                     )}
                 </TabsContent>
             </Tabs>
+
+            {/* QR Scanner Dialog */}
+            <QRScannerDialog
+                open={isQRScannerOpen}
+                onOpenChange={setIsQRScannerOpen}
+                onScan={handleQRScan}
+                title="Scan Visitor QR Code"
+                description="Scan the visitor's QR code to quickly check them in for their tour."
+            />
         </div>
     );
 }

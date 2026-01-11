@@ -149,7 +149,7 @@ function requireRole(...allowedRoles: UserRole[]) {
 // Audit logging helper
 async function createAuditLog(
   userId: string,
-  action: "create" | "update" | "delete" | "login" | "logout" | "check_in" | "check_out" | "verify" | "impersonate" | "stop_impersonate",
+  action: "create" | "update" | "delete" | "login" | "logout" | "check_in" | "check_out" | "verify" | "impersonate" | "stop_impersonate" | "mark_no_show",
   entityType: string,
   entityId?: string,
   oldValues?: any,
@@ -2422,6 +2422,36 @@ export async function registerRoutes(
     }
   });
 
+  // No-Show endpoint (Security module) - security, admin, coordinator
+  app.post("/api/bookings/:id/no-show", isAuthenticated, requireRole("admin", "coordinator", "security"), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.session?.userId;
+
+      const booking = await storage.getBooking(id);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      // Only confirmed bookings can be marked as no-show
+      if (booking.status !== "confirmed") {
+        return res.status(400).json({ message: "Only confirmed bookings can be marked as no-show" });
+      }
+
+      // Update status to no_show
+      const updatedBooking = await storage.updateBookingStatus(id, "no_show");
+
+      // Create audit log
+      await createAuditLog(userId, "mark_no_show", "booking", id,
+        { status: booking.status }, { status: "no_show" }, req);
+
+      res.json(updatedBooking);
+    } catch (error) {
+      logError("Error marking visitor as no-show", error, req.requestId);
+      res.status(500).json({ message: "Failed to mark visitor as no-show" });
+    }
+  });
+
   // Start tour endpoint - transition from confirmed to in_progress
   app.post("/api/bookings/:id/start", isAuthenticated, requireRole("admin", "coordinator", "guide"), async (req, res) => {
     try {
@@ -2737,6 +2767,44 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error checking out visitor", error, req.requestId);
       res.status(500).json({ message: "Failed to check out visitor" });
+    }
+  });
+
+  // Guide mark visitor as no-show
+  app.post("/api/bookings/:id/guide-no-show", isAuthenticated, requireRole("guide"), async (req: any, res) => {
+    try {
+      const bookingId = req.params.id;
+      const userId = req.session?.userId;
+
+      const guide = await storage.getGuideByUserId(userId);
+      if (!guide) {
+        return res.status(404).json({ message: "Guide profile not found" });
+      }
+
+      const booking = await storage.getBooking(bookingId);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      if (booking.assignedGuideId !== guide.id) {
+        return res.status(403).json({ message: "You are not assigned to this booking" });
+      }
+
+      // Only confirmed bookings can be marked as no-show
+      if (booking.status !== "confirmed") {
+        return res.status(400).json({ message: "Only confirmed bookings can be marked as no-show" });
+      }
+
+      // Update status to no_show
+      const updatedBooking = await storage.updateBookingStatus(bookingId, "no_show");
+
+      await createAuditLog(userId, "mark_no_show", "booking", bookingId,
+        { status: booking.status }, { status: "no_show" }, req);
+
+      res.json(updatedBooking);
+    } catch (error) {
+      logError("Error marking visitor as no-show", error, req.requestId);
+      res.status(500).json({ message: "Failed to mark visitor as no-show" });
     }
   });
 
@@ -4004,6 +4072,121 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error fetching revenue data", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch revenue data" });
+    }
+  });
+
+  // Revenue KPIs endpoint (admin only)
+  app.get("/api/revenue/kpis", isAuthenticated, requireRole("admin", "coordinator"), async (req: Request, res: Response) => {
+    try {
+      // Get all bookings using storage layer
+      const allBookings = await storage.getBookings();
+      const paidBookings = allBookings.filter(b => b.paymentStatus === "paid");
+
+      // Get payout history using storage layer
+      const allPayouts = await storage.getPayouts();
+      const paidPayouts = allPayouts.filter(p => p.status === "paid");
+      const totalGuidePayout = paidPayouts.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+      // 1. Total Revenue (from paid bookings)
+      const totalRevenue = paidBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+
+      // Guide share configuration: guides currently take 100% of tour revenue
+      // Platform revenue comes from other sources (not implemented yet)
+      const GUIDE_SHARE_PERCENT = 100; // 100% to guides
+      const PLATFORM_SHARE_PERCENT = 0;  // 0% to platform
+
+      // Calculate actual guide earnings (100% of completed tour revenue)
+      const completedPaidBookings = allBookings.filter(b =>
+        (b.status === "completed" || b.status === "in_progress" || b.status === "confirmed") &&
+        b.paymentStatus === "paid"
+      );
+      const totalGuideEarnings = completedPaidBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+
+      // 2. Gross Margin % = Platform keeps 0% since guides take 100%
+      const platformRevenue = totalRevenue - totalGuideEarnings;
+      const grossMarginPercent = totalRevenue > 0 ? Math.round((platformRevenue / totalRevenue) * 100) : 0;
+
+      // 3. Platform vs Guide Share (based on business model, not payouts)
+      const guideSharePercent = GUIDE_SHARE_PERCENT;
+      const platformSharePercent = PLATFORM_SHARE_PERCENT;
+
+      // 4. Average Tour Price by Type
+      const avgPriceByType: Record<string, { count: number; total: number; avgPrice: number }> = {};
+      paidBookings.forEach(b => {
+        const tourType = b.tourType || "standard";
+        if (!avgPriceByType[tourType]) {
+          avgPriceByType[tourType] = { count: 0, total: 0, avgPrice: 0 };
+        }
+        avgPriceByType[tourType].count++;
+        avgPriceByType[tourType].total += b.totalAmount || 0;
+      });
+      // Calculate averages
+      Object.keys(avgPriceByType).forEach(type => {
+        const data = avgPriceByType[type];
+        data.avgPrice = data.count > 0 ? Math.round(data.total / data.count) : 0;
+      });
+
+      // 5. Net Ticket Margin (expected price vs actual realized)
+      // Use proper baseline prices per tour type (from pricing settings)
+      const BASELINE_PRICES: Record<string, number> = {
+        standard: 15000,   // Individual Tour (1 person)
+        extended: 50000,   // Small Group (2-5 people)
+        large_group: 80000,   // Large Group (6-10 people)
+        custom: 100000,    // Custom Group (10+ people)
+      };
+
+      // Calculate expected revenue based on each booking's tour type
+      const expectedRevenue = paidBookings.reduce((sum, b) => {
+        const tourType = b.tourType || "standard";
+        const baselinePrice = BASELINE_PRICES[tourType] || BASELINE_PRICES.standard;
+        return sum + baselinePrice;
+      }, 0);
+
+      // Net Margin: (Actual - Expected) / Expected × 100
+      // Positive = charging more than baseline, Negative = discounting
+      const netTicketMargin = expectedRevenue > 0
+        ? Math.round(((totalRevenue - expectedRevenue) / expectedRevenue) * 100)
+        : 0;
+
+      // 6. Revenue by completed vs no-show (efficiency metric)
+      const completedBookings = allBookings.filter(b => b.status === "completed" && b.paymentStatus === "paid");
+      const noShowBookings = allBookings.filter(b => b.status === "no_show");
+      const completedRevenue = completedBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+      const noShowLostRevenue = noShowBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+
+      res.json({
+        grossMargin: {
+          percent: grossMarginPercent,
+          platformRevenue,
+          totalRevenue,
+          totalGuidePayout,
+        },
+        revenueShare: {
+          platformSharePercent,
+          guideSharePercent,
+          platformAmount: platformRevenue,
+          guideAmount: totalGuidePayout,
+        },
+        avgPriceByType: Object.entries(avgPriceByType).map(([tourType, data]) => ({
+          tourType,
+          ...data,
+        })).sort((a, b) => b.avgPrice - a.avgPrice),
+        netTicketMargin: {
+          percent: netTicketMargin,
+          actualRevenue: totalRevenue,
+          expectedRevenue,
+          difference: totalRevenue - expectedRevenue,
+        },
+        revenueEfficiency: {
+          completedRevenue,
+          noShowLostRevenue,
+          completedCount: completedBookings.length,
+          noShowCount: noShowBookings.length,
+        },
+      });
+    } catch (error) {
+      logError("Error getting revenue KPIs", error, req.requestId);
+      res.status(500).json({ message: "Failed to get revenue KPIs" });
     }
   });
 
@@ -5791,6 +5974,132 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error getting conversion stats", error, req.requestId);
       res.status(500).json({ message: "Failed to get conversion statistics" });
+    }
+  });
+
+  // Get booking KPIs (admin only)
+  app.get("/api/analytics/booking-kpis", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
+    try {
+      const { startDate, endDate } = req.query;
+
+      const start = startDate ? new Date(startDate as string) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default 30 days
+      const end = endDate ? new Date(endDate as string) : new Date();
+
+      // Get all bookings using storage layer
+      const allBookings = await storage.getBookings();
+      const bookingsInRange = allBookings.filter(b => {
+        const created = new Date(b.createdAt!);
+        return created >= start && created <= end;
+      });
+
+      // 1. Total Booking Volume
+      const totalBookings = bookingsInRange.length;
+      const confirmedBookings = bookingsInRange.filter(b => b.status === "confirmed" || b.status === "completed" || b.status === "in_progress").length;
+
+      // 2. Revenue by Channel/Source
+      const revenueByChannel: Record<string, { count: number; revenue: number }> = {};
+      bookingsInRange.forEach(b => {
+        const source = b.source || "direct";
+        if (!revenueByChannel[source]) {
+          revenueByChannel[source] = { count: 0, revenue: 0 };
+        }
+        revenueByChannel[source].count++;
+        revenueByChannel[source].revenue += b.totalAmount || 0;
+      });
+
+      // 3. Average Ticket Price
+      const paidBookings = bookingsInRange.filter(b => b.totalAmount && b.totalAmount > 0);
+      const totalRevenue = paidBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+      const averageTicketPrice = paidBookings.length > 0 ? Math.round(totalRevenue / paidBookings.length) : 0;
+
+      // 4. Lead Time (days between booking and visit)
+      const leadTimes = bookingsInRange
+        .filter(b => b.createdAt && b.visitDate)
+        .map(b => {
+          const created = new Date(b.createdAt!);
+          const visit = new Date(b.visitDate);
+          return Math.ceil((visit.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+        })
+        .filter(days => days >= 0);
+      const averageLeadTime = leadTimes.length > 0 ? Math.round(leadTimes.reduce((a, b) => a + b, 0) / leadTimes.length) : 0;
+
+      // 5. No-Show Rate
+      const noShowCount = bookingsInRange.filter(b => b.status === "no_show").length;
+      const confirmedOrNoShow = bookingsInRange.filter(b =>
+        b.status === "confirmed" || b.status === "completed" || b.status === "no_show" || b.status === "in_progress"
+      ).length;
+      const noShowRate = confirmedOrNoShow > 0 ? Math.round((noShowCount / confirmedOrNoShow) * 100) : 0;
+
+      // 6. Repeat Booking Rate
+      const emailCounts: Record<string, number> = {};
+      allBookings.forEach(b => {
+        const email = b.visitorEmail.toLowerCase();
+        emailCounts[email] = (emailCounts[email] || 0) + 1;
+      });
+      const repeatVisitors = Object.values(emailCounts).filter(count => count > 1).length;
+      const uniqueVisitors = Object.keys(emailCounts).length;
+      const repeatBookingRate = uniqueVisitors > 0 ? Math.round((repeatVisitors / uniqueVisitors) * 100) : 0;
+
+      // 7. Booking trends (daily for the period)
+      const dailyTrends: Record<string, { date: string; bookings: number; revenue: number }> = {};
+      bookingsInRange.forEach(b => {
+        const dateKey = new Date(b.createdAt!).toISOString().split('T')[0];
+        if (!dailyTrends[dateKey]) {
+          dailyTrends[dateKey] = { date: dateKey, bookings: 0, revenue: 0 };
+        }
+        dailyTrends[dateKey].bookings++;
+        dailyTrends[dateKey].revenue += b.totalAmount || 0;
+      });
+
+      // 8. Status breakdown
+      const statusBreakdown: Record<string, number> = {};
+      bookingsInRange.forEach(b => {
+        const status = b.status || "pending";
+        statusBreakdown[status] = (statusBreakdown[status] || 0) + 1;
+      });
+
+      // 9. Tour type breakdown
+      const tourTypeBreakdown: Record<string, { count: number; revenue: number }> = {};
+      bookingsInRange.forEach(b => {
+        const tourType = b.tourType || "standard";
+        if (!tourTypeBreakdown[tourType]) {
+          tourTypeBreakdown[tourType] = { count: 0, revenue: 0 };
+        }
+        tourTypeBreakdown[tourType].count++;
+        tourTypeBreakdown[tourType].revenue += b.totalAmount || 0;
+      });
+
+      res.json({
+        period: { start: start.toISOString(), end: end.toISOString() },
+        summary: {
+          totalBookings,
+          confirmedBookings,
+          totalRevenue,
+          averageTicketPrice,
+          averageLeadTime,
+          noShowRate,
+          noShowCount,
+          repeatBookingRate,
+          uniqueVisitors,
+          repeatVisitors,
+        },
+        revenueByChannel: Object.entries(revenueByChannel).map(([channel, data]) => ({
+          channel,
+          ...data,
+        })),
+        statusBreakdown: Object.entries(statusBreakdown).map(([status, count]) => ({
+          status,
+          count,
+        })),
+        tourTypeBreakdown: Object.entries(tourTypeBreakdown).map(([tourType, data]) => ({
+          tourType,
+          ...data,
+        })),
+        dailyTrends: Object.values(dailyTrends).sort((a, b) => a.date.localeCompare(b.date)),
+      });
+    } catch (error) {
+      logError("Error getting booking KPIs", error, req.requestId);
+      res.status(500).json({ message: "Failed to get booking KPIs" });
     }
   });
 

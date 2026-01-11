@@ -48,6 +48,35 @@ export default function BlogPostPage() {
                 ogImage={post.coverImage || "https://services.dzaleka.com/images/dzaleka-digital-heritage.png"}
                 type="article"
             />
+            {/* Structured Data for Google "Top Stories" - BlogPosting */}
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{
+                    __html: JSON.stringify({
+                        "@context": "https://schema.org",
+                        "@type": "BlogPosting",
+                        "headline": post.title,
+                        "image": [
+                            post.coverImage || "https://services.dzaleka.com/images/dzaleka-digital-heritage.png"
+                        ],
+                        "datePublished": post.publishedAt || new Date().toISOString(),
+                        "dateModified": post.publishedAt || new Date().toISOString(),
+                        "author": {
+                            "@type": "Person",
+                            "name": "Visit Dzaleka Team"
+                        },
+                        "publisher": {
+                            "@type": "Organization",
+                            "name": "Visit Dzaleka",
+                            "logo": {
+                                "@type": "ImageObject",
+                                "url": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png"
+                            }
+                        },
+                        "description": post.excerpt || post.content.substring(0, 160)
+                    })
+                }}
+            />
             {/* Header - Reused from Blog List (should probably extracting to component later) */}
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
                 <div className="container mx-auto flex h-16 items-center justify-between px-4">

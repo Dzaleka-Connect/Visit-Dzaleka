@@ -13,6 +13,12 @@ import {
     Activity,
     ChevronLeft,
     ChevronRight,
+    DollarSign,
+    Clock,
+    Ban,
+    RefreshCw,
+    Ticket,
+    CalendarDays,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -62,6 +68,26 @@ interface PageViewStats {
     channelBreakdown: { channel: string; count: number }[];
 }
 
+interface BookingKPIs {
+    period: { start: string; end: string };
+    summary: {
+        totalBookings: number;
+        confirmedBookings: number;
+        totalRevenue: number;
+        averageTicketPrice: number;
+        averageLeadTime: number;
+        noShowRate: number;
+        noShowCount: number;
+        repeatBookingRate: number;
+        uniqueVisitors: number;
+        repeatVisitors: number;
+    };
+    revenueByChannel: { channel: string; count: number; revenue: number }[];
+    statusBreakdown: { status: string; count: number }[];
+    tourTypeBreakdown: { tourType: string; count: number; revenue: number }[];
+    dailyTrends: { date: string; bookings: number; revenue: number }[];
+}
+
 const chartConfig = {
     views: {
         label: "Page Views",
@@ -99,6 +125,10 @@ export default function Analytics() {
         queryKey: ["/api/analytics/pageviews"],
     });
 
+    const { data: bookingKpis, isLoading: kpisLoading } = useQuery<BookingKPIs>({
+        queryKey: ["/api/analytics/booking-kpis"],
+    });
+
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
@@ -132,6 +162,17 @@ export default function Analytics() {
             maximumFractionDigits: 1,
         }).format(num);
     };
+
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat("en-MW", {
+            style: "currency",
+            currency: "MWK",
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+        }).format(amount);
+    };
+
+    const kpis = bookingKpis?.summary;
 
     return (
         <div className="space-y-4 sm:space-y-6">
@@ -209,6 +250,167 @@ export default function Analytics() {
                         <p className="text-xs text-muted-foreground">Single page visits</p>
                     </CardContent>
                 </Card>
+            </div>
+
+            {/* Booking & Revenue KPIs */}
+            <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    <h2 className="text-lg sm:text-xl font-semibold">Booking & Revenue KPIs</h2>
+                </div>
+
+                <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
+                            <CalendarDays className="h-4 w-4 text-primary" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{kpis?.totalBookings ?? 0}</div>
+                            <p className="text-xs text-muted-foreground">Last 30 days</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                            <DollarSign className="h-4 w-4 text-green-500" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{formatCurrency(kpis?.totalRevenue ?? 0)}</div>
+                            <p className="text-xs text-muted-foreground">Last 30 days</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Avg Tour Price</CardTitle>
+                            <DollarSign className="h-4 w-4 text-blue-500" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{formatCurrency(kpis?.averageTicketPrice ?? 0)}</div>
+                            <p className="text-xs text-muted-foreground">Per booking</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Lead Time</CardTitle>
+                            <Clock className="h-4 w-4 text-purple-500" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{kpis?.averageLeadTime ?? 0} days</div>
+                            <p className="text-xs text-muted-foreground">Avg booking to visit</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">No-Show Rate</CardTitle>
+                            <Ban className="h-4 w-4 text-orange-500" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{kpis?.noShowRate ?? 0}%</div>
+                            <p className="text-xs text-muted-foreground">{kpis?.noShowCount ?? 0} no-shows</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Repeat Rate</CardTitle>
+                            <RefreshCw className="h-4 w-4 text-teal-500" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{kpis?.repeatBookingRate ?? 0}%</div>
+                            <p className="text-xs text-muted-foreground">{kpis?.repeatVisitors ?? 0} return visitors</p>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* Revenue by Channel & Status Breakdown */}
+                <div className="grid gap-6 lg:grid-cols-2">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-base sm:text-lg">Revenue by Channel</CardTitle>
+                            <CardDescription>Booking sources and revenue</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {(bookingKpis?.revenueByChannel?.length ?? 0) > 0 ? (
+                                <div className="h-[250px]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={bookingKpis?.revenueByChannel} layout="vertical">
+                                            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.3} horizontal={false} />
+                                            <XAxis type="number" tickFormatter={(v) => formatCurrency(v)} tick={{ fontSize: 10 }} />
+                                            <YAxis type="category" dataKey="channel" width={60} tick={{ fontSize: 12 }} />
+                                            <ChartTooltip
+                                                content={({ active, payload }: { active: boolean; payload: any[] }) => {
+                                                    if (active && payload && payload.length) {
+                                                        const data = payload[0].payload;
+                                                        return (
+                                                            <div className="bg-background border rounded-lg shadow-lg p-3">
+                                                                <p className="font-medium capitalize">{data.channel}</p>
+                                                                <p className="text-sm text-muted-foreground">Bookings: {data.count}</p>
+                                                                <p className="text-sm font-medium">{formatCurrency(data.revenue)}</p>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                }}
+                                            />
+                                            <Bar dataKey="revenue" fill="var(--chart-1)" radius={[0, 4, 4, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            ) : (
+                                <div className="flex h-[200px] items-center justify-center text-muted-foreground">
+                                    No channel data yet.
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-base sm:text-lg">Status Breakdown</CardTitle>
+                            <CardDescription>Booking statuses distribution</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {(bookingKpis?.statusBreakdown?.length ?? 0) > 0 ? (
+                                <div className="h-[250px]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={bookingKpis?.statusBreakdown}
+                                                dataKey="count"
+                                                nameKey="status"
+                                                cx="50%"
+                                                cy="50%"
+                                                outerRadius={80}
+                                                fill="var(--chart-1)"
+                                                label={({ status, count }) => `${status}: ${count}`}
+                                            >
+                                                {bookingKpis?.statusBreakdown.map((entry, index) => (
+                                                    <Cell key={entry.status} fill={COLORS[index % COLORS.length]} />
+                                                ))}
+                                            </Pie>
+                                            <ChartTooltip />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            ) : (
+                                <div className="flex h-[200px] items-center justify-center text-muted-foreground">
+                                    No status data yet.
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+
+            {/* Website Analytics Section */}
+            <div className="flex items-center gap-2 pt-4">
+                <Globe className="h-5 w-5 text-primary" />
+                <h2 className="text-lg sm:text-xl font-semibold">Website Traffic</h2>
             </div>
 
             {/* Charts Grid */}
