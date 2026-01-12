@@ -28,26 +28,87 @@ export function QRScannerDialog({
 }: QRScannerDialogProps) {
     const [error, setError] = useState<string | null>(null);
     const [isStarting, setIsStarting] = useState(false);
+    const [hasPermission, setHasPermission] = useState<boolean | null>(null);
     const scannerRef = useRef<Html5Qrcode | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const mountedRef = useRef(true);
 
     useEffect(() => {
-        if (open && containerRef.current) {
-            startScanner();
-        }
-
+        mountedRef.current = true;
         return () => {
-            stopScanner();
+            mountedRef.current = false;
         };
+    }, []);
+
+    useEffect(() => {
+        if (open) {
+            // Wait for dialog to be fully rendered before starting scanner
+            const timeout = setTimeout(() => {
+                if (mountedRef.current) {
+                    requestCameraPermission();
+                }
+            }, 300);
+            return () => clearTimeout(timeout);
+        } else {
+            stopScanner();
+        }
     }, [open]);
 
-    const startScanner = async () => {
-        if (!containerRef.current) return;
-
+    const requestCameraPermission = async () => {
         setIsStarting(true);
         setError(null);
 
         try {
+            // First, check if we can get camera permission
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "environment" }
+            });
+            // Stop the stream immediately - we just needed permission
+            stream.getTracks().forEach(track => track.stop());
+
+            setHasPermission(true);
+
+            // Small delay to ensure DOM is ready
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            if (mountedRef.current) {
+                await startScanner();
+            }
+        } catch (err: any) {
+            console.error("Camera permission error:", err);
+            setHasPermission(false);
+
+            if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+                setError("Camera permission denied. Please allow camera access in your browser settings.");
+            } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+                setError("No camera found on this device.");
+            } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+                setError("Camera is already in use by another application.");
+            } else if (err.name === "OverconstrainedError") {
+                setError("Camera constraints not supported.");
+            } else if (err.name === "AbortError") {
+                setError("Camera access was aborted. Please try again.");
+            } else {
+                setError(`Camera error: ${err.message || "Unknown error occurred."}`);
+            }
+        } finally {
+            if (mountedRef.current) {
+                setIsStarting(false);
+            }
+        }
+    };
+
+    const startScanner = async () => {
+        const readerElement = document.getElementById("qr-reader");
+        if (!readerElement) {
+            setError("Scanner container not found. Please try again.");
+            return;
+        }
+
+        try {
+            // Clear any existing content in the reader element
+            readerElement.innerHTML = "";
+
             const scanner = new Html5Qrcode("qr-reader", {
                 formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
                 verbose: false,
@@ -72,26 +133,22 @@ export function QRScannerDialog({
                 }
             );
         } catch (err: any) {
-            console.error("QR Scanner error:", err);
-            if (err.toString().includes("NotAllowedError")) {
-                setError("Camera permission denied. Please allow camera access.");
-            } else if (err.toString().includes("NotFoundError")) {
-                setError("No camera found on this device.");
-            } else {
-                setError("Failed to start camera. Please try again.");
-            }
-        } finally {
-            setIsStarting(false);
+            console.error("QR Scanner start error:", err);
+            setError("Failed to start QR scanner. Please try again.");
         }
     };
 
     const stopScanner = async () => {
         if (scannerRef.current) {
             try {
-                await scannerRef.current.stop();
-                scannerRef.current = null;
+                const state = scannerRef.current.getState();
+                if (state === 2) { // SCANNING state
+                    await scannerRef.current.stop();
+                }
             } catch (err) {
                 // Ignore stop errors
+            } finally {
+                scannerRef.current = null;
             }
         }
     };
