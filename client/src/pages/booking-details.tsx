@@ -313,7 +313,7 @@ const generateBookingPDF = async (booking: BookingWithGuide, meetingPointName: s
     doc.text('Thank you for choosing Dzaleka Visit!', pageWidth / 2, 276, { align: 'center' });
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.text('Questions? Contact us at info@mail.dzaleka.com | +265 999 123 456', pageWidth / 2, 285, { align: 'center' });
+    doc.text('Questions? Contact us at info@mail.dzaleka.com | +61 4989 56 715', pageWidth / 2, 285, { align: 'center' });
     doc.setFontSize(8);
     doc.setTextColor(156, 163, 175);
     doc.text('visit.dzaleka.com', pageWidth / 2, 292, { align: 'center' });
