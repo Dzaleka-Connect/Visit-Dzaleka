@@ -2,25 +2,48 @@ import { useQuery } from "@tanstack/react-query";
 import { BlogPost } from "@shared/schema";
 import { Link, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Calendar, User, ArrowLeft, Menu, X, Clock } from "lucide-react";
+import { Calendar, User, ArrowLeft, Menu, X, Clock, Share2, ChevronRight, Home, BookOpen, ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
+import { FaFacebook, FaTwitter, FaWhatsapp, FaLinkedin } from "react-icons/fa";
+import { IoCopyOutline, IoCheckmark } from "react-icons/io5";
 
 export default function BlogPostPage() {
     const [, params] = useRoute("/blog/:slug");
     const slug = params?.slug;
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     const { data: post, isLoading, error } = useQuery<BlogPost>({
         queryKey: [`/api/blog/${slug}`],
         enabled: !!slug,
     });
+
+    // Fetch all posts for related posts section
+    const { data: allPosts } = useQuery<BlogPost[]>({
+        queryKey: ["/api/blog"],
+    });
+
+    // Get related posts (exclude current, take 3)
+    const relatedPosts = allPosts?.filter(p => p.slug !== slug).slice(0, 3) || [];
+
+    // Share URL
+    const shareUrl = typeof window !== "undefined" ? window.location.href : `https://visit.dzaleka.com/blog/${slug}`;
+    const shareTitle = post?.title || "Check out this article from Dzaleka";
+
+    const handleCopyLink = async () => {
+        await navigator.clipboard.writeText(shareUrl);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
 
     if (isLoading) {
         return <BlogPostSkeleton />;
@@ -128,6 +151,21 @@ export default function BlogPostPage() {
             </header>
 
             <main className="flex-1">
+                {/* Breadcrumb Navigation */}
+                <div className="bg-muted/30 border-b">
+                    <div className="container mx-auto px-4 max-w-4xl py-3">
+                        <nav className="flex items-center gap-2 text-sm text-muted-foreground" aria-label="Breadcrumb">
+                            <Link href="/" className="flex items-center hover:text-foreground transition-colors">
+                                <Home className="h-4 w-4" />
+                            </Link>
+                            <ChevronRight className="h-3 w-3" />
+                            <Link href="/blog" className="hover:text-foreground transition-colors">Blog</Link>
+                            <ChevronRight className="h-3 w-3" />
+                            <span className="text-foreground truncate max-w-[200px]">{post.title}</span>
+                        </nav>
+                    </div>
+                </div>
+
                 {/* Hero / Header Section */}
                 <div className="bg-muted/30 py-12 md:py-20 border-b">
                     <div className="container mx-auto px-4 max-w-4xl">
@@ -143,6 +181,54 @@ export default function BlogPostPage() {
                             </div>
                             <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-foreground leading-tight">{post.title}</h1>
                             {post.excerpt && <p className="text-xl text-muted-foreground leading-relaxed">{post.excerpt}</p>}
+
+                            {/* Social Sharing - Top */}
+                            <div className="flex items-center gap-2 pt-4">
+                                <span className="text-sm text-muted-foreground mr-2 flex items-center"><Share2 className="h-4 w-4 mr-1" /> Share:</span>
+                                <a
+                                    href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="h-9 w-9 rounded-full bg-[#1877F2] flex items-center justify-center text-white hover:opacity-80 transition-opacity"
+                                    aria-label="Share on Facebook"
+                                >
+                                    <FaFacebook className="h-4 w-4" />
+                                </a>
+                                <a
+                                    href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareTitle)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="h-9 w-9 rounded-full bg-[#1DA1F2] flex items-center justify-center text-white hover:opacity-80 transition-opacity"
+                                    aria-label="Share on Twitter"
+                                >
+                                    <FaTwitter className="h-4 w-4" />
+                                </a>
+                                <a
+                                    href={`https://wa.me/?text=${encodeURIComponent(shareTitle + " " + shareUrl)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="h-9 w-9 rounded-full bg-[#25D366] flex items-center justify-center text-white hover:opacity-80 transition-opacity"
+                                    aria-label="Share on WhatsApp"
+                                >
+                                    <FaWhatsapp className="h-4 w-4" />
+                                </a>
+                                <a
+                                    href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="h-9 w-9 rounded-full bg-[#0A66C2] flex items-center justify-center text-white hover:opacity-80 transition-opacity"
+                                    aria-label="Share on LinkedIn"
+                                >
+                                    <FaLinkedin className="h-4 w-4" />
+                                </a>
+                                <button
+                                    onClick={handleCopyLink}
+                                    className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
+                                    aria-label="Copy link"
+                                >
+                                    {copied ? <IoCheckmark className="h-4 w-4 text-green-500" /> : <IoCopyOutline className="h-4 w-4" />}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -157,13 +243,117 @@ export default function BlogPostPage() {
                 )}
 
                 {/* Content */}
-                <article className="container mx-auto px-4 max-w-3xl pb-20">
+                <article className="container mx-auto px-4 max-w-3xl pb-12">
                     <div className="prose prose-slate dark:prose-invert lg:prose-lg mx-auto">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {post.content}
                         </ReactMarkdown>
                     </div>
                 </article>
+
+                {/* Social Sharing - Bottom */}
+                <div className="container mx-auto px-4 max-w-3xl pb-12">
+                    <div className="border-t pt-8">
+                        <p className="text-sm font-medium mb-4">Enjoyed this article? Share it with others:</p>
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <a
+                                href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#1877F2] text-white text-sm font-medium hover:opacity-80 transition-opacity"
+                            >
+                                <FaFacebook className="h-4 w-4" /> Facebook
+                            </a>
+                            <a
+                                href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareTitle)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#1DA1F2] text-white text-sm font-medium hover:opacity-80 transition-opacity"
+                            >
+                                <FaTwitter className="h-4 w-4" /> Twitter
+                            </a>
+                            <a
+                                href={`https://wa.me/?text=${encodeURIComponent(shareTitle + " " + shareUrl)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#25D366] text-white text-sm font-medium hover:opacity-80 transition-opacity"
+                            >
+                                <FaWhatsapp className="h-4 w-4" /> WhatsApp
+                            </a>
+                            <button
+                                onClick={handleCopyLink}
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-muted text-sm font-medium hover:bg-primary hover:text-primary-foreground transition-colors"
+                            >
+                                {copied ? <IoCheckmark className="h-4 w-4 text-green-500" /> : <IoCopyOutline className="h-4 w-4" />}
+                                {copied ? "Copied!" : "Copy Link"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Book a Tour CTA */}
+                <div className="container mx-auto px-4 max-w-3xl pb-12">
+                    <Card className="bg-primary/5 border-primary/20">
+                        <CardContent className="p-6 md:p-8 flex flex-col md:flex-row items-center gap-6">
+                            <div className="flex-1">
+                                <h3 className="text-xl font-bold mb-2">Ready to Experience Dzaleka?</h3>
+                                <p className="text-muted-foreground">
+                                    Book a guided tour and discover the vibrant culture, creativity, and resilience of Dzaleka Refugee Camp firsthand.
+                                </p>
+                            </div>
+                            <Button asChild size="lg" className="shrink-0">
+                                <Link href="/login">
+                                    Book Your Tour <ArrowRight className="ml-2 h-4 w-4" />
+                                </Link>
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* Related Posts */}
+                {relatedPosts.length > 0 && (
+                    <div className="container mx-auto px-4 max-w-4xl pb-20">
+                        <div className="border-t pt-12">
+                            <div className="flex items-center justify-between mb-8">
+                                <h2 className="text-2xl font-bold flex items-center gap-2">
+                                    <BookOpen className="h-6 w-6 text-primary" />
+                                    More Articles
+                                </h2>
+                                <Button variant="ghost" asChild className="group">
+                                    <Link href="/blog">
+                                        View All <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                                    </Link>
+                                </Button>
+                            </div>
+                            <div className="grid gap-6 md:grid-cols-3">
+                                {relatedPosts.map((relatedPost) => (
+                                    <Link key={relatedPost.id} href={`/blog/${relatedPost.slug}`}>
+                                        <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer group h-full">
+                                            {relatedPost.coverImage && (
+                                                <div className="aspect-video overflow-hidden bg-muted">
+                                                    <img
+                                                        src={relatedPost.coverImage}
+                                                        alt={relatedPost.title}
+                                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                                    />
+                                                </div>
+                                            )}
+                                            <CardContent className="p-4">
+                                                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                                                    <Calendar className="h-3 w-3" />
+                                                    <span>{relatedPost.publishedAt ? format(new Date(relatedPost.publishedAt), "MMM d, yyyy") : "Draft"}</span>
+                                                </div>
+                                                <h3 className="font-semibold line-clamp-2 group-hover:text-primary transition-colors">
+                                                    {relatedPost.title}
+                                                </h3>
+                                            </CardContent>
+                                        </Card>
+                                    </Link>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </main>
 
             <SiteFooter />

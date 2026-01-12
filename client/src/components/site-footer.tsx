@@ -60,7 +60,25 @@ export function SiteFooter() {
                             </li>
                         </ul>
                     </div>
+                    <div>
+                        <h4 className="font-semibold mb-4">Legal</h4>
+                        <ul className="space-y-2 text-sm text-muted-foreground">
+                            <li><Link href="/disclaimer" className="hover:text-primary">Disclaimer</Link></li>
+                            <li><Link href="/cookie-notice" className="hover:text-primary">Cookie Notice</Link></li>
+                        </ul>
+                    </div>
                 </div>
+
+                {/* Disclaimer */}
+                <div className="border-t pt-6 pb-4">
+                    <p className="text-xs text-muted-foreground text-center max-w-4xl mx-auto leading-relaxed">
+                        <strong>Disclaimer:</strong> Visit Dzaleka is a community-led tourism initiative.
+                        All tours follow established safety protocols and camp regulations.
+                        <Link href="/disclaimer" className="text-primary hover:underline ml-1">Read full disclaimer</Link> |
+                        <Link href="/cookie-notice" className="text-primary hover:underline ml-1">Cookie policy</Link>
+                    </p>
+                </div>
+
                 <div className="border-t pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
                     <p>© {new Date().getFullYear()} Dzaleka Visit. All rights reserved.</p>
                     <p>

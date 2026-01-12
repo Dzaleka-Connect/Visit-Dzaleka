@@ -1,6 +1,6 @@
 // Version updated on each deploy - change this when deploying!
 // Or use a build step to inject a timestamp
-const CACHE_VERSION = '2026-01-11-v1';
+const CACHE_VERSION = '2026-01-12-v1';
 const CACHE_NAME = `dzaleka-visit-${CACHE_VERSION}`;
 
 const STATIC_ASSETS = [

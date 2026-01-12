@@ -19,6 +19,7 @@ import {
     RefreshCw,
     Ticket,
     CalendarDays,
+    RefreshCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -121,13 +122,20 @@ export default function Analytics() {
         refetchInterval: 30000,
     });
 
-    const { data, isLoading } = useQuery<PageViewStats>({
+    const { data, isLoading, refetch: refetchPageviews } = useQuery<PageViewStats>({
         queryKey: ["/api/analytics/pageviews"],
+        staleTime: 60 * 1000, // 1 minute
     });
 
-    const { data: bookingKpis, isLoading: kpisLoading } = useQuery<BookingKPIs>({
+    const { data: bookingKpis, isLoading: kpisLoading, refetch: refetchKpis } = useQuery<BookingKPIs>({
         queryKey: ["/api/analytics/booking-kpis"],
+        staleTime: 60 * 1000, // 1 minute
     });
+
+    const handleRefresh = () => {
+        refetchPageviews();
+        refetchKpis();
+    };
 
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
@@ -181,11 +189,17 @@ export default function Analytics() {
                 description="Track page views, visitor behavior, device usage, and conversion metrics for Visit Dzaleka."
             />
             {/* Header */}
-            <div className="flex flex-col gap-1 sm:gap-2">
-                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Website Analytics</h1>
-                <p className="text-sm sm:text-base text-muted-foreground">
-                    Track page views, visitor behavior, and conversion metrics.
-                </p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex flex-col gap-1">
+                    <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Website Analytics</h1>
+                    <p className="text-sm sm:text-base text-muted-foreground">
+                        Track page views, visitor behavior, and conversion metrics.
+                    </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading || kpisLoading}>
+                    <RefreshCcw className={`mr-2 h-4 w-4 ${(isLoading || kpisLoading) ? 'animate-spin' : ''}`} />
+                    Refresh
+                </Button>
             </div>
 
             {/* Summary Cards */}

@@ -361,8 +361,8 @@ export default function Security() {
               <CardTitle>Verify Booking</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-4">
-                <div className="relative flex-1 max-w-md">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     placeholder="Enter booking reference (e.g., DVS-2024-ABC123)"
@@ -373,22 +373,26 @@ export default function Security() {
                     data-testid="input-booking-reference"
                   />
                 </div>
-                <Button
-                  onClick={handleVerify}
-                  disabled={!searchReference.trim() || verifyMutation.isPending}
-                  data-testid="button-verify"
-                >
-                  <Eye className="mr-2 h-4 w-4" />
-                  Verify
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsQRScannerOpen(true)}
-                  data-testid="button-scan-qr"
-                >
-                  <ScanLine className="mr-2 h-4 w-4" />
-                  Scan QR
-                </Button>
+                <div className="flex gap-2 sm:gap-4">
+                  <Button
+                    onClick={handleVerify}
+                    disabled={!searchReference.trim() || verifyMutation.isPending}
+                    data-testid="button-verify"
+                    className="flex-1 sm:flex-none"
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    Verify
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsQRScannerOpen(true)}
+                    data-testid="button-scan-qr"
+                    className="flex-1 sm:flex-none"
+                  >
+                    <ScanLine className="mr-2 h-4 w-4" />
+                    Scan QR
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

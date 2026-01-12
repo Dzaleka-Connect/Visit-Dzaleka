@@ -199,7 +199,7 @@ const dzalekaHighlights = [
   },
 ];
 
-import { type Event } from "@shared/schema";
+import { type Event, type BlogPost } from "@shared/schema";
 
 // Featured events (would be pulled from API in production)
 // const featuredEvents = []; // Now fetching from API
@@ -245,6 +245,10 @@ export default function Landing() {
 
   const { data: events, isLoading: isLoadingEvents } = useQuery<Event[]>({
     queryKey: ["/api/events"],
+  });
+
+  const { data: blogPosts, isLoading: isLoadingBlog } = useQuery<BlogPost[]>({
+    queryKey: ["/api/blog"],
   });
 
   const getContent = (key: string, fallback: string) => content?.[key] || fallback;
@@ -928,6 +932,66 @@ export default function Landing() {
             </div>
           </div>
         </section>
+
+        {/* From the Blog Section */}
+        {blogPosts && blogPosts.length > 0 && (
+          <section id="blog" className="py-24 bg-background">
+            <div className="container mx-auto px-4">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-bold tracking-tight">From the Blog</h2>
+                  <p className="text-muted-foreground mt-2">Stories, tips, and inspiration for your visit</p>
+                </div>
+                <Button variant="ghost" asChild className="group hidden sm:flex">
+                  <Link href="/blog">
+                    View All Articles
+                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </Link>
+                </Button>
+              </div>
+              <div className="grid gap-6 md:grid-cols-3">
+                {blogPosts.slice(0, 3).map((post) => (
+                  <Link key={post.id} href={`/blog/${post.slug}`}>
+                    <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer group h-full">
+                      {post.coverImage && (
+                        <div className="aspect-[16/9] overflow-hidden bg-muted">
+                          <img
+                            src={post.coverImage}
+                            alt={post.title}
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = "https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg";
+                            }}
+                          />
+                        </div>
+                      )}
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                          <Calendar className="h-3 w-3" />
+                          <span>{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Draft"}</span>
+                        </div>
+                        <h3 className="font-semibold text-lg mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+                          {post.title}
+                        </h3>
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {post.excerpt || post.content?.substring(0, 120) + "..."}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+              <div className="text-center mt-8 sm:hidden">
+                <Button variant="outline" asChild>
+                  <Link href="/blog">
+                    View All Articles
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Pricing Section */}
         <section id="pricing" className="py-24">

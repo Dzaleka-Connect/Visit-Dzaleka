@@ -80,6 +80,9 @@ import BlogPostPage from "@/pages/blog-post";
 import AdminBlog from "@/pages/admin-blog";
 import AdminBlogEditor from "@/pages/admin-blog-editor";
 import Unauthorized from "@/pages/unauthorized";
+import Disclaimer from "@/pages/disclaimer";
+import CookieNotice from "@/pages/cookie-notice";
+import Destinations from "@/pages/destinations";
 import { usePageTracker } from "@/hooks/usePageTracker";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
 
@@ -120,7 +123,7 @@ function Router() {
 
   // Embed and Blog routes should be accessible without authenticated layout
   const path = window.location.pathname;
-  if (path.startsWith("/embed/") || path.startsWith("/blog") || path.startsWith("/things-to-do") || path.startsWith("/whats-on") || path.startsWith("/plan-your-trip") || path.startsWith("/accommodation")) {
+  if (path.startsWith("/embed/") || path.startsWith("/blog") || path.startsWith("/things-to-do") || path.startsWith("/whats-on") || path.startsWith("/plan-your-trip") || path.startsWith("/accommodation") || path === "/disclaimer" || path === "/cookie-notice" || path === "/destinations") {
     return (
       <Switch>
         <Route path="/embed/booking" component={EmbedBooking} />
@@ -137,6 +140,9 @@ function Router() {
         <Route path="/life-in-dzaleka" component={LifeInDzaleka} />
         <Route path="/about-dzaleka" component={AboutDzaleka} />
         <Route path="/accommodation" component={Accommodation} />
+        <Route path="/disclaimer" component={Disclaimer} />
+        <Route path="/cookie-notice" component={CookieNotice} />
+        <Route path="/destinations" component={Destinations} />
       </Switch>
     );
   }
@@ -170,6 +176,9 @@ function Router() {
         <Route path="/about-dzaleka" component={AboutDzaleka} />
         <Route path="/it-code-of-practice" component={ITCodeOfPractice} />
         <Route path="/accommodation" component={Accommodation} />
+        <Route path="/disclaimer" component={Disclaimer} />
+        <Route path="/cookie-notice" component={CookieNotice} />
+        <Route path="/destinations" component={Destinations} />
         <Route component={Landing} />
       </Switch>
     );

@@ -2705,19 +2705,39 @@ export class SupabaseStorage implements IStorage {
     referrerBreakdown: { referrer: string; count: number }[];
     channelBreakdown: { channel: string; count: number }[];
   }> {
-    let query = this.supabase.from("page_views").select("*");
+    // Fetch all page views using pagination to overcome Supabase's row limits
+    const PAGE_SIZE = 1000;
+    let allViews: any[] = [];
+    let offset = 0;
+    let hasMore = true;
 
-    if (startDate) {
-      query = query.gte("created_at", startDate.toISOString());
+    while (hasMore) {
+      let query = this.supabase
+        .from("page_views")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(offset, offset + PAGE_SIZE - 1);
+
+      if (startDate) {
+        query = query.gte("created_at", startDate.toISOString());
+      }
+      if (endDate) {
+        query = query.lte("created_at", endDate.toISOString());
+      }
+
+      const { data: pageViews, error } = await query;
+      if (error) throw new Error(error.message);
+
+      if (pageViews && pageViews.length > 0) {
+        allViews = allViews.concat(pageViews);
+        offset += PAGE_SIZE;
+        hasMore = pageViews.length === PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
     }
-    if (endDate) {
-      query = query.lte("created_at", endDate.toISOString());
-    }
 
-    const { data: pageViews, error } = await query;
-    if (error) throw new Error(error.message);
-
-    const views = pageViews || [];
+    const views = allViews;
 
     // Calculate unique visitors by session
     const uniqueSessions = new Set(views.map(v => v.session_id));
@@ -2963,14 +2983,14 @@ export class SupabaseStorage implements IStorage {
     const current = await this.getAnalyticsSettings();
     const snakeData = transformToSnake(settings);
 
-    // Ensure we update the existing record if it exists
-    if (current) {
-      snakeData.id = current.id;
-    }
+    // Use a consistent ID to prevent duplicate rows
+    // If a record exists, use its ID. Otherwise, use a static known ID.
+    const ANALYTICS_SETTINGS_ID = 'default-analytics-settings';
+    snakeData.id = current?.id || ANALYTICS_SETTINGS_ID;
 
     const { data, error } = await this.supabase
       .from("analytics_settings")
-      .upsert({ ...snakeData, updated_at: new Date() })
+      .upsert({ ...snakeData, updated_at: new Date() }, { onConflict: 'id' })
       .select()
       .single();
 
