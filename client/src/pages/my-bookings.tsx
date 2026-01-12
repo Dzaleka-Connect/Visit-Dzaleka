@@ -69,27 +69,56 @@ interface BookingWithGuide extends Booking {
 }
 
 
-// PDF Generator function
-const generateBookingPDF = (booking: Booking, meetingPointName: string) => {
+import { generateQRCodeDataURL } from "@/lib/qrcode";
+
+// Premium PDF Generator function (async to support QR code generation)
+const generateBookingPDF = async (booking: Booking, meetingPointName: string) => {
   const doc = new jsPDF();
+  const pageWidth = 210;
+  const margin = 20;
+  const contentWidth = pageWidth - margin * 2;
 
-  // Header
-  doc.setFillColor(2, 132, 199);
-  doc.rect(0, 0, 210, 40, 'F');
+  // Generate QR code for booking reference
+  let qrCodeDataUrl: string | null = null;
+  if (booking.bookingReference) {
+    try {
+      qrCodeDataUrl = await generateQRCodeDataURL(booking.bookingReference, 120);
+    } catch (error) {
+      console.error('Failed to generate QR code for PDF:', error);
+    }
+  }
+
+  // ===== HEADER WITH GRADIENT EFFECT =====
+  // Primary gradient bar
+  doc.setFillColor(2, 132, 199); // Sky blue
+  doc.rect(0, 0, pageWidth, 45, 'F');
+  // Accent stripe
+  doc.setFillColor(14, 165, 233); // Lighter accent
+  doc.rect(0, 45, pageWidth, 5, 'F');
+
+  // Header text
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(24);
-  doc.text('Dzaleka Online Services', 105, 20, { align: 'center' });
-  doc.setFontSize(14);
-  doc.text('Booking Confirmation', 105, 32, { align: 'center' });
+  doc.setFontSize(26);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DZALEKA VISIT', pageWidth / 2, 22, { align: 'center' });
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Tour Booking Confirmation', pageWidth / 2, 35, { align: 'center' });
 
-  // Reset text color
+  // ===== BOOKING REFERENCE & STATUS BAR =====
   doc.setTextColor(0, 0, 0);
+  let yPos = 60;
 
-  // Booking Reference heading
-  doc.setFontSize(16);
-  doc.text(`Reference: ${booking.bookingReference || 'Pending'}`, 20, 55);
+  // Reference number (large, prominent)
+  doc.setFontSize(11);
+  doc.setTextColor(100, 100, 100);
+  doc.text('BOOKING REFERENCE', margin, yPos);
+  doc.setFontSize(20);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.text(booking.bookingReference || 'Pending Confirmation', margin, yPos + 10);
 
-  // Status badge
+  // Status badge (right aligned)
   const statusColors: Record<string, [number, number, number]> = {
     confirmed: [34, 197, 94],
     pending: [234, 179, 8],
@@ -97,59 +126,136 @@ const generateBookingPDF = (booking: Booking, meetingPointName: string) => {
     completed: [59, 130, 246],
   };
   const [r, g, b] = statusColors[booking.status || 'pending'] || [107, 114, 128];
+  const statusText = (booking.status || 'pending').toUpperCase();
+  const statusWidth = doc.getTextWidth(statusText) + 16;
   doc.setFillColor(r, g, b);
-  doc.roundedRect(150, 48, 40, 12, 3, 3, 'F');
+  doc.roundedRect(pageWidth - margin - statusWidth, yPos - 5, statusWidth, 18, 4, 4, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
-  doc.text((booking.status || 'pending').toUpperCase(), 170, 56, { align: 'center' });
+  doc.setFont('helvetica', 'bold');
+  doc.text(statusText, pageWidth - margin - statusWidth / 2, yPos + 5, { align: 'center' });
 
-  // Reset text color
-  doc.setTextColor(0, 0, 0);
+  // Horizontal divider
+  yPos += 20;
+  doc.setDrawColor(229, 231, 235);
+  doc.setLineWidth(0.5);
+  doc.line(margin, yPos, pageWidth - margin, yPos);
+  yPos += 10;
+
+  // ===== TWO COLUMN LAYOUT =====
+  const leftColX = margin;
+  const rightColX = 115;
+  const colWidth = 75;
+
+  // Helper function for section headers
+  const drawSectionHeader = (text: string, x: number, y: number) => {
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(x, y - 5, colWidth, 10, 2, 2, 'F');
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(71, 85, 105);
+    doc.text(text.toUpperCase(), x + 3, y + 2);
+    return y + 10;
+  };
+
+  // Helper for detail rows
+  const drawDetail = (label: string, value: string, x: number, y: number) => {
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'normal');
+    doc.text(label, x, y);
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+    doc.text(value || 'N/A', x, y + 5);
+    return y + 12;
+  };
+
+  // ===== LEFT COLUMN: VISITOR & TOUR DETAILS =====
+  let leftY = yPos;
 
   // Visitor Details Section
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Visitor Details', 20, 75);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
-  doc.text(`Name: ${booking.visitorName}`, 20, 85);
-  doc.text(`Email: ${booking.visitorEmail}`, 20, 93);
-  doc.text(`Phone: ${booking.visitorPhone || 'Not provided'}`, 20, 101);
+  leftY = drawSectionHeader('Visitor Details', leftColX, leftY);
+  leftY = drawDetail('Full Name', booking.visitorName, leftColX, leftY);
+  leftY = drawDetail('Email Address', booking.visitorEmail, leftColX, leftY);
+  leftY = drawDetail('Phone Number', booking.visitorPhone || 'Not provided', leftColX, leftY);
 
   // Tour Details Section
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Tour Details', 20, 118);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
-  doc.text(`Date: ${formatDate(booking.visitDate)}`, 20, 128);
-  doc.text(`Time: ${formatTime(booking.visitTime)}`, 20, 136);
-  doc.text(`Tour Type: ${booking.tourType === 'standard' ? 'Standard (2 hours)' : booking.tourType === 'extended' ? 'Extended (3-4 hours)' : 'Custom'}`, 20, 144);
-  doc.text(`Group Size: ${booking.numberOfPeople || 1} ${(booking.numberOfPeople || 1) === 1 ? 'person' : 'people'}`, 20, 152);
-  doc.text(`Meeting Point: ${meetingPointName}`, 20, 160);
+  leftY = drawSectionHeader('Tour Details', leftColX, leftY);
+  leftY = drawDetail('Visit Date', formatDate(booking.visitDate), leftColX, leftY);
+  leftY = drawDetail('Start Time', formatTime(booking.visitTime), leftColX, leftY);
+  const tourTypeLabel = booking.tourType === 'standard' ? 'Standard Tour (2 hours)' :
+    booking.tourType === 'extended' ? 'Extended Tour (3-4 hours)' : 'Custom Tour';
+  leftY = drawDetail('Tour Type', tourTypeLabel, leftColX, leftY);
+  leftY = drawDetail('Group Size', `${booking.numberOfPeople || 1} ${(booking.numberOfPeople || 1) === 1 ? 'person' : 'people'}`, leftColX, leftY);
+  leftY = drawDetail('Meeting Point', meetingPointName, leftColX, leftY);
+
+  // ===== RIGHT COLUMN: PAYMENT & QR CODE =====
+  let rightY = yPos;
 
   // Payment Details Section
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Payment Information', 20, 177);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
-  doc.text(`Total Amount: ${formatCurrency(booking.totalAmount || 0)}`, 20, 187);
-  doc.text(`Payment Status: ${(booking.paymentStatus || 'pending').charAt(0).toUpperCase() + (booking.paymentStatus || 'pending').slice(1)}`, 20, 195);
-  doc.text(`Payment Method: ${booking.paymentMethod === 'airtel_money' ? 'Airtel Money' : booking.paymentMethod === 'tnm_mpamba' ? 'TNM Mpamba' : 'Cash'}`, 20, 203);
+  rightY = drawSectionHeader('Payment Details', rightColX, rightY);
+  rightY = drawDetail('Total Amount', formatCurrency(booking.totalAmount || 0), rightColX, rightY);
+  const paymentStatusLabel = (booking.paymentStatus || 'pending').charAt(0).toUpperCase() + (booking.paymentStatus || 'pending').slice(1);
+  rightY = drawDetail('Payment Status', paymentStatusLabel, rightColX, rightY);
+  const paymentMethodLabel = booking.paymentMethod === 'airtel_money' ? 'Airtel Money' :
+    booking.paymentMethod === 'tnm_mpamba' ? 'TNM Mpamba' : 'Cash on Arrival';
+  rightY = drawDetail('Payment Method', paymentMethodLabel, rightColX, rightY);
 
-  // Footer
+  // QR Code Section
+  if (qrCodeDataUrl) {
+    rightY = drawSectionHeader('Check-in QR Code', rightColX, rightY);
+    // QR code with border
+    doc.setDrawColor(229, 231, 235);
+    doc.setLineWidth(1);
+    doc.roundedRect(rightColX + 10, rightY, 55, 55, 3, 3, 'S');
+    doc.addImage(qrCodeDataUrl, 'PNG', rightColX + 12.5, rightY + 2.5, 50, 50);
+    rightY += 58;
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Present this code at check-in', rightColX + 37.5, rightY, { align: 'center' });
+  }
+
+  // ===== SPECIAL REQUESTS SECTION (Dynamic positioning) =====
+  const specialY = Math.max(leftY, rightY) + 5;
+  if (booking.specialRequests) {
+    doc.setFillColor(254, 249, 195); // Light yellow
+    doc.roundedRect(margin, specialY, contentWidth, 25, 3, 3, 'F');
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(161, 98, 7);
+    doc.text('SPECIAL REQUESTS', margin + 5, specialY + 8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(10);
+    const splitText = doc.splitTextToSize(booking.specialRequests, contentWidth - 10);
+    doc.text(splitText.slice(0, 2), margin + 5, specialY + 17);
+  }
+
+
+  // ===== FOOTER =====
   doc.setFillColor(31, 41, 55);
-  doc.rect(0, 270, 210, 27, 'F');
+  doc.rect(0, 265, pageWidth, 32, 'F');
+  // Accent line
+  doc.setFillColor(2, 132, 199);
+  doc.rect(0, 265, pageWidth, 2, 'F');
+
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(10);
-  doc.text('Thank you for booking with Dzaleka Online Services', 105, 280, { align: 'center' });
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Thank you for choosing Dzaleka Visit!', pageWidth / 2, 276, { align: 'center' });
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Questions? Contact us at info@mail.dzaleka.com | +61 4989 56 715', pageWidth / 2, 285, { align: 'center' });
   doc.setFontSize(8);
-  doc.text('For questions, contact: info@mail.dzaleka.com | dzalekaconnect@gmail.com', 105, 288, { align: 'center' });
+  doc.setTextColor(156, 163, 175);
+  doc.text('visit.dzaleka.com', pageWidth / 2, 292, { align: 'center' });
 
   // Save
-  doc.save(`booking-${booking.bookingReference || booking.id}.pdf`);
+  doc.save(`DzalekaVisit-${booking.bookingReference || booking.id}.pdf`);
 };
+
+
 
 
 export default function MyBookings() {
