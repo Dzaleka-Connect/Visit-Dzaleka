@@ -10,25 +10,213 @@ import {
 import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
 
-// Structured Data for SEO
+// Comprehensive Structured Data for SEO - Dzaleka Refugee Camp
+// Using schema.org types: AdministrativeArea, LandmarksOrHistoricalBuildings, Hospital, PoliceStation, EducationalOrganization
 const structuredData = {
     "@context": "https://schema.org",
-    "@type": "Article",
-    "headline": "About Dzaleka Refugee Camp",
-    "description": "Comprehensive information about Dzaleka Refugee Camp in Malawi - establishment, demographics, governance, living conditions, and current developments.",
-    "author": {
-        "@type": "Organization",
-        "name": "Visit Dzaleka"
-    },
-    "publisher": {
-        "@type": "Organization",
-        "name": "Visit Dzaleka",
-        "url": "https://visit.dzaleka.com"
-    },
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://visit.dzaleka.com/about-dzaleka"
-    }
+    "@graph": [
+        // Organization - Visit Dzaleka
+        {
+            "@type": "Organization",
+            "@id": "https://visit.dzaleka.com#organization",
+            "name": "Visit Dzaleka",
+            "url": "https://visit.dzaleka.com",
+            "logo": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png"
+        },
+        // BreadcrumbList
+        {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://visit.dzaleka.com" },
+                { "@type": "ListItem", "position": 2, "name": "About Dzaleka", "item": "https://visit.dzaleka.com/about-dzaleka" }
+            ]
+        },
+        // Main Place - Dzaleka Refugee Camp as AdministrativeArea
+        {
+            "@type": ["Place", "AdministrativeArea", "CivicStructure"],
+            "@id": "https://visit.dzaleka.com/about-dzaleka#dzaleka-camp",
+            "name": "Dzaleka Refugee Camp",
+            "alternateName": ["Dzaleka Camp", "Dzaleka"],
+            "description": "Dzaleka Refugee Camp is Malawi's only refugee camp, established in 1994. Located 41km north of Lilongwe in Dowa District, it hosts over 56,000 refugees and asylum seekers primarily from the Democratic Republic of Congo, Burundi, and Rwanda. Originally a political prison (1964-1994), the camp was designed for 10,000-12,000 people across 201 hectares.",
+            "url": "https://visit.dzaleka.com/about-dzaleka",
+            "image": "https://services.dzaleka.com/images/20241023_205851_3.jpg",
+            "foundingDate": "1994",
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "Dowa",
+                "addressRegion": "Central Region",
+                "addressCountry": "MW"
+            },
+            "geo": {
+                "@type": "GeoCoordinates",
+                "latitude": -13.7833,
+                "longitude": 33.9833
+            },
+            "areaServed": {
+                "@type": "Population",
+                "populationType": "Refugees and Asylum Seekers",
+                "numConstraints": {
+                    "@type": "QuantitativeValue",
+                    "value": 56000,
+                    "unitText": "people"
+                }
+            },
+            "containsPlace": [
+                { "@id": "https://visit.dzaleka.com/about-dzaleka#dzaleka-health-centre" },
+                { "@id": "https://visit.dzaleka.com/about-dzaleka#dzaleka-hill" },
+                { "@id": "https://visit.dzaleka.com/about-dzaleka#police-station" },
+                { "@id": "https://visit.dzaleka.com/about-dzaleka#jrs-schools" }
+            ],
+            "sameAs": [
+                "https://en.wikipedia.org/wiki/Dzaleka_Refugee_Camp",
+                "https://www.unhcr.org/where-we-work/countries/malawi"
+            ]
+        },
+        // Dzaleka Hill - LandmarksOrHistoricalBuildings
+        {
+            "@type": "LandmarksOrHistoricalBuildings",
+            "@id": "https://visit.dzaleka.com/about-dzaleka#dzaleka-hill",
+            "name": "Dzaleka Hill",
+            "description": "A natural landmark offering panoramic views of Dzaleka Refugee Camp and the surrounding Central Region of Malawi. The hill provides a popular viewpoint to observe the settlement's growth and layout, including the New Katubza extension area.",
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "Dowa",
+                "addressRegion": "Central Region",
+                "addressCountry": "MW"
+            },
+            "geo": {
+                "@type": "GeoCoordinates",
+                "latitude": -13.7833,
+                "longitude": 33.9833
+            },
+            "isAccessibleForFree": true,
+            "publicAccess": true
+        },
+        // Dzaleka Health Centre - Hospital/MedicalClinic
+        {
+            "@type": "Hospital",
+            "@id": "https://visit.dzaleka.com/about-dzaleka#dzaleka-health-centre",
+            "name": "Dzaleka Health Centre",
+            "alternateName": "Dzaleka Clinic",
+            "description": "Primary healthcare facility serving Dzaleka Refugee Camp and surrounding Malawian communities. Operated by UNHCR in partnership with the Malawi Ministry of Health, it provides primary healthcare, maternal and child healthcare, chronic disease management, vaccination programs, and health education. Serves approximately 70,000-86,000 people.",
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "Dowa",
+                "addressRegion": "Central Region",
+                "addressCountry": "MW"
+            },
+            "geo": {
+                "@type": "GeoCoordinates",
+                "latitude": -13.7833,
+                "longitude": 33.9833
+            },
+            "medicalSpecialty": [
+                "Primary Care",
+                "Maternal Health",
+                "Child Health",
+                "Vaccination",
+                "Chronic Disease Management"
+            ],
+            "availableService": [
+                {
+                    "@type": "MedicalProcedure",
+                    "name": "Primary Healthcare"
+                },
+                {
+                    "@type": "MedicalProcedure",
+                    "name": "Maternal and Child Healthcare"
+                },
+                {
+                    "@type": "MedicalProcedure",
+                    "name": "Vaccination Programs"
+                }
+            ],
+            "parentOrganization": {
+                "@type": "GovernmentOrganization",
+                "name": "Malawi Ministry of Health"
+            },
+            "funder": {
+                "@type": "Organization",
+                "name": "UNHCR",
+                "url": "https://www.unhcr.org"
+            }
+        },
+        // Police Station - CivicStructure
+        {
+            "@type": "CivicStructure",
+            "@id": "https://visit.dzaleka.com/about-dzaleka#police-station",
+            "name": "Dzaleka Police Post",
+            "description": "Security services provided by Malawi Police Service personnel stationed at Dzaleka Refugee Camp. Works with community policing initiatives and elected zone leaders to maintain safety and order.",
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "Dowa",
+                "addressRegion": "Central Region",
+                "addressCountry": "MW"
+            },
+            "geo": {
+                "@type": "GeoCoordinates",
+                "latitude": -13.7833,
+                "longitude": 33.9833
+            },
+            "parentOrganization": {
+                "@type": "GovernmentOrganization",
+                "name": "Malawi Police Service"
+            }
+        },
+        // Educational Organizations - JRS Schools
+        {
+            "@type": "EducationalOrganization",
+            "@id": "https://visit.dzaleka.com/about-dzaleka#jrs-schools",
+            "name": "Jesuit Refugee Service Schools",
+            "alternateName": "JRS Dzaleka Schools",
+            "description": "Educational facilities operated by Jesuit Refugee Service (JRS) in Dzaleka Refugee Camp. Educates over 5,000 children in pre-primary, primary, and secondary levels. Dzaleka Community Day Secondary School (CDSS) serves both refugees and local Malawian students and has achieved national recognition for academic excellence.",
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "Dowa",
+                "addressRegion": "Central Region",
+                "addressCountry": "MW"
+            },
+            "numberOfStudents": {
+                "@type": "QuantitativeValue",
+                "value": 5000,
+                "unitText": "students"
+            },
+            "parentOrganization": {
+                "@type": "NGO",
+                "name": "Jesuit Refugee Service",
+                "url": "https://jrs.net"
+            }
+        },
+        // UNHCR - Managing Organization
+        {
+            "@type": "GovernmentOrganization",
+            "@id": "https://visit.dzaleka.com/about-dzaleka#unhcr",
+            "name": "UNHCR Malawi",
+            "alternateName": "United Nations High Commissioner for Refugees - Malawi",
+            "description": "UNHCR coordinates humanitarian response at Dzaleka Refugee Camp alongside the Government of Malawi and partner organizations including WFP and Plan International.",
+            "url": "https://www.unhcr.org/where-we-work/countries/malawi",
+            "parentOrganization": {
+                "@type": "Organization",
+                "name": "United Nations",
+                "url": "https://www.un.org"
+            }
+        },
+        // Article about Dzaleka
+        {
+            "@type": "Article",
+            "headline": "About Dzaleka Refugee Camp",
+            "description": "Comprehensive information about Dzaleka Refugee Camp in Malawi - establishment in 1994, demographics (56,000+ refugees from DRC, Burundi, Rwanda), governance by Ministry of Homeland Security and UNHCR, living conditions, and 2024-2025 policy developments.",
+            "datePublished": "2024-01-01",
+            "dateModified": "2025-01-01",
+            "author": { "@id": "https://visit.dzaleka.com#organization" },
+            "publisher": { "@id": "https://visit.dzaleka.com#organization" },
+            "mainEntityOfPage": {
+                "@type": "WebPage",
+                "@id": "https://visit.dzaleka.com/about-dzaleka"
+            },
+            "about": { "@id": "https://visit.dzaleka.com/about-dzaleka#dzaleka-camp" }
+        }
+    ]
 };
 
 export default function AboutDzaleka() {
@@ -98,7 +286,7 @@ export default function AboutDzaleka() {
 
             <main className="flex-1">
                 {/* Hero Section */}
-                <div className="relative py-16 sm:py-20 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
+                <div id="dzaleka-camp" className="relative py-16 sm:py-20 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
                     <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
                         <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full uppercase tracking-widest font-semibold flex items-center justify-center w-fit mx-auto">
                             <MapPin className="mr-2 h-3.5 w-3.5" />
@@ -267,7 +455,7 @@ export default function AboutDzaleka() {
                                     An extension area of the Dzaleka refugee camp, developed to reduce overcrowding and provide better living conditions for refugees and asylum seekers.
                                 </CardContent>
                             </Card>
-                            <Card className="border-primary/30 bg-primary/5">
+                            <Card id="dzaleka-hill" className="border-primary/30 bg-primary/5">
                                 <CardHeader className="pb-3">
                                     <CardTitle className="text-base sm:text-lg">Dzaleka Hill</CardTitle>
                                 </CardHeader>
@@ -296,7 +484,7 @@ export default function AboutDzaleka() {
                                     The camp is administered by the <strong className="text-foreground">Ministry of Homeland Security</strong> through an appointed Camp Administrator. The <strong className="text-foreground">Department of Refugee Affairs</strong> handles registration and documentation.
                                 </CardContent>
                             </Card>
-                            <Card>
+                            <Card id="unhcr">
                                 <CardHeader className="pb-3">
                                     <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                                         <Globe className="h-5 w-5 text-primary" />
@@ -318,7 +506,7 @@ export default function AboutDzaleka() {
                                     Elected <strong className="text-foreground">Community Leaders</strong> represent different nationality groups and zones. The <strong className="text-foreground">Dzaleka Children's Parliament</strong> provides youth representation on protection and education issues.
                                 </CardContent>
                             </Card>
-                            <Card>
+                            <Card id="police-station">
                                 <CardHeader className="pb-3">
                                     <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                                         <Shield className="h-5 w-5 text-primary" />
@@ -332,6 +520,51 @@ export default function AboutDzaleka() {
                         </div>
                     </section>
 
+                    {/* Services & Facilities */}
+                    <section>
+                        <div className="flex items-center gap-3 mb-6">
+                            <Heart className="h-6 w-6 text-primary" />
+                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Services & Facilities</h2>
+                        </div>
+                        <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
+                            <Card id="dzaleka-health-centre">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                                        <Heart className="h-5 w-5 text-primary" />
+                                        Dzaleka Health Centre
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="text-sm text-muted-foreground leading-relaxed">
+                                    <p className="mb-3">
+                                        Serving a community of over <strong className="text-foreground">80,000 people</strong>—including both camp residents and neighbors from surrounding villages—the Dzaleka Health Centre is the medical backbone of the area.
+                                    </p>
+                                    <p>
+                                        Operated by <strong className="text-foreground">UNHCR</strong> in partnership with the <strong className="text-foreground">Malawi Ministry of Health</strong>, the center works tirelessly to provide essential outpatient care, maternal health support, and vital vaccination programs. Despite the high volume of patients, dedicated staff manage everything from chronic disease treatment to community health education.
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-3 italic">
+                                        Support is bolstered by partners like Beit-CURE Children's Hospital, which runs mobile clinics for children with treatable disabilities.
+                                    </p>
+                                </CardContent>
+                            </Card>
+                            <Card id="jrs-schools">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                                        <GraduationCap className="h-5 w-5 text-primary" />
+                                        Jesuit Refugee Service Schools
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="text-sm text-muted-foreground leading-relaxed">
+                                    <p className="mb-3">
+                                        Education is a priority in Dzaleka, with the <strong className="text-foreground">Jesuit Refugee Service (JRS)</strong> leading the way by providing schooling for over <strong className="text-foreground">5,000 students</strong> across all grade levels.
+                                    </p>
+                                    <p>
+                                        A standout success is the <strong className="text-foreground">Dzaleka Community Day Secondary School (CDSS)</strong>, which welcomes both refugee and Malawian students and is nationally recognized for its academic excellence. Beyond formal schooling, the camp buzzes with learning opportunities, from private initiates coordinated by <strong className="text-foreground">RISA</strong> to tech hubs like TakenoLAB and AppFactory empowering youth with digital skills.
+                                    </p>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </section>
+
                     {/* Legal Framework */}
                     <section>
                         <div className="flex items-center gap-3 mb-6">
@@ -339,38 +572,43 @@ export default function AboutDzaleka() {
                             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Legal Framework</h2>
                         </div>
 
-                        <Card className="border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20 mb-6">
-                            <CardContent className="p-6">
-                                <h3 className="font-bold text-lg mb-2 text-amber-800 dark:text-amber-400">The 1989 Refugee Act</h3>
-                                <p className="text-amber-700 dark:text-amber-300 text-sm sm:text-base mb-3">
-                                    Malawi's current refugee law maintains reservations to the 1951 Refugee Convention, restricting refugees' rights to:
-                                </p>
-                                <ul className="list-disc list-inside text-amber-700 dark:text-amber-300 text-sm space-y-1">
-                                    <li>Freedom of movement (encampment policy)</li>
-                                    <li>Right to work and hold business licenses</li>
-                                    <li>Property ownership outside the camp</li>
-                                </ul>
-                            </CardContent>
-                        </Card>
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                                        <AlertTriangle className="h-5 w-5 text-primary" />
+                                        The 1989 Refugee Act
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="text-sm text-muted-foreground">
+                                    <p className="mb-3">
+                                        Malawi's current refugee law maintains reservations to the 1951 Refugee Convention, restricting refugees' rights to:
+                                    </p>
+                                    <ul className="list-disc list-inside space-y-1 ml-1">
+                                        <li>Freedom of movement (encampment policy)</li>
+                                        <li>Right to work and hold business licenses</li>
+                                        <li>Property ownership outside the camp</li>
+                                    </ul>
+                                </CardContent>
+                            </Card>
 
-                        <Card className="border-green-500/50 bg-green-50/50 dark:bg-green-950/20">
-                            <CardContent className="p-6">
-                                <h3 className="font-bold text-lg mb-2 text-green-800 dark:text-green-400">
-                                    🔄 Policy Reform Underway (2024-2025)
-                                </h3>
-                                <p className="text-green-700 dark:text-green-300 text-sm sm:text-base mb-3">
-                                    A <strong>Special Law Commission</strong> began reviewing the 1989 Act in January 2024, with a new Refugee Bill expected by December 2025. Key proposed changes:
-                                </p>
-                                <ul className="list-disc list-inside text-green-700 dark:text-green-300 text-sm space-y-1">
-                                    <li>Lift restrictions on employment and movement</li>
-                                    <li>Align with 1951 Refugee Convention standards</li>
-                                    <li>Enable refugee access to national services</li>
-                                </ul>
-                                <p className="text-green-700 dark:text-green-300 text-sm sm:text-base mt-3">
-                                    Malawi launched its first <strong>National Implementation Plan on Migration (2025–2029)</strong> and the <strong>Kayilizi Open Settlement</strong> in Chitipa District as a pilot for rights-based integration.
-                                </p>
-                            </CardContent>
-                        </Card>
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                                        <FileText className="h-5 w-5 text-primary" />
+                                        Policy Reform (2024-2025)
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="text-sm text-muted-foreground">
+                                    <p className="mb-3">
+                                        A <strong className="text-foreground">Special Law Commission</strong> began reviewing the 1989 Act in January 2024, with a new Refugee Bill expected by December 2025. Key proposed changes include lifting restrictions on employment and movement, aligning with international standards, and enabling access to national services.
+                                    </p>
+                                    <p className="mt-4 pt-4 border-t text-xs italic">
+                                        Malawi also launched its first <strong className="text-foreground">National Implementation Plan on Migration (2025–2029)</strong> and the Keyilizi Open Settlement pilot.
+                                    </p>
+                                </CardContent>
+                            </Card>
+                        </div>
                     </section>
 
                     {/* Challenges */}

@@ -8,6 +8,9 @@ Allow: /accommodation
 Allow: /whats-on
 Allow: /plan-your-trip
 Allow: /login
+Allow: /about-dzaleka
+Allow: /life-in-dzaleka
+Allow: /destinations
 
 # Disallow admin and internal pages
 Disallow: /api/
@@ -37,6 +40,7 @@ Disallow: /training-admin
 Disallow: /task-admin
 Disallow: /security-admin
 Disallow: /live-ops
+Disallow: /community
 
 # Crawl-delay (optional - be polite to search engines)
 Crawl-delay: 1

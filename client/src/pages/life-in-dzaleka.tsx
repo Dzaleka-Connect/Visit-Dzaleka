@@ -11,24 +11,81 @@ import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
 
 // Structured Data for SEO
+// Comprehensive Structured Data for SEO
 const structuredData = {
     "@context": "https://schema.org",
-    "@type": "Article",
-    "headline": "Life in Dzaleka: A City in Waiting",
-    "description": "Discover the daily reality, economy, education, and vibrant culture of Dzaleka Refugee Camp - home to over 56,000 people from DRC, Rwanda, and Burundi.",
-    "author": {
-        "@type": "Organization",
-        "name": "Visit Dzaleka"
-    },
-    "publisher": {
-        "@type": "Organization",
-        "name": "Visit Dzaleka",
-        "url": "https://visit.dzaleka.com"
-    },
-    "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://visit.dzaleka.com/life-in-dzaleka"
-    }
+    "@graph": [
+        {
+            "@type": "Article",
+            "headline": "Life in Dzaleka: A City in Waiting",
+            "description": "Discover the daily reality, economy, education, and vibrant culture of Dzaleka Refugee Camp. Learn about the Tumaini Festival, the $9 monthly stipend struggle, and the resilience of 56,000+ residents.",
+            "image": "https://services.dzaleka.com/images/dzaleka-hero.jpeg",
+            "datePublished": "2024-01-01",
+            "dateModified": "2025-01-01",
+            "author": {
+                "@type": "Organization",
+                "name": "Visit Dzaleka"
+            },
+            "publisher": {
+                "@type": "Organization",
+                "name": "Visit Dzaleka",
+                "url": "https://visit.dzaleka.com",
+                "logo": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png"
+            },
+            "mainEntityOfPage": {
+                "@type": "WebPage",
+                "@id": "https://visit.dzaleka.com/life-in-dzaleka"
+            },
+            "mentions": [
+                {
+                    "@type": "Event",
+                    "name": "Tumaini Festival",
+                    "description": "The world's only arts and culture festival held within a refugee camp.",
+                    "startDate": "2014",
+                    "organizer": { "@type": "Person", "name": "Menes La Plume" }
+                },
+                {
+                    "@type": "Organization",
+                    "name": "Kibébé",
+                    "description": "Social enterprise crafting upcycled products."
+                },
+                {
+                    "@type": "Organization",
+                    "name": "Jesuit Worldwide Learning",
+                    "alternateName": "JWL"
+                }
+            ]
+        },
+        {
+            "@type": "FAQPage",
+            "mainEntity": [
+                {
+                    "@type": "Question",
+                    "name": "Can refugees in Dzaleka work?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Under Malawi's 1989 Refugee Act, refugees generally do not have the right to formal employment or freedom of movement, restricting most to the informal economy within the camp."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "How do refugees survive in Dzaleka?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Most rely on WFP monthly food rations and a small stipend (approx. $9/month). Many engage in informal small businesses, trading, or skilled trades like tailoring and carpentry to supplement this."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "What is the Tumaini Festival?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Founded in 2014, the Tumaini Festival is an annual multi-cultural arts festival held inside Dzaleka Refugee Camp, attracting visitors and artists from around the world to celebrate unity and peace."
+                    }
+                }
+            ]
+        }
+    ]
 };
 
 const stats = [
@@ -158,8 +215,8 @@ export default function LifeInDzaleka() {
                             <Droplets className="h-6 w-6 text-primary" />
                             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Survival: The Daily Reality</h2>
                         </div>
-                        <p className="text-muted-foreground mb-6 text-sm sm:text-base">
-                            For the average resident, each day is a negotiation for basic necessities. The camp infrastructure, built decades ago, is overwhelmed by the population surge.
+                        <p className="text-muted-foreground mb-6 text-sm sm:text-base leading-relaxed">
+                            For the average resident, each day is a negotiation for basic necessities. The camp infrastructure is overwhelmed, and most families survive on a WFP monthly stipend of roughly <strong className="text-foreground">$9 per person</strong>—barely enough to cover basic food needs for two weeks.
                         </p>
 
                         <div className="grid gap-4 sm:gap-6 md:grid-cols-3">
@@ -167,11 +224,11 @@ export default function LifeInDzaleka() {
                                 <CardHeader className="pb-3">
                                     <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                                         <Utensils className="h-5 w-5 text-primary" />
-                                        Food Crisis
+                                        Food Security
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="text-sm text-muted-foreground">
-                                    Residents rely on monthly rations from the World Food Programme. Due to funding shortfalls in 2024-2025, rations have dropped to <strong className="text-foreground">50-75% of daily requirements</strong>. Cash transfers have been reduced, pushing many families into severe food insecurity.
+                                    With rations frequently cut to <strong className="text-foreground">50-75% of requirements</strong> due to funding gaps, many families face food insecurity. Residents supplement their diet by cultivating small vegetable patches or trading goods.
                                 </CardContent>
                             </Card>
 
@@ -179,11 +236,11 @@ export default function LifeInDzaleka() {
                                 <CardHeader className="pb-3">
                                     <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                                         <Droplets className="h-5 w-5 text-primary" />
-                                        Water Scarcity
+                                        Water Access
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="text-sm text-muted-foreground">
-                                    Water is accessed via communal boreholes—<strong className="text-foreground">36 hand pumps and 13 electric pumps</strong>. Long queues are a fixture of daily life. Residents often wait hours to fill jerrycans, and tensions can flare when supply is low.
+                                    Water is life's daily chore. Residents fetch water from communal boreholes (<strong className="text-foreground">36 hand pumps, 13 electric</strong>), often waiting hours in lines that serve as impromptu community gathering spots.
                                 </CardContent>
                             </Card>
 
@@ -191,11 +248,11 @@ export default function LifeInDzaleka() {
                                 <CardHeader className="pb-3">
                                     <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                                         <Building className="h-5 w-5 text-primary" />
-                                        Housing & Zones
+                                        Shelter Crisis
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="text-sm text-muted-foreground">
-                                    Families live in self-constructed mud-brick houses. The camp is divided into zones named after Malawian towns (e.g., "Kawale", "Karonga"). <strong className="text-foreground">Overcrowding is critical</strong>—new arrivals often lack shelter space.
+                                    Families live in self-constructed mud-brick houses. As space runs out, overcrowding forces new arrivals into temporary communal shelters or to rent small rooms from established residents.
                                 </CardContent>
                             </Card>
                         </div>
@@ -208,51 +265,62 @@ export default function LifeInDzaleka() {
                             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">The Informal Economy</h2>
                         </div>
 
-                        <Card className="mb-6 border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
-                            <CardContent className="p-6">
-                                <h3 className="font-bold text-lg mb-2 text-amber-800 dark:text-amber-400">The Encampment Policy — Under Review</h3>
-                                <p className="text-amber-700 dark:text-amber-300 text-sm sm:text-base mb-3">
-                                    Under Malawi's <strong>1989 Refugee Act</strong>, refugees do not have the legal right to work, freedom of movement, or property ownership outside the camp. This forces all economic activity underground or within Dzaleka's boundaries.
-                                </p>
-                                <div className="bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 rounded-lg p-3 mt-3">
-                                    <p className="text-green-800 dark:text-green-300 text-xs sm:text-sm">
-                                        <strong>Policy Reform Underway:</strong> A Special Law Commission began reviewing the 1989 Act in January 2024, with a new <strong>Refugee Bill expected by December 2025</strong> that may lift restrictions on employment and movement. Malawi has also launched the <strong>Kayilizi Open Settlement</strong> in Chitipa District as a pilot for rights-based refugee integration.
+                        <div className="grid gap-4 md:grid-cols-2 mb-6">
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                                        <Briefcase className="h-5 w-5 text-primary" />
+                                        Legal Restrictions
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="text-sm text-muted-foreground">
+                                    <p className="mb-3">
+                                        Under the 1989 Refugee Act, residents generally lack the right to formal employment or free movement. This forces economic activity underground, yet the camp bustles with small businesses—from grocery kiosks to furniture workshops.
                                     </p>
-                                </div>
-                            </CardContent>
-                        </Card>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                                        <Store className="h-5 w-5 text-primary" />
+                                        Mardi Marché
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="text-sm text-muted-foreground">
+                                    <p className="mb-3">
+                                        Every Tuesday, the camp transforms for <strong className="text-foreground">"Mardi Marché"</strong> (Tuesday Market). Traders from across Dowa District descend on Dzaleka, creating a massive commercial hub where refugees and locals trade vegetables, electronics, and textiles side-by-side.
+                                    </p>
+                                </CardContent>
+                            </Card>
+                        </div>
 
                         <p className="text-muted-foreground mb-6 text-sm sm:text-base">
-                            Despite these restrictions, Dzaleka is an economic hub. The main road is lined with businesses—from groceries and barber shops to wedding photographers and cinemas. <strong className="text-foreground">Tuesday is "Mardi Marché,"</strong> a massive market day that attracts traders from across the district, blurring the lines between the refugee and host communities.
+                            Entrepreneurship is a form of resistance. Denied formal jobs, residents create their own opportunities:
                         </p>
 
-                        <Card className="bg-muted/30">
-                            <CardHeader className="pb-3">
-                                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                                    <Briefcase className="h-5 w-5 text-primary" />
-                                    Entrepreneurship as Resistance
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="text-sm text-muted-foreground">
-                                <p className="mb-4">Denied formal jobs, residents create their own opportunities:</p>
-                                <div className="grid gap-3 sm:grid-cols-2">
-                                    <div className="flex gap-3 items-start p-3 bg-background rounded-lg">
-                                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-lg">🫓</div>
-                                        <div>
-                                            <p className="font-semibold text-foreground">King's Chapati</p>
-                                            <p className="text-xs">A bakery that has become a culinary staple of the camp</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-3 items-start p-3 bg-background rounded-lg">
-                                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-lg">🧺</div>
-                                        <div>
-                                            <p className="font-semibold text-foreground">Umoja Woman Craft</p>
-                                            <p className="text-xs">A cooperative of women weaving and exporting baskets</p>
-                                        </div>
-                                    </div>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            <div className="flex gap-3 items-start p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-lg">🪡</div>
+                                <div>
+                                    <p className="font-semibold text-foreground">Kibébé</p>
+                                    <p className="text-xs text-muted-foreground">A social enterprise where artisans craft high-quality upcycled products involved in the global market.</p>
                                 </div>
-                            </CardContent>
-                        </Card>
+                            </div>
+                            <div className="flex gap-3 items-start p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-lg">🫓</div>
+                                <div>
+                                    <p className="font-semibold text-foreground">King's Chapati</p>
+                                    <p className="text-xs text-muted-foreground">A legendary local bakery that has become a culinary staple of the camp's daily life.</p>
+                                </div>
+                            </div>
+                            <div className="flex gap-3 items-start p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-lg">🧺</div>
+                                <div>
+                                    <p className="font-semibold text-foreground">Umoja Crafts</p>
+                                    <p className="text-xs text-muted-foreground">Women's cooperative weaving traditional baskets to support their families.</p>
+                                </div>
+                            </div>
+                        </div>
                     </section>
 
                     {/* Education Section */}
@@ -262,29 +330,26 @@ export default function LifeInDzaleka() {
                             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Education & Youth</h2>
                         </div>
                         <p className="text-muted-foreground mb-6 text-sm sm:text-base">
-                            With a massive youth population, education is both a priority and a struggle. Classroom ratios can reach <strong className="text-foreground">1:88</strong>—far above the national average.
+                            With a massive youth population, education is a race against overcrowding. Classroom ratios can reach <strong className="text-foreground">1:88</strong>, yet students remain determined.
                         </p>
 
                         <div className="space-y-4">
                             <div className="relative border-l-4 border-primary pl-6 py-2">
-                                <div className="absolute -left-3 top-2 h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">1</div>
-                                <h3 className="font-bold text-lg mb-1">Primary Education</h3>
+                                <h3 className="font-bold text-lg mb-1">Primary & Secondary</h3>
                                 <p className="text-sm text-muted-foreground">
-                                    Severe overcrowding. Many children attend school in shifts due to a lack of classrooms and teachers.
+                                    JRS operates schools where children often attend in shifts. The <strong className="text-foreground">Dzaleka Community Day Secondary School</strong> is a beacon of excellence, consistently performing well in national exams despite limited resources.
                                 </p>
                             </div>
                             <div className="relative border-l-4 border-primary pl-6 py-2">
-                                <div className="absolute -left-3 top-2 h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">2</div>
-                                <h3 className="font-bold text-lg mb-1">Higher Education</h3>
+                                <h3 className="font-bold text-lg mb-1">Digital Skills</h3>
                                 <p className="text-sm text-muted-foreground">
-                                    Provided by <strong className="text-foreground">Jesuit Worldwide Learning (JWL)</strong>, offering online diploma courses—one of the few pathways to accredited qualifications for adults.
+                                    <strong className="text-foreground">TakenoLAB</strong> and AppFactory are refugee-led tech hubs teaching coding. For many youth, digital work offers a rare legal loophole to earn an income remotely.
                                 </p>
                             </div>
                             <div className="relative border-l-4 border-primary pl-6 py-2">
-                                <div className="absolute -left-3 top-2 h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">3</div>
-                                <h3 className="font-bold text-lg mb-1">Tech & Digital Skills</h3>
+                                <h3 className="font-bold text-lg mb-1">Higher Learning</h3>
                                 <p className="text-sm text-muted-foreground">
-                                    <strong className="text-foreground">TakenoLAB</strong> is a refugee-founded tech hub teaching coding and digital skills, allowing youth to find remote work online—one of the few legal loopholes for earning an income.
+                                    <strong className="text-foreground">Jesuit Worldwide Learning (JWL)</strong> provides online diploma courses, offering one of the few pathways to accredited higher education for adults in the camp.
                                 </p>
                             </div>
                         </div>
@@ -294,34 +359,30 @@ export default function LifeInDzaleka() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Music className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Culture & Community</h2>
+                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Culture & Resilience</h2>
                         </div>
-                        <p className="text-muted-foreground mb-6 text-sm sm:text-base">
-                            Social life in Dzaleka is rich and structured. The camp is governed by a complex mix of the official Camp Administrator (Government) and elected Community Leaders representing the different nationalities.
-                        </p>
 
-                        <div className="grid gap-4 sm:gap-6 md:grid-cols-3">
-                            <Card>
-                                <CardHeader className="pb-3">
-                                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                                        <Church className="h-5 w-5 text-primary" />
-                                        Faith
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="text-sm text-muted-foreground">
-                                    Over <strong className="text-foreground">200 churches</strong> operate in the camp. For many, the church is the primary social safety net, offering spiritual solace and material aid.
-                                </CardContent>
-                            </Card>
+                        <div className="prose prose-sm sm:prose max-w-none text-muted-foreground mb-8">
+                            <p className="text-sm sm:text-base leading-relaxed">
+                                Dzaleka is not just a place of survival; it is a cultural melting pot where Congolese rumba blends with Burundian drumming and Malawian vibes. The community's resilience shines brightest through its arts.
+                            </p>
+                        </div>
 
-                            <Card>
+                        <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
+                            <Card className="col-span-full md:col-span-2 border-primary/20 bg-primary/5">
                                 <CardHeader className="pb-3">
-                                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                                    <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                                         <Trophy className="h-5 w-5 text-primary" />
-                                        Sports
+                                        Tumaini Festival
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="text-sm text-muted-foreground">
-                                    Football is a universal language here. Weekends see <strong className="text-foreground">thousands gather</strong> for local leagues—serious community events managed by refugee committees.
+                                <CardContent className="text-sm text-muted-foreground leading-relaxed">
+                                    <p className="mb-3">
+                                        Founded in 2014 by refugee poet Menes La Plume, Tumaini (meaning "Hope") is the <strong className="text-foreground">world's only music and arts festival held within a refugee camp</strong>.
+                                    </p>
+                                    <p>
+                                        For one weekend a year, the camp opens its doors to the world. International artists, tourists, and locals dance together, shattering stereotypes and generating significant income for camp businesses. It is Dzaleka's proudest showcase of peace and creativity.
+                                    </p>
                                 </CardContent>
                             </Card>
 
@@ -329,11 +390,23 @@ export default function LifeInDzaleka() {
                                 <CardHeader className="pb-3">
                                     <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                                         <Users className="h-5 w-5 text-primary" />
-                                        Youth Governance
+                                        Faith & Society
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="text-sm text-muted-foreground">
-                                    The <strong className="text-foreground">Dzaleka Children's Parliament</strong> empowers ages 8-17 to advocate for child protection and education, giving youth a direct voice in their future.
+                                    With over <strong className="text-foreground">200 churches</strong>, faith is the bedrock of social life. Churches serve as community centers, safety nets, and places of emotional refuge.
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                                        <Music className="h-5 w-5 text-primary" />
+                                        Creative Arts
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="text-sm text-muted-foreground">
+                                    Groups like the <strong className="text-foreground">Amahoro Drummers</strong> and Dzaleka Acrobatics keep traditions alive. Salons and barber shops double as social hubs where news and culture are exchanged daily.
                                 </CardContent>
                             </Card>
                         </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -86,6 +86,112 @@ export default function WhatsOn() {
         }
     };
 
+    // Generate schema.org Event structured data dynamically
+    const structuredData = useMemo(() => {
+        if (!events.length) return null;
+
+        const eventSchemas = events.map((event) => ({
+            "@type": "Event",
+            "@id": `https://visit.dzaleka.com/whats-on#event-${event.id}`,
+            "name": event.title,
+            "description": event.description,
+            "startDate": event.date,
+            ...(event.endDate && { "endDate": event.endDate }),
+            "eventStatus": event.status === "upcoming"
+                ? "https://schema.org/EventScheduled"
+                : "https://schema.org/EventPostponed",
+            "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+            "location": {
+                "@type": "Place",
+                "name": event.location,
+                "address": {
+                    "@type": "PostalAddress",
+                    "addressLocality": "Dowa",
+                    "addressRegion": "Central Region",
+                    "addressCountry": "MW"
+                },
+                "geo": {
+                    "@type": "GeoCoordinates",
+                    "latitude": -13.7833,
+                    "longitude": 33.9833
+                }
+            },
+            ...(event.image && {
+                "image": event.image.startsWith('/')
+                    ? `https://services.dzaleka.com${event.image}`
+                    : event.image
+            }),
+            "organizer": {
+                "@type": "Organization",
+                "name": event.organizer || "Dzaleka Online Services",
+                "url": "https://visit.dzaleka.com"
+            },
+            ...(event.registration?.url && {
+                "offers": {
+                    "@type": "Offer",
+                    "url": event.registration.url,
+                    "availability": event.status === "upcoming"
+                        ? "https://schema.org/InStock"
+                        : "https://schema.org/SoldOut"
+                }
+            }),
+            ...(event.tags?.length && { "keywords": event.tags.join(", ") })
+        }));
+
+        return {
+            "@context": "https://schema.org",
+            "@graph": [
+                // Organization
+                {
+                    "@type": "Organization",
+                    "@id": "https://visit.dzaleka.com#organization",
+                    "name": "Visit Dzaleka",
+                    "url": "https://visit.dzaleka.com",
+                    "logo": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png"
+                },
+                // BreadcrumbList
+                {
+                    "@type": "BreadcrumbList",
+                    "itemListElement": [
+                        {
+                            "@type": "ListItem",
+                            "position": 1,
+                            "name": "Home",
+                            "item": "https://visit.dzaleka.com"
+                        },
+                        {
+                            "@type": "ListItem",
+                            "position": 2,
+                            "name": "What's On",
+                            "item": "https://visit.dzaleka.com/whats-on"
+                        }
+                    ]
+                },
+                // ItemList for upcoming events (helps with rich results)
+                ...(upcomingEvents.length > 0 ? [{
+                    "@type": "ItemList",
+                    "name": "Upcoming Events in Dzaleka",
+                    "itemListElement": upcomingEvents.map((event, index) => ({
+                        "@type": "ListItem",
+                        "position": index + 1,
+                        "item": {
+                            "@type": "Event",
+                            "@id": `https://visit.dzaleka.com/whats-on#event-${event.id}`,
+                            "name": event.title,
+                            "startDate": event.date,
+                            "location": {
+                                "@type": "Place",
+                                "name": event.location
+                            }
+                        }
+                    }))
+                }] : []),
+                // All individual events
+                ...eventSchemas
+            ]
+        };
+    }, [events, upcomingEvents]);
+
     return (
         <div className="min-h-screen bg-background flex flex-col">
             <SEO
@@ -95,6 +201,14 @@ export default function WhatsOn() {
                 canonical="https://visit.dzaleka.com/whats-on"
                 ogImage="https://tumainiletu.org/wp-content/uploads/2024/10/9L1A6757-1.jpg"
             />
+
+            {/* Schema.org Event Structured Data */}
+            {structuredData && (
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+                />
+            )}
             {/* Header */}
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
                 <div className="container mx-auto flex h-16 items-center justify-between px-4">

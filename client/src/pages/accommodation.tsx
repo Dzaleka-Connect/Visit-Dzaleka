@@ -7,37 +7,94 @@ import { useState } from "react";
 import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
 
+// Structured Data for Lodging
+const structuredData = {
+    "@context": "https://schema.org",
+    "@graph": [
+        {
+            "@type": "LodgingBusiness",
+            "name": "Dzaleka Homestay Program",
+            "description": "A community-based tourism initiative offering stays with refugee families in Dzaleka.",
+            "priceRange": "$20",
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "Dowa District",
+                "addressCountry": "MW"
+            },
+            "url": "https://tumainiletu.org/the-dzaleka-homestay-program/"
+        },
+        {
+            "@type": "Product",
+            "name": "Homestay Night (Tumaini Festival)",
+            "description": "One night accommodation with a host family including one meal.",
+            "offers": {
+                "@type": "Offer",
+                "price": "20.00",
+                "priceCurrency": "USD",
+                "availability": "https://schema.org/InStock"
+            }
+        },
+        {
+            "@type": "Hotel",
+            "name": "Kalipano Hotel by Sunbird",
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "Dowa",
+                "addressCountry": "MW"
+            },
+            "starRating": "4"
+        }
+    ]
+};
+
 export default function Accommodation() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const externalHotels = [
         {
-            name: "Linde Motel",
-            location: "Mponela, Dowa",
-            description: "Standard hotel facilities including air conditioning, Wi-Fi, and a swimming pool.",
-            link: "https://www.google.com/maps/place/Linde+Motel",
-            amenities: ["Air Conditioning", "Wi-Fi", "Swimming Pool"]
+            category: "Mponela (Nearest Towns)",
+            hotels: [
+                {
+                    name: "Kalipano Hotel by Sunbird",
+                    location: "Dowa (approx. 20km from Dzaleka)",
+                    description: "Malawi's first purpose-built country resort. A premium option with lake, gardens, and high-end amenities.",
+                    link: "https://www.sunbirdmalawi.com/hotels/kalipano-hotel",
+                    amenities: ["Resort", "Lake Activities", "Premium Dining"]
+                },
+                {
+                    name: "Linde Motel",
+                    location: "Mponela, Dowa",
+                    description: "Reliable standard hotel facilities including air conditioning, Wi-Fi, and a swimming pool.",
+                    link: "https://www.google.com/maps/place/Linde+Motel",
+                    amenities: ["Air Conditioning", "Wi-Fi", "Swimming Pool"]
+                },
+                {
+                    name: "Chikho Hotel",
+                    location: "Mponela, Dowa",
+                    description: "Conference hotel with various room types, Wi-Fi, and a swimming pool.",
+                    link: "https://www.google.com/maps/place/Chikho+Hotel",
+                    amenities: ["Wi-Fi", "Swimming Pool", "Conference Hall"]
+                }
+            ]
         },
         {
-            name: "Chikho Hotel",
-            location: "Mponela, Dowa",
-            description: "Various room types and amenities like Wi-Fi and a swimming pool.",
-            link: "https://www.google.com/maps/place/Chikho+Hotel",
-            amenities: ["Wi-Fi", "Swimming Pool", "Multiple Room Types"]
-        },
-        {
-            name: "Latitude 13°",
-            location: "Lilongwe",
-            description: "Upscale boutique hotel in the capital city, perfect for day trips to Dzaleka.",
-            link: "https://www.google.com/maps/place/Latitude+13",
-            amenities: ["Boutique Hotel", "Restaurant", "Premium Service"]
-        },
-        {
-            name: "Crossroads Hotel Lilongwe",
-            location: "Lilongwe",
-            description: "Convenient location in Lilongwe for arranging day trips to Dzaleka.",
-            link: "https://www.google.com/maps/place/Crossroads+Hotel+Lilongwe",
-            amenities: ["Central Location", "Conference Facilities", "Restaurant"]
+            category: "Lilongwe (Capital City)",
+            hotels: [
+                {
+                    name: "Latitude 13°",
+                    location: "Lilongwe",
+                    description: "Upscale boutique hotel in the capital city, perfect for day trips to Dzaleka.",
+                    link: "https://www.google.com/maps/place/Latitude+13",
+                    amenities: ["Boutique Hotel", "Restaurant", "Premium Service"]
+                },
+                {
+                    name: "Crossroads Hotel",
+                    location: "Lilongwe",
+                    description: "Convenient location in Lilongwe for arranging day trips to Dzaleka.",
+                    link: "https://www.google.com/maps/place/Crossroads+Hotel+Lilongwe",
+                    amenities: ["Central Location", "Luxurious", "Spa"]
+                }
+            ]
         }
     ];
 
@@ -45,10 +102,15 @@ export default function Accommodation() {
         <div className="min-h-screen bg-background flex flex-col">
             <SEO
                 title="Accommodation | Where to Stay Near Dzaleka"
-                description="Find accommodation options for your visit to Dzaleka Refugee Camp. Stay with a local family through the Homestay Program or choose hotels in Mponela or Lilongwe."
-                keywords="Dzaleka accommodation, homestay Malawi, Tumaini Letu, Mponela hotels, Lilongwe hotels, refugee camp visit"
+                description="Find accommodation options for your visit to Dzaleka Refugee Camp. Stay with a local family through the Homestay Program ($20/night) or choose premium hotels like Kalipano."
+                keywords="Dzaleka accommodation, homestay Malawi, Tumaini Letu, Mponela hotels, Kalipano Hotel, refugee camp visit"
                 canonical="https://visit.dzaleka.com/accommodation"
                 ogImage="https://tumainiletu.org/wp-content/uploads/2024/10/Dzaleka_107-min.jpg"
+            />
+            {/* Inject Structured Data */}
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
             />
             {/* Header */}
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
@@ -223,36 +285,46 @@ export default function Accommodation() {
                             </p>
                         </div>
 
-                        <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
-                            {externalHotels.map((hotel, index) => (
-                                <Card key={index} className="overflow-hidden hover:shadow-lg transition-shadow">
-                                    <CardContent className="p-6">
-                                        <div className="flex items-start justify-between mb-3">
-                                            <div>
-                                                <h3 className="text-xl font-bold">{hotel.name}</h3>
-                                                <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                                                    <MapPin className="h-3.5 w-3.5" /> {hotel.location}
-                                                </p>
-                                            </div>
-                                            <div className="bg-primary/10 p-2 rounded-lg">
-                                                <Hotel className="h-5 w-5 text-primary" />
-                                            </div>
-                                        </div>
-                                        <p className="text-muted-foreground mb-4">{hotel.description}</p>
-                                        <div className="flex flex-wrap gap-2 mb-4">
-                                            {hotel.amenities.map((amenity, i) => (
-                                                <Badge key={i} variant="secondary" className="text-xs">
-                                                    {amenity}
-                                                </Badge>
-                                            ))}
-                                        </div>
-                                        <Button asChild variant="outline" size="sm" className="w-full">
-                                            <a href={hotel.link} target="_blank" rel="noopener noreferrer">
-                                                View on Map <ExternalLink className="ml-2 h-3.5 w-3.5" />
-                                            </a>
-                                        </Button>
-                                    </CardContent>
-                                </Card>
+                        <div className="space-y-12 max-w-5xl mx-auto">
+                            {externalHotels.map((group, groupIndex) => (
+                                <div key={groupIndex}>
+                                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                                        <MapPin className="h-5 w-5 text-primary" />
+                                        {group.category}
+                                    </h3>
+                                    <div className="grid md:grid-cols-2 gap-6">
+                                        {group.hotels.map((hotel, index) => (
+                                            <Card key={index} className="overflow-hidden hover:shadow-lg transition-shadow">
+                                                <CardContent className="p-6">
+                                                    <div className="flex items-start justify-between mb-3">
+                                                        <div>
+                                                            <h3 className="text-xl font-bold">{hotel.name}</h3>
+                                                            <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                                                                <MapPin className="h-3.5 w-3.5" /> {hotel.location}
+                                                            </p>
+                                                        </div>
+                                                        <div className="bg-primary/10 p-2 rounded-lg">
+                                                            <Hotel className="h-5 w-5 text-primary" />
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-muted-foreground mb-4 text-sm">{hotel.description}</p>
+                                                    <div className="flex flex-wrap gap-2 mb-4">
+                                                        {hotel.amenities.map((amenity, i) => (
+                                                            <Badge key={i} variant="secondary" className="text-xs">
+                                                                {amenity}
+                                                            </Badge>
+                                                        ))}
+                                                    </div>
+                                                    <Button asChild variant="outline" size="sm" className="w-full">
+                                                        <a href={hotel.link} target="_blank" rel="noopener noreferrer">
+                                                            View Website / Map <ExternalLink className="ml-2 h-3.5 w-3.5" />
+                                                        </a>
+                                                    </Button>
+                                                </CardContent>
+                                            </Card>
+                                        ))}
+                                    </div>
+                                </div>
                             ))}
                         </div>
                     </section>

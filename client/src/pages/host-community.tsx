@@ -2,57 +2,85 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Radio, Menu, X, Globe, Users, Music, Handshake, Store, Share2, Heart, Trees, Church } from "lucide-react";
+import { Radio, Menu, X, Globe, Users, Music, Handshake, Store, Share2, Heart, Trees, Church, Home } from "lucide-react";
 import { useState } from "react";
 import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
+
+// Structured Data for Article (Host Community)
+const structuredData = {
+    "@context": "https://schema.org",
+    "@graph": [
+        {
+            "@type": "Article",
+            "headline": "The Host Community of Dowa: Culture & Coexistence",
+            "description": "Explore the Chewa culture of Dowa District and the symbiotic relationship between Dzaleka refugees and their Malawian hosts.",
+            "author": {
+                "@type": "Organization",
+                "name": "Visit Dzaleka"
+            },
+            "publisher": {
+                "@type": "Organization",
+                "name": "Visit Dzaleka",
+                "logo": {
+                    "@type": "ImageObject",
+                    "url": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png"
+                }
+            },
+            "mainEntityOfPage": {
+                "@type": "WebPage",
+                "@id": "https://visit.dzaleka.com/things-to-do/host-community"
+            }
+        }
+    ]
+};
 
 export default function HostCommunity() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const culturePoints = [
         {
-            icon: Globe,
-            title: "Chichewa Language",
-            description: "The national language is widely spoken in host communities and by many long-term refugees.",
+            icon: Heart,
+            title: "Alendo ndi Mame",
+            description: "A Chewa proverb meaning 'Visitors are like dew'—precious but temporary. It reflects the deep value placed on hospitality.",
+        },
+        {
+            icon: Handshake,
+            title: "Greetings: 'Moni'",
+            description: "Respect is paramount. Always greet with 'Moni' (Hello) or 'Wawa' (to elders). Handshakes are soft and prolonged.",
         },
         {
             icon: Music,
             title: "Gule Wamkulu",
-            description: "The 'Great Dance' of the Chewa people involves masked dancers and is a key part of cultural heritage.",
+            description: "The 'Great Dance' of the Chewa people involves masked dancers and is a UNESCO Intangible Cultural Heritage.",
         },
         {
-            icon: Users,
-            title: "Social Structure",
-            description: "Communities are often patriarchal, with strong family and community decision-making structures.",
-        },
-        {
-            icon: Church,
-            title: "Community & Faith",
-            description: "Traditional beliefs and Christianity provide strong support systems and a sense of belonging.",
+            icon: Home,
+            title: "'Odi, Odi'",
+            description: "The traditional way to knock. Visitors call out 'Odi, Odi!' at the gate and wait for a welcoming 'Odini!' before entering.",
         }
     ];
 
     const integrationPoints = [
         {
             icon: Store,
-            title: "Shared Markets",
-            description: "The Tuesday market is a vibrant hub where refugees and locals trade produce, fabrics, and food.",
+            title: "Economic Symbiosis",
+            description: "Dzaleka is a massive market. Refugees buy local produce, while Malawians patronize camp businesses for goods and services.",
         },
         {
             icon: Share2,
             title: "Cultural Exchange",
-            description: "Events like Tumaini Festival bring thousands of Malawians into the camp to celebrate with refugees.",
+            description: "Events like the Tumaini Festival see thousands of Malawians celebrating alongside refugees, breaking down social barriers.",
         },
         {
             icon: Trees,
             title: "Shared Challenges",
-            description: "Both communities face similar resource & climate challenges, fostering practical cooperation.",
+            description: "Both communities face resource scarcity, but this often drives cooperation in agriculture and environmental management.",
         },
         {
             icon: Radio,
             title: "Radio for Inclusion",
-            description: "A UNHCR-supported station features presenters from both communities, bridging gaps through dialogue.",
+            description: "Yetu Community Radio features presenters from both communities, bridging gaps and dispelling myths through dialogue.",
         }
     ];
 
@@ -60,10 +88,15 @@ export default function HostCommunity() {
         <div className="min-h-screen bg-background flex flex-col">
             <SEO
                 title="Host Community & Culture around Dzaleka"
-                description="Discover the Malawian host community around Dzaleka. Learn about Chewa traditions, Gule Wamkulu, and the integration between locals and refugees."
-                keywords="Dzaleka host community, Chewa culture, Gule Wamkulu Dzaleka, Malawi local culture, Dowa district, refugee integration Malawi"
+                description="Discover the Malawian host community around Dzaleka. Learn about Chewa traditions, the proverb 'Alendo ndi mame', and the economic partnership between locals and refugees."
+                keywords="Dzaleka host community, Chewa culture, Alendo ndi mame, Gule Wamkulu, Dowa district economy, refugee integration Malawi"
                 canonical="https://visit.dzaleka.com/things-to-do/host-community"
                 ogImage="https://i.kickstarter.com/assets/035/136/436/b82196f7bef5b7747e77183fdcf1f5c1_original.JPG?anim=false&fit=cover&gravity=auto&height=873&origin=ugc&q=92&v=1633523591&width=1552&sig=oBKQ45RRC9IUlKPnSJGhyCyHZg%2BjcVijIqChC8sXsSs%3D"
+            />
+            {/* Inject Structured Data */}
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
             />
 
             {/* Header */}
@@ -162,7 +195,7 @@ export default function HostCommunity() {
                             Host Community & Culture
                         </h1>
                         <p className="text-lg md:text-xl text-white/90 leading-relaxed max-w-2xl mx-auto drop-shadow-sm">
-                            The surrounding Dowa district is home to the Chewa people. Explore the rich traditions and the daily life shared between refugees and their Malawian neighbors.
+                            The surrounding Dowa district is home to the Chewa people. Explore the rich traditions and the vital economic partnership shared between refugees and their Malawian neighbors.
                         </p>
                     </div>
                 </div>
@@ -172,16 +205,16 @@ export default function HostCommunity() {
                     {/* Intro */}
                     <section className="max-w-3xl mx-auto text-center">
                         <p className="text-lg text-muted-foreground leading-relaxed">
-                            The host communities surrounding Dzaleka Refugee Camp primarily practice traditional Malawian culture, deeply rooted in the customs of the Chewa people—the dominant ethnic group in the region.
+                            The host communities, primarily of the Chewa ethnic group, are known for their warmth. The local philosophy is best captured by the proverb <strong className="text-primary text-xl font-medium">"Alendo ndi mame"</strong> (Visitors are like dew)—signifying that a guest's presence is precious and should be cherished.
                         </p>
                     </section>
 
                     {/* Malawian Culture Grid */}
                     <section>
                         <div className="text-center mb-12">
-                            <h2 className="text-3xl font-bold tracking-tight mb-4">Malawian Traditions</h2>
+                            <h2 className="text-3xl font-bold tracking-tight mb-4">Malawian Traditions & Etiquette</h2>
                             <p className="text-muted-foreground max-w-2xl mx-auto">
-                                Key aspects of the local culture that shape daily life in the Dowa district.
+                                Understanding these cultural pillars will deepen your connection with the local community in Dowa.
                             </p>
                         </div>
                         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -215,11 +248,11 @@ export default function HostCommunity() {
                         <div className="order-2 space-y-6">
                             <div className="flex items-center gap-3 text-primary font-semibold">
                                 <Heart className="h-5 w-5" />
-                                <span>Integration</span>
+                                <span>Integration & Economy</span>
                             </div>
-                            <h2 className="text-3xl font-bold tracking-tight">Shared Lives</h2>
+                            <h2 className="text-3xl font-bold tracking-tight">A Symbiotic Relationship</h2>
                             <p className="text-muted-foreground text-lg">
-                                The relationship between the host community and Dzaleka residents is a blend of integration and coexistence, driven by daily interactions and mutual support.
+                                The relationship between Dzaleka and Dowa is complex but vital. The camp acts as a major economic engine, creating a market for local farmers and businesses, while hosting a diverse workforce that contributes to the district's development.
                             </p>
                             <div className="space-y-4">
                                 {integrationPoints.map((point, idx) => (

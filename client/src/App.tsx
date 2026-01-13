@@ -82,6 +82,10 @@ import AdminBlogEditor from "@/pages/admin-blog-editor";
 import Unauthorized from "@/pages/unauthorized";
 import Disclaimer from "@/pages/disclaimer";
 import CookieNotice from "@/pages/cookie-notice";
+import PartnerWithUs from "@/pages/partner-with-us";
+import FAQPage from "@/pages/faq";
+import SupportOurWork from "@/pages/support-our-work";
+
 import Destinations from "@/pages/destinations";
 import { usePageTracker } from "@/hooks/usePageTracker";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
@@ -123,7 +127,7 @@ function Router() {
 
   // Embed and Blog routes should be accessible without authenticated layout
   const path = window.location.pathname;
-  if (path.startsWith("/embed/") || path.startsWith("/blog") || path.startsWith("/things-to-do") || path.startsWith("/whats-on") || path.startsWith("/plan-your-trip") || path.startsWith("/accommodation") || path === "/disclaimer" || path === "/cookie-notice" || path === "/destinations") {
+  if (path.startsWith("/embed/") || path.startsWith("/blog") || path.startsWith("/things-to-do") || path.startsWith("/whats-on") || path.startsWith("/plan-your-trip") || path.startsWith("/accommodation") || path === "/disclaimer" || path === "/cookie-notice" || path === "/destinations" || path === "/partner-with-us" || path === "/faq" || path === "/support-our-work") {
     return (
       <Switch>
         <Route path="/embed/booking" component={EmbedBooking} />
@@ -143,6 +147,9 @@ function Router() {
         <Route path="/disclaimer" component={Disclaimer} />
         <Route path="/cookie-notice" component={CookieNotice} />
         <Route path="/destinations" component={Destinations} />
+        <Route path="/partner-with-us" component={PartnerWithUs} />
+        <Route path="/faq" component={FAQPage} />
+        <Route path="/support-our-work" component={SupportOurWork} />
       </Switch>
     );
   }
@@ -179,6 +186,9 @@ function Router() {
         <Route path="/disclaimer" component={Disclaimer} />
         <Route path="/cookie-notice" component={CookieNotice} />
         <Route path="/destinations" component={Destinations} />
+        <Route path="/partner-with-us" component={PartnerWithUs} />
+        <Route path="/faq" component={FAQPage} />
+        <Route path="/support-our-work" component={SupportOurWork} />
         <Route component={Landing} />
       </Switch>
     );

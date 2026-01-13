@@ -15,7 +15,7 @@ export function SiteFooter() {
     return (
         <footer className="border-t bg-background py-12">
             <div className="container mx-auto px-4">
-                <div className="grid gap-8 md:grid-cols-4 mb-8">
+                <div className="grid gap-8 md:grid-cols-5 mb-8">
                     <div className="col-span-1 md:col-span-2">
                         <div className="flex items-center gap-2 mb-4">
                             <MapPin className="h-5 w-5 text-primary" />
@@ -41,6 +41,16 @@ export function SiteFooter() {
                         </div>
                     </div>
                     <div>
+                        <h4 className="font-semibold mb-4">Discover</h4>
+                        <ul className="space-y-2 text-sm text-muted-foreground">
+                            <li><Link href="/about-dzaleka" className="hover:text-primary">About Dzaleka</Link></li>
+                            <li><Link href="/life-in-dzaleka" className="hover:text-primary">Life in Dzaleka</Link></li>
+                            <li><Link href="/destinations" className="hover:text-primary">Destinations</Link></li>
+                            <li><Link href="/things-to-do/host-community" className="hover:text-primary">Host Community</Link></li>
+                            <li><Link href="/partner-with-us" className="hover:text-primary">Partner With Us</Link></li>
+                        </ul>
+                    </div>
+                    <div>
                         <h4 className="font-semibold mb-4">Explore</h4>
                         <ul className="space-y-2 text-sm text-muted-foreground">
                             <li><Link href="/things-to-do" className="hover:text-primary">Things To Do</Link></li>
@@ -48,6 +58,8 @@ export function SiteFooter() {
                             <li><Link href="/whats-on" className="hover:text-primary">What's On</Link></li>
                             <li><Link href="/plan-your-trip" className="hover:text-primary">Plan Your Trip</Link></li>
                             <li><Link href="/blog" className="hover:text-primary">Blog</Link></li>
+                            <li><Link href="/faq" className="hover:text-primary">FAQ</Link></li>
+                            <li><Link href="/support-our-work" className="hover:text-primary">Support Our Work</Link></li>
                         </ul>
                     </div>
                     <div>
@@ -58,13 +70,6 @@ export function SiteFooter() {
                             <li className="pt-2">
                                 <Link href="/login" className="hover:text-primary font-medium">Book a Tour →</Link>
                             </li>
-                        </ul>
-                    </div>
-                    <div>
-                        <h4 className="font-semibold mb-4">Legal</h4>
-                        <ul className="space-y-2 text-sm text-muted-foreground">
-                            <li><Link href="/disclaimer" className="hover:text-primary">Disclaimer</Link></li>
-                            <li><Link href="/cookie-notice" className="hover:text-primary">Cookie Notice</Link></li>
                         </ul>
                     </div>
                 </div>

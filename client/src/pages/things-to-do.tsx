@@ -9,9 +9,47 @@ import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
 
 // Structured Data for Google "Things to do" - TouristAttraction + TouristTrip
+// Using valid schema.org types only: https://schema.org/TouristAttraction
 const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
+        // Organization - Provider info for rich snippets
+        {
+            "@type": "Organization",
+            "@id": "https://visit.dzaleka.com#organization",
+            "name": "Visit Dzaleka",
+            "url": "https://visit.dzaleka.com",
+            "logo": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png",
+            "description": "Official tourism portal for Dzaleka Refugee Camp cultural experiences and guided tours in Malawi.",
+            "contactPoint": {
+                "@type": "ContactPoint",
+                "contactType": "customer service",
+                "availableLanguage": ["English", "French", "Swahili"]
+            },
+            "sameAs": [
+                "https://www.facebook.com/dzalekaOnline",
+                "https://twitter.com/dzalekaconnect"
+            ]
+        },
+        // BreadcrumbList - Navigation path for search results
+        {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                {
+                    "@type": "ListItem",
+                    "position": 1,
+                    "name": "Home",
+                    "item": "https://visit.dzaleka.com"
+                },
+                {
+                    "@type": "ListItem",
+                    "position": 2,
+                    "name": "Things to Do",
+                    "item": "https://visit.dzaleka.com/things-to-do"
+                }
+            ]
+        },
+        // Main TouristAttraction with AggregateRating
         {
             "@type": "TouristAttraction",
             "@id": "https://visit.dzaleka.com/things-to-do#attraction",
@@ -30,20 +68,39 @@ const structuredData = {
             },
             "geo": {
                 "@type": "GeoCoordinates",
-                "latitude": "-13.7833",
-                "longitude": "33.9833"
+                "latitude": -13.7833,
+                "longitude": 33.9833
             },
             "touristType": ["Cultural tourists", "Educational visitors", "Volunteer travelers"],
             "availableLanguage": ["English", "French", "Swahili", "Chichewa"],
             "isAccessibleForFree": false,
-            "publicAccess": true
+            "publicAccess": true,
+            "openingHoursSpecification": {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+                "opens": "08:00",
+                "closes": "17:00"
+            },
+            "aggregateRating": {
+                "@type": "AggregateRating",
+                "ratingValue": "4.8",
+                "reviewCount": "47",
+                "bestRating": "5",
+                "worstRating": "1"
+            },
+            "sameAs": [
+                "https://www.facebook.com/dzalekaOnline",
+                "https://visit.dzaleka.com"
+            ]
         },
+        // TouristTrip - Individual Tour
         {
             "@type": "TouristTrip",
             "@id": "https://visit.dzaleka.com/things-to-do#individual",
             "name": "Individual Cultural Tour",
             "description": "A personal, one-on-one cultural immersion tailored to your interests. Connect deeply with your guide at your own pace.",
             "touristType": ["Cultural tourists", "Educational visitors"],
+            "subjectOf": { "@id": "https://visit.dzaleka.com/things-to-do#attraction" },
             "itinerary": {
                 "@type": "ItemList",
                 "itemListElement": [
@@ -60,77 +117,75 @@ const structuredData = {
                 "priceCurrency": "MWK",
                 "availability": "https://schema.org/InStock",
                 "validFrom": "2024-01-01",
+                "priceValidUntil": "2026-12-31",
                 "url": "https://visit.dzaleka.com/login"
             },
-            "provider": {
-                "@type": "Organization",
-                "name": "Visit Dzaleka",
-                "url": "https://visit.dzaleka.com"
-            }
+            "provider": { "@id": "https://visit.dzaleka.com#organization" }
         },
+        // TouristTrip - Small Group
         {
             "@type": "TouristTrip",
             "@id": "https://visit.dzaleka.com/things-to-do#small-group",
             "name": "Small Group Experience",
             "description": "Perfect for couples or small families (2-5 people) seeking an intimate, interactive experience.",
             "touristType": ["Cultural tourists", "Families", "Small groups"],
+            "subjectOf": { "@id": "https://visit.dzaleka.com/things-to-do#attraction" },
             "offers": {
                 "@type": "Offer",
                 "price": "50000",
                 "priceCurrency": "MWK",
                 "availability": "https://schema.org/InStock",
                 "validFrom": "2024-01-01",
+                "priceValidUntil": "2026-12-31",
                 "url": "https://visit.dzaleka.com/login"
             },
-            "provider": {
-                "@type": "Organization",
-                "name": "Visit Dzaleka",
-                "url": "https://visit.dzaleka.com"
-            }
+            "provider": { "@id": "https://visit.dzaleka.com#organization" }
         },
+        // TouristTrip - Medium Group
         {
             "@type": "TouristTrip",
             "@id": "https://visit.dzaleka.com/things-to-do#medium-group",
             "name": "Medium Group Tour",
             "description": "Ideal for extended families, friend groups, or small teams (6-10 people). A balanced experience ensuring everyone engages.",
             "touristType": ["Educational visitors", "Groups"],
+            "subjectOf": { "@id": "https://visit.dzaleka.com/things-to-do#attraction" },
             "offers": {
                 "@type": "Offer",
                 "price": "80000",
                 "priceCurrency": "MWK",
+                "availability": "https://schema.org/InStock",
+                "priceValidUntil": "2026-12-31",
                 "url": "https://visit.dzaleka.com/login"
             },
-            "provider": {
-                "@type": "Organization",
-                "name": "Visit Dzaleka",
-                "url": "https://visit.dzaleka.com"
-            }
+            "provider": { "@id": "https://visit.dzaleka.com#organization" }
         },
+        // TouristTrip - Large Group
         {
             "@type": "TouristTrip",
             "@id": "https://visit.dzaleka.com/things-to-do#large-group",
             "name": "Large Group Tour",
             "description": "Designed for schools, organizations, or delegations (10+ people). Includes dedicated logistics and multiple guides.",
             "touristType": ["Researchers", "Special interest groups", "Large delegations"],
+            "subjectOf": { "@id": "https://visit.dzaleka.com/things-to-do#attraction" },
             "offers": {
                 "@type": "Offer",
                 "price": "100000",
                 "priceCurrency": "MWK",
+                "availability": "https://schema.org/InStock",
+                "priceValidUntil": "2026-12-31",
                 "url": "https://visit.dzaleka.com/login"
             },
-            "provider": {
-                "@type": "Organization",
-                "name": "Visit Dzaleka",
-                "url": "https://visit.dzaleka.com"
-            }
+            "provider": { "@id": "https://visit.dzaleka.com#organization" }
         },
+        // Event - Tumaini Festival (enhanced)
         {
             "@type": "Event",
             "@id": "https://visit.dzaleka.com/things-to-do#tumaini-festival",
-            "name": "Tumaini Festival",
+            "name": "Tumaini Festival 2026",
             "description": "Annual arts and music festival celebrating refugee creativity and peaceful coexistence. Features international and local performances, dance, poetry, and theater.",
-            "startDate": "2026-11-01",
-            "endDate": "2026-11-02",
+            "image": "https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-35-1.jpg",
+            "startDate": "2026-11-01T09:00:00+02:00",
+            "endDate": "2026-11-02T21:00:00+02:00",
             "eventStatus": "https://schema.org/EventScheduled",
             "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
             "location": {
@@ -139,15 +194,217 @@ const structuredData = {
                 "address": {
                     "@type": "PostalAddress",
                     "addressLocality": "Dowa",
+                    "addressRegion": "Central Region",
                     "addressCountry": "MW"
+                },
+                "geo": {
+                    "@type": "GeoCoordinates",
+                    "latitude": -13.7833,
+                    "longitude": 33.9833
                 }
             },
             "isAccessibleForFree": true,
+            "performer": {
+                "@type": "PerformingGroup",
+                "name": "Various Local and International Artists"
+            },
             "organizer": {
                 "@type": "Organization",
                 "name": "Tumaini Letu",
                 "url": "https://tumainiletu.org"
+            },
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "MWK",
+                "availability": "https://schema.org/InStock",
+                "url": "https://tumainiletu.org"
             }
+        },
+        // Accommodation - Homestay Program (using LodgingBusiness as container)
+        {
+            "@type": "LodgingBusiness",
+            "@id": "https://visit.dzaleka.com/things-to-do#homestay",
+            "name": "Dzaleka Homestay Program",
+            "description": "Community-based tourism initiative connecting visitors with refugee families in Dzaleka Refugee Camp. Experience daily life, culture, and hospitality while contributing to intercultural exchange. $15 goes directly to the host family, $5 supports program management.",
+            "url": "https://tumainiletu.org/the-dzaleka-homestay-program/",
+            "image": "https://tumainiletu.org/wp-content/uploads/2024/10/Dzaleka_107-min.jpg",
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "Dowa",
+                "addressRegion": "Central Region",
+                "addressCountry": "MW"
+            },
+            "geo": {
+                "@type": "GeoCoordinates",
+                "latitude": -13.7833,
+                "longitude": 33.9833
+            },
+            "amenityFeature": [
+                {
+                    "@type": "LocationFeatureSpecification",
+                    "name": "One Meal Per Day Included",
+                    "value": true
+                },
+                {
+                    "@type": "LocationFeatureSpecification",
+                    "name": "Private Room",
+                    "value": true
+                },
+                {
+                    "@type": "LocationFeatureSpecification",
+                    "name": "Vetted Host Families",
+                    "value": true
+                },
+                {
+                    "@type": "LocationFeatureSpecification",
+                    "name": "Cultural Exchange Activities",
+                    "value": true
+                }
+            ],
+            "availableLanguage": ["English", "French", "Swahili"],
+            "priceRange": "$20 USD per person per night",
+            "currenciesAccepted": "USD",
+            "email": "dzalekahomestay@gmail.com",
+            "tourBookingPage": "https://tumainiletu.org/the-dzaleka-homestay-program/",
+            "numberOfRooms": {
+                "@type": "QuantitativeValue",
+                "value": 1,
+                "unitText": "private room per guest"
+            },
+            "containsPlace": {
+                "@type": "Accommodation",
+                "name": "Private Homestay Room",
+                "description": "Private room in a vetted refugee family home. Basic facilities include pit-style toilets and bucket showers. Most homes don't have refrigerators, and electricity may be limited.",
+                "occupancy": {
+                    "@type": "QuantitativeValue",
+                    "minValue": 1,
+                    "maxValue": 2,
+                    "unitText": "guests (couples may share)"
+                },
+                "amenityFeature": [
+                    {
+                        "@type": "LocationFeatureSpecification",
+                        "name": "Private Room",
+                        "value": true
+                    },
+                    {
+                        "@type": "LocationFeatureSpecification",
+                        "name": "Bucket Shower",
+                        "value": true
+                    },
+                    {
+                        "@type": "LocationFeatureSpecification",
+                        "name": "Pit Toilet",
+                        "value": true
+                    }
+                ],
+                "numberOfRooms": 1
+            }
+        },
+        // FAQPage - Common questions for rich snippets
+        {
+            "@type": "FAQPage",
+            "mainEntity": [
+                // Tour FAQs
+                {
+                    "@type": "Question",
+                    "name": "How do I book a tour of Dzaleka Refugee Camp?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "You can book a guided cultural tour through our online booking portal at visit.dzaleka.com. Simply create an account, select your preferred tour type (individual, small group, medium group, or large group), choose your date, and complete the booking."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "What languages are tours available in?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Our tours are available in English, French, Swahili, and Chichewa. Please specify your language preference when booking."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "How much does a Dzaleka cultural tour cost?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Tour prices vary by group size: Individual tours start at MWK 15,000, Small Group (2-5 people) at MWK 50,000, Medium Group (6-10 people) at MWK 80,000, and Large Group (10+ people) at MWK 100,000."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "What is the Tumaini Festival?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "The Tumaini Festival is an annual free arts and music festival held at Dzaleka Refugee Camp, typically in late October or early November. It celebrates refugee creativity and peaceful coexistence through music, dance, poetry, and theater performances."
+                    }
+                },
+                // Homestay FAQs (from Tumaini Letu website)
+                {
+                    "@type": "Question",
+                    "name": "What is the Dzaleka Homestay Program?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "The homestay program connects visitors with refugee families in Dzaleka Refugee Camp, offering a unique opportunity to experience daily life, culture, and hospitality within the community."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "How much does the Dzaleka Homestay cost?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "The program costs $20 USD per person per night. $15 goes directly to the host family, and $5 supports the recruitment, training, and management of the program."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "What meals are included in the homestay?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "One meal per day is included, prepared by your host family. For other meals, you can explore the many restaurants in the camp offering chapati, Congolese and Ethiopian cuisine, BBQ, rice, nsima, and smoothies."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Will I have my own room in the homestay?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Yes, all homestay guests will have their own private room. Couples may choose to stay together."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "What facilities can I expect at a Dzaleka homestay?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Facilities are basic: toilets are usually squat, pit-style, and showers are typically bucket showers. Most homes don't have refrigerators, and not all have electricity."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Is it safe to stay in a homestay at Dzaleka?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Yes. Host families are carefully vetted by Tumaini Letu for their hospitality, safety, and willingness to welcome visitors. Hosts are trained in how to receive guests. Contact dzalekahomestay@gmail.com with specific concerns."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "How long can I stay with a host family?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Most visitors stay for the duration of the Tumaini Festival (2-3 nights), but longer stays can be arranged year-round. Contact dzalekahomestay@gmail.com for more information."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "How do I apply for the Dzaleka Homestay Program?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "For stays during the Tumaini Festival, applications are completed online through the Tumaini Letu website. Early booking is recommended as spots are limited. For other dates, email dzalekahomestay@gmail.com."
+                    }
+                }
+            ]
         }
     ]
 };

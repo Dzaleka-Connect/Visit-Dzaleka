@@ -131,6 +131,31 @@ export default function Destinations() {
                 keywords="Dzaleka zones, Kawale, Katudza, Dzaleka Hill, refugee camp areas, Dzaleka neighborhoods"
             />
 
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{
+                    __html: JSON.stringify({
+                        "@context": "https://schema.org",
+                        "@type": "ItemList",
+                        "itemListElement": destinations.map((dest, index) => ({
+                            "@type": "ListItem",
+                            "position": index + 1,
+                            "item": {
+                                "@type": "Place",
+                                "name": dest.name,
+                                "description": dest.description,
+                                "address": {
+                                    "@type": "PostalAddress",
+                                    "addressLocality": "Dzaleka Refugee Camp",
+                                    "addressRegion": "Dowa",
+                                    "addressCountry": "MW"
+                                }
+                            }
+                        }))
+                    })
+                }}
+            />
+
             {/* Header */}
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
                 <div className="container mx-auto flex h-16 items-center justify-between px-4">

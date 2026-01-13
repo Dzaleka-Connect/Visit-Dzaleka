@@ -18,7 +18,7 @@ import {
 import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
 
-// Structured Data for Google Search (TouristAttraction + FAQPage schema)
+// Structured Data for Google Search (TouristAttraction + FAQPage + HowTo + Event schema)
 const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
@@ -118,10 +118,10 @@ const structuredData = {
         },
         {
             "@type": "Event",
-            "name": "Tumaini Festival",
+            "name": "Tumaini Festival 2025",
             "description": "The world's only music festival hosted within a refugee camp. Features music, poetry, and dance from around the globe.",
-            "startDate": "2025-11-01",
-            "endDate": "2025-11-03",
+            "startDate": "2025-10-30",
+            "endDate": "2025-11-01",
             "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
             "location": {
                 "@type": "Place",
@@ -139,6 +139,32 @@ const structuredData = {
                 "priceCurrency": "MWK",
                 "availability": "https://schema.org/InStock"
             }
+        },
+        {
+            "@type": "HowTo",
+            "name": "How to Book a Visit to Dzaleka",
+            "step": [
+                {
+                    "@type": "HowToStep",
+                    "name": "Create an Account",
+                    "text": "Sign up on the Visit Dzaleka portal with your name and contact details."
+                },
+                {
+                    "@type": "HowToStep",
+                    "name": "Choose Experience",
+                    "text": "Select your tour type, group size, and date at least 48 hours in advance."
+                },
+                {
+                    "@type": "HowToStep",
+                    "name": "Customize",
+                    "text": "Select zones and interests (Food, Art, Tech)."
+                },
+                {
+                    "@type": "HowToStep",
+                    "name": "Meet Your Guide",
+                    "text": "Receive confirmation and meet your guide at the designated gate."
+                }
+            ]
         }
     ]
 };
@@ -261,7 +287,7 @@ export default function VisitorEssentials() {
                                 <div>
                                     <h2 className="font-bold text-lg mb-2 text-amber-800 dark:text-amber-400">Important Notice</h2>
                                     <p className="text-amber-700 dark:text-amber-300 text-sm sm:text-base">
-                                        Dzaleka is a humanitarian site, <strong>not a standard tourist destination</strong>. All visits must be respectful, authorized, and purpose-driven. Visiting is a unique opportunity to engage with a resilient community, but it requires careful planning and strict adherence to ethical guidelines.
+                                        Dzaleka is a humanitarian site, <strong>not a standard tourist destination</strong>. For those wanting a tour through Visit Dzaleka, arrangements must be made <strong className="text-amber-900 dark:text-amber-100">at least 48 hours in advance</strong>. Visiting is a privilege that requires careful planning and strict adherence to ethical guidelines.
                                     </p>
                                 </div>
                             </div>
@@ -283,7 +309,7 @@ export default function VisitorEssentials() {
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="text-sm text-muted-foreground">
-                                    You cannot simply show up at the gate. All visits must be arranged <strong className="text-foreground">at least 48 hours in advance</strong> through the official Visit Dzaleka initiative or registered partners. Unauthorized entry is prohibited by the Government of Malawi.
+                                    Visits are allowed and encouraged, often through organized, respectful guided tours that support the community. For those wanting a tour through Visit Dzaleka, arrangements must be made <strong className="text-foreground">at least 48 hours in advance</strong>. Visitors must follow strict guidelines, prioritize cultural sensitivity, and ask permission before taking photos.
                                 </CardContent>
                             </Card>
 
@@ -752,7 +778,7 @@ export default function VisitorEssentials() {
                                     />
                                 </div>
                                 <CardContent className="p-6 md:w-3/5">
-                                    <Badge variant="secondary" className="mb-3">Usually held in November</Badge>
+                                    <Badge variant="secondary" className="mb-3">Oct 30 - Nov 1, 2025</Badge>
                                     <h3 className="text-xl sm:text-2xl font-bold mb-3">Tumaini Festival</h3>
                                     <p className="text-muted-foreground mb-4 text-sm sm:text-base">
                                         This is the <strong className="text-foreground">world's only music festival hosted within a refugee camp</strong>. It attracts thousands of visitors for music, poetry, and dance. During the festival, a specific <strong className="text-foreground">Homestay Program</strong> allows visitors to stay overnight with refugee families.

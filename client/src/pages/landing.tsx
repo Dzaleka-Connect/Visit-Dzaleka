@@ -210,7 +210,7 @@ const featuredExperiences = [
     description: "The world's only cultural festival within a refugee camp, attracting thousands of visitors and performers from over 25 countries.",
     hook: "Plan your trip around this extraordinary event.",
     link: "https://tumainiletu.org/tumaini-festival/",
-    image: "ttps://idsb.tmgrup.com.tr/ly/uploads/images/2024/11/04/353422.jpg",
+    image: "https://idsb.tmgrup.com.tr/ly/uploads/images/2024/11/04/353422.jpg",
     duration: "3 Days",
     rating: "5.0"
   },
@@ -261,6 +261,27 @@ export default function Landing() {
         ogImage="https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg"
         canonical="https://visit.dzaleka.com/"
         keywords="book Dzaleka tour, Dzaleka refugee camp tours, cultural tourism Malawi, Tumaini Festival, guided tours Africa, visit Dzaleka, refugee camp experience, Malawi tourism booking, African cultural exchange"
+      />
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            "itemListElement": featuredExperiences.map((experience, index) => ({
+              "@type": "ListItem",
+              "position": index + 1,
+              "item": {
+                "@type": "TouristAttraction",
+                "name": experience.title,
+                "description": experience.description,
+                "url": experience.link.startsWith("http") ? experience.link : `https://visit.dzaleka.com${experience.link}`,
+                "image": experience.image
+              }
+            }))
+          })
+        }}
       />
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">

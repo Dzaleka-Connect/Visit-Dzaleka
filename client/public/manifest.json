@@ -8,22 +8,12 @@
     "description": "Book guided tours and experience the culture of Dzaleka Refugee Camp.",
     "icons": [
         {
-            "src": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png",
+            "src": "/favicon.png",
             "sizes": "192x192",
             "type": "image/png"
         },
         {
-            "src": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png",
-            "sizes": "512x512",
-            "type": "image/png"
-        },
-        {
-            "src": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png",
-            "sizes": "192x192",
-            "type": "image/png"
-        },
-        {
-            "src": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png",
+            "src": "/favicon.png",
             "sizes": "512x512",
             "type": "image/png"
         }
