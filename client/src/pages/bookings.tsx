@@ -1072,17 +1072,19 @@ export default function Bookings() {
                       <Label className="text-xs text-muted-foreground">Status</Label>
                       <div className="mt-1 flex items-center gap-2">
                         <PaymentStatusBadge status={selectedBooking.paymentStatus || "pending"} />
-                        {selectedBooking.paymentStatus !== "paid" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            title="Mark as Paid"
-                            onClick={() => updatePaymentMutation.mutate({ id: selectedBooking.id, paymentStatus: "paid" })}
-                          >
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                          </Button>
-                        )}
+                        <Select
+                          value={selectedBooking.paymentStatus || "pending"}
+                          onValueChange={(value) => updatePaymentMutation.mutate({ id: selectedBooking.id, paymentStatus: value })}
+                        >
+                          <SelectTrigger className="w-28 h-7 text-xs">
+                            <SelectValue placeholder="Change" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="paid">Paid</SelectItem>
+                            <SelectItem value="refunded">Refunded</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </div>

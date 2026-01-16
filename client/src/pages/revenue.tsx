@@ -293,11 +293,11 @@ function PayoutsTab() {
   });
 
   const handleRecordPayout = () => {
-    if (!selectedGuideData) return;
+    if (!selectedGuideData || selectedGuideData.pendingRevenue <= 0) return;
     createPayoutMutation.mutate({
       guideId: selectedGuideData.guideId,
-      amount: selectedGuideData.guideShare,
-      toursCount: selectedGuideData.completedTours,
+      amount: selectedGuideData.pendingRevenue,
+      toursCount: selectedGuideData.pendingTours,
       status: "pending" // Default to pending, admin can mark as paid in history
     });
   };
@@ -413,16 +413,23 @@ function PayoutsTab() {
                     </TableCell>
                     <TableCell className="text-right font-bold text-green-600">{formatCurrency(payout.guideShare)}</TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedGuideData(payout);
-                          setRecordDialogOpen(true);
-                        }}
-                      >
-                        Record Payout
-                      </Button>
+                      {payout.pendingRevenue > 0 ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedGuideData(payout);
+                            setRecordDialogOpen(true);
+                          }}
+                        >
+                          Record Payout
+                        </Button>
+                      ) : (
+                        <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Fully Paid
+                        </Badge>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -442,12 +449,12 @@ function PayoutsTab() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="p-4 bg-muted rounded text-center">
-              <p className="text-sm text-muted-foreground">Total Lifetime Earnings</p>
-              <p className="text-2xl font-bold text-green-600">
-                {selectedGuideData && formatCurrency(selectedGuideData.guideShare)}
+              <p className="text-sm text-muted-foreground">Pending Revenue to Record</p>
+              <p className="text-2xl font-bold text-amber-600">
+                {selectedGuideData && formatCurrency(selectedGuideData.pendingRevenue)}
               </p>
               <p className="text-xs text-muted-foreground mt-2">
-                Including {selectedGuideData?.completedTours} completed tours
+                From {selectedGuideData?.pendingTours} pending tours
               </p>
             </div>
             <p className="text-sm text-muted-foreground">
