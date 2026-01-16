@@ -108,6 +108,27 @@ export default function FAQPage() {
                 canonical="https://visit.dzaleka.com/faq"
             />
 
+            {/* FAQPage Structured Data for Google Rich Results */}
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{
+                    __html: JSON.stringify({
+                        "@context": "https://schema.org",
+                        "@type": "FAQPage",
+                        "mainEntity": faqCategories.flatMap(category =>
+                            category.questions.map(faq => ({
+                                "@type": "Question",
+                                "name": faq.q,
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": faq.a
+                                }
+                            }))
+                        )
+                    })
+                }}
+            />
+
             {/* Header */}
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
                 <div className="container mx-auto flex h-16 items-center justify-between px-4">
