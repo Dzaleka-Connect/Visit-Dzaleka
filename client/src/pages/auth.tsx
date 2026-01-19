@@ -230,6 +230,7 @@ export default function AuthPage() {
                                 size="icon"
                                 className="absolute right-0 top-0 h-full"
                                 onClick={() => setShowPassword(!showPassword)}
+                                aria-label={showPassword ? "Hide password" : "Show password"}
                                 data-testid="button-toggle-password"
                               >
                                 {showPassword ? (
@@ -287,6 +288,7 @@ export default function AuthPage() {
                     variant="ghost"
                     size="icon"
                     onClick={() => setMode("login")}
+                    aria-label="Back to sign in"
                     data-testid="button-back-to-login"
                   >
                     <ArrowLeft className="h-4 w-4" />
@@ -381,6 +383,7 @@ export default function AuthPage() {
                                 size="icon"
                                 className="absolute right-0 top-0 h-full"
                                 onClick={() => setShowPassword(!showPassword)}
+                                aria-label={showPassword ? "Hide password" : "Show password"}
                                 data-testid="button-toggle-register-password"
                               >
                                 {showPassword ? (
@@ -457,6 +460,7 @@ export default function AuthPage() {
                     variant="ghost"
                     size="icon"
                     onClick={() => setMode("login")}
+                    aria-label="Back to sign in"
                     data-testid="button-back-to-login-from-forgot"
                   >
                     <ArrowLeft className="h-4 w-4" />

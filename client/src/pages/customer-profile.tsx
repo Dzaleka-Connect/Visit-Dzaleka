@@ -133,7 +133,7 @@ export default function CustomerProfile() {
     };
 
     if (isLoading) {
-        return <div className="flex h-screen items-center justify-center">Loading...</div>;
+        return <div className="flex h-dvh items-center justify-center">Loading...</div>;
     }
 
     if (!data || !data.user) {

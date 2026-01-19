@@ -13,6 +13,16 @@ import { Badge } from "@/components/ui/badge";
 import { MessageCircle, Send, Loader2, Search, ArrowLeft, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Nested user data from Supabase join
 interface ParticipantUser {
@@ -416,6 +426,7 @@ function ChatView({
     currentUserId: string;
 }) {
     const [messageInput, setMessageInput] = useState("");
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
     const queryClient = useQueryClient();
 
@@ -477,9 +488,12 @@ function ChatView({
     });
 
     const handleDeleteChat = () => {
-        if (confirm("Are you sure you want to delete this entire chat history? This cannot be undone.")) {
-            deleteChatMutation.mutate();
-        }
+        setShowDeleteDialog(true);
+    };
+
+    const confirmDeleteChat = () => {
+        deleteChatMutation.mutate();
+        setShowDeleteDialog(false);
     };
 
     const handleSend = (e: React.FormEvent) => {
@@ -618,6 +632,26 @@ function ChatView({
                     </Button>
                 </form>
             </div>
+
+            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Chat History</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete this entire chat history with {displayName}? This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmDeleteChat}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     );
 }

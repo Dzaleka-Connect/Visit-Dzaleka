@@ -171,13 +171,13 @@ export default function CMSPage() {
                   <h4 className="font-semibold text-lg">{label}</h4>
                   <div className="space-y-2">
                     <Label>Title</Label>
-                    <Input {...register(`feature_${index}_title` as const)} placeholder={label} />
-                    {errors[`feature_${index}_title`] && <span className="text-red-500 text-xs">Required</span>}
+                    <Input {...register(`feature_${index}_title` as keyof ContentFormData)} placeholder={label} />
+                    {errors[`feature_${index}_title` as keyof ContentFormData] && <span className="text-red-500 text-xs">Required</span>}
                   </div>
                   <div className="space-y-2">
                     <Label>Description</Label>
-                    <Textarea {...register(`feature_${index}_desc` as const)} />
-                    {errors[`feature_${index}_desc`] && <span className="text-red-500 text-xs">Required</span>}
+                    <Textarea {...register(`feature_${index}_desc` as keyof ContentFormData)} />
+                    {errors[`feature_${index}_desc` as keyof ContentFormData] && <span className="text-red-500 text-xs">Required</span>}
                   </div>
                 </div>
               ))}
@@ -214,18 +214,19 @@ export default function CMSPage() {
                   <h4 className="font-semibold text-lg">Testimonial {index}</h4>
                   <div className="space-y-2">
                     <Label>Quote</Label>
-                    <Textarea {...register(`testimonial_${index}_quote` as const)} />
-                    {errors[`testimonial_${index}_quote`] && <span className="text-red-500 text-xs">Required</span>}
+                    <Label>Quote</Label>
+                    <Textarea {...register(`testimonial_${index}_quote` as keyof ContentFormData)} />
+                    {errors[`testimonial_${index}_quote` as keyof ContentFormData] && <span className="text-red-500 text-xs">Required</span>}
                   </div>
                   <div className="space-y-2">
                     <Label>Author</Label>
-                    <Input {...register(`testimonial_${index}_author` as const)} />
-                    {errors[`testimonial_${index}_author`] && <span className="text-red-500 text-xs">Required</span>}
+                    <Input {...register(`testimonial_${index}_author` as keyof ContentFormData)} />
+                    {errors[`testimonial_${index}_author` as keyof ContentFormData] && <span className="text-red-500 text-xs">Required</span>}
                   </div>
                   <div className="space-y-2">
                     <Label>Role</Label>
-                    <Input {...register(`testimonial_${index}_role` as const)} />
-                    {errors[`testimonial_${index}_role`] && <span className="text-red-500 text-xs">Required</span>}
+                    <Input {...register(`testimonial_${index}_role` as keyof ContentFormData)} />
+                    {errors[`testimonial_${index}_role` as keyof ContentFormData] && <span className="text-red-500 text-xs">Required</span>}
                   </div>
                 </div>
               ))}

@@ -35,6 +35,7 @@ import {
   Download,
   FileDown,
   Phone,
+  X,
 } from "lucide-react";
 import {
   Card,
@@ -1277,6 +1278,11 @@ function VisitorDashboard() {
 
   const [selectedRating, setSelectedRating] = useState<{ bookingId: string; rating: number } | null>(null);
   const [showAllPastVisits, setShowAllPastVisits] = useState(false);
+  const [showBookingCTA, setShowBookingCTA] = useState(() => {
+    // Initialize from localStorage to prevent flash of content
+    const dismissed = localStorage.getItem('dismiss_booking_cta');
+    return !dismissed;
+  });
 
   const handleRateGuide = (bookingId: string, rating: number) => {
     rateGuideMutation.mutate({ bookingId, rating });
@@ -1371,6 +1377,56 @@ function VisitorDashboard() {
           icon={CheckCircle2}
         />
       </div>
+
+      {/* Book Your Tour CTA - Show prominently if no upcoming bookings and not dismissed */}
+      {upcomingBookings.length === 0 && showBookingCTA && (
+        <Card className="relative overflow-hidden border-2 border-primary shadow-lg animate-in slide-in-from-top-4 duration-500">
+          {/* Attention-grabbing gradient stripe */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-primary/80 to-primary" />
+
+          {/* Close button */}
+          <button
+            onClick={() => {
+              localStorage.setItem('dismiss_booking_cta', 'true');
+              setShowBookingCTA(false);
+            }}
+            className="absolute top-3 right-3 p-1 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+
+          <CardContent className="p-6 pt-8">
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              {/* Icon with pulse animation */}
+              <div className="relative shrink-0">
+                <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                <div className="relative h-16 w-16 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg">
+                  <CalendarDays className="h-8 w-8 text-primary-foreground" />
+                </div>
+              </div>
+
+              <div className="flex-1 text-center sm:text-left space-y-2">
+                <div className="flex items-center justify-center sm:justify-start gap-2">
+                  <Badge className="bg-primary/10 text-primary border-primary/20 uppercase text-xs tracking-wider">
+                    Action Required
+                  </Badge>
+                </div>
+                <h3 className="font-bold text-2xl">Ready to Book Your Tour?</h3>
+                <p className="text-muted-foreground max-w-lg">
+                  Experience Dzaleka with a local refugee guide. Choose your date, group size, and tour type to get started.
+                </p>
+              </div>
+
+              <Button asChild size="lg" className="shrink-0 w-full sm:w-auto h-14 px-10 text-lg font-semibold shadow-lg">
+                <Link href="/my-bookings?book=true">
+                  Book Now <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Community Hub Promotion */}
       <Card className="bg-gradient-to-r from-primary/10 via-primary/5 to-background border-primary/20">
@@ -1746,108 +1802,108 @@ function VisitorDashboard() {
 
       {/* Safety & Support Card */}
       <Card className="mt-6 border-l-4 border-l-orange-500 shadow-sm">
-  <CardHeader className="pb-3">
-    <CardTitle className="text-lg flex items-center gap-2">
-      <Shield className="h-5 w-5 text-orange-600" />
-      Safety & Support
-    </CardTitle>
-    <CardDescription>
-      We prioritize your safety. If you encounter any issues or need assistance, please report it immediately or contact our team.
-    </CardDescription>
-  </CardHeader>
-  <CardContent>
-    <div className="flex flex-col md:flex-row gap-6">
-      <div className="flex-1 space-y-4">
-        <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
-          <div className="bg-primary/10 p-2 rounded-full mt-0.5">
-            <Phone className="h-4 w-4 text-primary" />
-          </div>
-          <div>
-            <h4 className="font-semibold text-sm">Emergency Contacts</h4>
-            <p className="text-sm text-foreground/80 mt-1">Admin: <a href="tel:+61498956715" className="text-primary hover:underline font-medium">+61 498 956 715</a></p>
-            <p className="text-sm text-foreground/80">Email: <a href="mailto:dzalekaconnect@gmail.com" className="text-primary hover:underline font-medium">dzalekaconnect@gmail.com</a></p>
-          </div>
-        </div>
-      </div>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Shield className="h-5 w-5 text-orange-600" />
+            Safety & Support
+          </CardTitle>
+          <CardDescription>
+            We prioritize your safety. If you encounter any issues or need assistance, please report it immediately or contact our team.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row gap-6">
+            <div className="flex-1 space-y-4">
+              <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                <div className="bg-primary/10 p-2 rounded-full mt-0.5">
+                  <Phone className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-sm">Emergency Contacts</h4>
+                  <p className="text-sm text-foreground/80 mt-1">Admin: <a href="tel:+61498956715" className="text-primary hover:underline font-medium">+61 498 956 715</a></p>
+                  <p className="text-sm text-foreground/80">Email: <a href="mailto:dzalekaconnect@gmail.com" className="text-primary hover:underline font-medium">dzalekaconnect@gmail.com</a></p>
+                </div>
+              </div>
+            </div>
 
-      <div className="flex-1 flex flex-col justify-center items-start border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-6">
-        <h4 className="font-semibold text-sm mb-2">Report an Incident</h4>
-        <p className="text-sm text-muted-foreground mb-4">
-          Witnessed something concerning? Let us know so we can address it.
-        </p>
-        <ReportIncidentDialog />
-      </div>
-    </div>
-  </CardContent>
-</Card>
+            <div className="flex-1 flex flex-col justify-center items-start border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-6">
+              <h4 className="font-semibold text-sm mb-2">Report an Incident</h4>
+              <p className="text-sm text-muted-foreground mb-4">
+                Witnessed something concerning? Let us know so we can address it.
+              </p>
+              <ReportIncidentDialog />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-{/* My Reports History - Only for visitors */ }
-{
-  user?.role === "visitor" && (
-    <Card className="mt-6">
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <ListTodo className="h-5 w-5 text-primary" />
-          My Reported Issues
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <IncidentsList />
-      </CardContent>
-    </Card>
-  )
-}
+      {/* My Reports History - Only for visitors */}
+      {
+        user?.role === "visitor" && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ListTodo className="h-5 w-5 text-primary" />
+                My Reported Issues
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <IncidentsList />
+            </CardContent>
+          </Card>
+        )
+      }
 
-{/* Explore Dzaleka Section */ }
-<Card>
-  <CardHeader>
-    <CardTitle className="text-lg font-semibold">Explore Dzaleka</CardTitle>
-  </CardHeader>
-  <CardContent>
-    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-      <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-primary/30 hover:border-primary hover:bg-primary/5" asChild>
-        <a href="https://services.dzaleka.com/visit/travel-guide/" target="_blank" rel="noopener noreferrer">
-          <MapPin className="h-5 w-5 text-primary" />
-          <div className="text-left">
-            <div className="font-medium">Travel Guide</div>
-            <div className="text-xs text-muted-foreground">Getting to Dzaleka</div>
+      {/* Explore Dzaleka Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold">Explore Dzaleka</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-primary/30 hover:border-primary hover:bg-primary/5" asChild>
+              <a href="https://services.dzaleka.com/visit/travel-guide/" target="_blank" rel="noopener noreferrer">
+                <MapPin className="h-5 w-5 text-primary" />
+                <div className="text-left">
+                  <div className="font-medium">Travel Guide</div>
+                  <div className="text-xs text-muted-foreground">Getting to Dzaleka</div>
+                </div>
+                <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
+              </a>
+            </Button>
+            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-amber-500/30 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20" asChild>
+              <a href="https://services.dzaleka.com/visit/guidelines/" target="_blank" rel="noopener noreferrer">
+                <Shield className="h-5 w-5 text-amber-600" />
+                <div className="text-left">
+                  <div className="font-medium">Visitor Guidelines</div>
+                  <div className="text-xs text-muted-foreground">What to know before you go</div>
+                </div>
+                <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
+              </a>
+            </Button>
+            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-purple-500/30 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20" asChild>
+              <a href="https://services.dzaleka.com/dzaleka-time-capsule/" target="_blank" rel="noopener noreferrer">
+                <Clock className="h-5 w-5 text-purple-600" />
+                <div className="text-left">
+                  <div className="font-medium">Time Capsule</div>
+                  <div className="text-xs text-muted-foreground">Dzaleka's history & stories</div>
+                </div>
+                <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
+              </a>
+            </Button>
+            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-blue-500/30 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20" asChild>
+              <a href="https://services.dzaleka.com" target="_blank" rel="noopener noreferrer">
+                <Globe className="h-5 w-5 text-blue-600" />
+                <div className="text-left">
+                  <div className="font-medium">Dzaleka Online Services</div>
+                  <div className="text-xs text-muted-foreground">Full platform & resources</div>
+                </div>
+                <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
+              </a>
+            </Button>
           </div>
-          <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
-        </a>
-      </Button>
-      <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-amber-500/30 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20" asChild>
-        <a href="https://services.dzaleka.com/visit/guidelines/" target="_blank" rel="noopener noreferrer">
-          <Shield className="h-5 w-5 text-amber-600" />
-          <div className="text-left">
-            <div className="font-medium">Visitor Guidelines</div>
-            <div className="text-xs text-muted-foreground">What to know before you go</div>
-          </div>
-          <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
-        </a>
-      </Button>
-      <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-purple-500/30 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20" asChild>
-        <a href="https://services.dzaleka.com/dzaleka-time-capsule/" target="_blank" rel="noopener noreferrer">
-          <Clock className="h-5 w-5 text-purple-600" />
-          <div className="text-left">
-            <div className="font-medium">Time Capsule</div>
-            <div className="text-xs text-muted-foreground">Dzaleka's history & stories</div>
-          </div>
-          <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
-        </a>
-      </Button>
-      <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-blue-500/30 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20" asChild>
-        <a href="https://services.dzaleka.com" target="_blank" rel="noopener noreferrer">
-          <Globe className="h-5 w-5 text-blue-600" />
-          <div className="text-left">
-            <div className="font-medium">Dzaleka Online Services</div>
-            <div className="text-xs text-muted-foreground">Full platform & resources</div>
-          </div>
-          <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
-        </a>
-      </Button>
-    </div>
-  </CardContent>
-</Card>
+        </CardContent>
+      </Card>
     </div >
   );
 }

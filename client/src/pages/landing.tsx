@@ -310,6 +310,7 @@ export default function Landing() {
                 <div className="py-1">
                   <p className="px-4 py-1 text-xs text-muted-foreground uppercase tracking-wider">About</p>
                   <Link href="/about-dzaleka" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">About Dzaleka</Link>
+                  <Link href="/about-us" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">About Us</Link>
                   <Link href="/life-in-dzaleka" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Life in Dzaleka</Link>
                   <div className="border-t my-1" />
                   <p className="px-4 py-1 text-xs text-muted-foreground uppercase tracking-wider">Things To Do</p>
@@ -370,6 +371,7 @@ export default function Landing() {
             {/* Discover Section */}
             <p className="text-xs text-muted-foreground uppercase tracking-wider pt-1">Discover</p>
             <Link href="/about-dzaleka" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>About Dzaleka</Link>
+            <Link href="/about-us" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>About Us</Link>
             <Link href="/life-in-dzaleka" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>Life in Dzaleka</Link>
             <Link href="/things-to-do" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>Things To Do</Link>
             <Link href="/whats-on" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>What's On</Link>
@@ -414,7 +416,7 @@ export default function Landing() {
             <div className="max-w-4xl mx-auto">
               <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-white/30 bg-white/10 text-white rounded-full backdrop-blur-sm">
                 <Sparkles className="mr-2 h-3.5 w-3.5" />
-                Experience the Heart of Africa
+                Refugee-Led Tourism
               </Badge>
 
               <h1 className="mb-6 text-4xl font-extrabold tracking-tight text-white md:text-5xl lg:text-6xl drop-shadow-lg">
@@ -438,13 +440,9 @@ export default function Landing() {
                   className="h-14 px-10 text-lg border-white/40 text-white hover:bg-white/10 hover:text-white bg-transparent"
                   asChild
                 >
-                  <a
-                    href="https://services.dzaleka.com/visit/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
+                  <Link href="/about-us">
                     Learn More
-                  </a>
+                  </Link>
                 </Button>
               </div>
             </div>
@@ -491,11 +489,11 @@ export default function Landing() {
                 <div className="flex flex-col md:flex-row gap-4 w-full md:items-end">
                   <div className="flex-1 space-y-2 min-w-0">
                     <label className="text-sm font-medium text-muted-foreground">When are you visiting?</label>
-                    <div className="relative w-full overflow-hidden">
-                      <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+                    <div className="relative w-full">
+                      <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10 pointer-events-none" />
                       <Input
                         type="date"
-                        className="pl-10 w-full max-w-full h-12 text-base"
+                        className="pl-10 w-full h-12 text-base [&::-webkit-calendar-picker-indicator]:opacity-100"
                         min={new Date().toISOString().split('T')[0]}
                       />
                     </div>

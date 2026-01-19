@@ -420,28 +420,30 @@ export default function Reports() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-5 lg:w-auto">
-                    <TabsTrigger value="bookings" className="gap-2">
-                        <FileText className="h-4 w-4" />
-                        <span className="hidden sm:inline">Bookings</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="payments" className="gap-2">
-                        <DollarSign className="h-4 w-4" />
-                        <span className="hidden sm:inline">Payments</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="visitors" className="gap-2">
-                        <Users className="h-4 w-4" />
-                        <span className="hidden sm:inline">Visitors</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="schedule" className="gap-2">
-                        <CalendarDays className="h-4 w-4" />
-                        <span className="hidden sm:inline">Schedule</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="communications" className="gap-2">
-                        <Mail className="h-4 w-4" />
-                        <span className="hidden sm:inline">Communications</span>
-                    </TabsTrigger>
-                </TabsList>
+                <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                    <TabsList className="inline-flex w-auto min-w-full sm:min-w-0">
+                        <TabsTrigger value="bookings" className="gap-2">
+                            <FileText className="h-4 w-4" />
+                            <span className="hidden sm:inline">Bookings</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="payments" className="gap-2">
+                            <DollarSign className="h-4 w-4" />
+                            <span className="hidden sm:inline">Payments</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="visitors" className="gap-2">
+                            <Users className="h-4 w-4" />
+                            <span className="hidden sm:inline">Visitors</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="schedule" className="gap-2">
+                            <CalendarDays className="h-4 w-4" />
+                            <span className="hidden sm:inline">Schedule</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="communications" className="gap-2">
+                            <Mail className="h-4 w-4" />
+                            <span className="hidden sm:inline">Communications</span>
+                        </TabsTrigger>
+                    </TabsList>
+                </div>
 
                 {/* Filters */}
                 <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="mt-4">
@@ -459,7 +461,7 @@ export default function Reports() {
                         </CollapsibleTrigger>
                         <CollapsibleContent>
                             <CardContent className="pt-0">
-                                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
                                     <div className="space-y-2">
                                         <Label>From Date</Label>
                                         <Input
@@ -555,28 +557,28 @@ export default function Reports() {
                 </Collapsible>
 
                 {/* Summary Stats */}
-                <div className="grid gap-4 grid-cols-2 md:grid-cols-4 mt-4">
+                <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4 mt-4">
                     <Card>
-                        <CardContent className="pt-4">
-                            <div className="text-2xl font-bold">{summaryStats.totalBookings}</div>
+                        <CardContent className="p-3 sm:pt-4 sm:p-6">
+                            <div className="text-xl sm:text-2xl font-bold">{summaryStats.totalBookings}</div>
                             <p className="text-xs text-muted-foreground">Total Bookings</p>
                         </CardContent>
                     </Card>
                     <Card>
-                        <CardContent className="pt-4">
-                            <div className="text-2xl font-bold">{summaryStats.totalParticipants}</div>
+                        <CardContent className="p-3 sm:pt-4 sm:p-6">
+                            <div className="text-xl sm:text-2xl font-bold">{summaryStats.totalParticipants}</div>
                             <p className="text-xs text-muted-foreground">Participants</p>
                         </CardContent>
                     </Card>
                     <Card>
-                        <CardContent className="pt-4">
-                            <div className="text-2xl font-bold text-green-600">{formatCurrency(summaryStats.totalRevenue)}</div>
+                        <CardContent className="p-3 sm:pt-4 sm:p-6">
+                            <div className="text-xl sm:text-2xl font-bold text-green-600">{formatCurrency(summaryStats.totalRevenue)}</div>
                             <p className="text-xs text-muted-foreground">Total Revenue</p>
                         </CardContent>
                     </Card>
                     <Card>
-                        <CardContent className="pt-4">
-                            <div className="flex gap-2 text-sm">
+                        <CardContent className="p-3 sm:pt-4 sm:p-6">
+                            <div className="flex flex-wrap gap-1 sm:gap-2 text-xs sm:text-sm">
                                 <Badge variant="secondary">{summaryStats.confirmedCount} confirmed</Badge>
                                 <Badge variant="destructive">{summaryStats.cancelledCount} cancelled</Badge>
                             </div>
@@ -663,8 +665,8 @@ export default function Reports() {
                 </TabsContent>
 
                 {/* Payments Tab */}
-                <TabsContent value="payments" className="mt-4 space-y-6">
-                    <div className="grid gap-6 lg:grid-cols-2">
+                <TabsContent value="payments" className="mt-4 space-y-4 sm:space-y-6">
+                    <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
                         <Card>
                             <CardHeader>
                                 <CardTitle>Revenue Summary</CardTitle>
@@ -703,8 +705,8 @@ export default function Reports() {
                 </TabsContent>
 
                 {/* Visitors Tab */}
-                <TabsContent value="visitors" className="mt-4 space-y-6">
-                    <div className="grid gap-6 lg:grid-cols-2">
+                <TabsContent value="visitors" className="mt-4 space-y-4 sm:space-y-6">
+                    <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
                         <ParticipantsChart customData={participantsData} />
                         <StatusBreakdownChart customData={statusBreakdownData} />
                         <POIFrequencyChart customData={poiFrequencyData} />
@@ -712,8 +714,8 @@ export default function Reports() {
                 </TabsContent>
 
                 {/* Schedule Tab */}
-                <TabsContent value="schedule" className="mt-4 space-y-6">
-                    <div className="grid gap-6 lg:grid-cols-2">
+                <TabsContent value="schedule" className="mt-4 space-y-4 sm:space-y-6">
+                    <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
                         <GuideUtilizationChart customData={guideUtilizationData} />
                         <BookingTimeHeatmap customData={heatmapData} />
                     </div>

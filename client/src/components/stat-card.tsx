@@ -2,6 +2,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 
+/**
+ * Formats a number into compact notation (1K, 10K, 1M, etc.)
+ */
+export function formatCompactNumber(value: string | number): string {
+  const num = typeof value === "string" ? parseFloat(value) : value;
+  if (isNaN(num)) return String(value);
+
+  if (num >= 1_000_000) {
+    return (num / 1_000_000).toFixed(num % 1_000_000 === 0 ? 0 : 1) + "M";
+  }
+  if (num >= 1_000) {
+    return (num / 1_000).toFixed(num % 1_000 === 0 ? 0 : 1) + "K";
+  }
+  return num.toLocaleString();
+}
+
 interface StatCardProps {
   title: string;
   value: string | number;
@@ -12,6 +28,8 @@ interface StatCardProps {
     isPositive: boolean;
   };
   className?: string;
+  /** If true, formats numbers as 1K, 10K, 1M. Default: true */
+  compactNumbers?: boolean;
 }
 
 export function StatCard({
@@ -21,7 +39,10 @@ export function StatCard({
   icon: Icon,
   trend,
   className,
+  compactNumbers = true,
 }: StatCardProps) {
+  const displayValue = compactNumbers ? formatCompactNumber(value) : value;
+
   return (
     <Card className={cn("hover-elevate", className)}>
       <CardContent className="p-6">
@@ -31,7 +52,7 @@ export function StatCard({
               {title}
             </span>
             <span className="text-2xl font-semibold tracking-tight">
-              {value}
+              {displayValue}
             </span>
             {subtitle && (
               <span className="text-xs text-muted-foreground">{subtitle}</span>

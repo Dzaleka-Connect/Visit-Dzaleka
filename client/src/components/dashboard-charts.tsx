@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, BarChart, Bar, PieChart, Pie, Cell, ScatterChart, Scatter, ZAxis, LineChart, Line } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, type ChartConfig } from "@/components/ui/chart";
+import { formatCompactNumber } from "@/components/stat-card";
 import { Loader2 } from "lucide-react";
 
 interface WeeklyData {
@@ -52,6 +53,20 @@ export function WeeklyBookingTrends() {
   }
 
   const chartData = data || [];
+
+  if (chartData.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Weekly Booking Trends</CardTitle>
+          <CardDescription>Bookings over the last 7 days</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-64">
+          <p className="text-muted-foreground">No booking data available yet</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -129,11 +144,24 @@ export function PopularZonesChart() {
     );
   }
 
-  // Assign colors dynamically for the pie chart config
   const chartData = (data || []).slice(0, 5).map((item, index) => ({
     ...item,
     fill: `var(--chart-${(index % 5) + 1})`
   }));
+
+  if (chartData.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Popular Zones</CardTitle>
+          <CardDescription>Most visited areas</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-64">
+          <p className="text-muted-foreground">No zone visit data available yet</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const dynamicConfig = {
     visits: { label: "Visits" },
@@ -200,13 +228,26 @@ export function GuidePerformanceChart() {
     );
   }
 
-  // Truncate long guide names for display and limit to top 5
   const chartData = (data || [])
     .slice(0, 5)
     .map(item => ({
       ...item,
       displayName: item.name.length > 12 ? item.name.substring(0, 12) + '...' : item.name,
     }));
+
+  if (chartData.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Guide Performance</CardTitle>
+          <CardDescription>Tours completed this month</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-64">
+          <p className="text-muted-foreground">No guide performance data available yet</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -346,7 +387,7 @@ export function BookingTimeHeatmap({ customData }: { customData?: HeatmapData[] 
                   return null;
                 }}
               />
-              {/* @ts-ignore */}
+              {/* @ts-expect-error - Scatter accepts Cell children but types don't reflect this */}
               <Scatter name="Bookings" data={chartData} shape="circle">
                 {chartData.map((entry, index) => (
                   <Cell
@@ -522,7 +563,7 @@ export function GuideComparisonChart() {
                   return null;
                 }}
               />
-              {/* @ts-ignore */}
+              {/* @ts-expect-error - Scatter accepts Cell children but types don't reflect this */}
               <Scatter name="Guides" data={chartData} fill="var(--color-tours)">
                 {chartData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={`var(--chart-${(index % 5) + 1})`} />
@@ -800,7 +841,7 @@ export function ConversionRateChart() {
           <span className="text-2xl font-bold text-primary">{data.conversionRate.toFixed(1)}%</span>
         </CardTitle>
         <CardDescription>
-          {data.totalVisitors} visitors → {data.totalBookings} bookings
+          {formatCompactNumber(data.totalVisitors)} visitors → {formatCompactNumber(data.totalBookings)} bookings
         </CardDescription>
       </CardHeader>
       <CardContent className="px-2 sm:px-6">
@@ -840,11 +881,11 @@ export function ConversionRateChart() {
         {/* Summary Stats */}
         <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t">
           <div className="text-center">
-            <p className="text-2xl font-bold">{data.totalVisitors}</p>
+            <p className="text-2xl font-bold">{formatCompactNumber(data.totalVisitors)}</p>
             <p className="text-xs text-muted-foreground">Total Visitors</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold">{data.totalBookings}</p>
+            <p className="text-2xl font-bold">{formatCompactNumber(data.totalBookings)}</p>
             <p className="text-xs text-muted-foreground">Total Bookings</p>
           </div>
           <div className="text-center">

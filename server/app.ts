@@ -10,6 +10,7 @@ import cors from "cors";
 import pg from "pg";
 import connectPgSimple from "connect-pg-simple";
 import { requestIdMiddleware } from "./middleware/requestId";
+import { createCsrfMiddleware } from "./middleware/csrf";
 
 // Export log function so it can be used here
 export function log(message: string, source = "express") {
@@ -123,6 +124,9 @@ export async function createApp() {
   app.use("/api/auth/register", authLimiter);
   app.use("/api/auth/forgot-password", authLimiter);
   app.use("/api", apiLimiter);
+
+  // CSRF protection for state-changing API requests
+  app.use("/api", createCsrfMiddleware(allowedOrigins));
 
   app.use(
     session({

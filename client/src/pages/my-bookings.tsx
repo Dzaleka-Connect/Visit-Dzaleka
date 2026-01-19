@@ -304,6 +304,16 @@ export default function MyBookings() {
     }
   }, [user]);
 
+  // Auto-open booking form if URL has ?book=true
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('book') === 'true') {
+      setIsCreateOpen(true);
+      // Clean up the URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   const { data: bookings, isLoading } = useQuery<BookingWithGuide[]>({
     queryKey: ["/api/bookings/my-bookings"],
   });

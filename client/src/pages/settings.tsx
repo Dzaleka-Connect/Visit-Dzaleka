@@ -23,6 +23,7 @@ import { formatCurrency, PRICING } from "@/lib/constants";
 import { useState, useEffect } from "react";
 import type { PricingConfig, AnalyticsSetting, InsertAnalyticsSetting } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { NotificationSender } from "@/components/notification-sender";
 import { SEO } from "@/components/seo";
 
@@ -44,6 +45,14 @@ export default function Settings() {
     newPassword: "",
     confirmPassword: "",
   });
+
+  // Track unsaved changes for password form
+  const hasUnsavedPasswordChanges = passwordForm.currentPassword !== "" ||
+    passwordForm.newPassword !== "" ||
+    passwordForm.confirmPassword !== "";
+
+  // Warn user before leaving with unsaved changes
+  useUnsavedChanges(hasUnsavedPasswordChanges);
 
   const { data: pricingConfigs } = useQuery<PricingConfig[]>({
     queryKey: ["/api/pricing"],

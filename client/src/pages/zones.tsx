@@ -476,8 +476,8 @@ export default function Zones() {
 
   return (
     <div className="space-y-6">
-      <SEO 
-        title="Camp Zones" 
+      <SEO
+        title="Camp Zones"
         description="Explore the different zones of Dzaleka Refugee Camp. Find points of interest, markets, and cultural centers."
       />
       <div className="flex flex-col gap-2">
@@ -492,13 +492,13 @@ export default function Zones() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="zones" data-testid="tab-zones">
-            Camp Zones
+            Camp Zones {zones?.length ? `(${zones.length})` : ""}
           </TabsTrigger>
           <TabsTrigger value="poi" data-testid="tab-poi">
-            Points of Interest
+            Points of Interest {pointsOfInterest?.length ? `(${pointsOfInterest.length})` : ""}
           </TabsTrigger>
           <TabsTrigger value="meeting" data-testid="tab-meeting">
-            Meeting Points
+            Meeting Points {meetingPoints?.length ? `(${meetingPoints.length})` : ""}
           </TabsTrigger>
         </TabsList>
 
@@ -553,7 +553,7 @@ export default function Zones() {
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
+                          <Button variant="ghost" size="icon" aria-label="Zone options">
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -650,7 +650,7 @@ export default function Zones() {
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
+                          <Button variant="ghost" size="icon" aria-label="Point of interest options">
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -758,7 +758,7 @@ export default function Zones() {
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
+                          <Button variant="ghost" size="icon" aria-label="Meeting point options">
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>

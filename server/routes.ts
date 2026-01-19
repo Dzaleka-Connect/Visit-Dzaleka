@@ -1891,6 +1891,13 @@ export async function registerRoutes(
         meetingPoint: meetingPoint?.name,
       });
 
+      // Notify admins/coordinators
+      await notifyBookingCreated(
+        booking.id,
+        booking.visitorName,
+        booking.visitDate
+      );
+
       res.status(201).json(booking);
     } catch (error) {
       if (error instanceof z.ZodError) {

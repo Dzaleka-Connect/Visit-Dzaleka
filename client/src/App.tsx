@@ -39,6 +39,13 @@ import CMSPage from "@/pages/cms";
 import SecurityAdmin from "@/pages/security-admin";
 import AcceptInvite from "@/pages/accept-invite";
 import GuideTraining from "@/pages/guide-training";
+import DTDWGuide from "@/pages/dtdw-guide";
+import OperationsManual from "@/pages/operations-manual";
+import StandardOperatingProcedures from "@/pages/standard-operating-procedures";
+import InternalPolicies from "@/pages/internal-policies";
+import MarketingStrategy from "@/pages/marketing-strategy";
+import ContinuousImprovement from "@/pages/continuous-improvement";
+import FinancialFramework from "@/pages/financial-framework";
 import TrainingAdmin from "@/pages/training-admin";
 import ThingsToDo from "@/pages/things-to-do";
 import ArtsCulture from "@/pages/arts-culture";
@@ -50,6 +57,11 @@ import PlanYourTrip from "@/pages/plan-your-trip";
 import VisitorEssentials from "@/pages/visitor-essentials";
 import LifeInDzaleka from "@/pages/life-in-dzaleka";
 import AboutDzaleka from "@/pages/about-dzaleka";
+import AboutUs from "@/pages/about-us";
+import FriendsOfDzaleka from "@/pages/friends-of-dzaleka";
+import ImpactReport from "@/pages/impact-report";
+import ImpactReportView from "@/pages/impact-report-view";
+import ContactUs from "@/pages/contact";
 import ITCodeOfPractice from "@/pages/it-code-of-practice";
 import Accommodation from "@/pages/accommodation";
 import VisitorResources from "@/pages/visitor-resources";
@@ -102,7 +114,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
-      <div className="flex h-screen w-full">
+      <div className="flex h-dvh w-full">
         <AppSidebar />
         <div className="flex flex-1 flex-col overflow-hidden">
           <header className="sticky top-0 z-40 flex h-14 items-center justify-between gap-4 border-b bg-background px-4">
@@ -143,20 +155,25 @@ function Router() {
         <Route path="/plan-your-trip/visitor-essentials" component={VisitorEssentials} />
         <Route path="/life-in-dzaleka" component={LifeInDzaleka} />
         <Route path="/about-dzaleka" component={AboutDzaleka} />
+        <Route path="/about-us" component={AboutUs} />
         <Route path="/accommodation" component={Accommodation} />
         <Route path="/disclaimer" component={Disclaimer} />
         <Route path="/cookie-notice" component={CookieNotice} />
         <Route path="/destinations" component={Destinations} />
         <Route path="/partner-with-us" component={PartnerWithUs} />
+        <Route path="/friends-of-dzaleka" component={FriendsOfDzaleka} />
+        <Route path="/impact-report/:id" component={ImpactReportView} />
+        <Route path="/impact-report" component={ImpactReport} />
         <Route path="/faq" component={FAQPage} />
         <Route path="/support-our-work" component={SupportOurWork} />
+        <Route path="/contact" component={ContactUs} />
       </Switch>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-dvh items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           <p className="text-sm text-muted-foreground">Loading...</p>
@@ -181,14 +198,19 @@ function Router() {
         <Route path="/plan-your-trip/visitor-essentials" component={VisitorEssentials} />
         <Route path="/life-in-dzaleka" component={LifeInDzaleka} />
         <Route path="/about-dzaleka" component={AboutDzaleka} />
+        <Route path="/about-us" component={AboutUs} />
         <Route path="/it-code-of-practice" component={ITCodeOfPractice} />
         <Route path="/accommodation" component={Accommodation} />
         <Route path="/disclaimer" component={Disclaimer} />
         <Route path="/cookie-notice" component={CookieNotice} />
         <Route path="/destinations" component={Destinations} />
         <Route path="/partner-with-us" component={PartnerWithUs} />
+        <Route path="/friends-of-dzaleka" component={FriendsOfDzaleka} />
+        <Route path="/impact-report/:id" component={ImpactReportView} />
+        <Route path="/impact-report" component={ImpactReport} />
         <Route path="/faq" component={FAQPage} />
         <Route path="/support-our-work" component={SupportOurWork} />
+        <Route path="/contact" component={ContactUs} />
         <Route component={Landing} />
       </Switch>
     );
@@ -211,6 +233,13 @@ function Router() {
         <Route path="/guides" component={Guides} />
         <Route path="/guide/:slug" component={GuideProfile} />
         <Route path="/guide-training" component={GuideTraining} />
+        <ProtectedRoute path="/dtdw-guide" component={DTDWGuide} allowedRoles={["admin", "coordinator", "guide"]} />
+        <ProtectedRoute path="/operations-manual" component={OperationsManual} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/standard-operating-procedures" component={StandardOperatingProcedures} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/internal-policies" component={InternalPolicies} allowedRoles={["admin", "coordinator", "guide"]} />
+        <ProtectedRoute path="/marketing-strategy" component={MarketingStrategy} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/continuous-improvement" component={ContinuousImprovement} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/financial-framework" component={FinancialFramework} allowedRoles={["admin", "coordinator"]} />
         <Route path="/my-tours" component={MyTours} />
         <Route path="/my-earnings" component={MyEarnings} />
         <Route path="/my-availability" component={MyAvailability} />

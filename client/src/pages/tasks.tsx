@@ -47,11 +47,11 @@ const priorityColors: Record<string, string> = {
 };
 
 const statusColors: Record<string, string> = {
-    pending: "bg-yellow-100 text-yellow-800",
-    in_progress: "bg-blue-100 text-blue-800",
-    under_review: "bg-purple-100 text-purple-800",
-    completed: "bg-green-100 text-green-800",
-    cancelled: "bg-gray-100 text-gray-800",
+    pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
+    in_progress: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+    under_review: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
+    completed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+    cancelled: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
 };
 
 export default function Tasks() {
@@ -127,7 +127,7 @@ export default function Tasks() {
             </div>
 
             {/* Summary Stats */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Card>
                     <CardContent className="p-4 flex items-center gap-3">
                         <Clock className="h-8 w-8 text-yellow-600" />
@@ -212,7 +212,12 @@ export default function Tasks() {
                                                 <SelectItem value="completed">Completed</SelectItem>
                                             </SelectContent>
                                         </Select>
-                                        <Button variant="outline" size="sm" onClick={() => setSelectedTask(task)}>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setSelectedTask(task)}
+                                            aria-label="View comments"
+                                        >
                                             <MessageSquare className="h-4 w-4" />
                                         </Button>
                                     </div>

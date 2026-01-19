@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { supabase } from "@/lib/supabase";
 import { SEO } from "@/components/seo";
@@ -25,6 +26,16 @@ export default function Profile() {
     lastName: user?.lastName || "",
     phone: user?.phone || "",
   });
+
+  // Check if form has unsaved changes
+  const hasUnsavedChanges = isEditing && (
+    formData.firstName !== (user?.firstName || "") ||
+    formData.lastName !== (user?.lastName || "") ||
+    formData.phone !== (user?.phone || "")
+  );
+
+  // Warn user before leaving with unsaved changes
+  useUnsavedChanges(hasUnsavedChanges);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -191,7 +202,7 @@ export default function Profile() {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploadingImage}
                 className="absolute bottom-0 right-0 rounded-full bg-primary p-2 text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
-                title="Change profile photo"
+                aria-label="Change profile photo"
               >
                 {isUploadingImage ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

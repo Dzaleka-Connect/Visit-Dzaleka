@@ -398,7 +398,7 @@ export default function Bookings() {
     queryKey: ["/api/points-of-interest"],
   });
 
-  const { data: selectedItinerary } = useQuery({
+  const { data: selectedItinerary } = useQuery<{ id: string } | null>({
     queryKey: [`/api/bookings/${selectedBooking?.id}/itinerary`],
     enabled: !!selectedBooking,
     retry: false,

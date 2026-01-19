@@ -44,10 +44,12 @@ export function SiteFooter() {
                         <h4 className="font-semibold mb-4">Discover</h4>
                         <ul className="space-y-2 text-sm text-muted-foreground">
                             <li><Link href="/about-dzaleka" className="hover:text-primary">About Dzaleka</Link></li>
+                            <li><Link href="/about-us" className="hover:text-primary">About Us</Link></li>
                             <li><Link href="/life-in-dzaleka" className="hover:text-primary">Life in Dzaleka</Link></li>
                             <li><Link href="/destinations" className="hover:text-primary">Destinations</Link></li>
                             <li><Link href="/things-to-do/host-community" className="hover:text-primary">Host Community</Link></li>
                             <li><Link href="/partner-with-us" className="hover:text-primary">Partner With Us</Link></li>
+                            <li><Link href="/friends-of-dzaleka" className="hover:text-primary">Friends of Dzaleka</Link></li>
                         </ul>
                     </div>
                     <div>
@@ -59,6 +61,7 @@ export function SiteFooter() {
                             <li><Link href="/plan-your-trip" className="hover:text-primary">Plan Your Trip</Link></li>
                             <li><Link href="/blog" className="hover:text-primary">Blog</Link></li>
                             <li><Link href="/faq" className="hover:text-primary">FAQ</Link></li>
+                            <li><Link href="/impact-report" className="hover:text-primary">Impact Report</Link></li>
                             <li><Link href="/support-our-work" className="hover:text-primary">Support Our Work</Link></li>
                         </ul>
                     </div>
@@ -67,6 +70,7 @@ export function SiteFooter() {
                         <ul className="space-y-2 text-sm text-muted-foreground">
                             <li>info@mail.dzaleka.com</li>
                             <li>Dowa District, Malawi</li>
+                            <li><Link href="/contact" className="hover:text-primary">Contact Us</Link></li>
                             <li className="pt-2">
                                 <Link href="/login" className="hover:text-primary font-medium">Book a Tour →</Link>
                             </li>

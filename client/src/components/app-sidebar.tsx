@@ -220,6 +220,12 @@ const financeItems: NavItem[] = [
 
 const operationsItems: NavItem[] = [
   {
+    title: "Operations Manual",
+    url: "/operations-manual",
+    icon: BookOpen,
+    roles: ["admin", "coordinator"],
+  },
+  {
     title: "Security",
     url: "/security",
     icon: Shield,
