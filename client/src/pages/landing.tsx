@@ -493,7 +493,8 @@ export default function Landing() {
                       <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10 pointer-events-none" />
                       <Input
                         type="date"
-                        className="pl-10 w-full max-w-full h-12 text-base block min-w-0 [&::-webkit-calendar-picker-indicator]:opacity-100 box-border"
+                        className="pl-10 w-full max-w-full h-12 text-base block min-w-0 appearance-none bg-transparent [&::-webkit-calendar-picker-indicator]:opacity-100 box-border"
+                        style={{ WebkitAppearance: "none", minWidth: 0 }}
                         min={new Date().toISOString().split('T')[0]}
                       />
                     </div>
