@@ -9,6 +9,7 @@ interface SEOProps {
   keywords?: string;
   canonical?: string;
   structuredData?: object;
+  robots?: string;
 }
 
 export function SEO({
@@ -19,7 +20,8 @@ export function SEO({
   ogImage,
   keywords,
   canonical,
-  structuredData
+  structuredData,
+  robots
 }: SEOProps) {
   const defaultDescription = "Book guided tours of Dzaleka Refugee Camp in Malawi. Experience vibrant African culture, meet local artists and entrepreneurs, and support refugee-led initiatives. Book your transformative cultural experience today.";
   const defaultOgImage = "https://services.dzaleka.com/images/Visit_Dzaleka.png";
@@ -289,7 +291,7 @@ export function SEO({
       <title>{title} | {name}</title>
       <meta name="description" content={fullDescription} />
       <meta name="keywords" content={keywords || defaultKeywords} />
-      <meta name="robots" content="index, follow, max-image-preview:large" />
+      <meta name="robots" content={robots || "index, follow, max-image-preview:large"} />
       <meta name="author" content="Visit Dzaleka" />
 
       {/* Canonical URL */}

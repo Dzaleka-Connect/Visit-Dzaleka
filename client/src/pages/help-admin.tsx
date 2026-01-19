@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Helmet } from "react-helmet-async";
+
 import {
     Plus,
     Edit,
@@ -214,12 +214,10 @@ export default function HelpAdmin() {
     return (
         <>
             <SEO
-                title="Help Center Admin"
+                title="Help Center Admin | Visit Dzaleka"
                 description="Manage help articles and support tickets"
+                robots="noindex"
             />
-            <Helmet>
-                <title>Help Admin | Visit Dzaleka</title>
-            </Helmet>
 
             <div className="space-y-6">
                 <div className="flex items-center justify-between">

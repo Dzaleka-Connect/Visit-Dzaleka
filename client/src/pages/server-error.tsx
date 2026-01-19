@@ -25,6 +25,7 @@ export default function ServerError({ error, resetError }: ServerErrorProps) {
       <SEO
         title="500 - Server Error"
         description="Something went wrong on our end."
+        robots="noindex"
       />
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">

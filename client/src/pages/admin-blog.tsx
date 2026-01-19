@@ -27,6 +27,7 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { SEO } from "@/components/seo";
 
 export default function AdminBlog() {
     const { toast } = useToast();
@@ -62,6 +63,11 @@ export default function AdminBlog() {
 
     return (
         <div className="space-y-6">
+            <SEO
+                title="Blog Management | Visit Dzaleka"
+                description="Manage blog posts"
+                robots="noindex"
+            />
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Blog Management</h1>

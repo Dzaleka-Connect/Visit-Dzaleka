@@ -2,7 +2,7 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Helmet } from "react-helmet-async";
+
 import {
     Search,
     HelpCircle,
@@ -174,12 +174,9 @@ export default function HelpCenter() {
     return (
         <>
             <SEO
-                title="Help Center"
+                title="Help Center | Visit Dzaleka"
                 description="Get help and learn about the Visit Dzaleka platform"
             />
-            <Helmet>
-                <title>Help Center | Visit Dzaleka</title>
-            </Helmet>
 
             <div className="space-y-6">
                 {/* Header */}

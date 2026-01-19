@@ -72,6 +72,11 @@ export default function ImpactReportView() {
     if (!report) {
         return (
             <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+                <SEO
+                    title="Report Not Found | Visit Dzaleka"
+                    description="The impact report you are looking for does not exist."
+                    robots="noindex"
+                />
                 <FileText className="h-16 w-16 text-muted-foreground mb-4" />
                 <h1 className="text-2xl font-bold mb-2">Report Not Found</h1>
                 <p className="text-muted-foreground mb-6">The report you're looking for doesn't exist.</p>

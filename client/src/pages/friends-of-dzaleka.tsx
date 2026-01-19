@@ -106,7 +106,7 @@ export default function FriendsOfDzaleka() {
     return (
         <div className="min-h-screen bg-background flex flex-col font-sans">
             <SEO
-                title="Friends of Dzaleka | Visit Dzaleka"
+                title="Friends of Dzaleka"
                 description="Join Friends of Dzaleka – help share the real story of Dzaleka Refugee Camp through authentic, community-led storytelling."
                 keywords="Friends of Dzaleka, Dzaleka ambassador, community storytelling, refugee camp stories, ethical tourism"
                 canonical="https://visit.dzaleka.com/friends-of-dzaleka"

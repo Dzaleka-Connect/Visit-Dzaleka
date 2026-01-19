@@ -13,6 +13,7 @@ export default function Unauthorized() {
             <SEO
                 title="Unauthorized Access"
                 description="You don't have permission to access this page."
+                robots="noindex"
             />
 
             <Card className="w-full max-w-md text-center">

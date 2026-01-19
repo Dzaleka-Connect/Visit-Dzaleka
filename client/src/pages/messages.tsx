@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Helmet } from "react-helmet-async";
+import { SEO } from "@/components/seo";
 import { supabase, isRealtimeEnabled } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
@@ -276,9 +276,11 @@ export default function Messages() {
 
     return (
         <>
-            <Helmet>
-                <title>Messages | Dzaleka Visit</title>
-            </Helmet>
+            <SEO
+                title="Messages | Dzaleka Visit"
+                description="Chat with team members and guides."
+                robots="noindex, nofollow"
+            />
 
             <div className="flex flex-col h-[calc(100vh-8rem)]">
                 {/* Header - Desktop only */}

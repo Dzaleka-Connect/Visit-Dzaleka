@@ -14,6 +14,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useEffect } from "react";
+import { SEO } from "@/components/seo";
 
 export default function AdminBlogEditor() {
     const { toast } = useToast();
@@ -102,6 +103,11 @@ export default function AdminBlogEditor() {
 
     return (
         <div className="space-y-6 max-w-4xl mx-auto pb-10">
+            <SEO
+                title={`${isEditing ? "Edit Blog Post" : "New Blog Post"} | Visit Dzaleka`}
+                description="Blog post editor"
+                robots="noindex"
+            />
             <div className="flex items-center gap-4">
                 <Button variant="ghost" size="icon" asChild>
                     <Link href="/admin/blog"><ArrowLeft className="h-4 w-4" /></Link>

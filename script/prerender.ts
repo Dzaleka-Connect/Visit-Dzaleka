@@ -12,6 +12,8 @@ const __dirname = dirname(__filename);
 const STATIC_ROUTES = [
     "/",
     "/landing",
+    "/about-us",
+    "/about-dzaleka",
     "/blog",
     "/things-to-do",
     "/things-to-do/arts-culture",
@@ -21,6 +23,19 @@ const STATIC_ROUTES = [
     "/accommodation",
     "/whats-on",
     "/plan-your-trip",
+    "/partner-with-us",
+    "/friends-of-dzaleka",
+    "/support-our-work",
+    "/contact",
+    "/faq",
+    "/life-in-dzaleka",
+    "/destinations",
+    "/visitor-essentials",
+    "/financial-framework",
+    "/marketing-strategy",
+    "/impact-report",
+    "/cookie-notice",
+    "/disclaimer",
 ];
 
 async function prerender() {

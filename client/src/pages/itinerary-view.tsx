@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, ArrowLeft, MapPin, Printer, Calendar, Clock, User } from "lucide-react";
 import { Itinerary } from "@shared/schema";
 import { formatDate } from "@/lib/constants";
+import { SEO } from "@/components/seo";
 
 interface ItineraryItem {
     time: string;
@@ -66,6 +67,11 @@ export default function ItineraryView() {
 
     return (
         <div className="container mx-auto p-4 md:p-8 max-w-4xl">
+            <SEO
+                title={`Trip Itinerary | ${content.recipientName}`}
+                description="Your personalized itinerary for visiting Dzaleka Refugee Camp."
+                robots="noindex, nofollow"
+            />
             <Button variant="ghost" asChild className="mb-6">
                 <Link href={`/bookings/${id}`}>
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Booking

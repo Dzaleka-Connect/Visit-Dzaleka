@@ -408,6 +408,11 @@ export default function BookingDetails() {
     if (error || !booking) {
         return (
             <div className="flex flex-col items-center justify-center h-64 space-y-4">
+                <SEO
+                    title="Booking Not Found | Visit Dzaleka"
+                    description="The booking you are looking for does not exist."
+                    robots="noindex"
+                />
                 <AlertCircle className="h-12 w-12 text-muted-foreground" />
                 <h2 className="text-xl font-semibold">Booking Not Found</h2>
                 <p className="text-muted-foreground">The booking you're looking for doesn't exist.</p>
