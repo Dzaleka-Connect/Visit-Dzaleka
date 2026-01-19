@@ -489,11 +489,11 @@ export default function Landing() {
                 <div className="flex flex-col md:flex-row gap-4 w-full md:items-end">
                   <div className="flex-1 space-y-2 min-w-0">
                     <label className="text-sm font-medium text-muted-foreground">When are you visiting?</label>
-                    <div className="relative w-full">
+                    <div className="relative w-full min-w-0">
                       <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10 pointer-events-none" />
                       <Input
                         type="date"
-                        className="pl-10 w-full h-12 text-base [&::-webkit-calendar-picker-indicator]:opacity-100"
+                        className="pl-10 w-full h-12 text-base block min-w-0 [&::-webkit-calendar-picker-indicator]:opacity-100"
                         min={new Date().toISOString().split('T')[0]}
                       />
                     </div>
