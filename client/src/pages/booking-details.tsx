@@ -345,11 +345,11 @@ export default function BookingDetails() {
     });
 
     const { data: zones } = useQuery<Zone[]>({
-        queryKey: ["/api/public/zones"],
+        queryKey: ["/api/zones"],
     });
 
     const { data: pointsOfInterest } = useQuery<PointOfInterest[]>({
-        queryKey: ["/api/public/points-of-interest"],
+        queryKey: ["/api/points-of-interest"],
     });
 
     const updateStatusMutation = useMutation({
@@ -386,7 +386,8 @@ export default function BookingDetails() {
             const zone = zones.find((z) => z.id === zoneId);
             if (zone) return zone.name;
         }
-        return "Unknown Zone";
+        // Fallback: format snake_case IDs
+        return zoneId.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
     };
 
     const getPoiName = (poiId: string) => {
@@ -394,7 +395,8 @@ export default function BookingDetails() {
             const poi = pointsOfInterest.find((p) => p.id === poiId);
             if (poi) return poi.name;
         }
-        return poiId;
+        // Fallback: format snake_case IDs
+        return poiId.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
     };
 
     if (isLoading) {
@@ -492,9 +494,9 @@ export default function BookingDetails() {
                                     <Label className="text-xs text-muted-foreground">Name</Label>
                                     <p className="font-medium">{booking.visitorName}</p>
                                 </div>
-                                <div>
+                                <div className="min-w-0">
                                     <Label className="text-xs text-muted-foreground">Email</Label>
-                                    <p className="font-medium">{booking.visitorEmail}</p>
+                                    <p className="font-medium truncate">{booking.visitorEmail}</p>
                                 </div>
                                 <div>
                                     <Label className="text-xs text-muted-foreground">Phone</Label>

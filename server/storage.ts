@@ -866,7 +866,7 @@ export class SupabaseStorage implements IStorage {
     const { data, error } = await this.supabase
       .from("bookings")
       .select("*")
-      .eq("status", "confirmed")
+      .in("status", ["confirmed", "in_progress"]) // Include both checked-in statuses
       .not("check_in_time", "is", null)
       .is("check_out_time", null)
       .order("check_in_time");

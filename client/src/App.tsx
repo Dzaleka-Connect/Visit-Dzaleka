@@ -101,6 +101,7 @@ import SupportOurWork from "@/pages/support-our-work";
 import Destinations from "@/pages/destinations";
 import { usePageTracker } from "@/hooks/usePageTracker";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
+import { ScrollToTop } from "@/components/scroll-to-top";
 
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -289,6 +290,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <AnalyticsTracker />
+          <ScrollToTop />
           <Toaster />
           <Router />
         </TooltipProvider>

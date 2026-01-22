@@ -152,7 +152,7 @@ export default function RecurringBookingsPage() {
                                     <TableRow key={schedule.id}>
                                         <TableCell>
                                             <div className="font-medium">{schedule.organizationName || schedule.visitorName}</div>
-                                            <div className="text-sm text-muted-foreground">{schedule.visitorEmail}</div>
+                                            <div className="text-sm text-muted-foreground truncate max-w-[200px]">{schedule.visitorEmail}</div>
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2">

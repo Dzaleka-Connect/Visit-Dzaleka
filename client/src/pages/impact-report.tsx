@@ -50,16 +50,16 @@ const publishedReports = [
     {
         id: "2025",
         title: "2025 Impact Report",
-        period: "2025",
-        publishedDate: "Coming Soon",
+        period: "January - December 2025",
+        publishedDate: "January 2026",
         type: "Yearly",
         highlights: [
-            "6 tours completed",
-            "18 visitors hosted",
-            "MK 280,000 revenue generated"
+            "5 tours completed",
+            "17 visitors hosted",
+            "3 countries represented"
         ],
         downloadUrl: null,
-        status: "Coming Soon"
+        status: "Published"
     },
 ];
 

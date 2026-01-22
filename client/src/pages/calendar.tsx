@@ -689,11 +689,11 @@ export default function CalendarPage() {
                       data-testid={`booking-detail-${booking.id}`}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h4 className="font-medium">{booking.visitorName}</h4>
-                          <p className="text-sm text-muted-foreground">{booking.visitorEmail}</p>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-medium truncate">{booking.visitorName}</h4>
+                          <p className="text-sm text-muted-foreground truncate">{booking.visitorEmail}</p>
                         </div>
-                        <StatusBadge status={booking.status || "pending"} />
+                        <StatusBadge status={booking.status || "pending"} className="shrink-0" />
                       </div>
                       <div className="mt-3 space-y-2">
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -744,8 +744,8 @@ export default function CalendarPage() {
                     #{selectedBooking.bookingReference || selectedBooking.id.slice(0, 8)}
                   </span>
                 </div>
-                <SheetTitle className="text-xl mt-2">{selectedBooking.visitorName}</SheetTitle>
-                <SheetDescription>{selectedBooking.visitorEmail}</SheetDescription>
+                <SheetTitle className="text-xl mt-2 truncate">{selectedBooking.visitorName}</SheetTitle>
+                <SheetDescription className="truncate">{selectedBooking.visitorEmail}</SheetDescription>
               </SheetHeader>
 
               <div className="mt-6 space-y-6">

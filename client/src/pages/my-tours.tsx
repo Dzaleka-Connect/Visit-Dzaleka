@@ -155,10 +155,10 @@ export default function MyTours() {
                             {tour.visitorEmail && (
                                 <a
                                     href={`mailto:${tour.visitorEmail}`}
-                                    className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+                                    className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline max-w-[200px]"
                                 >
-                                    <Mail className="h-3.5 w-3.5" />
-                                    {tour.visitorEmail}
+                                    <Mail className="h-3.5 w-3.5 shrink-0" />
+                                    <span className="truncate">{tour.visitorEmail}</span>
                                 </a>
                             )}
                             {tour.visitorPhone && (

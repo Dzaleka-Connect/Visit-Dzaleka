@@ -30,6 +30,10 @@ interface StatCardProps {
   className?: string;
   /** If true, formats numbers as 1K, 10K, 1M. Default: true */
   compactNumbers?: boolean;
+  /** If true, highlights the card with a colored border */
+  highlight?: boolean;
+  /** If true, adds a pulsing indicator */
+  pulse?: boolean;
 }
 
 export function StatCard({
@@ -40,18 +44,30 @@ export function StatCard({
   trend,
   className,
   compactNumbers = true,
+  highlight = false,
+  pulse = false,
 }: StatCardProps) {
   const displayValue = compactNumbers ? formatCompactNumber(value) : value;
 
   return (
-    <Card className={cn("hover-elevate", className)}>
+    <Card className={cn(
+      "hover-elevate transition-all",
+      highlight && "border-primary/50 bg-primary/5 ring-1 ring-primary/20",
+      className
+    )}>
       <CardContent className="p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-muted-foreground">
+            <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               {title}
+              {pulse && (
+                <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              )}
             </span>
-            <span className="text-2xl font-semibold tracking-tight">
+            <span className={cn(
+              "text-2xl font-semibold tracking-tight",
+              highlight && "text-primary"
+            )}>
               {displayValue}
             </span>
             {subtitle && (
@@ -69,7 +85,10 @@ export function StatCard({
               </span>
             )}
           </div>
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <div className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+            highlight ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
+          )}>
             <Icon className="h-5 w-5" />
           </div>
         </div>

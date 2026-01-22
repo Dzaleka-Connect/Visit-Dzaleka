@@ -17,7 +17,8 @@ import {
     Download,
     CalendarDays,
     TrendingUp,
-    CheckCircle2
+    CheckCircle2,
+    BookOpen
 } from "lucide-react";
 
 const reportsData: Record<string, {
@@ -31,37 +32,68 @@ const reportsData: Record<string, {
     stats: { label: string; value: string; icon: any }[];
     visitorOrigins: { country: string; flag: string; visitors: number }[];
     highlights: string[];
+    tourStories: { date: string; title: string; description: string }[];
     downloadUrl: string | null;
 }> = {
     "2025": {
         id: "2025",
         title: "2025 Impact Report",
-        period: "2025",
-        publishedDate: "Coming Soon",
+        period: "January - December 2025",
+        publishedDate: "January 2026",
         type: "Yearly",
-        status: "Coming Soon",
-        summary: "Our first full year impact report tracking the growth of refugee-led tourism at Dzaleka. This report covers all tours, visitors, and revenue generated through the Visit Dzaleka platform.",
+        status: "Published",
+        summary: "Our inaugural year of refugee-led tourism at Dzaleka Refugee Camp. 2025 saw visitors from across the globe—photojournalists documenting refugee life, families seeking cultural education, NGO representatives exploring partnerships, and artists connecting with local creatives. Together, they contributed to sustainable livelihoods for our refugee guides and artisans.",
         stats: [
-            { label: "Total Bookings", value: "6", icon: CalendarDays },
-            { label: "Participants", value: "18", icon: Users },
-            { label: "Total Revenue", value: "MK 280,000", icon: DollarSign },
+            { label: "Total Tours", value: "5", icon: CalendarDays },
+            { label: "Visitors Hosted", value: "17", icon: Users },
+            { label: "Guide Earnings", value: "MK 175,000", icon: DollarSign },
         ],
         visitorOrigins: [
             { country: "United States", flag: "🇺🇸", visitors: 14 },
             { country: "Germany", flag: "🇩🇪", visitors: 2 },
             { country: "United Kingdom", flag: "🇬🇧", visitors: 1 },
-            { country: "South Africa", flag: "🇿🇦", visitors: 1 },
         ],
         highlights: [
-            "6 tours completed",
-            "18 visitors hosted",
-            "MK 280,000 revenue generated",
-            "Visitors from 4 countries",
-            "100% positive feedback"
+            "First photojournalist team documented life at Dzaleka",
+            "Multi-generational families explored refugee heritage and culture",
+            "NGO partnership inquiry for climate-smart agriculture and education",
+            "Congolese diaspora visitor reconnected with birth culture",
+            "UK artist researched creative collaborations with camp artists",
+            "100% of tour revenue supported refugee guides and artisans",
+            "Zones visited: Lisungwi, Kawale, Likuni, Zomba, Blantyre, Katubza",
+            "Top interests: Educational programs, Community projects, Cultural heritage"
+        ],
+        tourStories: [
+            {
+                date: "March 25, 2025",
+                title: "Photojournalists Fact-Finding Tour",
+                description: "A team of photojournalists arrived for a fact-finding mission, meeting at the UNHCR Office at 10:00 AM. They documented educational programs and community projects throughout the camp."
+            },
+            {
+                date: "May 2, 2025",
+                title: "Family Cultural Immersion",
+                description: "A family of 6 (2 adults and 4 children ages 9-17) explored 8 zones across the camp, experiencing local markets, educational facilities, and learning about the history of Dzaleka."
+            },
+            {
+                date: "June 21, 2025",
+                title: "NGO Partnership Exploration",
+                description: "An NGO representative working on climate-smart agriculture and education visited Likuni and Zomba zones to explore potential community partnerships."
+            },
+            {
+                date: "July 4, 2025",
+                title: "Diaspora Cultural Connection",
+                description: "A family from the US, including a daughter originally from Bukavu, DRC, visited to experience community life and cultural heritage, giving the children a broader understanding of refugee resilience."
+            },
+            {
+                date: "December 2, 2025",
+                title: "Artist Research Visit",
+                description: "A London-based painter visited Art for Hope in Kawale to meet visual artists and research how creative industries can support refugee artisans remotely."
+            }
         ],
         downloadUrl: null
     }
 };
+
 
 export default function ImpactReportView() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -251,6 +283,32 @@ export default function ImpactReportView() {
                         </div>
                     </div>
                 </section>
+
+                {/* Tour Stories */}
+                {report.tourStories && report.tourStories.length > 0 && (
+                    <section className="py-12 bg-muted/30">
+                        <div className="container mx-auto px-4 max-w-4xl">
+                            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                                <BookOpen className="h-5 w-5 text-primary" />
+                                Tour Stories
+                            </h2>
+                            <div className="space-y-4">
+                                {report.tourStories.map((story, index) => (
+                                    <Card key={index}>
+                                        <CardContent className="p-6">
+                                            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                                                <CalendarDays className="h-4 w-4" />
+                                                {story.date}
+                                            </div>
+                                            <h3 className="font-semibold text-lg mb-2">{story.title}</h3>
+                                            <p className="text-muted-foreground leading-relaxed">{story.description}</p>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        </div>
+                    </section>
+                )}
 
                 {/* CTA */}
                 <section className="py-12 bg-primary/5">

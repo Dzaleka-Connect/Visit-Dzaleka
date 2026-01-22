@@ -193,7 +193,8 @@ function AdminDashboard() {
     monthlyGrowth: 0,
   };
 
-
+  // Check if there are any tours currently in progress
+  const hasActiveTours = todaysTours?.some(t => t.status === "in_progress") || false;
 
   return (
     <div className="space-y-6 overflow-x-hidden">
@@ -328,8 +329,10 @@ function AdminDashboard() {
         <StatCard
           title="Today's Tours"
           value={dashboardStats.todaysTours}
-          subtitle={formatDate(new Date())}
+          subtitle={hasActiveTours ? "Tour in progress" : formatDate(new Date())}
           icon={CalendarDays}
+          highlight={hasActiveTours}
+          pulse={hasActiveTours}
         />
       </div>
 
@@ -668,6 +671,8 @@ function CoordinatorDashboard() {
     monthlyGrowth: 0,
   };
 
+  const hasActiveTours = todaysTours?.some(t => t.status === "in_progress") || false;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
@@ -687,8 +692,10 @@ function CoordinatorDashboard() {
         <StatCard
           title="Today's Tours"
           value={dashboardStats.todaysTours}
-          subtitle={formatDate(new Date())}
+          subtitle={hasActiveTours ? "Tour in progress" : formatDate(new Date())}
           icon={CalendarDays}
+          highlight={hasActiveTours}
+          pulse={hasActiveTours}
         />
         <StatCard
           title="Active Guides"

@@ -5798,6 +5798,9 @@ export async function registerRoutes(
         0
       );
 
+      // Create a map for quick guide lookup
+      const guideMap = new Map(guides.map(g => [g.id, g]));
+
       // Simple heuristic for available guides: Active guides who are NOT currently assigned to an active visit
       const busyGuideIds = new Set(
         activeVisits.map((b) => b.assignedGuideId).filter(Boolean)
@@ -5806,13 +5809,22 @@ export async function registerRoutes(
         (g) => g.isActive && !busyGuideIds.has(g.id)
       );
 
+      // Enhance active bookings with guide name
+      const enhancedActiveBookings = activeVisits.map((booking) => {
+        const guide = booking.assignedGuideId ? guideMap.get(booking.assignedGuideId) : null;
+        return {
+          ...booking,
+          guideName: guide ? `${guide.firstName} ${guide.lastName}` : null,
+        };
+      });
+
       res.json({
         activeTours: activeVisits.length,
         visitorsOnSite,
         openIncidents: openIncidents.length,
         availableGuides: availableGuides.length,
         recentIncidents: openIncidents.slice(0, 5),
-        activeBookings: activeVisits,
+        activeBookings: enhancedActiveBookings,
       });
     } catch (error) {
       logError("Error fetching live ops stats", error, req.requestId);

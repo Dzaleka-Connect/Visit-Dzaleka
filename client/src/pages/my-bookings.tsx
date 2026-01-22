@@ -465,12 +465,12 @@ export default function MyBookings() {
 
   const getZoneName = (zoneId: string) => {
     const zone = zones?.find((z) => z.id === zoneId);
-    return zone?.name || "Unknown Zone";
+    return zone?.name || zoneId.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
   };
 
   const getPoiName = (poiId: string) => {
     const poi = pointsOfInterest?.find((p) => p.id === poiId);
-    return poi?.name || poiId;
+    return poi?.name || poiId.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
   };
 
   const isFormValid =
@@ -533,9 +533,9 @@ export default function MyBookings() {
                       <Label className="text-xs text-muted-foreground">Name</Label>
                       <p className="font-medium">{selectedBooking.visitorName}</p>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <Label className="text-xs text-muted-foreground">Email</Label>
-                      <p className="font-medium">{selectedBooking.visitorEmail}</p>
+                      <p className="font-medium truncate">{selectedBooking.visitorEmail}</p>
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Phone</Label>

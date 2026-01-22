@@ -799,9 +799,15 @@ export default function Bookings() {
   };
 
   const getZoneName = (zoneId: string) => {
-    if (!zones) return zoneId;
+    if (!zones) return zoneId.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
     const zone = zones.find((z) => z.id === zoneId);
-    return zone?.name || zoneId;
+    return zone?.name || zoneId.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+  };
+
+  const getPoiName = (poiId: string) => {
+    if (!pointsOfInterest) return poiId.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+    const poi = pointsOfInterest.find((p) => p.id === poiId);
+    return poi?.name || poiId.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
   };
 
   const getTourTypeName = (id: string) => {
@@ -874,7 +880,7 @@ export default function Bookings() {
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Email</Label>
-                      <p className="font-medium">{selectedBooking.visitorEmail}</p>
+                      <p className="font-medium truncate max-w-[200px]">{selectedBooking.visitorEmail}</p>
                       <Button variant="ghost" className="p-0 h-auto text-xs" onClick={() => handleSendEmail(selectedBooking)}>
                         Send Email
                       </Button>
@@ -975,7 +981,7 @@ export default function Bookings() {
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
                       {selectedBooking.selectedInterests.map((interest, idx) => (
-                        <Badge key={idx} variant="outline" className="capitalize">{interest.replace(/_/g, " ")}</Badge>
+                        <Badge key={idx} variant="outline" className="capitalize">{getPoiName(interest)}</Badge>
                       ))}
                     </div>
                   </CardContent>
@@ -1458,14 +1464,14 @@ export default function Bookings() {
                           />
                         </TableCell>
                         <TableCell>
-                          <div className="flex flex-col">
+                          <div className="flex flex-col min-w-0">
                             <button
-                              className="font-medium text-left hover:text-primary hover:underline cursor-pointer transition-colors"
+                              className="font-medium text-left hover:text-primary hover:underline cursor-pointer transition-colors truncate"
                               onClick={() => handleViewDetails(booking)}
                             >
                               {booking.visitorName}
                             </button>
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-xs text-muted-foreground truncate max-w-[180px]">
                               {booking.visitorEmail}
                             </span>
                           </div>
