@@ -63,6 +63,7 @@ export function SiteFooter() {
                             <li><Link href="/faq" className="hover:text-primary">FAQ</Link></li>
                             <li><Link href="/impact-report" className="hover:text-primary">Impact Report</Link></li>
                             <li><Link href="/support-our-work" className="hover:text-primary">Support Our Work</Link></li>
+                            <li><Link href="/newsletter" className="hover:text-primary">Newsletter</Link></li>
                         </ul>
                     </div>
                     <div>

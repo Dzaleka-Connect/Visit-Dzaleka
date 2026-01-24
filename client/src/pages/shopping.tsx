@@ -2,7 +2,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { ShoppingBag, ArrowRight, Menu, X, Clock, Calendar, Utensils, Scissors, Monitor, Wallet, ExternalLink, Store } from "lucide-react";
+import { ShoppingBag, ArrowRight, Menu, X, Clock, Calendar, Utensils, Scissors, Monitor, Wallet, ExternalLink, Store, Quote, ShieldAlert, Lightbulb, TrendingUp, Lock, Users, Layers, Handshake } from "lucide-react";
 import { useState } from "react";
 import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
@@ -73,7 +73,9 @@ export default function ShoppingMarkets() {
                                 <div className="py-1">
                                     <Link href="/things-to-do" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">All Experiences</Link>
                                     <Link href="/things-to-do/arts-culture" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Arts & Culture</Link>
-                                    <Link href="/things-to-do/shopping" className="block px-4 py-2 text-sm bg-muted/50 text-primary font-medium">Shopping & Markets</Link>
+                                    <Link href="/things-to-do/shopping" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Shopping & Markets</Link>
+                                    <Link href="/things-to-do/nature-outdoors" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Nature & Outdoors</Link>
+                                    <Link href="/things-to-do/dining-nightlife" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Dining & Nightlife</Link>
                                     <Link href="/things-to-do/sports-recreation" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Sports & Recreation</Link>
                                     <Link href="/things-to-do/host-community" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Host Community</Link>
                                 </div>
@@ -81,7 +83,22 @@ export default function ShoppingMarkets() {
                         </div>
                         <Link href="/accommodation" className="text-sm font-medium hover:text-primary transition-colors">Accommodation</Link>
                         <Link href="/whats-on" className="text-sm font-medium hover:text-primary transition-colors">What's On</Link>
-                        <Link href="/plan-your-trip" className="text-sm font-medium hover:text-primary transition-colors">Plan Your Trip</Link>
+                        <div className="relative group">
+                            <Link href="/plan-your-trip" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
+                                Plan Your Trip
+                                <svg className="h-3 w-3 transition-transform group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </Link>
+                            <div className="absolute left-0 top-full mt-1 w-48 rounded-md border bg-background shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                <div className="py-1">
+                                    <Link href="/plan-your-trip" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Trip Planner</Link>
+                                    <Link href="/plan-your-trip/visitor-essentials" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Visitor Essentials</Link>
+                                    <Link href="/plan-your-trip/public-holidays" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Public Holidays</Link>
+                                    <Link href="/accommodation" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Accommodation</Link>
+                                </div>
+                            </div>
+                        </div>
                         <div className="flex items-center gap-2 ml-2">
                             <Button asChild size="sm">
                                 <Link href="/login">Book Now</Link>
@@ -106,11 +123,15 @@ export default function ShoppingMarkets() {
                         <Link href="/things-to-do" className="block text-sm font-medium py-1 text-primary" onClick={() => setMobileMenuOpen(false)}>Things To Do</Link>
                         <Link href="/things-to-do/arts-culture" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Arts & Culture</Link>
                         <Link href="/things-to-do/shopping" className="block text-sm font-medium py-1 pl-4 text-primary" onClick={() => setMobileMenuOpen(false)}>↳ Shopping & Markets</Link>
+                        <Link href="/things-to-do/nature-outdoors" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Nature & Outdoors</Link>
+                        <Link href="/things-to-do/dining-nightlife" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Dining & Nightlife</Link>
                         <Link href="/things-to-do/sports-recreation" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Sports & Recreation</Link>
                         <Link href="/things-to-do/host-community" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Host Community</Link>
                         <Link href="/accommodation" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Accommodation</Link>
                         <Link href="/whats-on" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>What's On</Link>
                         <Link href="/plan-your-trip" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Plan Your Trip</Link>
+                        <Link href="/plan-your-trip/visitor-essentials" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Visitor Essentials</Link>
+                        <Link href="/plan-your-trip/public-holidays" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Public Holidays</Link>
                         <div className="flex gap-2 pt-2">
                             <Button asChild className="flex-1">
                                 <Link href="/login">Book Now</Link>
@@ -304,6 +325,97 @@ export default function ShoppingMarkets() {
                                         </ul>
                                     </CardContent>
                                 </Card>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* Economic Resilience Narrative Section */}
+                    <section className="space-y-16">
+                        <div className="text-center max-w-3xl mx-auto">
+                            <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+                                Economic Dynamics & Resilience
+                            </h2>
+                            <p className="text-xl text-muted-foreground leading-relaxed mb-4">
+                                Dzaleka’s market is a testament to agility. Refugee entrepreneurs navigate complex challenges to build livelihoods that support their families and the wider community.
+                            </p>
+                            <p className="text-sm text-muted-foreground/60 italic">
+                                Insights adapted from "Refugee entrepreneurship within and beyond refugee camps" (Msowoya & Luiz, 2025).
+                            </p>
+                        </div>
+
+                        <div className="grid md:grid-cols-2 gap-x-12 gap-y-16">
+                            {/* Insight 1 */}
+                            <div className="group space-y-4">
+                                <div className="flex items-center gap-4 mb-2">
+                                    <div className="h-10 w-10 flex items-center justify-center rounded-full bg-orange-500/10 text-orange-600 dark:text-orange-400 group-hover:scale-110 transition-transform duration-300">
+                                        <ShieldAlert className="h-5 w-5" />
+                                    </div>
+                                    <div className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
+                                </div>
+                                <h3 className="text-2xl font-bold group-hover:text-primary transition-colors">Navigating Systemic Barriers</h3>
+                                <p className="text-muted-foreground leading-relaxed text-lg">
+                                    Doing business outside the camp boundaries presents significant risks, including property confiscation or detention. Despite these hurdles, entrepreneurs find innovative ways to operate, turning constraints into drivers for creative logistical solutions.
+                                </p>
+                            </div>
+
+                            {/* Insight 2 */}
+                            <div className="group space-y-4">
+                                <div className="flex items-center gap-4 mb-2">
+                                    <div className="h-10 w-10 flex items-center justify-center rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform duration-300">
+                                        <Lightbulb className="h-5 w-5" />
+                                    </div>
+                                    <div className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
+                                </div>
+                                <h3 className="text-2xl font-bold group-hover:text-primary transition-colors">From Scarcity to Strategy</h3>
+                                <p className="text-muted-foreground leading-relaxed text-lg">
+                                    Many businesses begin with minimal resources—sometimes initiated by trading a portion of monthly food rations for startup capital. This survivalist improvisation evolves into strategic intent, with entrepreneurs growing to source commodities from Lilongwe and neighboring countries.
+                                </p>
+                            </div>
+
+                            {/* Insight 3 */}
+                            <div className="group space-y-4">
+                                <div className="flex items-center gap-4 mb-2">
+                                    <div className="h-10 w-10 flex items-center justify-center rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform duration-300">
+                                        <Users className="h-5 w-5" />
+                                    </div>
+                                    <div className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
+                                </div>
+                                <h3 className="text-2xl font-bold group-hover:text-primary transition-colors">The Power of Networks</h3>
+                                <p className="text-muted-foreground leading-relaxed text-lg">
+                                    Social capital is as valuable as financial capital. Entrepreneurs leverage connections with diaspora relatives for funding and form critical partnerships with local Malawians. These "boundary-spanning" ties enable market access that would otherwise be legally out of reach.
+                                </p>
+                            </div>
+
+                            {/* Insight 4 */}
+                            <div className="group space-y-4">
+                                <div className="flex items-center gap-4 mb-2">
+                                    <div className="h-10 w-10 flex items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform duration-300">
+                                        <Layers className="h-5 w-5" />
+                                    </div>
+                                    <div className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
+                                </div>
+                                <h3 className="text-2xl font-bold group-hover:text-primary transition-colors">Strategic Diversification</h3>
+                                <p className="text-muted-foreground leading-relaxed text-lg">
+                                    Successful entrepreneurs rarely rely on a single income stream. Most diversify their portfolio, perhaps running a hardware shop in Dzaleka, a restaurant in town, and a wholesale business simultaneously, buffering against shocks and regulatory uncertainty.
+                                </p>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* Final CTA */}
+                    <section className="mt-24 text-center space-y-8 bg-muted/30 py-16 rounded-3xl border border-border/50">
+                        <div className="max-w-2xl mx-auto px-4">
+                            <h2 className="text-3xl font-bold mb-4">Experience the Market Energy</h2>
+                            <p className="text-lg text-muted-foreground mb-8">
+                                There is no better way to understand Dzaleka's economy than to walk its streets. Join a guided tour to meet the entrepreneurs, taste local foods, and support these businesses directly.
+                            </p>
+                            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                                <Button asChild size="lg" className="px-8 text-base">
+                                    <Link href="/login">Book a Market Tour</Link>
+                                </Button>
+                                <Button asChild variant="outline" size="lg" className="px-8 text-base">
+                                    <Link href="/contact">Contact for Group Visits</Link>
+                                </Button>
                             </div>
                         </div>
                     </section>

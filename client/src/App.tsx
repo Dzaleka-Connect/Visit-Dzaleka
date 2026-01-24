@@ -99,6 +99,12 @@ import FAQPage from "@/pages/faq";
 import SupportOurWork from "@/pages/support-our-work";
 
 import Destinations from "@/pages/destinations";
+import NatureOutdoors from "@/pages/nature-outdoors";
+import DiningNightlife from "@/pages/dining-nightlife";
+import PublicHolidays from "@/pages/public-holidays";
+import DzalekaMap from "@/pages/dzaleka-map";
+import Newsletter from "@/pages/newsletter";
+import SafeTravel from "@/pages/safe-travel";
 import { usePageTracker } from "@/hooks/usePageTracker";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { ScrollToTop } from "@/components/scroll-to-top";
@@ -140,7 +146,7 @@ function Router() {
 
   // Embed and Blog routes should be accessible without authenticated layout
   const path = window.location.pathname;
-  if (path.startsWith("/embed/") || path.startsWith("/blog") || path.startsWith("/things-to-do") || path.startsWith("/whats-on") || path.startsWith("/plan-your-trip") || path.startsWith("/accommodation") || path === "/disclaimer" || path === "/cookie-notice" || path === "/destinations" || path === "/partner-with-us" || path === "/faq" || path === "/support-our-work") {
+  if (path.startsWith("/embed/") || path.startsWith("/blog") || path.startsWith("/things-to-do") || path.startsWith("/whats-on") || path.startsWith("/plan-your-trip") || path.startsWith("/accommodation") || path === "/disclaimer" || path === "/cookie-notice" || path === "/destinations" || path === "/partner-with-us" || path === "/faq" || path === "/support-our-work" || path === "/newsletter") {
     return (
       <Switch>
         <Route path="/embed/booking" component={EmbedBooking} />
@@ -149,11 +155,16 @@ function Router() {
         <Route path="/things-to-do" component={ThingsToDo} />
         <Route path="/things-to-do/arts-culture" component={ArtsCulture} />
         <Route path="/things-to-do/shopping" component={ShoppingMarkets} />
+        <Route path="/things-to-do/nature-outdoors" component={NatureOutdoors} />
+        <Route path="/things-to-do/dining-nightlife" component={DiningNightlife} />
         <Route path="/things-to-do/sports-recreation" component={SportsRecreation} />
         <Route path="/things-to-do/host-community" component={HostCommunity} />
         <Route path="/whats-on" component={WhatsOn} />
         <Route path="/plan-your-trip" component={PlanYourTrip} />
         <Route path="/plan-your-trip/visitor-essentials" component={VisitorEssentials} />
+        <Route path="/plan-your-trip/public-holidays" component={PublicHolidays} />
+        <Route path="/plan-your-trip/dzaleka-map" component={DzalekaMap} />
+        <Route path="/plan-your-trip/safe-travel" component={SafeTravel} />
         <Route path="/life-in-dzaleka" component={LifeInDzaleka} />
         <Route path="/about-dzaleka" component={AboutDzaleka} />
         <Route path="/about-us" component={AboutUs} />
@@ -168,6 +179,7 @@ function Router() {
         <Route path="/faq" component={FAQPage} />
         <Route path="/support-our-work" component={SupportOurWork} />
         <Route path="/contact" component={ContactUs} />
+        <Route path="/newsletter" component={Newsletter} />
       </Switch>
     );
   }
