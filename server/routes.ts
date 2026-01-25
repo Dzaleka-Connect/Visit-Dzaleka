@@ -713,12 +713,19 @@ export async function registerRoutes(
   });
 
   // Get current user (session-based)
-  app.get("/api/auth/user", isAuthenticated, async (req, res) => {
+  // Get current user (session-based)
+  app.get("/api/auth/user", async (req, res) => {
     try {
-      const userId = req.session.userId!;
+      if (!req.session?.userId) {
+        return res.json(null);
+      }
+
+      const userId = req.session.userId;
       const user = await storage.getUser(userId);
+
       if (!user) {
-        return res.status(404).json({ message: "User not found" });
+        // Session exists but user not found
+        return res.json(null);
       }
 
       // Sync session role with database (handles role changes by admin)

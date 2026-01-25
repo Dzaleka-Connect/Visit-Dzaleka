@@ -3,9 +3,24 @@ import { useQuery } from "@tanstack/react-query";
 import type { AnalyticsSetting } from "@shared/schema";
 
 export function AnalyticsTracker() {
+    // Only fetch settings if likely to succeed (though settings might be public?)
+    // Actually, settings/analytics likely requires admin or is restricted.
+    // If it's for public tracking (GA4), it should probably be a public endpoint.
+    // But currently likely protected.
+    // Let's check if we have a user first.
+
+    // However, tracking should work for visitors too?
+    // If /api/settings/analytics is protected, then visitors can't get the ID?
+    // That would be a bug for tracking visitors.
+
+    // Let's assume for now it Should be public or we only track if we can get it.
+    // But the error is 401. 
+    // If we suppress the retry, it won't spam.
+
     const { data: settings } = useQuery<AnalyticsSetting>({
         queryKey: ["/api/settings/analytics"],
         staleTime: 5 * 60 * 1000,
+        retry: false, // Don't retry if it fails (e.g. 401)
     });
 
     useEffect(() => {
