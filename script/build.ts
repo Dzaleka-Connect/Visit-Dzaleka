@@ -1,7 +1,27 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile, readdir } from "fs/promises";
+import { rm, readFile, readdir, writeFile } from "fs/promises";
 import { join } from "path";
+
+async function updateServiceWorkerVersion() {
+  const swPath = join("dist", "public", "sw.js");
+  try {
+    const swContent = await readFile(swPath, "utf-8");
+    const today = new Date();
+    const version = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}-v${String(today.getHours()).padStart(2, "0")}${String(today.getMinutes()).padStart(2, "0")}`;
+
+    // Replace the CACHE_VERSION line
+    const newContent = swContent.replace(
+      /const CACHE_VERSION = ['"].*['"];/,
+      `const CACHE_VERSION = '${version}';`
+    );
+
+    await writeFile(swPath, newContent);
+    console.log(`Service Worker updated with version: ${version}`);
+  } catch (error) {
+    console.warn("Could not update Service Worker version:", error);
+  }
+}
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -38,6 +58,7 @@ async function buildAll() {
 
   console.log("building client...");
   await viteBuild();
+  await updateServiceWorkerVersion();
 
   console.log("building server...");
   const pkg = JSON.parse(await readFile("package.json", "utf-8"));
@@ -66,8 +87,8 @@ async function buildAll() {
     const distFiles = await readdir("dist");
     console.log("dist contents:", distFiles);
     if (distFiles.includes("public")) {
-        const publicFiles = await readdir("dist/public");
-        console.log("dist/public contents:", publicFiles);
+      const publicFiles = await readdir("dist/public");
+      console.log("dist/public contents:", publicFiles);
     }
   } catch (e) {
     console.error("Error checking dist directory:", e);

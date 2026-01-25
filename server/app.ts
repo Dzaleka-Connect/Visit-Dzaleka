@@ -126,10 +126,18 @@ export async function createApp() {
   app.use("/api", apiLimiter);
 
   // cache for 5 minutes in browser, 1 hour in CDN (durable)
+  // cache for 5 minutes in browser, 1 hour in CDN (durable)
   app.use("/api", (req, res, next) => {
     if (req.method === "GET") {
-      res.set("Cache-Control", "public, max-age=300");
-      res.set("Netlify-CDN-Cache-Control", "public, max-age=3600, durable");
+      // Don't cache auth endpoints
+      if (req.path.startsWith("/auth/")) {
+        res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+        res.set("Pragma", "no-cache");
+        res.set("Expires", "0");
+      } else {
+        res.set("Cache-Control", "public, max-age=300");
+        res.set("Netlify-CDN-Cache-Control", "public, max-age=3600, durable");
+      }
     }
     next();
   });
