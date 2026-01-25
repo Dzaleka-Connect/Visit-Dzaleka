@@ -125,10 +125,11 @@ export async function createApp() {
   app.use("/api/auth/forgot-password", authLimiter);
   app.use("/api", apiLimiter);
 
-  // cache for 5 minutes in browser, 1 hour in CDN
+  // cache for 5 minutes in browser, 1 hour in CDN (durable)
   app.use("/api", (req, res, next) => {
     if (req.method === "GET") {
-      res.set("Cache-Control", "public, max-age=300, s-maxage=3600");
+      res.set("Cache-Control", "public, max-age=300");
+      res.set("Netlify-CDN-Cache-Control", "public, max-age=3600, durable");
     }
     next();
   });
