@@ -59,6 +59,7 @@ import LifeInDzaleka from "@/pages/life-in-dzaleka";
 import AboutDzaleka from "@/pages/about-dzaleka";
 import AboutUs from "@/pages/about-us";
 import FriendsOfDzaleka from "@/pages/friends-of-dzaleka";
+import FriendProfile from "@/pages/friend-profile";
 import ImpactReport from "@/pages/impact-report";
 import ImpactReportView from "@/pages/impact-report-view";
 import ContactUs from "@/pages/contact";
@@ -146,7 +147,7 @@ function Router() {
 
   // Embed and Blog routes should be accessible without authenticated layout
   const path = window.location.pathname;
-  if (path.startsWith("/embed/") || path.startsWith("/blog") || path.startsWith("/things-to-do") || path.startsWith("/whats-on") || path.startsWith("/plan-your-trip") || path.startsWith("/accommodation") || path === "/disclaimer" || path === "/cookie-notice" || path === "/destinations" || path === "/partner-with-us" || path === "/faq" || path === "/support-our-work" || path === "/newsletter") {
+  if (path.startsWith("/embed/") || path.startsWith("/blog") || path.startsWith("/things-to-do") || path.startsWith("/whats-on") || path.startsWith("/plan-your-trip") || path.startsWith("/accommodation") || path === "/disclaimer" || path === "/cookie-notice" || path === "/destinations" || path === "/partner-with-us" || path === "/faq" || path === "/support-our-work" || path === "/newsletter" || path === "/friends-of-dzaleka" || path.startsWith("/friends-of-dzaleka/")) {
     return (
       <Switch>
         <Route path="/embed/booking" component={EmbedBooking} />
@@ -174,6 +175,8 @@ function Router() {
         <Route path="/destinations" component={Destinations} />
         <Route path="/partner-with-us" component={PartnerWithUs} />
         <Route path="/friends-of-dzaleka" component={FriendsOfDzaleka} />
+        <Route path="/friends-of-dzaleka/:slug" component={FriendProfile} />
+
         <Route path="/impact-report/:id" component={ImpactReportView} />
         <Route path="/impact-report" component={ImpactReport} />
         <Route path="/faq" component={FAQPage} />

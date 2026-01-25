@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
@@ -21,9 +21,16 @@ import {
     MessageCircle,
     HandHeart,
     MapPin,
-    Share2
+    Share2,
+    Instagram,
+    Twitter,
+    Facebook,
+    Youtube,
+    ChevronLeft,
+    ChevronRight
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { friends } from "@/data/friends";
 
 const whoCanApply = [
     "Have a real connection to Dzaleka",
@@ -65,6 +72,54 @@ export default function FriendsOfDzaleka() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
+
+    // Form state for validation
+    const [formData, setFormData] = useState({
+        role: "",
+        bio: "",
+        connection: "",
+        contribution: ""
+    });
+
+    const isFormValid =
+        formData.bio.length >= 150 &&
+        formData.connection.length >= 100 &&
+        formData.contribution.length >= 100;
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    // Handle hash scrolling on mount
+    useEffect(() => {
+        if (window.location.hash) {
+            const id = window.location.hash.substring(1); // Remove the '#'
+            // Use setTimeout to allow potential layout shifts or rendering to complete
+            setTimeout(() => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, 100);
+        }
+    }, []);
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 8;
+    const totalPages = Math.ceil(friends.length / itemsPerPage);
+
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const currentFriends = friends.slice(startIndex, startIndex + itemsPerPage);
+
+    const handlePageChange = (newPage: number) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+            // Scroll to the top of the friends section
+            document.getElementById('meet-friends')?.scrollIntoView({ behavior: 'smooth' });
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -287,6 +342,110 @@ export default function FriendsOfDzaleka() {
                     </div>
                 </section>
 
+                {/* Featured Friends */}
+                <section className="py-16 bg-muted/30" id="meet-friends">
+                    <div className="container mx-auto px-4 max-w-7xl">
+                        <div className="flex items-center gap-3 mb-8">
+                            <Users className="h-6 w-6 text-primary" />
+                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Meet Our Friends</h2>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                            {currentFriends.map((friend, index) => (
+                                <Card key={friend.slug || index} className="overflow-hidden border-none shadow-md bg-background flex flex-col h-full hover:shadow-lg transition-shadow">
+                                    <div className="h-48 relative bg-muted">
+                                        <div className="absolute inset-0 bg-primary/10 flex items-center justify-center text-primary text-4xl font-bold">
+                                            {friend.name.split(' ').map(n => n[0]).join('')}
+                                        </div>
+                                        {friend.image && (
+                                            <img
+                                                src={friend.image}
+                                                alt={friend.name}
+                                                className="absolute inset-0 w-full h-full object-cover"
+                                            />
+                                        )}
+                                    </div>
+                                    <CardContent className="p-5 flex flex-col flex-1">
+                                        <div className="mb-3">
+                                            <h3 className="text-lg font-bold text-foreground mb-1 line-clamp-1">{friend.name}</h3>
+                                            <p className="text-xs font-medium text-primary mb-2 line-clamp-1">{friend.role}</p>
+                                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                <MapPin className="h-3 w-3" />
+                                                {friend.location}
+                                            </div>
+                                        </div>
+
+                                        <p className="text-muted-foreground text-xs leading-relaxed mb-4 line-clamp-3">
+                                            {friend.shortBio}
+                                        </p>
+
+                                        <div className="mt-auto pt-4 flex items-center justify-between border-t">
+                                            <div className="flex gap-2">
+                                                {friend.social.instagram && (
+                                                    <a href={friend.social.instagram} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
+                                                        <Instagram className="h-3.5 w-3.5" />
+                                                    </a>
+                                                )}
+                                                {friend.social.twitter && (
+                                                    <a href={friend.social.twitter} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
+                                                        <Twitter className="h-3.5 w-3.5" />
+                                                    </a>
+                                                )}
+                                            </div>
+                                            <Link href={`/friends-of-dzaleka/${friend.slug}`}>
+                                                <Button variant="link" className="p-0 h-auto text-xs font-semibold">
+                                                    Read Story <ArrowRight className="ml-1 h-3 w-3" />
+                                                </Button>
+                                            </Link>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                            <div className="mt-10 flex justify-center items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() => handlePageChange(currentPage - 1)}
+                                    disabled={currentPage === 1}
+                                    className="h-9 w-9"
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                    <span className="sr-only">Previous Page</span>
+                                </Button>
+
+                                <div className="flex items-center gap-1">
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                        <Button
+                                            key={page}
+                                            variant={currentPage === page ? "default" : "outline"}
+                                            size="sm"
+                                            onClick={() => handlePageChange(page)}
+                                            className={`h-9 w-9 p-0 ${currentPage === page ? 'pointer-events-none' : ''}`}
+                                        >
+                                            {page}
+                                        </Button>
+                                    ))}
+                                </div>
+
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() => handlePageChange(currentPage + 1)}
+                                    disabled={currentPage === totalPages}
+                                    className="h-9 w-9"
+                                >
+                                    <ChevronRight className="h-4 w-4" />
+                                    <span className="sr-only">Next Page</span>
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </section>
+
                 {/* Who Can Apply */}
                 <section className="py-16 bg-background">
                     <div className="container mx-auto px-4 max-w-4xl">
@@ -310,7 +469,7 @@ export default function FriendsOfDzaleka() {
                 </section>
 
                 {/* Application Form */}
-                <section className="py-16 bg-muted/30">
+                <section className="py-16 bg-muted/30" id="apply-form">
                     <div className="container mx-auto px-4 max-w-2xl">
                         <div className="text-center mb-8">
                             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2">Join Friends of Dzaleka</h2>
@@ -347,7 +506,35 @@ export default function FriendsOfDzaleka() {
 
                                     <div className="space-y-2">
                                         <label htmlFor="location" className="text-sm font-medium">Where are you based?</label>
-                                        <Input id="location" name="location" placeholder="e.g., Lilongwe, Malawi or London, UK" />
+                                        <Input id="location" name="location" placeholder="e.g., Lilongwe, Malawi or London, UK" required />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label htmlFor="role" className="text-sm font-medium">Proposed Role / Title</label>
+                                        <Input
+                                            id="role"
+                                            name="role"
+                                            placeholder="e.g., Former Resident, Artist, Supporter, Researcher"
+                                            value={formData.role}
+                                            onChange={handleInputChange}
+                                            required
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label htmlFor="bio" className="text-sm font-medium">Bio / Personal Story</label>
+                                        <Textarea
+                                            id="bio"
+                                            name="bio"
+                                            placeholder="Tell us a bit about yourself. Where were you born? Where did you grow up? What do you do now?"
+                                            className="min-h-[120px]"
+                                            value={formData.bio}
+                                            onChange={handleInputChange}
+                                            required
+                                        />
+                                        <p className={`text-xs text-right ${formData.bio.length < 150 ? 'text-primary' : 'text-muted-foreground'}`}>
+                                            {formData.bio.length}/150 characters min
+                                        </p>
                                     </div>
 
                                     <div className="space-y-2">
@@ -355,20 +542,31 @@ export default function FriendsOfDzaleka() {
                                         <Textarea
                                             id="connection"
                                             name="connection"
-                                            placeholder="Tell us about your relationship with Dzaleka – did you grow up there, visit, work with the community, or have another connection?"
+                                            placeholder="Please describe your relationship with Dzaleka in detail."
                                             className="min-h-[100px]"
+                                            value={formData.connection}
+                                            onChange={handleInputChange}
                                             required
                                         />
+                                        <p className={`text-xs text-right ${formData.connection.length < 100 ? 'text-primary' : 'text-muted-foreground'}`}>
+                                            {formData.connection.length}/100 characters min
+                                        </p>
                                     </div>
 
                                     <div className="space-y-2">
-                                        <label htmlFor="how_help" className="text-sm font-medium">How would you like to help share Dzaleka's story?</label>
+                                        <label htmlFor="contribution" className="text-sm font-medium">Contribution Plan</label>
                                         <Textarea
-                                            id="how_help"
-                                            name="how_help"
-                                            placeholder="e.g., social media, blog posts, video content, word of mouth, etc."
-                                            className="min-h-[80px]"
+                                            id="contribution"
+                                            name="contribution"
+                                            placeholder="How do you plan to help share Dzaleka's story? Be specific about channels and content."
+                                            className="min-h-[100px]"
+                                            value={formData.contribution}
+                                            onChange={handleInputChange}
+                                            required
                                         />
+                                        <p className={`text-xs text-right ${formData.contribution.length < 100 ? 'text-primary' : 'text-muted-foreground'}`}>
+                                            {formData.contribution.length}/100 characters min
+                                        </p>
                                     </div>
 
                                     <div className="space-y-2">
@@ -376,7 +574,7 @@ export default function FriendsOfDzaleka() {
                                         <Input id="social" name="social" placeholder="@yourhandle or https://..." />
                                     </div>
 
-                                    <Button type="submit" className="w-full" disabled={isSubmitting}>
+                                    <Button type="submit" className="w-full" disabled={isSubmitting || !isFormValid}>
                                         {isSubmitting ? (
                                             <>
                                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -396,6 +594,6 @@ export default function FriendsOfDzaleka() {
             </main>
 
             <SiteFooter />
-        </div>
+        </div >
     );
 }

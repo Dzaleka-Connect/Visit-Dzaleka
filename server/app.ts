@@ -125,6 +125,14 @@ export async function createApp() {
   app.use("/api/auth/forgot-password", authLimiter);
   app.use("/api", apiLimiter);
 
+  // cache for 5 minutes in browser, 1 hour in CDN
+  app.use("/api", (req, res, next) => {
+    if (req.method === "GET") {
+      res.set("Cache-Control", "public, max-age=300, s-maxage=3600");
+    }
+    next();
+  });
+
   // CSRF protection for state-changing API requests
   app.use("/api", createCsrfMiddleware(allowedOrigins));
 
