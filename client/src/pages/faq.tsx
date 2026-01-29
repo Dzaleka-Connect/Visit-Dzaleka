@@ -102,7 +102,7 @@ export default function FAQPage() {
     return (
         <div className="min-h-screen bg-background flex flex-col font-sans">
             <SEO
-                title="Frequently Asked Questions | Dzaleka Visit"
+                title="Frequently Asked Questions | Visit Dzaleka"
                 description="Find answers to common questions about visiting Dzaleka Refugee Camp, tour prices, meeting points, and what to expect."
                 keywords="Dzaleka FAQ, tour prices Dzaleka, visiting Dzaleka zones, Dzaleka tour timings"
                 canonical="https://visit.dzaleka.com/faq"
@@ -134,9 +134,9 @@ export default function FAQPage() {
                 <div className="container mx-auto flex h-16 items-center justify-between px-4">
                     <Link href="/">
                         <div className="flex items-center gap-3 cursor-pointer">
-                            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Dzaleka Visit Logo" className="h-10 w-10 rounded-lg shadow-sm" />
+                            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Visit Dzaleka Logo" className="h-10 w-10 rounded-lg shadow-sm" />
                             <div className="flex flex-col">
-                                <span className="text-sm font-bold tracking-tight">Dzaleka Visit</span>
+                                <span className="text-sm font-bold tracking-tight">Visit Dzaleka</span>
                                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
                                     Official Portal
                                 </span>

@@ -19,7 +19,7 @@ export function SiteFooter() {
                     <div className="col-span-1 md:col-span-2">
                         <div className="flex items-center gap-2 mb-4">
                             <MapPin className="h-5 w-5 text-primary" />
-                            <span className="font-bold text-lg">Dzaleka Visit</span>
+                            <span className="font-bold text-lg">Visit Dzaleka</span>
                         </div>
                         <p className="text-muted-foreground max-w-xs mb-6">
                             Connecting visitors with the vibrant community of Dzaleka Refugee Camp through guided tours and cultural exchange.
@@ -90,7 +90,7 @@ export function SiteFooter() {
                 </div>
 
                 <div className="border-t pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-                    <p>© {new Date().getFullYear()} Dzaleka Visit. All rights reserved.</p>
+                    <p>© {new Date().getFullYear()} Visit Dzaleka. All rights reserved.</p>
                     <p>
                         Part of <a href="https://services.dzaleka.com" className="text-primary hover:underline">Dzaleka Online Services</a>
                     </p>

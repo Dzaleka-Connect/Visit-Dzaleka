@@ -74,7 +74,7 @@ export default function NatureOutdoors() {
     return (
         <div className="min-h-screen bg-background flex flex-col">
             <SEO
-                title="Nature & Outdoors | Dzaleka Visit"
+                title="Nature & Outdoors | Visit Dzaleka"
                 description="Explore Dzaleka's community gardens and hill trails, or plan a trip to nearby natural wonders like Kuti Wildlife Reserve and Lake Malawi."
                 keywords="Dzaleka nature, Dzaleka hiking, conservation Dzaleka, Kuti Wildlife Reserve, Lake Malawi National Park, Dzalanyama Forest, eco-tourism Malawi"
                 canonical="https://visit.dzaleka.com/things-to-do/nature-outdoors"
@@ -86,9 +86,9 @@ export default function NatureOutdoors() {
                 <div className="container mx-auto flex h-16 items-center justify-between px-4">
                     <Link href="/">
                         <div className="flex items-center gap-3 cursor-pointer">
-                            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Dzaleka Visit Logo" className="h-10 w-10 rounded-lg shadow-sm" />
+                            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Visit Dzaleka Logo" className="h-10 w-10 rounded-lg shadow-sm" />
                             <div className="flex flex-col">
-                                <span className="text-sm font-bold tracking-tight">Dzaleka Visit</span>
+                                <span className="text-sm font-bold tracking-tight">Visit Dzaleka</span>
                                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
                                     Official Portal
                                 </span>

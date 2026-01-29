@@ -185,7 +185,7 @@ export default function ResetPassword() {
                             className="w-full"
                             disabled={resetMutation.isPending}
                         >
-                            {resetMutation.isPending ? "Resetting..." : "Reset Password"}
+                            {resetMutation.isPending ? "Resetting…" : "Reset Password"}
                         </Button>
 
                         <div className="text-center">

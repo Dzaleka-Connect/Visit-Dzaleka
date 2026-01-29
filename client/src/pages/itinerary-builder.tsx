@@ -478,7 +478,7 @@ export default function ItineraryBuilder() {
 
                             <div className="flex justify-end gap-4">
                                 <Button type="submit" disabled={mutation.isPending} size="lg">
-                                    {mutation.isPending ? "Sending..." : (
+                                    {mutation.isPending ? "Sending…" : (
                                         <>
                                             <Send className="h-4 w-4 mr-2" />
                                             Send Itinerary

@@ -605,7 +605,7 @@ export default function TrainingAdmin() {
                                         disabled={createMutation.isPending || updateMutation.isPending}
                                     >
                                         {createMutation.isPending || updateMutation.isPending ? (
-                                            "Saving..."
+                                            "Saving…"
                                         ) : editingModule ? (
                                             "Update Module"
                                         ) : (

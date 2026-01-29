@@ -1,6 +1,7 @@
 /// <reference path="./types.d.ts" />
 import type { Express, Request, Response, NextFunction } from "express";
-import { type Server } from "http";
+import express from "express";
+import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { hashPassword, verifyPassword } from "./auth";
 import {
@@ -41,6 +42,9 @@ import {
   notifyIncidentReported,
 } from "./notifications";
 import { logError } from "./utils/errors";
+import { logger } from "./lib/logger";
+import { suggestGuides, getTopReason } from "./lib/guide-suggestion";
+import { checkAndSendDueReminders } from "./lib/reminder-scheduler";
 import crypto from "crypto";
 
 // Auth schemas
@@ -89,23 +93,40 @@ async function isAdmin(req: Request, res: Response, next: NextFunction) {
   res.status(403).json({ message: "Admin access required" });
 }
 
-// Pricing calculation helper
-const PRICING = {
-  individual: 15000,
-  small_group: 50000,
-  large_group: 80000,
-  custom: 100000,
-  additional_hour: 10000,
+// Pricing calculation helper - fetches from database
+type PricingMap = Record<string, { basePrice: number; additionalHourPrice: number }>;
+
+async function getPricingMap(): Promise<PricingMap> {
+  const configs = await storage.getPricingConfigs();
+  const map: PricingMap = {};
+  for (const config of configs) {
+    map[config.groupSize] = {
+      basePrice: config.basePrice,
+      additionalHourPrice: config.additionalHourPrice ?? 10000,
+    };
+  }
+  return map;
+}
+
+// Default fallback prices if database is empty
+const DEFAULT_PRICING: PricingMap = {
+  individual: { basePrice: 15000, additionalHourPrice: 10000 },
+  small_group: { basePrice: 50000, additionalHourPrice: 10000 },
+  large_group: { basePrice: 80000, additionalHourPrice: 10000 },
+  custom: { basePrice: 100000, additionalHourPrice: 10000 },
 };
 
-function calculateTotalAmount(groupSize: string, tourType: string, customDuration?: number): number {
-  const basePrice = PRICING[groupSize as keyof typeof PRICING] || PRICING.individual;
+async function calculateTotalAmount(groupSize: string, tourType: string, customDuration?: number): Promise<number> {
+  const pricingMap = await getPricingMap();
+  const pricing = pricingMap[groupSize] || DEFAULT_PRICING[groupSize] || DEFAULT_PRICING.individual;
+  const basePrice = pricing.basePrice;
+  const additionalHourPrice = pricing.additionalHourPrice;
 
   if (tourType === "extended") {
-    return basePrice + PRICING.additional_hour * 2;
+    return basePrice + additionalHourPrice * 2;
   } else if (tourType === "custom" && customDuration) {
     const extraHours = Math.max(0, customDuration - 2);
-    return basePrice + PRICING.additional_hour * extraHours;
+    return basePrice + additionalHourPrice * extraHours;
   }
 
   return basePrice;
@@ -211,7 +232,7 @@ export async function registerRoutes(
       const isAllowed = await storage.checkIpAllowed(ip);
 
       if (!isAllowed) {
-        console.warn(`[SECURITY] Blocked access from unauthorized IP: ${ip}, path: ${req.path}, requestId: ${req.requestId}`);
+        logError(`Blocked access from unauthorized IP: ${ip}, path: ${req.path}`, null, req.requestId);
         return res.status(403).json({ message: "Access denied: Unauthorized IP address" });
       }
       next();
@@ -226,7 +247,6 @@ export async function registerRoutes(
         return res.status(503).json({ message: "Service temporarily unavailable" });
       } else {
         // In development: fail-open to avoid lockouts during setup
-        console.warn(`[SECURITY] IP check failed - allowing request in development mode`);
         next();
       }
     }
@@ -713,7 +733,6 @@ export async function registerRoutes(
   });
 
   // Get current user (session-based)
-  // Get current user (session-based)
   app.get("/api/auth/user", async (req, res) => {
     try {
       if (!req.session?.userId) {
@@ -1020,7 +1039,7 @@ export async function registerRoutes(
         }
       });
 
-      let zoneData = Object.entries(zoneCounts)
+      const zoneData = Object.entries(zoneCounts)
         .map(([zoneId, visits]) => {
           const zone = zones.find(z => z.id === zoneId);
           return { name: zone?.name || zoneId.slice(0, 8), visits };
@@ -1028,14 +1047,7 @@ export async function registerRoutes(
         .sort((a, b) => b.visits - a.visits)
         .slice(0, 6);
 
-      // If no zone data, show zones with placeholder counts based on bookings
-      if (zoneData.length === 0 && zones.length > 0) {
-        zoneData = zones.slice(0, 5).map((zone, i) => ({
-          name: zone.name,
-          visits: Math.max(1, bookings.length - i * Math.floor(bookings.length / 5))
-        }));
-      }
-
+      // Return actual data only - no fake placeholder data
       res.json(zoneData);
     } catch (error) {
       logError("Error fetching zone stats", error, req.requestId);
@@ -1049,7 +1061,7 @@ export async function registerRoutes(
       const guides = await storage.getGuides();
       const bookings = await storage.getBookings();
 
-      let guideStats = guides
+      const guideStats = guides
         .filter(g => g.isActive)
         .map(guide => {
           const guideTours = bookings.filter(
@@ -1065,15 +1077,7 @@ export async function registerRoutes(
         .sort((a, b) => b.tours - a.tours)
         .slice(0, 5);
 
-      // If no guide data, show placeholder with active guides
-      if (guideStats.length === 0 && guides.length > 0) {
-        guideStats = guides.filter(g => g.isActive).slice(0, 5).map(guide => ({
-          name: `${guide.firstName} ${guide.lastName.charAt(0)}.`,
-          tours: Math.floor(Math.random() * 10) + 1,
-          rating: guide.rating || 4.5
-        }));
-      }
-
+      // Return actual data only - no fake placeholder data
       res.json(guideStats);
     } catch (error) {
       logError("Error fetching guide performance", error, req.requestId);
@@ -1099,7 +1103,6 @@ export async function registerRoutes(
       }
 
       // Fill with data
-      console.log(`[Heatmap] Processing ${bookings.length} bookings`);
       let processedCount = 0;
       bookings.forEach(booking => {
         if (!booking.visitDate || !booking.visitTime) return;
@@ -1118,7 +1121,7 @@ export async function registerRoutes(
           }
         }
       });
-      console.log(`[Heatmap] Processed ${processedCount} valid booking times`);
+      logger.debug("Heatmap stats processed", { totalBookings: bookings.length, processedCount });
 
       // Filter out zero values to reduce payload size if desired, but grid is better for heatmap
       res.json(data);
@@ -1155,7 +1158,7 @@ export async function registerRoutes(
       });
 
       const totalBookings = data.reduce((acc, curr) => acc + curr.bookings, 0);
-      console.log(`[Seasonal] Found ${totalBookings} total bookings across all years`);
+      logger.debug("Seasonal stats processed", { totalBookings });
 
       res.json(data);
     } catch (error) {
@@ -1354,6 +1357,9 @@ export async function registerRoutes(
   // Bookings endpoints - admin, coordinator, security can view all bookings; guides see only their assigned bookings
   app.get("/api/bookings", isAuthenticated, requireRole("admin", "coordinator", "security", "guide"), async (req: any, res) => {
     try {
+      // Trigger reminder check (debounced, runs in background)
+      checkAndSendDueReminders();
+
       // Support optional pagination via query params
       const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
@@ -1871,7 +1877,7 @@ export async function registerRoutes(
   app.post("/api/bookings", async (req, res) => {
     try {
       const bookingData = insertBookingSchema.parse(req.body);
-      const totalAmount = calculateTotalAmount(
+      const totalAmount = await calculateTotalAmount(
         bookingData.groupSize,
         bookingData.tourType,
         bookingData.customDuration || undefined
@@ -1949,7 +1955,7 @@ export async function registerRoutes(
       }
 
       // Calculate amount if not provided
-      const finalAmount = totalAmount || calculateTotalAmount(
+      const finalAmount = totalAmount || await calculateTotalAmount(
         groupSize || "individual",
         tourType || "standard",
         undefined
@@ -2899,10 +2905,8 @@ export async function registerRoutes(
   app.get("/api/guides/slug/:slug", isAuthenticated, requireRole("admin", "coordinator", "guide", "security"), async (req, res) => {
     try {
       const slug = req.params.slug.toLowerCase().trim();
-      console.log("Looking for guide with slug:", slug);
 
       const guides = await storage.getGuides();
-      console.log("Available guides:", guides.map(g => `${g.firstName} ${g.lastName}`));
 
       // Normalize function to create consistent slugs
       const normalizeSlug = (str: string) => str
@@ -2914,16 +2918,14 @@ export async function registerRoutes(
       // Find guide by matching slug (firstname-lastname)
       const guide = guides.find(g => {
         const guideSlug = normalizeSlug(`${g.firstName}-${g.lastName}`);
-        console.log(`Comparing: "${guideSlug}" with "${slug}"`);
         return guideSlug === slug;
       });
 
       if (!guide) {
-        console.log("Guide not found for slug:", slug);
+        logger.debug("Guide not found for slug", { slug, requestId: req.requestId });
         return res.status(404).json({ message: "Guide not found" });
       }
 
-      console.log("Found guide:", guide.firstName, guide.lastName);
       res.json(guide);
     } catch (error) {
       logError("Error fetching guide by slug", error, req.requestId);
@@ -2940,6 +2942,136 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error fetching guide bookings", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch guide bookings" });
+    }
+  });
+
+  // Smart Guide Suggestion - recommends best guide for a booking
+  // NOTE: This must be defined BEFORE /api/guides/:id to prevent route conflicts
+  app.get("/api/guides/suggest", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const { visitDate, visitTime, selectedZones, excludeGuideIds } = req.query;
+
+      if (!visitDate || !visitTime) {
+        return res.status(400).json({ message: "visitDate and visitTime are required" });
+      }
+
+      const zones = selectedZones
+        ? (Array.isArray(selectedZones) ? selectedZones : [selectedZones]) as string[]
+        : [];
+
+      const excludeIds = excludeGuideIds
+        ? (Array.isArray(excludeGuideIds) ? excludeGuideIds : [excludeGuideIds]) as string[]
+        : [];
+
+      const suggestions = await suggestGuides({
+        visitDate: visitDate as string,
+        visitTime: visitTime as string,
+        selectedZones: zones,
+        excludeGuideIds: excludeIds,
+      });
+
+      // Add a top reason summary to each suggestion
+      const enrichedSuggestions = suggestions.map(s => ({
+        ...s,
+        topReason: getTopReason(s),
+      }));
+
+      res.json(enrichedSuggestions);
+    } catch (error) {
+      logError("Error suggesting guides", error, req.requestId);
+      res.status(500).json({ message: "Failed to suggest guides" });
+    }
+  });
+
+  // Guide Comparison - side-by-side stats for selected guides
+  // NOTE: This must be defined BEFORE /api/guides/:id to prevent route conflicts
+  app.get("/api/guides/compare", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const { guideIds } = req.query;
+
+      if (!guideIds) {
+        return res.status(400).json({ message: "guideIds parameter is required" });
+      }
+
+      const ids = Array.isArray(guideIds) ? guideIds as string[] : [guideIds as string];
+
+      if (ids.length < 2 || ids.length > 4) {
+        return res.status(400).json({ message: "Select 2-4 guides to compare" });
+      }
+
+      // Get guides
+      const guides = await storage.getGuidesByIds(ids);
+      if (guides.length === 0) {
+        return res.status(404).json({ message: "No guides found" });
+      }
+
+      // Get all bookings to calculate stats
+      const allBookings = await storage.getBookings();
+
+      // Calculate comparison stats for each guide
+      const comparison = guides.map(guide => {
+        const guideBookings = allBookings.filter(b => b.assignedGuideId === guide.id);
+        const completedBookings = guideBookings.filter(b => b.status === "completed");
+        const cancelledBookings = guideBookings.filter(b => b.status === "cancelled" || b.status === "no_show");
+
+        // Calculate monthly trends (last 6 months)
+        const monthlyStats = [];
+        for (let i = 5; i >= 0; i--) {
+          const date = new Date();
+          date.setMonth(date.getMonth() - i);
+          const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+          const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+          const monthBookings = completedBookings.filter(b => {
+            const visitDate = new Date(b.visitDate);
+            return visitDate >= monthStart && visitDate <= monthEnd;
+          });
+
+          monthlyStats.push({
+            month: monthStart.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+            tours: monthBookings.length,
+            earnings: monthBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0),
+          });
+        }
+
+        // Calculate average rating from visitor ratings
+        const ratedBookings = completedBookings.filter(b => b.visitorRating);
+        const avgVisitorRating = ratedBookings.length > 0
+          ? ratedBookings.reduce((sum, b) => sum + (b.visitorRating || 0), 0) / ratedBookings.length
+          : null;
+
+        return {
+          guide: {
+            id: guide.id,
+            firstName: guide.firstName,
+            lastName: guide.lastName,
+            profileImageUrl: guide.profileImageUrl,
+            languages: guide.languages,
+            specialties: guide.specialties,
+            assignedZones: guide.assignedZones,
+          },
+          stats: {
+            totalTours: guide.totalTours || 0,
+            completedTours: guide.completedTours || 0,
+            totalEarnings: guide.totalEarnings || 0,
+            rating: guide.rating || 0,
+            totalRatings: guide.totalRatings || 0,
+            avgVisitorRating: avgVisitorRating ? Math.round(avgVisitorRating * 10) / 10 : null,
+            completionRate: guideBookings.length > 0
+              ? Math.round((completedBookings.length / guideBookings.length) * 100)
+              : 0,
+            cancellationRate: guideBookings.length > 0
+              ? Math.round((cancelledBookings.length / guideBookings.length) * 100)
+              : 0,
+          },
+          monthlyTrends: monthlyStats,
+        };
+      });
+
+      res.json(comparison);
+    } catch (error) {
+      logError("Error comparing guides", error, req.requestId);
+      res.status(500).json({ message: "Failed to compare guides" });
     }
   });
 
@@ -3039,6 +3171,276 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error fetching leaderboard", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch leaderboard" });
+    }
+  });
+
+
+  // Visitor Lifetime Value Analytics
+  app.get("/api/analytics/visitor-ltv", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const allBookings = await storage.getBookings();
+      const users = await storage.getUsers();
+
+      // Group bookings by visitor (using visitorUserId or visitorEmail)
+      const visitorMap = new Map<string, {
+        visitorId: string | null;
+        email: string;
+        name: string;
+        bookings: typeof allBookings;
+      }>();
+
+      for (const booking of allBookings) {
+        const key = booking.visitorUserId || booking.visitorEmail;
+
+        if (!visitorMap.has(key)) {
+          visitorMap.set(key, {
+            visitorId: booking.visitorUserId || null,
+            email: booking.visitorEmail,
+            name: booking.visitorName,
+            bookings: [],
+          });
+        }
+        visitorMap.get(key)!.bookings.push(booking);
+      }
+
+      // Calculate LTV metrics for each visitor
+      const visitorLTV = Array.from(visitorMap.values()).map(visitor => {
+        const completedBookings = visitor.bookings.filter(b => b.status === "completed");
+        const paidBookings = visitor.bookings.filter(b => b.paymentStatus === "paid");
+
+        const totalSpent = paidBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+        const totalBookings = visitor.bookings.length;
+        const completedCount = completedBookings.length;
+        const averageBookingValue = paidBookings.length > 0
+          ? Math.round(totalSpent / paidBookings.length)
+          : 0;
+
+        // Find first and last visit dates
+        const sortedBookings = [...visitor.bookings].sort(
+          (a, b) => new Date(a.visitDate).getTime() - new Date(b.visitDate).getTime()
+        );
+        const firstVisit = sortedBookings.length > 0 ? sortedBookings[0].visitDate : null;
+        const lastVisit = sortedBookings.length > 0 ? sortedBookings[sortedBookings.length - 1].visitDate : null;
+
+        // Get user details if registered
+        const user = visitor.visitorId ? users.find(u => u.id === visitor.visitorId) : null;
+
+        // Calculate days since first visit for frequency
+        const daysSinceFirst = firstVisit
+          ? Math.floor((Date.now() - new Date(firstVisit).getTime()) / (1000 * 60 * 60 * 24))
+          : 0;
+        const visitFrequency = daysSinceFirst > 0 && completedCount > 1
+          ? Math.round(daysSinceFirst / completedCount)
+          : null; // Days between visits
+
+        // Assign tier based on total spent
+        let tier: "vip" | "regular" | "new";
+        if (totalSpent >= 200000 || completedCount >= 5) {
+          tier = "vip";
+        } else if (completedCount >= 2) {
+          tier = "regular";
+        } else {
+          tier = "new";
+        }
+
+        return {
+          visitorId: visitor.visitorId,
+          email: visitor.email,
+          name: visitor.name,
+          isRegistered: !!user,
+          profileImageUrl: user?.profileImageUrl || null,
+          metrics: {
+            totalSpent,
+            totalBookings,
+            completedBookings: completedCount,
+            averageBookingValue,
+            firstVisit,
+            lastVisit,
+            visitFrequencyDays: visitFrequency,
+          },
+          tier,
+        };
+      });
+
+      // Sort by total spent (highest first)
+      visitorLTV.sort((a, b) => b.metrics.totalSpent - a.metrics.totalSpent);
+
+      // Calculate summary stats
+      const summary = {
+        totalVisitors: visitorLTV.length,
+        vipCount: visitorLTV.filter(v => v.tier === "vip").length,
+        regularCount: visitorLTV.filter(v => v.tier === "regular").length,
+        newCount: visitorLTV.filter(v => v.tier === "new").length,
+        totalRevenue: visitorLTV.reduce((sum, v) => sum + v.metrics.totalSpent, 0),
+        averageLTV: visitorLTV.length > 0
+          ? Math.round(visitorLTV.reduce((sum, v) => sum + v.metrics.totalSpent, 0) / visitorLTV.length)
+          : 0,
+      };
+
+      res.json({
+        summary,
+        visitors: visitorLTV,
+      });
+    } catch (error) {
+      logError("Error calculating visitor LTV", error, req.requestId);
+      res.status(500).json({ message: "Failed to calculate visitor LTV" });
+    }
+  });
+
+  // ========== Mobile Money / Guide Payouts (Validation Pending) ==========
+
+  // Guide Payouts are currently disabled pending new provider integration
+  app.post("/api/guides/:id/pay", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    res.status(501).json({ message: "Mobile money payouts are currently disabled." });
+  });
+
+  app.get("/api/guides/:id/payments", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const payments = await storage.getGuidePayments(req.params.id);
+      res.json(payments);
+    } catch (error) {
+      logError("Error fetching guide payments", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch guide payments" });
+    }
+  });
+
+  // Get guide payment history
+  app.get("/api/guides/:id/payments", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const payments = await storage.getGuidePayments(req.params.id);
+      res.json(payments);
+    } catch (error) {
+      logError("Error fetching guide payments", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch guide payments" });
+    }
+  });
+
+  // Initiate booking payment (visitor paying for their booking)
+  app.post("/api/bookings/:id/pay", isAuthenticated, async (req: any, res) => {
+    try {
+      const { createCheckoutSession } = await import("./lib/stripe");
+
+      const bookingId = req.params.id;
+      const booking = await storage.getBooking(bookingId);
+
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      // Verify the user owns this booking
+      if (booking.visitorUserId !== req.session.userId && req.user.role !== "admin") {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      if (booking.paymentStatus === "paid") {
+        return res.status(400).json({ message: "Booking is already paid" });
+      }
+
+      const amount = booking.totalAmount || 0;
+      if (amount <= 0) {
+        return res.status(400).json({ message: "Invalid booking amount" });
+      }
+
+      // Create Stripe Checkout Session
+      const protocol = req.protocol;
+      const host = req.get("host");
+      const baseUrl = `${protocol}://${host}`;
+
+      const session = await createCheckoutSession(
+        bookingId,
+        amount,
+        "mwk",
+        `${baseUrl}/my-bookings?payment_success=true&booking_id=${bookingId}`,
+        `${baseUrl}/my-bookings?payment_cancel=true`,
+        booking.visitorEmail,
+        `Booking: ${booking.bookingReference}`
+      );
+
+      res.json({ checkoutUrl: session.url });
+    } catch (error: any) {
+      logError("Error initiating Stripe payment", error, req.requestId);
+      res.status(500).json({ message: error.message || "Failed to initiate payment" });
+    }
+  });
+
+  // Admin: Get all transactions (paid bookings)
+  app.get("/api/admin/transactions", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const allBookings = await storage.getBookings();
+
+      const transactions = allBookings
+        .filter(b => b.paymentStatus === "paid")
+        .map(b => ({
+          id: b.id,
+          date: b.paymentVerifiedAt || b.updatedAt,
+          visitorName: b.visitorName,
+          amount: b.totalAmount,
+          currency: "MWK", // Default currency
+          method: b.paymentMethod,
+          status: b.paymentStatus,
+          reference: b.paymentReference || b.bookingReference,
+          bookingReference: b.bookingReference,
+          paymentFees: b.paymentFees || 0,
+          netAmount: b.netAmount || 0,
+          paymentDetails: b.paymentDetails as any,
+        }))
+        .sort((a, b) => new Date(b.date as Date).getTime() - new Date(a.date as Date).getTime());
+
+      res.json(transactions);
+    } catch (error) {
+      logError("Error fetching admin transactions", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch transactions" });
+    }
+  });
+
+  // Stripe webhook handler
+  app.post("/api/webhooks/stripe", async (req, res) => {
+    try {
+      const { constructEvent } = await import("./lib/stripe");
+      const signature = req.headers['stripe-signature'];
+
+      if (!signature) {
+        return res.status(400).send('Webhook Error: Missing signature');
+      }
+
+      const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || "whsec_test";
+      if (!endpointSecret) {
+        logger.warn("STRIPE_WEBHOOK_SECRET not set, cannot verify webhook");
+        return res.status(400).send('Webhook Configuration Error');
+      }
+
+      // Use rawBody attached by app.ts middleware for signature verification
+      const rawBody = (req as any).rawBody;
+      if (!rawBody) {
+        return res.status(400).send('Webhook Error: Raw body not available');
+      }
+
+      const event = constructEvent(rawBody, signature as string, endpointSecret);
+
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object as any;
+        const bookingId = session.client_reference_id;
+
+        logger.info(`[Stripe Webhook] Payment successful for booking ${bookingId}`);
+
+        if (bookingId) {
+          await storage.updateBooking(bookingId, {
+            paymentStatus: "paid",
+            // Store Stripe Session ID as payment reference
+            paymentReference: session.id,
+            paymentVerifiedAt: new Date(),
+          });
+
+          // Optionally send confirmation email here
+          // const booking = await storage.getBooking(bookingId);
+          // if (booking) sendPaymentConfirmationEmail(booking);
+        }
+      }
+
+      res.json({ received: true });
+    } catch (err: any) {
+      logError("Stripe Webhook Error", err, "webhook");
+      res.status(400).send(`Webhook Error: ${err.message}`);
     }
   });
 
@@ -3600,7 +4002,7 @@ export async function registerRoutes(
   // Incidents endpoints - Allow all auth users (visiters see own, admins all)
   app.get("/api/incidents", isAuthenticated, async (req, res) => {
     try {
-      const user = await storage.getUser(req.session.userId);
+      const user = await storage.getUser(req.session.userId!);
       const allIncidents = await storage.getIncidents();
 
       let visibleIncidents;
@@ -3847,7 +4249,7 @@ export async function registerRoutes(
   app.post("/api/calculate-price", async (req, res) => {
     try {
       const { groupSize, tourType, customDuration } = req.body;
-      const totalAmount = calculateTotalAmount(groupSize, tourType, customDuration);
+      const totalAmount = await calculateTotalAmount(groupSize, tourType, customDuration);
       res.json({ totalAmount });
     } catch (error) {
       logError("Error calculating price", error, req.requestId);
@@ -3928,7 +4330,7 @@ export async function registerRoutes(
               content: data
             });
           } catch (e) {
-            console.error("Failed to save itinerary to DB", e);
+            logError("Failed to save itinerary to DB", e, req.requestId);
           }
         }
 
@@ -4038,6 +4440,18 @@ export async function registerRoutes(
     }
   });
 
+  // Booking Reminders endpoints
+  app.post("/api/admin/reminders/trigger", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const { triggerRemindersManually } = await import("./lib/reminder-scheduler");
+      await triggerRemindersManually();
+      res.json({ success: true, message: "Reminder check triggered manually" });
+    } catch (error) {
+      logError("Error triggering reminders", error, req.requestId);
+      res.status(500).json({ message: "Failed to trigger reminders" });
+    }
+  });
+
   // Email Templates API
   app.get("/api/email-templates", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
@@ -4141,18 +4555,17 @@ export async function registerRoutes(
       });
 
       // 5. Net Ticket Margin (expected price vs actual realized)
-      // Use proper baseline prices per tour type (from pricing settings)
-      const BASELINE_PRICES: Record<string, number> = {
-        standard: 15000,   // Individual Tour (1 person)
-        extended: 50000,   // Small Group (2-5 people)
-        large_group: 80000,   // Large Group (6-10 people)
-        custom: 100000,    // Custom Group (10+ people)
+      // Use pricing from database
+      const pricingMap = await getPricingMap();
+      const getBaselinePrice = (groupSize: string): number => {
+        const pricing = pricingMap[groupSize] || DEFAULT_PRICING[groupSize] || DEFAULT_PRICING.individual;
+        return pricing.basePrice;
       };
 
-      // Calculate expected revenue based on each booking's tour type
+      // Calculate expected revenue based on each booking's group size
       const expectedRevenue = paidBookings.reduce((sum, b) => {
-        const tourType = b.tourType || "standard";
-        const baselinePrice = BASELINE_PRICES[tourType] || BASELINE_PRICES.standard;
+        const groupSize = b.groupSize || "individual";
+        const baselinePrice = getBaselinePrice(groupSize);
         return sum + baselinePrice;
       }, 0);
 
@@ -4407,7 +4820,7 @@ export async function registerRoutes(
         };
       }).filter(p => p.completedTours > 0); // Show anyone with completed tours
 
-      console.log(`[Payouts] Guides with completed tours: ${payouts.length}`);
+      logger.debug("Payouts calculated", { guidesWithTours: payouts.length });
 
       res.json(payouts);
     } catch (error) {
@@ -5880,7 +6293,7 @@ export async function registerRoutes(
     // For now, we'll allow public access or check a static token/ID.
     try {
       const bookings = await storage.getBookings(); // Retrieve all bookings
-      const icalData = generateIcalFeed(bookings, "Dzaleka Visit Bookings");
+      const icalData = generateIcalFeed(bookings, "Visit Dzaleka Bookings");
       res.set('Content-Type', 'text/calendar; charset=utf-8');
       res.set('Content-Disposition', 'attachment; filename="calendar.ics"');
       res.send(icalData);

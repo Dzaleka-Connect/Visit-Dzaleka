@@ -19,7 +19,6 @@ export function getResendClient() {
   const fromEmail = process.env.RESEND_FROM_EMAIL || 'booking@dzaleka.com';
 
   if (!apiKey) {
-    console.error('RESEND_API_KEY environment variable is not set');
     return null;
   }
 
@@ -50,7 +49,6 @@ async function sendEmailWithRetry(
       const result = await client.emails.send(options);
 
       if (result.error) {
-        console.error(`Email send attempt ${attempt}/${maxRetries} failed:`, result.error);
 
         if (attempt === maxRetries) {
           return {
@@ -64,11 +62,9 @@ async function sendEmailWithRetry(
         continue;
       }
 
-      console.log(`Email sent successfully to ${options.to} (attempt ${attempt})`);
       return { success: true, messageId: result.data?.id };
 
     } catch (error: any) {
-      console.error(`Email send attempt ${attempt}/${maxRetries} exception:`, error?.message || error);
 
       if (attempt === maxRetries) {
         return {
@@ -555,6 +551,153 @@ export async function sendCheckInNotification(data: CheckInNotificationData): Pr
     replyTo: resendClient.replyTo,
     to: data.visitorEmail,
     subject: `Check-In Confirmed - ${data.bookingReference}`,
+    html
+  });
+
+  return result.success;
+}
+
+// Booking Reminder email
+interface BookingReminderData {
+  to: string;
+  bookingReference: string;
+  visitorName: string;
+  visitDate: string;
+  visitTime: string;
+  numberOfPeople: number;
+  tourType: string;
+  selectedZones: string[] | null | undefined;
+  specialRequests: string | null | undefined;
+  guideName: string | null;
+  guidePhone: string | null | undefined;
+  meetingPointName: string | null | undefined;
+  meetingPointAddress: string | null | undefined;
+}
+
+export async function sendBookingReminderEmail(data: BookingReminderData): Promise<boolean> {
+  const resendClient = getResendClient();
+  if (!resendClient) return false;
+
+  const formatZones = data.selectedZones && data.selectedZones.length > 0
+    ? data.selectedZones.join(", ")
+    : "Standard tour";
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      </head>
+      <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 18px; font-weight: 600;">⏰ Your Tour is Tomorrow!</p>
+        </div>
+        
+        <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+          <p>Dear ${data.visitorName},</p>
+          
+          <p>This is a friendly reminder that your visit to Dzaleka Refugee Camp is scheduled for <strong>tomorrow, ${data.visitDate}</strong>.</p>
+          
+          <div style="background: white; border: 2px solid #10b981; border-radius: 8px; padding: 20px; margin: 25px 0;">
+            <h2 style="color: #059669; margin: 0 0 15px 0; font-size: 18px;">📋 Tour Details</h2>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280; width: 40%;">Reference:</td>
+                <td style="padding: 8px 0; font-weight: 600;">${data.bookingReference}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Date:</td>
+                <td style="padding: 8px 0; font-weight: 600;">${data.visitDate}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Time:</td>
+                <td style="padding: 8px 0; font-weight: 600; font-size: 18px; color: #059669;">${data.visitTime}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Group Size:</td>
+                <td style="padding: 8px 0;">${data.numberOfPeople} ${data.numberOfPeople === 1 ? 'person' : 'people'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Tour Type:</td>
+                <td style="padding: 8px 0; text-transform: capitalize;">${data.tourType.replace('_', ' ')}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Areas:</td>
+                <td style="padding: 8px 0;">${formatZones}</td>
+              </tr>
+            </table>
+          </div>
+          
+          ${data.guideName ? `
+          <div style="background: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #059669; margin: 0 0 10px 0; font-size: 16px;">👤 Your Guide</h3>
+            <p style="margin: 0; font-size: 18px; font-weight: 600; color: #1f2937;">${data.guideName}</p>
+            ${data.guidePhone ? `<p style="margin: 5px 0 0 0; color: #6b7280;">📞 ${data.guidePhone}</p>` : ''}
+          </div>
+          ` : ''}
+          
+          ${data.meetingPointName ? `
+          <div style="background: #fff7ed; border: 1px solid #f97316; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #c2410c; margin: 0 0 10px 0; font-size: 16px;">📍 Meeting Point</h3>
+            <p style="margin: 0; font-weight: 600; color: #1f2937;">${data.meetingPointName}</p>
+            ${data.meetingPointAddress ? `<p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">${data.meetingPointAddress}</p>` : ''}
+            <p style="margin: 10px 0 0 0; color: #c2410c; font-size: 14px; font-weight: 600;">⏰ Please arrive 10 minutes early</p>
+          </div>
+          ` : ''}
+          
+          ${data.specialRequests ? `
+          <div style="background: #f0f9ff; border: 1px solid #0284C7; border-radius: 8px; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; color: #0369a1; font-size: 14px;">
+              <strong>Your Special Requests:</strong><br>${data.specialRequests}
+            </p>
+          </div>
+          ` : ''}
+          
+          <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 25px 0;">
+            <h3 style="color: #92400e; margin: 0 0 12px 0; font-size: 16px;">✅ Preparation Checklist</h3>
+            <ul style="margin: 0; padding-left: 20px; color: #78350f;">
+              <li style="margin: 8px 0;">Bring a valid ID for security verification</li>
+              <li style="margin: 8px 0;">Wear comfortable walking shoes</li>
+              <li style="margin: 8px 0;">Bring sun protection (hat, sunscreen)</li>
+              <li style="margin: 8px 0;">Have your booking reference ready: <strong>${data.bookingReference}</strong></li>
+              ${data.guidePhone ? `<li style="margin: 8px 0;">Save your guide's number: <strong>${data.guidePhone}</strong></li>` : ''}
+            </ul>
+          </div>
+          
+          <div style="background: #ede9fe; border-left: 4px solid #7c3aed; padding: 15px 20px; margin: 20px 0;">
+            <p style="margin: 0; color: #5b21b6; font-size: 14px;">
+              <strong>💜 Respectful Tourism:</strong> Please remember you're visiting a community. Be respectful, ask before taking photos, and follow your guide's instructions.
+            </p>
+          </div>
+          
+          <p style="margin: 25px 0 10px 0; font-size: 14px; color: #6b7280;">
+            If you need to cancel or reschedule, please contact us as soon as possible.
+          </p>
+          
+          <p style="margin: 10px 0 0 0; font-size: 14px; color: #6b7280;">
+            Questions? Reply to this email or call us at <strong>+61 498 956 715</strong>
+          </p>
+        </div>
+        
+        <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
+          <p style="color: rgba(255,255,255,0.9); margin: 0 0 10px 0;">
+            We're excited to welcome you tomorrow! 🎉
+          </p>
+          <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">
+            © ${new Date().getFullYear()} Dzaleka Online Services
+          </p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const result = await sendEmailWithRetry({
+    from: resendClient.fromEmail,
+    replyTo: resendClient.replyTo,
+    to: data.to,
+    subject: `Tomorrow: Your Dzaleka Tour at ${data.visitTime} - ${data.bookingReference}`,
     html
   });
 

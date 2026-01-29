@@ -368,7 +368,7 @@ export default function SecurityAdmin() {
                                             onClick={() => addIpMutation.mutate({ ipAddress: newIpAddress, description: newIpDescription })}
                                             disabled={!newIpAddress || addIpMutation.isPending}
                                         >
-                                            {addIpMutation.isPending ? "Adding..." : "Add IP"}
+                                            {addIpMutation.isPending ? "Adding…" : "Add IP"}
                                         </Button>
                                     </DialogFooter>
                                 </DialogContent>
@@ -712,7 +712,7 @@ export default function SecurityAdmin() {
                                             onClick={() => createInviteMutation.mutate({ email: inviteEmail, role: inviteRole })}
                                             disabled={!inviteEmail || createInviteMutation.isPending}
                                         >
-                                            {createInviteMutation.isPending ? "Sending..." : "Send Invite"}
+                                            {createInviteMutation.isPending ? "Sending…" : "Send Invite"}
                                         </Button>
                                     </DialogFooter>
                                 </DialogContent>

@@ -44,8 +44,8 @@ export function AccountSwitcher() {
                 title: "Impersonating User",
                 description: `Now viewing as ${data.user.firstName} ${data.user.lastName}`,
             });
-            queryClient.invalidateQueries();
-            setIsOpen(false);
+            // Force a full page reload to ensure all data refreshes with new user context
+            window.location.href = "/";
         },
         onError: (error: Error) => {
             toast({

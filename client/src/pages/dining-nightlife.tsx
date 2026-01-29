@@ -64,7 +64,7 @@ export default function DiningNightlife() {
     return (
         <div className="min-h-screen bg-background flex flex-col">
             <SEO
-                title="Dining & Nightlife | Dzaleka Visit"
+                title="Dining & Nightlife | Visit Dzaleka"
                 description="Experience the vibrant culinary fusion and social life of Dzaleka, from Ethiopian coffee ceremonies to lively spots bars and cultural festivals."
                 keywords="Dzaleka food, Dzaleka restaurants, Ethiopian food Malawi, Congolese cuisine Dzaleka, Tumaini festival food, Dzaleka nightlife"
                 canonical="https://visit.dzaleka.com/things-to-do/dining-nightlife"
@@ -76,9 +76,9 @@ export default function DiningNightlife() {
                 <div className="container mx-auto flex h-16 items-center justify-between px-4">
                     <Link href="/">
                         <div className="flex items-center gap-3 cursor-pointer">
-                            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Dzaleka Visit Logo" className="h-10 w-10 rounded-lg shadow-sm" />
+                            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Visit Dzaleka Logo" className="h-10 w-10 rounded-lg shadow-sm" />
                             <div className="flex flex-col">
-                                <span className="text-sm font-bold tracking-tight">Dzaleka Visit</span>
+                                <span className="text-sm font-bold tracking-tight">Visit Dzaleka</span>
                                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
                                     Official Portal
                                 </span>

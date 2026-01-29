@@ -61,6 +61,20 @@
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
+  /* Premium Gradients */
+  --gradient-primary: linear-gradient(135deg, oklch(0.52 0.15 220) 0%, oklch(0.45 0.12 255) 100%);
+  --gradient-success: linear-gradient(135deg, oklch(0.65 0.15 142) 0%, oklch(0.55 0.12 152) 100%);
+  --gradient-shine: linear-gradient(110deg, transparent 0%, oklch(1 0 0 / 0.1) 50%, transparent 100%);
+  
+  /* Glass-morphism */
+  --glass-bg: oklch(0.985 0 0 / 0.8);
+  --glass-border: oklch(0.92 0 0 / 0.3);
+  --glass-shadow: 0 8px 32px 0 rgb(0 0 0 / 0.08);
+  
+  /* Accent variations */
+  --accent-subtle: oklch(0.52 0.15 220 / 0.1);
+  --accent-muted: oklch(0.52 0.15 220 / 0.2);
+
   /* Border colors - simplified for OKLCH */
   --sidebar-primary-border: var(--sidebar-primary);
   --sidebar-accent-border: var(--sidebar-accent);
@@ -119,6 +133,20 @@
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.15), 0 4px 6px -4px rgb(0 0 0 / 0.15);
   --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.15);
   --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.35);
+
+  /* Premium Gradients (Dark) */
+  --gradient-primary: linear-gradient(135deg, oklch(0.58 0.15 220) 0%, oklch(0.50 0.12 255) 100%);
+  --gradient-success: linear-gradient(135deg, oklch(0.70 0.15 142) 0%, oklch(0.60 0.12 152) 100%);
+  --gradient-shine: linear-gradient(110deg, transparent 0%, oklch(1 0 0 / 0.05) 50%, transparent 100%);
+  
+  /* Glass-morphism (Dark) */
+  --glass-bg: oklch(0.21 0 0 / 0.8);
+  --glass-border: oklch(0.27 0 0 / 0.3);
+  --glass-shadow: 0 8px 32px 0 rgb(0 0 0 / 0.3);
+  
+  /* Accent variations (Dark) */
+  --accent-subtle: oklch(0.58 0.15 220 / 0.1);
+  --accent-muted: oklch(0.58 0.15 220 / 0.2);
 
   /* Border colors - simplified for OKLCH */
   --sidebar-primary-border: var(--sidebar-primary);
@@ -227,6 +255,14 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
   }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
 }
 
 /* Respect user's motion preferences for accessibility */
@@ -263,6 +299,51 @@
  * need to be distinguished from eachother visually.
  */
 @layer utilities {
+
+  /* Tabular numbers for better alignment in tables and comparisons */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Premium table row hover */
+  .table-row-hover {
+    @apply transition-all duration-200 ease-out;
+    @apply hover:bg-accent/50 hover:shadow-sm;
+  }
+
+  /* Shimmer loading effect */
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+
+  .shimmer {
+    animation: shimmer 2s infinite linear;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--accent-subtle) 50%,
+      transparent 100%
+    );
+    background-size: 1000px 100%;
+  }
+
+  /* Page Layout Utilities */
+  .page-spacing {
+    @apply space-y-6;
+  }
+
+  .section-spacing {
+    @apply space-y-4;
+  }
+
+  .content-spacing {
+    @apply space-y-3;
+  }
 
   /* Hide ugly search cancel button in Chrome until we can style it properly */
   input[type="search"]::-webkit-search-cancel-button {

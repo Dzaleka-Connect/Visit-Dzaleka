@@ -60,7 +60,6 @@ export async function parseIcalFeed(url: string, sourceName: string) {
         }
         return events;
     } catch (error) {
-        console.error(`Error parsing iCal from ${url}:`, error);
         throw error;
     }
 }

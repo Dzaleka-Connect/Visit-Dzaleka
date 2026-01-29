@@ -128,9 +128,22 @@ export default function TaskAdmin() {
         queryKey: ["/api/tasks/stats"],
     });
 
+    // Task input type for API (dates as ISO strings)
+    type TaskInput = {
+        title: string;
+        description: string | null;
+        category: string;
+        priority: string;
+        status: string;
+        assignedTo: string | null;
+        dueDate: string | null;
+        estimatedHours: number | null;
+        id?: string;
+    };
+
     // Create mutation
     const createMutation = useMutation({
-        mutationFn: async (task: Partial<Task>) => {
+        mutationFn: async (task: TaskInput) => {
             const res = await apiRequest("POST", "/api/tasks", task);
             return res.json();
         },
@@ -148,7 +161,7 @@ export default function TaskAdmin() {
 
     // Update mutation
     const updateMutation = useMutation({
-        mutationFn: async ({ id, ...task }: Partial<Task> & { id: string }) => {
+        mutationFn: async ({ id, ...task }: TaskInput & { id: string }) => {
             const res = await apiRequest("PATCH", `/api/tasks/${id}`, task);
             return res.json();
         },
@@ -514,7 +527,7 @@ export default function TaskAdmin() {
                                 Cancel
                             </Button>
                             <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-                                {createMutation.isPending || updateMutation.isPending ? "Saving..." : editTask ? "Update Task" : "Create Task"}
+                                {createMutation.isPending || updateMutation.isPending ? "Saving…" : editTask ? "Update Task" : "Create Task"}
                             </Button>
                         </DialogFooter>
                     </form>

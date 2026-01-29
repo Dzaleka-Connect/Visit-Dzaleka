@@ -53,7 +53,7 @@ export function IncidentsList() {
                             {incident.description}
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-2">
-                            Reported on {formatDate(incident.createdAt)}
+                            Reported on {incident.createdAt ? formatDate(incident.createdAt) : "Unknown"}
                         </p>
                     </div>
                 </div>

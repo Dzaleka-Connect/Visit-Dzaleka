@@ -74,6 +74,8 @@ import {
 } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SEO } from "@/components/seo";
+import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 
 const guideFormSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -338,33 +340,30 @@ export default function Guides() {
   }
 
   return (
-    <div className="space-y-6">
+    <PageContainer className="page-spacing">
       <SEO
         title="Our Guides"
         description="Meet our expert local guides. Each guide brings a unique perspective and deep knowledge of Dzaleka's history and culture."
       />
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Guides</h1>
-        <p className="text-muted-foreground">
-          Manage your tour guides and their availability.
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search guides..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-            data-testid="input-search-guides"
-          />
-        </div>
+      <PageHeader
+        title="Guides"
+        description="Manage your tour guides and their availability."
+      >
         <Button onClick={handleAddNew} data-testid="button-add-guide">
           <Plus className="mr-2 h-4 w-4" />
           Add Guide
         </Button>
+      </PageHeader>
+
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Search guides..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-9"
+          data-testid="input-search-guides"
+        />
       </div>
 
       {!filteredGuides || filteredGuides.length === 0 ? (
@@ -1016,6 +1015,6 @@ export default function Guides() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageContainer>
   );
 }

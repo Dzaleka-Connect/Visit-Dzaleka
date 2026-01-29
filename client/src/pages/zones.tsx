@@ -60,6 +60,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { SEO } from "@/components/seo";
+import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 
 const zoneFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -475,19 +477,15 @@ export default function Zones() {
   };
 
   return (
-    <div className="space-y-6">
+    <PageContainer className="page-spacing">
       <SEO
         title="Camp Zones"
         description="Explore the different zones of Dzaleka Refugee Camp. Find points of interest, markets, and cultural centers."
       />
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-          Zones & Points of Interest
-        </h1>
-        <p className="text-muted-foreground">
-          Manage camp zones, points of interest, and meeting locations.
-        </p>
-      </div>
+      <PageHeader
+        title="Zones & Points of Interest"
+        description="Manage camp zones, points of interest, and meeting locations."
+      />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
@@ -1151,6 +1149,6 @@ export default function Zones() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageContainer>
   );
 }

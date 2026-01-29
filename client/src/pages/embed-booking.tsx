@@ -373,7 +373,7 @@ export default function EmbedBooking() {
                             style={{ backgroundColor: primaryColor }}
                             disabled={bookingMutation.isPending}
                         >
-                            {bookingMutation.isPending ? "Submitting..." : "Book Now"}
+                            {bookingMutation.isPending ? "Submitting…" : "Book Now"}
                         </Button>
 
                         {showBranding && (

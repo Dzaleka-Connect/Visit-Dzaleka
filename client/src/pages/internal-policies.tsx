@@ -9,7 +9,7 @@ export default function InternalPolicies() {
         <div className="space-y-6 max-w-5xl mx-auto pb-10">
             <SEO
                 title="Internal Policies"
-                description="Official internal policies for Dzaleka Visit staff and stakeholders."
+                description="Official internal policies for Visit Dzaleka staff and stakeholders."
             />
 
             <div className="flex items-center gap-4 mb-6 print:hidden">
@@ -36,7 +36,7 @@ export default function InternalPolicies() {
                     {/* 1. Health & Safety Policy */}
                     <section className="space-y-4">
                         <h2 className="text-2xl font-bold text-primary border-b pb-2">1. Health & Safety Policy</h2>
-                        <p><strong>Goal:</strong> To ensure the physical and mental well-being of all visitors, staff, guides, and community members during Dzaleka Visit operations.</p>
+                        <p><strong>Goal:</strong> To ensure the physical and mental well-being of all visitors, staff, guides, and community members during Visit Dzaleka operations.</p>
                         <ul className="list-disc pl-6 space-y-1">
                             <li><strong>Risk Assessments:</strong> All tour routes and activities must undergo a documented risk assessment, reviewed quarterly.</li>
                             <li><strong>Emergency Preparedness:</strong> All guides must carry a charged mobile phone with emergency contacts (Security, Medical, Police) saved.</li>

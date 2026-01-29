@@ -28,6 +28,7 @@ import {
   type InsertZoneVisit,
   type BookingCompanion,
   type InsertBookingCompanion,
+  type GuidePayment,
   type BookingActivityLog,
   type InsertBookingActivityLog,
   type EmailLog,
@@ -91,6 +92,7 @@ import {
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { cache, CACHE_TTL, CACHE_KEYS } from "./utils/cache";
+import { logger } from "./lib/logger";
 
 
 // Generate booking reference (e.g., DVS-2024-ABC123)
@@ -213,6 +215,7 @@ export interface IStorage {
   searchBookings(query: string, filters?: { status?: BookingStatus; paymentStatus?: PaymentStatus }): Promise<Booking[]>;
   getActiveVisits(): Promise<Booking[]>;
   createBooking(booking: Omit<InsertBooking, "id" | "bookingReference" | "createdAt" | "updatedAt"> & { bookingReference?: string }): Promise<Booking>;
+  updateBooking(id: string, updates: Partial<Booking>): Promise<Booking | undefined>;
   updateBookingStatus(id: string, status: BookingStatus, expectedVersion?: number): Promise<Booking | undefined>;
   updateBookingPaymentStatus(id: string, status: PaymentStatus, verifiedBy?: string): Promise<Booking | undefined>;
   assignGuideToBooking(bookingId: string, guideId: string): Promise<Booking | undefined>;
@@ -278,6 +281,11 @@ export interface IStorage {
   getRecurringBooking(id: string): Promise<RecurringBooking | undefined>;
   updateRecurringBooking(id: string, updates: Partial<RecurringBooking>): Promise<RecurringBooking | undefined>;
   deleteRecurringBooking(id: string): Promise<void>;
+
+  // Guide Payments (PayChangu mobile money)
+  createGuidePayment(payment: Omit<GuidePayment, "createdAt" | "completedAt">): Promise<GuidePayment>;
+  getGuidePayments(guideId: string): Promise<GuidePayment[]>;
+  updateGuidePaymentStatus(id: string, status: string, completedAt?: Date): Promise<GuidePayment | undefined>;
 
   // External Calendars
   getExternalCalendars(): Promise<ExternalCalendar[]>;
@@ -885,6 +893,26 @@ export class SupabaseStorage implements IStorage {
 
 
 
+  async updateBooking(id: string, updates: Partial<Booking>): Promise<Booking | undefined> {
+    const dbUpdates: any = {};
+    // Manual mapping for fields we know we need
+    if (updates.status) dbUpdates.status = updates.status;
+    if (updates.paymentStatus) dbUpdates.payment_status = updates.paymentStatus;
+    if (updates.paymentReference) dbUpdates.payment_reference = updates.paymentReference;
+    if (updates.paymentVerifiedAt) dbUpdates.payment_verified_at = updates.paymentVerifiedAt;
+
+    if (Object.keys(dbUpdates).length === 0) return undefined;
+
+    const { data, error } = await this.supabase
+      .from("bookings")
+      .update({ ...dbUpdates, updated_at: new Date() })
+      .eq("id", id)
+      .select()
+      .single();
+
+    return this.handleOptionalResponse(data, error);
+  }
+
   async updateBookingStatus(id: string, status: BookingStatus, expectedVersion?: number): Promise<Booking | undefined> {
     // If expectedVersion is provided, use optimistic locking
     if (expectedVersion !== undefined) {
@@ -1454,7 +1482,7 @@ export class SupabaseStorage implements IStorage {
       .order("created_at", { ascending: false });
 
     if (error || !bookings) {
-      console.error("Error fetching bookings for revenue:", error);
+      logger.error("Error fetching bookings for revenue", error);
       return {
         totalRevenue: 0, weeklyRevenue: 0, monthlyRevenue: 0,
         pendingRevenue: 0, refundedAmount: 0, byPaymentMethod: [],
@@ -2648,6 +2676,44 @@ export class SupabaseStorage implements IStorage {
     if (error) throw new Error(error.message);
   }
 
+  // Guide Payments (PayChangu mobile money)
+  async createGuidePayment(payment: Omit<GuidePayment, "createdAt" | "completedAt">): Promise<GuidePayment> {
+    const paymentData = transformToSnake(payment);
+    const { data, error } = await this.supabase
+      .from("guide_payments")
+      .insert(paymentData)
+      .select()
+      .single();
+
+    return this.handleResponse(data, error);
+  }
+
+  async getGuidePayments(guideId: string): Promise<GuidePayment[]> {
+    const { data, error } = await this.supabase
+      .from("guide_payments")
+      .select("*")
+      .eq("guide_id", guideId)
+      .order("created_at", { ascending: false });
+
+    return this.handleResponse(data, error);
+  }
+
+  async updateGuidePaymentStatus(id: string, status: string, completedAt?: Date): Promise<GuidePayment | undefined> {
+    const updates: any = { status };
+    if (completedAt) {
+      updates.completed_at = completedAt.toISOString();
+    }
+
+    const { data, error } = await this.supabase
+      .from("guide_payments")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    return this.handleResponse(data, error);
+  }
+
   // External Calendars
   async getExternalCalendars(): Promise<ExternalCalendar[]> {
     const { data, error } = await this.supabase.from("external_calendars").select("*").order("created_at", { ascending: false });
@@ -2950,7 +3016,7 @@ export class SupabaseStorage implements IStorage {
       .lte("created_at", endDate.toISOString());
 
     if (error) {
-      console.error("Error fetching email stats:", error);
+      logger.error("Error fetching email stats", error);
       return [];
     }
 
@@ -3006,7 +3072,7 @@ export class SupabaseStorage implements IStorage {
       .gt("created_at", timeThreshold);
 
     if (error) {
-      console.error("Error getting live visitors:", error);
+      logger.error("Error getting live visitors", error);
       return 0;
     }
 
@@ -3204,6 +3270,17 @@ export class SupabaseStorage implements IStorage {
       .delete()
       .eq("user_id", userId)
       .eq("guide_id", guideId);
+
+    if (error) throw error;
+  }
+
+  // ==================== Booking Reminders ====================
+
+  async markReminderSent(bookingId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("bookings")
+      .update({ reminder_sent_at: new Date().toISOString() })
+      .eq("id", bookingId);
 
     if (error) throw error;
   }

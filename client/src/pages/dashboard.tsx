@@ -70,6 +70,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { WeeklyBookingTrends, PopularZonesChart, GuidePerformanceChart, BookingTimeHeatmap, SeasonalTrendsChart, GuideComparisonChart, RevenueByChannelChart, ReferralSourceChart, ConversionRateChart } from "@/components/dashboard-charts";
 import type { Booking, Guide, Incident } from "@shared/schema";
 import { SEO } from "@/components/seo";
+import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 
 interface DashboardStats {
   totalBookings: number;
@@ -159,7 +161,7 @@ function AdminDashboard() {
 
   const quickConfirmMutation = useMutation({
     mutationFn: async (bookingId: string) => {
-      await apiRequest("PATCH", `/ api / bookings / ${bookingId}/status`, { status: "confirmed" });
+      await apiRequest("PATCH", `/api/bookings/${bookingId}/status`, { status: "confirmed" });
     },
     onSuccess: () => {
       queryClientDashboard.invalidateQueries({ queryKey: ["/api/bookings/recent"] });
@@ -197,17 +199,15 @@ function AdminDashboard() {
   const hasActiveTours = todaysTours?.some(t => t.status === "in_progress") || false;
 
   return (
-    <div className="space-y-6 overflow-x-hidden">
+    <PageContainer className="page-spacing overflow-x-hidden">
       <SEO
         title="Dashboard"
         description="Manage your Dzaleka tours, bookings, guides, and analytics from your admin dashboard."
       />
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Welcome back, {user?.firstName}. Here is your daily overview.
-        </p>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        description={`Welcome back, ${user?.firstName}. Here is your daily overview.`}
+      />
 
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-2">
@@ -602,7 +602,7 @@ function AdminDashboard() {
                         {sendEmailMutation.isPending ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Sending...
+                            Sending…
                           </>
                         ) : (
                           <>
@@ -639,7 +639,7 @@ function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
-    </div >
+    </PageContainer>
   );
 }
 
@@ -674,13 +674,11 @@ function CoordinatorDashboard() {
   const hasActiveTours = todaysTours?.some(t => t.status === "in_progress") || false;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Coordinator Dashboard</h1>
-        <p className="text-muted-foreground">
-          Manage bookings, guides, and tour scheduling.
-        </p>
-      </div>
+    <PageContainer className="page-spacing">
+      <PageHeader
+        title="Coordinator Dashboard"
+        description="Manage bookings, guides, and tour scheduling."
+      />
 
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -840,7 +838,7 @@ function CoordinatorDashboard() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -900,13 +898,11 @@ function GuideDashboard() {
     : 0;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Guide Dashboard</h1>
-        <p className="text-muted-foreground">
-          Welcome back, {user?.firstName}! Here are your assigned tours.
-        </p>
-      </div>
+    <PageContainer className="page-spacing">
+      <PageHeader
+        title="Guide Dashboard"
+        description={`Welcome back, ${user?.firstName}! Here are your assigned tours.`}
+      />
 
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -1035,7 +1031,7 @@ function GuideDashboard() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -1063,13 +1059,11 @@ function SecurityDashboard() {
   const pendingVerifications = todaysTours?.filter(t => t.status === "confirmed" && !t.checkInTime) || [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Security Dashboard</h1>
-        <p className="text-muted-foreground">
-          Monitor visitor check-ins, verify bookings, and manage incidents.
-        </p>
-      </div>
+    <PageContainer className="page-spacing">
+      <PageHeader
+        title="Security Dashboard"
+        description="Monitor visitor check-ins, verify bookings, and manage incidents."
+      />
 
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -1227,7 +1221,7 @@ function SecurityDashboard() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -1353,16 +1347,11 @@ function VisitorDashboard() {
   const completedBookings = myBookings?.filter(b => b.status === "completed") || [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Welcome, {user?.firstName}!</h1>
-        <p className="text-muted-foreground">
-          Manage your visit bookings and explore Dzaleka Refugee Camp.
-        </p>
-      </div>
-
-
-
+    <PageContainer className="page-spacing">
+      <PageHeader
+        title={`Welcome, ${user?.firstName}!`}
+        description="Manage your visit bookings and explore Dzaleka Refugee Camp."
+      />
 
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard
@@ -1387,11 +1376,7 @@ function VisitorDashboard() {
 
       {/* Book Your Tour CTA - Show prominently if no upcoming bookings and not dismissed */}
       {upcomingBookings.length === 0 && showBookingCTA && (
-        <Card className="relative overflow-hidden border-2 border-primary shadow-lg animate-in slide-in-from-top-4 duration-500">
-          {/* Attention-grabbing gradient stripe */}
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-primary/80 to-primary" />
-
-          {/* Close button */}
+        <Card className="relative">
           <button
             onClick={() => {
               localStorage.setItem('dismiss_booking_cta', 'true');
@@ -1403,31 +1388,24 @@ function VisitorDashboard() {
             <X className="h-4 w-4" />
           </button>
 
-          <CardContent className="p-6 pt-8">
+          <CardContent className="p-6">
             <div className="flex flex-col sm:flex-row items-center gap-6">
-              {/* Icon with pulse animation */}
-              <div className="relative shrink-0">
-                <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
-                <div className="relative h-16 w-16 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg">
-                  <CalendarDays className="h-8 w-8 text-primary-foreground" />
+              <div className="shrink-0">
+                <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <CalendarDays className="h-6 w-6 text-primary" />
                 </div>
               </div>
 
-              <div className="flex-1 text-center sm:text-left space-y-2">
-                <div className="flex items-center justify-center sm:justify-start gap-2">
-                  <Badge className="bg-primary/10 text-primary border-primary/20 uppercase text-xs tracking-wider">
-                    Action Required
-                  </Badge>
-                </div>
-                <h3 className="font-bold text-2xl">Ready to Book Your Tour?</h3>
-                <p className="text-muted-foreground max-w-lg">
+              <div className="flex-1 text-center sm:text-left space-y-1">
+                <h3 className="font-semibold text-lg">Ready to Book Your Tour?</h3>
+                <p className="text-sm text-muted-foreground">
                   Experience Dzaleka with a local refugee guide. Choose your date, group size, and tour type to get started.
                 </p>
               </div>
 
-              <Button asChild size="lg" className="shrink-0 w-full sm:w-auto h-14 px-10 text-lg font-semibold shadow-lg">
+              <Button asChild size="default" className="shrink-0 w-full sm:w-auto">
                 <Link href="/my-bookings?book=true">
-                  Book Now <ArrowRight className="ml-2 h-5 w-5" />
+                  Book Now <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
             </div>
@@ -1436,20 +1414,20 @@ function VisitorDashboard() {
       )}
 
       {/* Community Hub Promotion */}
-      <Card className="bg-gradient-to-r from-primary/10 via-primary/5 to-background border-primary/20">
+      <Card>
         <CardContent className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+            <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
               <Globe className="h-6 w-6 text-primary" />
             </div>
             <div className="space-y-1 text-center sm:text-left">
-              <h3 className="font-semibold text-lg">Dzaleka Online Community</h3>
+              <h3 className="font-semibold text-base">Dzaleka Online Community</h3>
               <p className="text-sm text-muted-foreground max-w-lg">
                 Connect with essential services, stay informed on local news, and support the refugee-led initiatives driving economic empowerment and self-reliance in Dzaleka.
               </p>
             </div>
           </div>
-          <Button asChild size="lg" className="shrink-0 w-full sm:w-auto mt-2 sm:mt-0">
+          <Button asChild size="default" className="shrink-0 w-full sm:w-auto">
             <Link href="/community">
               Visit Community Hub <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
@@ -1705,91 +1683,78 @@ function VisitorDashboard() {
           <CardContent>
             <div className="space-y-6">
               {(showAllPastVisits ? completedBookings : completedBookings.slice(0, 2)).map((booking) => (
-                <div key={booking.id} className="group relative overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm transition-all hover:shadow-md">
-                  {/* Decorative Gradient Bar */}
-                  <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-green-500 to-emerald-600"></div>
+                <div key={booking.id} className="rounded-lg border p-4 space-y-3">
 
-                  <div className="p-4 sm:p-5 pl-5 sm:pl-7">
-                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                       {/* Main Info */}
                       <div className="flex-1 space-y-3">
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <h4 className="font-semibold text-lg tracking-tight">
+                            <h4 className="font-medium">
                               {booking.tourType?.replace("_", " ")} Tour
                             </h4>
                             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mt-1">
-                              <span className="flex items-center gap-1 bg-muted px-2 py-0.5 rounded-md whitespace-nowrap">
-                                <Calendar className="h-3.5 w-3.5" />
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
                                 {formatDate(booking.visitDate)}
                               </span>
-                              <span className="flex items-center gap-1 bg-muted px-2 py-0.5 rounded-md whitespace-nowrap">
-                                <Clock className="h-3.5 w-3.5" />
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
                                 {formatTime(booking.visitTime)}
                               </span>
                             </div>
                           </div>
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 shrink-0">
+                          <Badge variant="outline" className="shrink-0">
                             Completed
                           </Badge>
                         </div>
 
                         {booking.assignedGuideId && getGuideName(booking.assignedGuideId) && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <Avatar className="h-6 w-6 border">
-                              <AvatarFallback className="text-[10px] bg-primary/5 text-primary">
-                                {getGuideName(booking.assignedGuideId)?.charAt(0)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-muted-foreground">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <UserCheck className="h-4 w-4" />
+                            <span>
                               Guided by <span className="font-medium text-foreground">{getGuideName(booking.assignedGuideId)}</span>
                             </span>
                           </div>
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:flex md:flex-col gap-2 shrink-0 border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-4 mt-2 md:mt-0">
+                      <div className="flex gap-2 pt-3 border-t">
                         {itineraries?.some((i) => i.bookingId === booking.id) && (
-                          <Button size="sm" variant="default" className="w-full justify-start gap-2" asChild>
+                          <Button size="sm" variant="outline" asChild>
                             <Link href={`/bookings/${booking.id}/itinerary`}>
-                              <FileDown className="h-4 w-4" /> View Itinerary
+                              <FileDown className="mr-2 h-4 w-4" /> Itinerary
                             </Link>
                           </Button>
                         )}
-                        <Button size="sm" variant="outline" className="w-full justify-start gap-2" asChild>
+                        <Button size="sm" variant="outline" asChild>
                           <Link href="/bookings">
-                            <TrendingUp className="h-4 w-4 text-primary" />
                             Book Again
                           </Link>
-                        </Button>
-                        <Button size="sm" variant="ghost" className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground">
-                          <Download className="h-4 w-4" />
-                          Receipt
                         </Button>
                       </div>
                     </div>
 
-                    {/* Rating Section - Enhanced */}
+                    {/* Rating Section */}
                     {booking.assignedGuideId && (
-                      <div className="mt-5 pt-4 border-t border-dashed">
+                      <div className="pt-3 border-t">
                         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                          <div className="text-sm">
-                            <span className="font-medium text-foreground block mb-0.5">How was your experience?</span>
-                            <span className="text-muted-foreground text-xs">Rate your guide and help us improve.</span>
+                          <div className="text-sm text-muted-foreground">
+                            Rate your guide
                           </div>
-                          <div className="flex gap-1.5 p-1.5 bg-muted/30 rounded-full border border-transparent hover:border-border transition-colors">
+                          <div className="flex gap-1">
                             {[1, 2, 3, 4, 5].map((star) => (
                               <button
                                 key={star}
                                 onClick={() => handleRateGuide(booking.id, star)}
                                 disabled={rateGuideMutation.isPending}
-                                className="group/star p-0.5 focus:outline-none"
+                                className="p-1 focus:outline-none"
                                 title={`Rate ${star} stars`}
                               >
                                 <Star
-                                  className={`h-5 w-5 transition-all duration-200 ${selectedRating?.bookingId === booking.id && star <= selectedRating.rating
-                                    ? "fill-yellow-400 text-yellow-400 scale-110"
-                                    : "text-muted-foreground/40 group-hover/star:text-yellow-400 group-hover/star:fill-yellow-400 group-hover/star:scale-110"
+                                  className={`h-5 w-5 transition-colors ${selectedRating?.bookingId === booking.id && star <= selectedRating.rating
+                                    ? "fill-yellow-400 text-yellow-400"
+                                    : "text-muted-foreground hover:text-yellow-400"
                                     }`}
                                 />
                               </button>
@@ -1798,7 +1763,6 @@ function VisitorDashboard() {
                         </div>
                       </div>
                     )}
-                  </div>
                 </div>
               ))}
             </div>
@@ -1868,7 +1832,7 @@ function VisitorDashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-primary/30 hover:border-primary hover:bg-primary/5" asChild>
+            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
               <a href="https://services.dzaleka.com/visit/travel-guide/" target="_blank" rel="noopener noreferrer">
                 <MapPin className="h-5 w-5 text-primary" />
                 <div className="text-left">
@@ -1878,9 +1842,9 @@ function VisitorDashboard() {
                 <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
               </a>
             </Button>
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-amber-500/30 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20" asChild>
+            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
               <a href="https://services.dzaleka.com/visit/guidelines/" target="_blank" rel="noopener noreferrer">
-                <Shield className="h-5 w-5 text-amber-600" />
+                <Shield className="h-5 w-5 text-muted-foreground" />
                 <div className="text-left">
                   <div className="font-medium">Visitor Guidelines</div>
                   <div className="text-xs text-muted-foreground">What to know before you go</div>
@@ -1888,9 +1852,9 @@ function VisitorDashboard() {
                 <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
               </a>
             </Button>
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-purple-500/30 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20" asChild>
+            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
               <a href="https://services.dzaleka.com/dzaleka-time-capsule/" target="_blank" rel="noopener noreferrer">
-                <Clock className="h-5 w-5 text-purple-600" />
+                <Clock className="h-5 w-5 text-muted-foreground" />
                 <div className="text-left">
                   <div className="font-medium">Time Capsule</div>
                   <div className="text-xs text-muted-foreground">Dzaleka's history & stories</div>
@@ -1898,9 +1862,9 @@ function VisitorDashboard() {
                 <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
               </a>
             </Button>
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4 border-blue-500/30 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20" asChild>
+            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
               <a href="https://services.dzaleka.com" target="_blank" rel="noopener noreferrer">
-                <Globe className="h-5 w-5 text-blue-600" />
+                <Globe className="h-5 w-5 text-muted-foreground" />
                 <div className="text-left">
                   <div className="font-medium">Dzaleka Online Services</div>
                   <div className="text-xs text-muted-foreground">Full platform & resources</div>
@@ -1911,7 +1875,7 @@ function VisitorDashboard() {
           </div>
         </CardContent>
       </Card>
-    </div >
+    </PageContainer>
   );
 }
 

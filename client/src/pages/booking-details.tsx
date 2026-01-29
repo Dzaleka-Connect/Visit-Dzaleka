@@ -172,8 +172,8 @@ const generateBookingPDF = async (booking: BookingWithGuide, meetingPointName: s
     if (booking.bookingReference) {
         try {
             qrCodeDataUrl = await generateQRCodeDataURL(booking.bookingReference, 120);
-        } catch (error) {
-            console.error('Failed to generate QR code for PDF:', error);
+        } catch {
+            // QR code generation failed - PDF will be created without it
         }
     }
 
@@ -310,7 +310,7 @@ const generateBookingPDF = async (booking: BookingWithGuide, meetingPointName: s
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text('Thank you for choosing Dzaleka Visit!', pageWidth / 2, 276, { align: 'center' });
+    doc.text('Thank you for choosing Visit Dzaleka!', pageWidth / 2, 276, { align: 'center' });
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.text('Questions? Contact us at info@mail.dzaleka.com | +61 4989 56 715', pageWidth / 2, 285, { align: 'center' });

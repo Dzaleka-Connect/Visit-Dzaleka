@@ -1,5 +1,6 @@
 import { storage } from "./storage";
 import type { NotificationType, Notification } from "@shared/schema";
+import { logger } from "./lib/logger";
 
 interface CreateNotificationOptions {
     userId: string;
@@ -25,7 +26,7 @@ export async function createNotification(options: CreateNotificationOptions): Pr
         });
         return notification;
     } catch (error) {
-        console.error("Failed to create notification:", error);
+        logger.error("Failed to create notification", error);
         return null;
     }
 }
@@ -49,7 +50,7 @@ export async function notifyBookingCreated(bookingId: string, visitorName: strin
             });
         }
     } catch (error) {
-        console.error("Failed to notify booking created:", error);
+        logger.error("Failed to notify booking created", error);
     }
 }
 
@@ -100,7 +101,7 @@ export async function notifyBookingStatusChanged(
             });
         }
     } catch (error) {
-        console.error("Failed to notify booking status change:", error);
+        logger.error("Failed to notify booking status change", error);
     }
 }
 
@@ -123,7 +124,7 @@ export async function notifyGuideAssigned(
             relatedId: bookingId,
         });
     } catch (error) {
-        console.error("Failed to notify guide assigned:", error);
+        logger.error("Failed to notify guide assigned", error);
     }
 }
 
@@ -150,7 +151,7 @@ export async function notifyCheckIn(
             });
         }
     } catch (error) {
-        console.error("Failed to notify check-in:", error);
+        logger.error("Failed to notify check-in", error);
     }
 }
 
@@ -184,7 +185,7 @@ export async function notifyPaymentReceived(
             });
         }
     } catch (error) {
-        console.error("Failed to notify payment received:", error);
+        logger.error("Failed to notify payment received", error);
     }
 }
 
@@ -223,7 +224,7 @@ export async function notifyBookingCancelledByVisitor(
             });
         }
     } catch (error) {
-        console.error("Failed to notify booking cancellation:", error);
+        logger.error("Failed to notify booking cancellation", error);
     }
 }
 
@@ -250,7 +251,7 @@ export async function notifySupportTicketCreated(
             });
         }
     } catch (error) {
-        console.error("Failed to notify support ticket:", error);
+        logger.error("Failed to notify support ticket", error);
     }
 }
 
@@ -278,7 +279,7 @@ export async function notifyLowRatingReceived(
             });
         }
     } catch (error) {
-        console.error("Failed to notify low rating:", error);
+        logger.error("Failed to notify low rating", error);
     }
 }
 
@@ -306,6 +307,6 @@ export async function notifyIncidentReported(
             });
         }
     } catch (error) {
-        console.error("Failed to notify incident:", error);
+        logger.error("Failed to notify incident", error);
     }
 }

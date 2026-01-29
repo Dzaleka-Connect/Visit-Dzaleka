@@ -58,7 +58,7 @@ export default function OperationsManual() {
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight">Operations Manual</h1>
                         <p className="text-muted-foreground text-lg mt-1">
-                            Central command for Dzaleka Visit policies, procedures, and strategies.
+                            Central command for Visit Dzaleka policies, procedures, and strategies.
                         </p>
                     </div>
                     <Badge variant="outline" className="h-fit py-1 px-3 border-primary/20 bg-primary/5 text-primary">

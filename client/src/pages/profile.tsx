@@ -140,8 +140,7 @@ export default function Profile() {
         title: "Photo updated",
         description: "Your profile photo has been updated.",
       });
-    } catch (error) {
-      console.error("Image upload error:", error);
+    } catch {
       toast({
         title: "Upload failed",
         description: "Failed to upload image. Please try again.",
@@ -346,7 +345,7 @@ export default function Profile() {
                   {updateProfileMutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
+                      Saving…
                     </>
                   ) : (
                     <>

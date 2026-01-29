@@ -123,13 +123,14 @@ export function NotificationBell() {
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="relative"
+                    className="relative overflow-visible"
                     data-testid="notification-bell"
+                    aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
                 >
                     <Bell className="h-5 w-5" />
                     {unreadCount > 0 && (
                         <Badge
-                            className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-red-500 text-white hover:bg-red-600 border-2 border-background shadow-sm"
+                            className="absolute -right-1 -top-1 h-5 min-w-[1.25rem] rounded-full px-1 flex items-center justify-center text-xs bg-red-500 text-white hover:bg-red-600 border-2 border-background shadow-sm"
                         >
                             {unreadCount > 99 ? "99+" : unreadCount}
                         </Badge>
@@ -192,8 +193,10 @@ export function NotificationBell() {
                                                         e.stopPropagation();
                                                         deleteMutation.mutate(notification.id);
                                                     }}
+                                                    aria-label="Delete notification"
                                                 >
                                                     <X className="h-3 w-3" />
+                                                    <span className="sr-only">Delete notification</span>
                                                 </Button>
                                             </div>
                                             <p className="text-xs text-muted-foreground mt-0.5 break-words">

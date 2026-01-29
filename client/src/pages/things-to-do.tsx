@@ -433,9 +433,9 @@ export default function ThingsToDo() {
                 <div className="container mx-auto flex h-16 items-center justify-between px-4">
                     <Link href="/">
                         <div className="flex items-center gap-3 cursor-pointer">
-                            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Dzaleka Visit Logo" className="h-10 w-10 rounded-lg shadow-sm" />
+                            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Visit Dzaleka Logo" className="h-10 w-10 rounded-lg shadow-sm" />
                             <div className="flex flex-col">
-                                <span className="text-sm font-bold tracking-tight">Dzaleka Visit</span>
+                                <span className="text-sm font-bold tracking-tight">Visit Dzaleka</span>
                                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
                                     Official Portal
                                 </span>
@@ -495,6 +495,8 @@ export default function ThingsToDo() {
                     <button
                         className="md:hidden p-2"
                         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                        aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+                        aria-expanded={mobileMenuOpen}
                     >
                         {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
                     </button>

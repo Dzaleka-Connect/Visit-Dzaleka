@@ -33,6 +33,7 @@ import {
   ClipboardList,
   Heart,
   Map,
+  CreditCard,
 } from "lucide-react";
 import {
   Sidebar,
@@ -215,6 +216,12 @@ const financeItems: NavItem[] = [
     url: "/revenue",
     icon: DollarSign,
     roles: ["admin", "coordinator"],
+  },
+  {
+    title: "Payments",
+    url: "/payments",
+    icon: CreditCard,
+    roles: ["admin"],
   },
 ];
 
@@ -558,8 +565,10 @@ export function AppSidebar() {
             disabled={isLoggingOut}
             data-testid="button-logout"
             title="Sign out"
+            aria-label="Sign out"
           >
             <LogOut className="h-4 w-4" />
+            <span className="sr-only">Sign out</span>
           </Button>
         </div>
         {/* Account Switcher for Admins */}

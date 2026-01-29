@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { HelmetProvider } from "react-helmet-async";
@@ -10,6 +10,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
 import { useAuth } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/lib/protected-route";
+import { ErrorBoundary } from "@/components/error-boundary";
+import { CommandPalette } from "@/components/command-palette";
 import { useRealtimeSubscriptions } from "@/hooks/useRealtime";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
@@ -98,6 +100,7 @@ import CookieNotice from "@/pages/cookie-notice";
 import PartnerWithUs from "@/pages/partner-with-us";
 import FAQPage from "@/pages/faq";
 import SupportOurWork from "@/pages/support-our-work";
+import PaymentsPage from "@/pages/payments";
 
 import Destinations from "@/pages/destinations";
 import NatureOutdoors from "@/pages/nature-outdoors";
@@ -132,22 +135,51 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
               <ThemeToggle />
             </div>
           </header>
-          <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+          <main className="flex-1 overflow-y-auto p-6 md:p-8">{children}</main>
         </div>
       </div>
     </SidebarProvider>
   );
 }
 
+// Public routes that don't need authentication layout
+const PUBLIC_ROUTES = [
+  "/embed/",
+  "/blog",
+  "/things-to-do",
+  "/whats-on",
+  "/plan-your-trip",
+  "/accommodation",
+  "/disclaimer",
+  "/cookie-notice",
+  "/destinations",
+  "/partner-with-us",
+  "/faq",
+  "/support-our-work",
+  "/newsletter",
+  "/friends-of-dzaleka",
+  "/about-dzaleka",
+  "/about-us",
+  "/life-in-dzaleka",
+  "/impact-report",
+  "/contact",
+];
+
+function isPublicRoute(path: string): boolean {
+  return PUBLIC_ROUTES.some((route) =>
+    route.endsWith("/") ? path.startsWith(route) : path === route || path.startsWith(route + "/")
+  );
+}
+
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
+  const [location] = useLocation();
 
   // Track page views for analytics
   usePageTracker();
 
-  // Embed and Blog routes should be accessible without authenticated layout
-  const path = window.location.pathname;
-  if (path.startsWith("/embed/") || path.startsWith("/blog") || path.startsWith("/things-to-do") || path.startsWith("/whats-on") || path.startsWith("/plan-your-trip") || path.startsWith("/accommodation") || path === "/disclaimer" || path === "/cookie-notice" || path === "/destinations" || path === "/partner-with-us" || path === "/faq" || path === "/support-our-work" || path === "/newsletter" || path === "/friends-of-dzaleka" || path.startsWith("/friends-of-dzaleka/")) {
+  // Public routes accessible without authentication layout
+  if (isPublicRoute(location)) {
     return (
       <Switch>
         <Route path="/embed/booking" component={EmbedBooking} />
@@ -192,7 +224,7 @@ function Router() {
       <div className="flex h-dvh items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Loading...</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         </div>
       </div>
     );
@@ -256,9 +288,9 @@ function Router() {
         <ProtectedRoute path="/marketing-strategy" component={MarketingStrategy} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/continuous-improvement" component={ContinuousImprovement} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/financial-framework" component={FinancialFramework} allowedRoles={["admin", "coordinator"]} />
-        <Route path="/my-tours" component={MyTours} />
-        <Route path="/my-earnings" component={MyEarnings} />
-        <Route path="/my-availability" component={MyAvailability} />
+        <ProtectedRoute path="/my-tours" component={MyTours} allowedRoles={["guide"]} />
+        <ProtectedRoute path="/my-earnings" component={MyEarnings} allowedRoles={["guide"]} />
+        <ProtectedRoute path="/my-availability" component={MyAvailability} allowedRoles={["guide"]} />
         <Route path="/training-admin" component={TrainingAdmin} />
         <Route path="/zones" component={Zones} />
         <Route path="/security" component={Security} />
@@ -269,6 +301,7 @@ function Router() {
         <Route path="/send-email" component={EmailHistory} />
         <Route path="/email-settings" component={EmailSettings} />
         <ProtectedRoute path="/revenue" component={Revenue} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/payments" component={PaymentsPage} allowedRoles={["admin"]} />
         <ProtectedRoute path="/audit-logs" component={AuditLogs} allowedRoles={["admin"]} />
         <ProtectedRoute path="/analytics" component={Analytics} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/reports" component={Reports} allowedRoles={["admin", "coordinator"]} />
@@ -304,10 +337,13 @@ function App() {
     <HelmetProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <AnalyticsTracker />
-          <ScrollToTop />
-          <Toaster />
-          <Router />
+          <ErrorBoundary>
+            <AnalyticsTracker />
+            <ScrollToTop />
+            <Toaster />
+            <CommandPalette />
+            <Router />
+          </ErrorBoundary>
         </TooltipProvider>
       </QueryClientProvider>
     </HelmetProvider>

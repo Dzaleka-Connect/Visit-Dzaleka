@@ -42,6 +42,7 @@ export const tourTypeEnum = pgEnum("tour_type", [
 export const paymentMethodEnum = pgEnum("payment_method", [
   "airtel_money",
   "tnm_mpamba",
+  "card",
   "cash",
 ]);
 
@@ -249,6 +250,9 @@ export const bookings = pgTable("bookings", {
   paymentMethod: paymentMethodEnum("payment_method").notNull(),
   paymentStatus: paymentStatusEnum("payment_status").default("pending"),
   paymentReference: varchar("payment_reference"),
+  paymentFees: integer("payment_fees").default(0), // Stripe fees
+  netAmount: integer("net_amount").default(0), // Actual payout amount
+  paymentDetails: jsonb("payment_details"), // { brand, last4, country, funding }
   paymentVerifiedBy: varchar("payment_verified_by"),
   paymentVerifiedAt: timestamp("payment_verified_at"),
   status: bookingStatusEnum("status").default("pending"),
@@ -269,6 +273,8 @@ export const bookings = pgTable("bookings", {
   visitorOrganization: varchar("visitor_organization"), // e.g., company name
   version: integer("version").default(1).notNull(), // Optimistic locking version
   recurringBookingId: varchar("recurring_booking_id"),
+  // Reminder tracking
+  reminderSentAt: timestamp("reminder_sent_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -307,6 +313,44 @@ export const recurringBookings = pgTable("recurring_bookings", {
 
 export const recurringBookingsRelations = relations(recurringBookings, ({ many }) => ({
   bookings: many(bookings),
+}));
+
+// PayChangu Mobile Money Payment Status
+export const paymentStatusTypeEnum = pgEnum("payment_status_type", [
+  "pending",
+  "processing",
+  "success",
+  "failed",
+  "cancelled",
+]);
+
+// Guide Payments table - Track mobile money payouts to guides
+export const guidePayments = pgTable("guide_payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  guideId: varchar("guide_id").notNull(),
+  bookingId: varchar("booking_id"), // Optional: link to specific booking
+  amount: integer("amount").notNull(), // Amount in MWK
+  currency: varchar("currency").default("MWK"),
+  mobileNumber: varchar("mobile_number").notNull(),
+  operator: varchar("operator"), // airtel, tnm
+  operatorRefId: varchar("operator_ref_id"), // PayChangu operator ID
+  status: paymentStatusTypeEnum("status").default("pending"),
+  errorMessage: text("error_message"),
+  initiatedBy: varchar("initiated_by").notNull(), // Admin user ID who initiated
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+export const guidePaymentsRelations = relations(guidePayments, ({ one }) => ({
+  guide: one(guides, {
+    fields: [guidePayments.guideId],
+    references: [guides.id],
+  }),
+  booking: one(bookings, {
+    fields: [guidePayments.bookingId],
+    references: [bookings.id],
+  }),
 }));
 
 // Guide Availability table - Enhanced for weekly scheduling
@@ -764,6 +808,8 @@ export type ZoneVisit = typeof zoneVisits.$inferSelect;
 
 export type InsertBookingCompanion = z.infer<typeof insertBookingCompanionSchema>;
 export type BookingCompanion = typeof bookingCompanions.$inferSelect;
+
+export type GuidePayment = typeof guidePayments.$inferSelect;
 
 export type InsertBookingActivityLog = z.infer<typeof insertBookingActivityLogSchema>;
 export type BookingActivityLog = typeof bookingActivityLogs.$inferSelect;

@@ -418,7 +418,7 @@ export default function LiveOperations() {
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction onClick={confirmCheckOut} disabled={checkOutMutation.isPending}>
-                            {checkOutMutation.isPending ? "Processing..." : "Check Out"}
+                            {checkOutMutation.isPending ? "Processing…" : "Check Out"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

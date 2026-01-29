@@ -27,6 +27,8 @@ import {
   Loader2,
   ArrowLeft,
   FileDown,
+  Sparkles,
+  Star,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -88,6 +90,8 @@ import {
 import type { Booking, Guide, Zone, MeetingPoint, PointOfInterest, BookingStatus } from "@shared/schema";
 import { SEO } from "@/components/seo";
 import { jsPDF } from "jspdf";
+import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 
 interface BookingWithGuide extends Booking {
   guide?: Guide;
@@ -183,8 +187,8 @@ const generateBookingPDF = async (booking: BookingWithGuide, meetingPointName: s
   if (booking.bookingReference) {
     try {
       qrCodeDataUrl = await generateQRCodeDataURL(booking.bookingReference, 120);
-    } catch (error) {
-      console.error('Failed to generate QR code for PDF:', error);
+    } catch {
+      // QR code generation failed - PDF will be created without it
     }
   }
 
@@ -321,7 +325,7 @@ const generateBookingPDF = async (booking: BookingWithGuide, meetingPointName: s
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text('Thank you for choosing Dzaleka Visit!', pageWidth / 2, 276, { align: 'center' });
+  doc.text('Thank you for choosing Visit Dzaleka!', pageWidth / 2, 276, { align: 'center' });
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.text('Questions? Contact us at info@mail.dzaleka.com | +265 999 123 456', pageWidth / 2, 285, { align: 'center' });
@@ -748,10 +752,9 @@ export default function Bookings() {
       });
     },
     onError: (error: Error) => {
-      console.error("Historical booking error:", error);
       toast({
         title: "Error Recording Visit",
-        description: error.message || "Failed to record historical visit. Check console for details.",
+        description: error.message || "Failed to record historical visit.",
         variant: "destructive",
       });
     },
@@ -819,21 +822,19 @@ export default function Bookings() {
   }
 
   return (
-    <div className="space-y-6">
+    <PageContainer className="page-spacing">
       <SEO
         title="Book a Tour"
         description="Schedule your visit to Dzaleka. Choose your tour type, group size, and preferred guide."
       />
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-          {isDetailOpen ? "Booking Details" : "Bookings"}
-        </h1>
-        <p className="text-muted-foreground">
-          {isDetailOpen
+      <PageHeader
+        title={isDetailOpen ? "Booking Details" : "Bookings"}
+        description={
+          isDetailOpen
             ? `Managing booking #${selectedBooking?.bookingReference || selectedBooking?.id.slice(0, 8) || "..."}`
-            : "Manage visitor booking requests and tour assignments."}
-        </p>
-      </div>
+            : "Manage visitor booking requests and tour assignments."
+        }
+      />
 
       {isDetailOpen && selectedBooking ? (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -1413,6 +1414,14 @@ export default function Bookings() {
                       ? "Try adjusting your search or filters."
                       : "New booking requests will appear here when visitors submit them."
                   }
+                  action={
+                    !searchQuery && statusFilters.length === 0 ? (
+                      <Button onClick={() => setIsCreateBookingOpen(true)}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Create First Booking
+                      </Button>
+                    ) : undefined
+                  }
                 />
               </CardContent>
             ) : (
@@ -1433,7 +1442,7 @@ export default function Bookings() {
                         />
                       </TableHead>
                       <TableHead>Visitor</TableHead>
-                      <TableHead>Date & Time</TableHead>
+                      <TableHead className="whitespace-nowrap">Date & Time</TableHead>
                       <TableHead>Group</TableHead>
                       <TableHead>Tour Type</TableHead>
                       <TableHead>Amount</TableHead>
@@ -1476,7 +1485,7 @@ export default function Bookings() {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="whitespace-nowrap">
                           <div className="flex flex-col">
                             <span>{formatDate(booking.visitDate)}</span>
                             <span className="text-xs text-muted-foreground">
@@ -1613,26 +1622,37 @@ export default function Bookings() {
 
 
       <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Assign Guide</DialogTitle>
             <DialogDescription>
-              Select a guide to assign to this booking.
+              Select a guide to assign to this booking, or get smart suggestions based on availability and expertise.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <Select value={selectedGuideId} onValueChange={setSelectedGuideId}>
-              <SelectTrigger data-testid="select-guide">
-                <SelectValue placeholder="Select a guide" />
-              </SelectTrigger>
-              <SelectContent>
-                {guides?.filter((g) => g.isActive).map((guide) => (
-                  <SelectItem key={guide.id} value={guide.id}>
-                    {guide.firstName} {guide.lastName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Smart Suggestion Feature */}
+            <GuideSuggestionPanel
+              booking={selectedBooking}
+              onSelectGuide={(guideId) => setSelectedGuideId(guideId)}
+              selectedGuideId={selectedGuideId}
+            />
+
+            {/* Manual Selection */}
+            <div className="border-t pt-4">
+              <Label className="text-sm text-muted-foreground mb-2 block">Or select manually:</Label>
+              <Select value={selectedGuideId} onValueChange={setSelectedGuideId}>
+                <SelectTrigger data-testid="select-guide">
+                  <SelectValue placeholder="Select a guide" />
+                </SelectTrigger>
+                <SelectContent>
+                  {guides?.filter((g) => g.isActive).map((guide) => (
+                    <SelectItem key={guide.id} value={guide.id}>
+                      {guide.firstName} {guide.lastName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAssignOpen(false)}>
@@ -2233,11 +2253,156 @@ export default function Bookings() {
               onClick={() => historicalBookingMutation.mutate(historicalBooking)}
               disabled={historicalBookingMutation.isPending || !historicalBooking.visitorName || !historicalBooking.visitorEmail || !historicalBooking.visitDate}
             >
-              {historicalBookingMutation.isPending ? "Recording..." : "Record Visit"}
+              {historicalBookingMutation.isPending ? "Recording…" : "Record Visit"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div >
+    </PageContainer>
+  );
+}
+
+// Smart Guide Suggestion Panel Component
+interface GuideSuggestion {
+  guide: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    rating?: number;
+    totalRatings?: number;
+  };
+  score: number;
+  breakdown: {
+    zoneExpertise: number;
+    availability: number;
+    workload: number;
+    rating: number;
+  };
+  reasons: string[];
+  topReason: string;
+}
+
+function GuideSuggestionPanel({
+  booking,
+  onSelectGuide,
+  selectedGuideId,
+}: {
+  booking: BookingWithGuide | null;
+  onSelectGuide: (guideId: string) => void;
+  selectedGuideId: string;
+}) {
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const { data: suggestions, isLoading, refetch } = useQuery<GuideSuggestion[]>({
+    queryKey: ["/api/guides/suggest", booking?.visitDate, booking?.visitTime, booking?.selectedZones],
+    queryFn: async () => {
+      if (!booking?.visitDate || !booking?.visitTime) return [];
+      const params = new URLSearchParams();
+      params.append("visitDate", booking.visitDate);
+      params.append("visitTime", booking.visitTime);
+      (booking.selectedZones || []).forEach(zone => params.append("selectedZones", zone));
+
+      const res = await fetch(`/api/guides/suggest?${params.toString()}`, {
+        credentials: "include"
+      });
+      if (!res.ok) throw new Error("Failed to fetch suggestions");
+      return res.json();
+    },
+    enabled: showSuggestions && !!booking?.visitDate && !!booking?.visitTime,
+  });
+
+  if (!booking) return null;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-amber-500" />
+          Smart Guide Suggestions
+        </Label>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setShowSuggestions(true);
+            refetch();
+          }}
+        >
+          Get Suggestions
+        </Button>
+      </div>
+
+      {showSuggestions && (
+        <div className="space-y-2">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-sm text-muted-foreground">Analyzing best matches...</span>
+            </div>
+          ) : suggestions && suggestions.length > 0 ? (
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {suggestions.slice(0, 5).map((suggestion, index) => (
+                <div
+                  key={suggestion.guide.id}
+                  className={`p-3 rounded-lg border cursor-pointer transition-all ${selectedGuideId === suggestion.guide.id
+                    ? "border-primary bg-primary/5"
+                    : "border-muted hover:border-primary/50"
+                    }`}
+                  onClick={() => onSelectGuide(suggestion.guide.id)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${index === 0 ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"
+                        }`}>
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium">{suggestion.guide.firstName} {suggestion.guide.lastName}</p>
+                        <p className="text-xs text-muted-foreground">{suggestion.topReason}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="flex items-center gap-1">
+                        <span className="font-bold text-sm">{suggestion.score}</span>
+                        <span className="text-xs text-muted-foreground">/100</span>
+                      </div>
+                      {suggestion.guide.rating && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                          {(suggestion.guide.rating).toFixed(1)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {/* Score breakdown */}
+                  <div className="mt-2 grid grid-cols-4 gap-1 text-xs">
+                    <div className="text-center">
+                      <div className="font-medium">{suggestion.breakdown.zoneExpertise}</div>
+                      <div className="text-muted-foreground">Zone</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-medium">{suggestion.breakdown.availability}</div>
+                      <div className="text-muted-foreground">Avail</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-medium">{suggestion.breakdown.workload}</div>
+                      <div className="text-muted-foreground">Load</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-medium">{suggestion.breakdown.rating}</div>
+                      <div className="text-muted-foreground">Rating</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No suggestions available. Please select a guide manually.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

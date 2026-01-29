@@ -100,7 +100,7 @@ export const LANGUAGES = [
   "Amharic",
 ] as const;
 
-// Format currency
+// Format currency (plain string)
 export function formatCurrency(amount: number, currency = "MWK"): string {
   return new Intl.NumberFormat("en-MW", {
     style: "currency",
@@ -108,6 +108,11 @@ export function formatCurrency(amount: number, currency = "MWK"): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+// Format currency with tabular nums class for better alignment
+export function formatCurrencyTabular(amount: number, currency = "MWK"): string {
+  return formatCurrency(amount, currency);
 }
 
 // Format date

@@ -57,6 +57,10 @@ import {
     Cell,
 } from "recharts";
 import { SEO } from "@/components/seo";
+import { PageContainer } from '@/components/page-container';
+import { PageHeader } from '@/components/page-header';
+import { AnimatedNumber } from '@/components/animated-number';
+import { formatCompactNumber } from '@/lib/format-number';
 
 interface PageViewStats {
     totalPageViews: number;
@@ -183,34 +187,32 @@ export default function Analytics() {
     const kpis = bookingKpis?.summary;
 
     return (
-        <div className="space-y-4 sm:space-y-6">
+        <PageContainer className="page-spacing">
             <SEO
                 title="Website Analytics"
                 description="Track page views, visitor behavior, device usage, and conversion metrics for Visit Dzaleka."
             />
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Website Analytics</h1>
-                    <p className="text-sm sm:text-base text-muted-foreground">
-                        Track page views, visitor behavior, and conversion metrics.
-                    </p>
-                </div>
+            <PageHeader
+                title="Website Analytics"
+                description="Track page views, visitor behavior, and conversion metrics."
+            >
                 <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading || kpisLoading}>
                     <RefreshCcw className={`mr-2 h-4 w-4 ${(isLoading || kpisLoading) ? 'animate-spin' : ''}`} />
                     Refresh
                 </Button>
-            </div>
+            </PageHeader>
 
             {/* Summary Cards */}
-            <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+            <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
                 <Card className="col-span-2 lg:col-span-1">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Live Visitors</CardTitle>
                         <Activity className="h-4 w-4 text-green-500 animate-pulse" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{formatCompactNumber(liveData?.count ?? 0)}</div>
+                        <div className="text-2xl font-bold">
+                            <AnimatedNumber value={liveData?.count ?? 0} />
+                        </div>
                         <p className="text-xs text-muted-foreground">Active in last 5 min</p>
                     </CardContent>
                 </Card>
@@ -221,7 +223,9 @@ export default function Analytics() {
                         <Eye className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{formatCompactNumber(stats.totalPageViews)}</div>
+                        <div className="text-2xl font-bold">
+                            <AnimatedNumber value={stats.totalPageViews} formatFn={formatCompactNumber} />
+                        </div>
                         <p className="text-xs text-muted-foreground">All tracked page views</p>
                     </CardContent>
                 </Card>
@@ -232,7 +236,9 @@ export default function Analytics() {
                         <Users className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{formatCompactNumber(stats.uniqueVisitors)}</div>
+                        <div className="text-2xl font-bold">
+                            <AnimatedNumber value={stats.uniqueVisitors} formatFn={formatCompactNumber} />
+                        </div>
                         <p className="text-xs text-muted-foreground">Unique browser sessions</p>
                     </CardContent>
                 </Card>
@@ -273,16 +279,18 @@ export default function Analytics() {
                     <h2 className="text-lg sm:text-xl font-semibold">Booking & Revenue KPIs</h2>
                 </div>
 
-                <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+                <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
                             <CalendarDays className="h-4 w-4 text-primary" />
                         </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{kpis?.totalBookings ?? 0}</div>
-                            <p className="text-xs text-muted-foreground">Last 30 days</p>
-                        </CardContent>
+                    <CardContent>
+                        <div className="text-2xl font-bold">
+                            <AnimatedNumber value={kpis?.totalBookings ?? 0} />
+                        </div>
+                        <p className="text-xs text-muted-foreground">Last 30 days</p>
+                    </CardContent>
                     </Card>
 
                     <Card>
@@ -644,6 +652,6 @@ export default function Analytics() {
                     )}
                 </CardContent>
             </Card>
-        </div>
+        </PageContainer>
     );
 }

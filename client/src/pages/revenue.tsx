@@ -71,6 +71,8 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { SEO } from "@/components/seo";
+import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 
 interface RevenueDashboard {
   totalRevenue: number;
@@ -464,7 +466,7 @@ function PayoutsTab() {
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setRecordDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleRecordPayout} disabled={createPayoutMutation.isPending}>
-              {createPayoutMutation.isPending ? "Recording..." : "Create Record"}
+              {createPayoutMutation.isPending ? "Recording…" : "Create Record"}
             </Button>
           </div>
         </DialogContent>
@@ -641,7 +643,7 @@ function PayoutHistoryTab() {
                         {payout.createdAt ? format(new Date(payout.createdAt), "MMM d, yyyy") : "-"}
                       </TableCell>
                       <TableCell className="font-medium">{payout.guideName}</TableCell>
-                      <TableCell className="text-right font-semibold">{formatCurrency(payout.amount)}</TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(payout.amount)}</TableCell>
                       <TableCell className="text-center">{payout.toursCount || 0}</TableCell>
                       <TableCell>
                         {payout.paymentMethod ? (
@@ -755,7 +757,7 @@ function PayoutHistoryTab() {
               onClick={handleMarkPaid}
               disabled={!paymentMethod || markPaidMutation.isPending}
             >
-              {markPaidMutation.isPending ? "Processing..." : "Confirm Payment"}
+              {markPaidMutation.isPending ? "Processing…" : "Confirm Payment"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -775,25 +777,25 @@ export default function Revenue() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Revenue</h1>
-          <p className="text-muted-foreground">Track revenue and payments.</p>
-        </div>
+      <PageContainer className="page-spacing">
+        <PageHeader
+          title="Revenue"
+          description="Track revenue and payments."
+        />
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="space-y-6">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Revenue</h1>
-          <p className="text-muted-foreground">Track revenue and payments.</p>
-        </div>
+      <PageContainer className="page-spacing">
+        <PageHeader
+          title="Revenue"
+          description="Track revenue and payments."
+        />
         <Card>
           <CardContent className="py-8">
             <EmptyState
@@ -803,7 +805,7 @@ export default function Revenue() {
             />
           </CardContent>
         </Card>
-      </div>
+      </PageContainer>
     );
   }
 
@@ -816,19 +818,15 @@ export default function Revenue() {
   }));
 
   return (
-    <div className="space-y-6">
+    <PageContainer className="page-spacing">
       <SEO
         title="Revenue"
         description="Track revenue and payments at Visit Dzaleka."
       />
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Revenue</h1>
-          <p className="text-muted-foreground">
-            Track revenue and payments.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Revenue"
+        description="Track revenue and payments."
+      />
 
       <Tabs defaultValue="overview">
         <TabsList>
@@ -1295,6 +1293,6 @@ export default function Revenue() {
           <PayoutHistoryTab />
         </TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   );
 }

@@ -88,8 +88,8 @@ export default function PartnerWithUs() {
     return (
         <div className="min-h-screen bg-background flex flex-col font-sans">
             <SEO
-                title="Partner With Us | Dzaleka Visit"
-                description="Join us in creating meaningful connections. Partner with Dzaleka Visit to offer authentic cultural experiences and support the refugee community."
+                title="Partner With Us | Visit Dzaleka"
+                description="Join us in creating meaningful connections. Partner with Visit Dzaleka to offer authentic cultural experiences and support the refugee community."
                 keywords="partner with Dzaleka, tourism partnership Malawi, refugee camp tours collaboration, sustainable tourism partners"
                 canonical="https://visit.dzaleka.com/partner-with-us"
             />
@@ -277,7 +277,7 @@ export default function PartnerWithUs() {
                                             {isSubmitting ? (
                                                 <>
                                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                    Sending...
+                                                    Sending…
                                                 </>
                                             ) : (
                                                 <>

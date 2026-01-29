@@ -520,7 +520,7 @@ export default function Security() {
             </CardHeader>
             <CardContent>
               {todaysLoading ? (
-                <p className="text-muted-foreground">Loading...</p>
+                <p className="text-muted-foreground">Loading…</p>
               ) : !todaysBookings || todaysBookings.length === 0 ? (
                 <EmptyState
                   icon={Clock}
@@ -605,7 +605,7 @@ export default function Security() {
             </CardHeader>
             <CardContent>
               {activeLoading ? (
-                <p className="text-muted-foreground">Loading...</p>
+                <p className="text-muted-foreground">Loading…</p>
               ) : !activeVisits || activeVisits.length === 0 ? (
                 <EmptyState
                   icon={UserCheck}
@@ -712,7 +712,7 @@ export default function Security() {
             </CardHeader>
             <CardContent>
               {incidentsLoading ? (
-                <p className="text-muted-foreground">Loading...</p>
+                <p className="text-muted-foreground">Loading…</p>
               ) : !incidents || incidents.length === 0 ? (
                 <EmptyState
                   icon={AlertTriangle}

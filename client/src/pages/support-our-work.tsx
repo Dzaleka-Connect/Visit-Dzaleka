@@ -25,7 +25,7 @@ export default function SupportOurWork() {
     return (
         <div className="min-h-screen bg-background flex flex-col font-sans">
             <SEO
-                title="Support Our Work | Dzaleka Visit"
+                title="Support Our Work | Visit Dzaleka"
                 description="Support Dzaleka Online Services to preserve and promote Dzaleka's cultural heritage. Donate now to help digitize history, empower refugees, and amplify community voices."
                 keywords="donate Dzaleka, support refugees Malawi, Dzaleka Online Services, digital inclusion refugees, in-kind donations Dzaleka"
                 canonical="https://services.dzaleka.com/support-our-work"
@@ -36,9 +36,9 @@ export default function SupportOurWork() {
                 <div className="container mx-auto flex h-16 items-center justify-between px-4">
                     <Link href="/">
                         <div className="flex items-center gap-3 cursor-pointer">
-                            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Dzaleka Visit Logo" className="h-10 w-10 rounded-lg shadow-sm" />
+                            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Visit Dzaleka Logo" className="h-10 w-10 rounded-lg shadow-sm" />
                             <div className="flex flex-col">
-                                <span className="text-sm font-bold tracking-tight">Dzaleka Visit</span>
+                                <span className="text-sm font-bold tracking-tight">Visit Dzaleka</span>
                                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
                                     Official Portal
                                 </span>

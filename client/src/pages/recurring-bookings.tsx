@@ -359,7 +359,7 @@ function CreateScheduleDialog({ open, onOpenChange }: { open: boolean; onOpenCha
                     </div>
 
                     <Button className="w-full" onClick={onSubmit} disabled={mutation.isPending}>
-                        {mutation.isPending ? "Creating..." : "Create Schedule"}
+                        {mutation.isPending ? "Creating…" : "Create Schedule"}
                     </Button>
                 </div>
             </DialogContent>

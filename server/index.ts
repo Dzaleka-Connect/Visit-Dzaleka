@@ -1,6 +1,7 @@
 import { createApp, log } from "./app";
 import { serveStatic } from "./static";
 import { type Request, Response, NextFunction } from "express";
+import { startReminderScheduler } from "./lib/reminder-scheduler";
 
 (async () => {
   const { app, httpServer } = await createApp();
@@ -9,8 +10,6 @@ import { type Request, Response, NextFunction } from "express";
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
-    // Log the error but don't throw after sending response
-    console.error("Unhandled error:", err);
     res.status(status).json({ message });
     // Don't throw here - response already sent, would cause unhandled rejection
   });
@@ -37,6 +36,9 @@ import { type Request, Response, NextFunction } from "express";
     },
     () => {
       log(`serving on port ${port}`);
+      
+      // Start booking reminder scheduler
+      startReminderScheduler();
     },
   );
 })();

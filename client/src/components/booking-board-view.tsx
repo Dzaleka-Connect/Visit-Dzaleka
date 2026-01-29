@@ -39,9 +39,6 @@ export function BookingBoardView({
 
     const getBookingsByStatus = (status: string) => {
         return bookings.filter((b) => {
-            if (status === "in_progress") {
-                return b.status === "in_progress" || b.status === "checked_in";
-            }
             return b.status === status;
         });
     };

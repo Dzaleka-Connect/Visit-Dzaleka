@@ -28,9 +28,8 @@ export function useAuth() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      // Invalidate all queries to refresh data as admin
-      queryClient.invalidateQueries();
+      // Force a full page reload to ensure all data refreshes with admin context
+      window.location.href = "/";
     },
   });
 

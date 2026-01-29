@@ -57,6 +57,9 @@ import { BookingListView } from "@/components/booking-list-view";
 import { BookingBoardView } from "@/components/booking-board-view";
 import { BookingTimelineView } from "@/components/booking-timeline-view";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
+import { AnimatedNumber } from "@/components/animated-number";
 
 interface BookingWithGuide extends Booking {
   guide?: Guide;
@@ -280,133 +283,194 @@ export default function CalendarPage() {
   };
 
   const isWideView = viewMode === "list" || viewMode === "board" || viewMode === "timeline";
+  const todayBookingsCount = getBookingsForDay(new Date()).length;
+  const weekBookingsCount = filteredBookings.filter(b => {
+    const bookingDate = parseISO(b.visitDate);
+    return bookingDate >= weekStart && bookingDate <= weekEnd;
+  }).length;
 
   return (
-    <div className="space-y-6">
+    <PageContainer size="xl" className="page-spacing">
       <SEO
         title="Schedule & Bookings"
         description="View and manage tour schedules for Dzaleka Refugee Camp. Drag bookings to reschedule."
       />
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Schedule</h1>
-        <p className="text-muted-foreground">
-          View and manage tour schedules. Drag bookings to reschedule.
-        </p>
+      <PageHeader
+        title="Schedule"
+        description="View and manage tour schedules. Drag bookings to reschedule."
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          {!isWideView && (
+            <>
+              <Button variant="outline" size="sm" onClick={goToPrev}>
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Prev
+              </Button>
+              <Button variant="outline" size="sm" onClick={goToToday}>
+                Today
+              </Button>
+              <Button variant="outline" size="sm" onClick={goToNext}>
+                Next
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </>
+          )}
+          {(!isWideView) && (
+            <Button
+              variant={showAvailability ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowAvailability(!showAvailability)}
+            >
+              {showAvailability ? <Eye className="h-4 w-4 mr-2" /> : <EyeOff className="h-4 w-4 mr-2" />}
+              <span className="hidden sm:inline">Guide Availability</span>
+              <span className="sm:hidden">Guides</span>
+            </Button>
+          )}
+        </div>
+      </PageHeader>
+
+      {/* View Mode Switcher + Filter Row */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        {/* Premium View Mode Toggle */}
+        <div className="inline-flex items-center rounded-lg bg-muted p-1 w-full sm:w-auto overflow-x-auto">
+          <Button
+            variant={viewMode === "month" ? "default" : "ghost"}
+            size="sm"
+            className="h-9 px-3 gap-2"
+            onClick={() => setViewMode("month")}
+          >
+            <CalendarIcon className="h-4 w-4" />
+            <span className="hidden md:inline">Month</span>
+          </Button>
+          <Button
+            variant={viewMode === "week" ? "default" : "ghost"}
+            size="sm"
+            className="h-9 px-3 gap-2"
+            onClick={() => setViewMode("week")}
+          >
+            <Clock className="h-4 w-4" />
+            <span className="hidden md:inline">Week</span>
+          </Button>
+          <Button
+            variant={viewMode === "list" ? "default" : "ghost"}
+            size="sm"
+            className="h-9 px-3 gap-2"
+            onClick={() => setViewMode("list")}
+          >
+            <LayoutList className="h-4 w-4" />
+            <span className="hidden md:inline">List</span>
+          </Button>
+          <Button
+            variant={viewMode === "board" ? "default" : "ghost"}
+            size="sm"
+            className="h-9 px-3 gap-2"
+            onClick={() => setViewMode("board")}
+          >
+            <Kanban className="h-4 w-4" />
+            <span className="hidden md:inline">Board</span>
+          </Button>
+          <Button
+            variant={viewMode === "timeline" ? "default" : "ghost"}
+            size="sm"
+            className="h-9 px-3 gap-2"
+            onClick={() => setViewMode("timeline")}
+          >
+            <BarChartHorizontal className="h-4 w-4" />
+            <span className="hidden md:inline">Timeline</span>
+          </Button>
+        </div>
+
+        {/* Guide Filter */}
+        <Select value={guideFilter} onValueChange={setGuideFilter}>
+          <SelectTrigger className="w-full sm:w-48 h-9" data-testid="select-guide-filter">
+            <SelectValue placeholder="All Guides" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Guides</SelectItem>
+            <SelectItem value="unassigned">Unassigned Only</SelectItem>
+            {guides?.filter((g) => g.isActive).map((guide) => (
+              <SelectItem key={guide.id} value={guide.id}>
+                {guide.firstName} {guide.lastName}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
+
+      {/* Quick Stats Row */}
+      {!isWideView && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <CalendarIcon className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Today</p>
+                  <div className="text-2xl font-bold">
+                    <AnimatedNumber value={todayBookingsCount} />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <Clock className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">This Week</p>
+                  <div className="text-2xl font-bold">
+                    <AnimatedNumber value={weekBookingsCount} />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <div className="h-10 w-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Confirmed</p>
+                  <div className="text-2xl font-bold">
+                    <AnimatedNumber value={filteredBookings.filter(b => b.status === 'confirmed').length} />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                  <Clock className="h-5 w-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Pending</p>
+                  <div className="text-2xl font-bold">
+                    <AnimatedNumber value={filteredBookings.filter(b => b.status === 'pending').length} />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <div className={`grid gap-6 ${isWideView ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-3"}`}>
         <Card className={isWideView ? "" : "lg:col-span-2"}>
-          <CardHeader className="flex flex-col gap-4 space-y-0 pb-4">
-            {/* Top row: Month/Date and navigation */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 sm:gap-4">
-                <CardTitle className="text-base sm:text-lg font-semibold">
-                  {viewMode === "month" || isWideView
-                    ? format(currentDate, "MMMM yyyy")
-                    : `Week of ${format(weekStart, "MMM d")} - ${format(weekEnd, "MMM d, yyyy")}`}
-                </CardTitle>
-                {!isWideView && (
-                  <div className="flex items-center gap-1">
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={goToPrev} data-testid="button-prev">
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={goToNext} data-testid="button-next">
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-              {!isWideView && (
-                <Button variant="outline" size="sm" onClick={goToToday} data-testid="button-today">
-                  Today
-                </Button>
-              )}
-            </div>
-
-            {/* Bottom row: View buttons and filters */}
-            <div className="flex flex-wrap items-center gap-2">
-              {/* View Mode Toggle */}
-              <div className="flex border rounded-lg overflow-hidden bg-background">
-                <Button
-                  variant={viewMode === "list" ? "default" : "ghost"}
-                  size="sm"
-                  className="rounded-none px-2 sm:px-3 h-8"
-                  onClick={() => setViewMode("list")}
-                  title="List View"
-                >
-                  <LayoutList className="h-4 w-4" />
-                  <span className="hidden sm:inline ml-1">List</span>
-                </Button>
-                <Button
-                  variant={viewMode === "board" ? "default" : "ghost"}
-                  size="sm"
-                  className="rounded-none px-2 sm:px-3 h-8"
-                  onClick={() => setViewMode("board")}
-                  title="Board View"
-                >
-                  <Kanban className="h-4 w-4" />
-                  <span className="hidden sm:inline ml-1">Board</span>
-                </Button>
-                <Button
-                  variant={viewMode === "timeline" ? "default" : "ghost"}
-                  size="sm"
-                  className="rounded-none px-2 sm:px-3 h-8"
-                  onClick={() => setViewMode("timeline")}
-                  title="Timeline View"
-                >
-                  <BarChartHorizontal className="h-4 w-4" />
-                  <span className="hidden sm:inline ml-1">Timeline</span>
-                </Button>
-                <Button
-                  variant={viewMode === "month" ? "default" : "ghost"}
-                  size="sm"
-                  className="rounded-none px-2 sm:px-3 h-8"
-                  onClick={() => setViewMode("month")}
-                  title="Month View"
-                >
-                  <CalendarIcon className="h-4 w-4" />
-                  <span className="hidden sm:inline ml-1">Month</span>
-                </Button>
-                <Button
-                  variant={viewMode === "week" ? "default" : "ghost"}
-                  size="sm"
-                  className="rounded-none px-2 sm:px-3 h-8"
-                  onClick={() => setViewMode("week")}
-                  title="Week View"
-                >
-                  <List className="h-4 w-4" />
-                  <span className="hidden sm:inline ml-1">Week</span>
-                </Button>
-              </div>
-
-              {/* Guide Availability Toggle */}
-              {(!isWideView) && (
-                <Button
-                  variant={showAvailability ? "default" : "outline"}
-                  size="sm"
-                  className="h-8"
-                  onClick={() => setShowAvailability(!showAvailability)}
-                >
-                  {showAvailability ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                  <span className="hidden sm:inline ml-1">Availability</span>
-                </Button>
-              )}
-
-              <Select value={guideFilter} onValueChange={setGuideFilter}>
-                <SelectTrigger className="w-28 sm:w-36 h-8" data-testid="select-guide-filter">
-                  <SelectValue placeholder="All Guides" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Guides</SelectItem>
-                  <SelectItem value="unassigned">Unassigned</SelectItem>
-                  {guides?.filter((g) => g.isActive).map((guide) => (
-                    <SelectItem key={guide.id} value={guide.id}>
-                      {guide.firstName} {guide.lastName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+            <CardTitle className="text-lg font-semibold">
+              {viewMode === "month" || isWideView
+                ? format(currentDate, "MMMM yyyy")
+                : `Week of ${format(weekStart, "MMM d")} - ${format(weekEnd, "MMM d, yyyy")}`}
+            </CardTitle>
           </CardHeader>
           <CardContent className={isWideView ? "p-0 sm:p-4" : ""}>
             {/* List View */}
@@ -465,14 +529,14 @@ export default function CalendarPage() {
                       onClick={() => setSelectedDate(day)}
                       onDragOver={handleDragOver}
                       onDrop={(e) => handleDrop(e, day)}
-                      className={`relative min-h-[80px] sm:min-h-[100px] bg-background p-1 sm:p-2 text-left transition-colors cursor-pointer hover:bg-muted/50 ${!isCurrentMonth ? "bg-muted/50 text-muted-foreground" : ""
-                        } ${isSelected ? "ring-2 ring-primary ring-inset" : ""} ${draggedBooking ? "hover:bg-primary/10" : ""
+                      className={`relative min-h-[90px] sm:min-h-[110px] bg-background p-2 sm:p-3 text-left transition-all duration-200 cursor-pointer group ${!isCurrentMonth ? "bg-muted/30 text-muted-foreground" : "hover:bg-accent/50"
+                        } ${isSelected ? "ring-2 ring-primary bg-primary/5" : ""} ${isTodayDate && !isSelected ? "ring-2 ring-primary/30" : ""} ${draggedBooking ? "hover:bg-green-50 dark:hover:bg-green-900/10 hover:ring-2 hover:ring-green-500/50 hover:ring-dashed" : ""
                         }`}
                       data-testid={`calendar-day-${format(day, "yyyy-MM-dd")}`}
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between mb-2">
                         <span
-                          className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-sm ${isTodayDate ? "bg-primary text-primary-foreground font-semibold" : ""
+                          className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors ${isTodayDate ? "bg-primary text-primary-foreground shadow-sm" : isSelected ? "bg-primary/10 text-primary" : ""
                             }`}
                         >
                           {format(day, "d")}
@@ -498,6 +562,7 @@ export default function CalendarPage() {
                         <div className="mt-1 space-y-1">
                           {dayBookings.slice(0, 4).map((booking) => {
                             const statusColor = STATUS_COLORS[booking.status || "pending"] || STATUS_COLORS.pending;
+                            const isDragging = draggedBooking?.id === booking.id;
                             return (
                               <div
                                 key={booking.id}
@@ -508,18 +573,21 @@ export default function CalendarPage() {
                                   e.stopPropagation();
                                   setSelectedBooking(booking);
                                 }}
-                                className={`flex flex-col gap-0.5 rounded px-1 sm:px-1.5 py-1 text-[10px] sm:text-xs cursor-pointer hover:opacity-80 border ${statusColor.bg} ${statusColor.text} border-transparent`}
+                                className={`group flex flex-col gap-0.5 rounded-md px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing transition-all duration-150 border ${statusColor.bg} ${statusColor.text} ${isDragging ? 'opacity-50 scale-95' : 'hover:shadow-md hover:scale-[1.02]'} border-l-4 ${statusColor.border || 'border-transparent'}`}
                               >
                                 <div className="flex items-center gap-1">
-                                  <GripVertical className="inline h-3 w-3 mr-0.5 opacity-50 shrink-0" />
-                                  <span className="truncate font-medium">
-                                    {formatTime(booking.visitTime)} {booking.visitorName.split(" ")[0]}
+                                  <GripVertical className="h-3 w-3 opacity-40 group-hover:opacity-70 transition-opacity shrink-0" />
+                                  <Clock className="h-3 w-3 opacity-60 shrink-0" />
+                                  <span className="truncate font-semibold">
+                                    {formatTime(booking.visitTime)}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-1 ml-4 opacity-80 text-[9px] truncate">
-                                  <span className="capitalize">{booking.status}</span>
+                                <div className="flex items-center justify-between gap-1 ml-4">
+                                  <span className="truncate font-medium text-[11px]">
+                                    {booking.visitorName.split(" ")[0]}
+                                  </span>
                                   {booking.guide && (
-                                    <>• {booking.guide.firstName}</>
+                                    <Users className="h-3 w-3 opacity-50" />
                                   )}
                                 </div>
                               </div>
@@ -933,6 +1001,6 @@ export default function CalendarPage() {
           )}
         </SheetContent>
       </Sheet>
-    </div>
+    </PageContainer>
   );
 }

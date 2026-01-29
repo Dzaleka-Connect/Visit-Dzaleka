@@ -248,7 +248,7 @@ export default function DeveloperSettings() {
                                                 Cancel
                                             </Button>
                                             <Button onClick={handleCreateKey} disabled={createKeyMutation.isPending}>
-                                                {createKeyMutation.isPending ? "Creating..." : "Create Key"}
+                                                {createKeyMutation.isPending ? "Creating…" : "Create Key"}
                                             </Button>
                                         </DialogFooter>
                                     </>

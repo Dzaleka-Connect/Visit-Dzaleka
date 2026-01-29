@@ -75,7 +75,6 @@ export function QRScannerDialog({
                 await startScanner();
             }
         } catch (err: any) {
-            console.error("Camera permission error:", err);
             setHasPermission(false);
 
             if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
@@ -132,8 +131,7 @@ export function QRScannerDialog({
                     // QR code not found - this is called continuously, ignore
                 }
             );
-        } catch (err: any) {
-            console.error("QR Scanner start error:", err);
+        } catch {
             setError("Failed to start QR scanner. Please try again.");
         }
     };

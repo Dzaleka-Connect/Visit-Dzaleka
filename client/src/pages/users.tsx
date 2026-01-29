@@ -59,6 +59,8 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { User, UserRole } from "@shared/schema";
 import { SEO } from "@/components/seo";
+import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 
 interface UserStats {
   totalUsers: number;
@@ -355,18 +357,15 @@ export default function UsersPage() {
   ) || {};
 
   return (
-    <div className="space-y-6">
+    <PageContainer className="page-spacing">
       <SEO
         title="User Management"
         description="Manage user roles and permissions across the system."
       />
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">User Management</h1>
-          <p className="text-muted-foreground">
-            Manage user roles and permissions across the system.
-          </p>
-        </div>
+      <PageHeader
+        title="User Management"
+        description="Manage user roles and permissions across the system."
+      >
         <Dialog open={createUserOpen} onOpenChange={setCreateUserOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-create-user">
@@ -482,7 +481,7 @@ export default function UsersPage() {
                 {createUserMutation.isPending ? (
                   <>
                     <div className="animate-spin h-4 w-4 mr-2 border-2 border-white border-t-transparent rounded-full" />
-                    Creating...
+                    Creating…
                   </>
                 ) : (
                   <>
@@ -494,7 +493,7 @@ export default function UsersPage() {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
+      </PageHeader>
 
       <div className="grid gap-4 md:grid-cols-5">
         {(["admin", "coordinator", "guide", "security", "visitor"] as const).map(
@@ -787,11 +786,11 @@ export default function UsersPage() {
               }}
               disabled={newPassword.length < 6 || resetPasswordMutation.isPending}
             >
-              {resetPasswordMutation.isPending ? "Resetting..." : "Set Password"}
+              {resetPasswordMutation.isPending ? "Resetting…" : "Set Password"}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageContainer>
   );
 }

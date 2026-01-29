@@ -262,9 +262,8 @@ export default function Messages() {
             try {
                 const room = await startChatMutation.mutateAsync(item.data.id);
                 setSelectedRoom(room);
-            } catch (error) {
-                // Handle error if needed, maybe reset activeOtherUser
-                console.error("Failed to start chat", error);
+            } catch {
+                // Chat start failed - activeOtherUser already set optimistically
             }
         }
     };
@@ -277,7 +276,7 @@ export default function Messages() {
     return (
         <>
             <SEO
-                title="Messages | Dzaleka Visit"
+                title="Messages | Visit Dzaleka"
                 description="Chat with team members and guides."
                 robots="noindex, nofollow"
             />

@@ -43,7 +43,7 @@ interface EmailTemplate {
 const defaultTemplates: Omit<EmailTemplate, "id" | "updatedAt">[] = [
     {
         name: "booking_confirmation",
-        subject: "Your Dzaleka Visit is Confirmed!",
+        subject: "Your Visit Dzaleka is Confirmed!",
         body: `Dear {{visitor_name}},
 
 Your visit to Dzaleka Refugee Camp has been confirmed!
@@ -63,14 +63,14 @@ Please arrive 15 minutes before your scheduled time. If you need to make any cha
 We look forward to welcoming you!
 
 Best regards,
-Dzaleka Visit Team`,
+Visit Dzaleka Team`,
         description: "Sent when a booking is confirmed by admin",
         variables: ["visitor_name", "visit_date", "visit_time", "tour_type", "group_size", "number_of_people", "meeting_point", "guide_name", "total_amount"],
         isActive: true,
     },
     {
         name: "booking_reminder",
-        subject: "Reminder: Your Dzaleka Visit is Tomorrow!",
+        subject: "Reminder: Your Visit Dzaleka is Tomorrow!",
         body: `Dear {{visitor_name}},
 
 This is a friendly reminder that your visit to Dzaleka Refugee Camp is scheduled for tomorrow!
@@ -92,7 +92,7 @@ If you have any questions or need to reschedule, please contact us as soon as po
 See you tomorrow!
 
 Best regards,
-Dzaleka Visit Team`,
+Visit Dzaleka Team`,
         description: "Sent 24 hours before the scheduled visit",
         variables: ["visitor_name", "visit_date", "visit_time", "meeting_point", "guide_name"],
         isActive: true,
@@ -397,7 +397,7 @@ export default function EmailSettings() {
                             disabled={updateTemplateMutation.isPending}
                         >
                             <Save className="mr-2 h-4 w-4" />
-                            {updateTemplateMutation.isPending ? "Saving..." : "Save Template"}
+                            {updateTemplateMutation.isPending ? "Saving…" : "Save Template"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

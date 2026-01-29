@@ -69,7 +69,6 @@ export function createCsrfMiddleware(allowedOrigins: string[]) {
 
         // Check if the origin is allowed
         if (requestOrigin && !allowedOrigins.includes(requestOrigin)) {
-            console.warn(`[CSRF] Blocked request from origin: ${requestOrigin}`);
             return res.status(403).json({
                 message: "Forbidden: Cross-origin request not allowed"
             });

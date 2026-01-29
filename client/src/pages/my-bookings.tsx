@@ -83,8 +83,8 @@ const generateBookingPDF = async (booking: Booking, meetingPointName: string) =>
   if (booking.bookingReference) {
     try {
       qrCodeDataUrl = await generateQRCodeDataURL(booking.bookingReference, 120);
-    } catch (error) {
-      console.error('Failed to generate QR code for PDF:', error);
+    } catch {
+      // QR code generation failed - PDF will be created without it
     }
   }
 
@@ -198,8 +198,9 @@ const generateBookingPDF = async (booking: Booking, meetingPointName: string) =>
   rightY = drawDetail('Total Amount', formatCurrency(booking.totalAmount || 0), rightColX, rightY);
   const paymentStatusLabel = (booking.paymentStatus || 'pending').charAt(0).toUpperCase() + (booking.paymentStatus || 'pending').slice(1);
   rightY = drawDetail('Payment Status', paymentStatusLabel, rightColX, rightY);
-  const paymentMethodLabel = booking.paymentMethod === 'airtel_money' ? 'Airtel Money' :
-    booking.paymentMethod === 'tnm_mpamba' ? 'TNM Mpamba' : 'Cash on Arrival';
+  const paymentMethodLabel = booking.paymentMethod === 'card' ? 'Credit Card' :
+    booking.paymentMethod === 'airtel_money' ? 'Airtel Money' :
+      booking.paymentMethod === 'tnm_mpamba' ? 'TNM Mpamba' : 'Cash on Arrival';
   rightY = drawDetail('Payment Method', paymentMethodLabel, rightColX, rightY);
 
   // QR Code Section
@@ -243,7 +244,7 @@ const generateBookingPDF = async (booking: Booking, meetingPointName: string) =>
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text('Thank you for choosing Dzaleka Visit!', pageWidth / 2, 276, { align: 'center' });
+  doc.text('Thank you for choosing Visit Dzaleka!', pageWidth / 2, 276, { align: 'center' });
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.text('Questions? Contact us at info@mail.dzaleka.com | +61 4989 56 715', pageWidth / 2, 285, { align: 'center' });
@@ -284,7 +285,7 @@ export default function MyBookings() {
     groupSize: "individual" as "individual" | "small_group" | "large_group" | "custom",
     numberOfPeople: 1,
     tourType: "standard" as "standard" | "extended" | "custom",
-    paymentMethod: "cash" as "cash" | "airtel_money" | "tnm_mpamba",
+    paymentMethod: "cash" as "cash" | "airtel_money" | "tnm_mpamba" | "card",
     meetingPointId: "",
     specialRequests: "",
     selectedZones: [] as string[],
@@ -439,6 +440,33 @@ export default function MyBookings() {
       toast({
         title: "Failed to submit rating",
         description: "Could not submit your rating. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Online Payment Mutation (Stripe)
+  const payOnlineMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const res = await apiRequest("POST", `/api/bookings/${bookingId}/pay`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (data.checkoutUrl) {
+        // Redirect to PayChangu checkout
+        window.location.href = data.checkoutUrl;
+      } else {
+        toast({
+          title: "Payment initiation failed",
+          description: "Could not start payment process. Please try again.",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: () => {
+      toast({
+        title: "Payment Error",
+        description: "Failed to initiate payment. Please try again.",
         variant: "destructive",
       });
     },
@@ -714,6 +742,31 @@ export default function MyBookings() {
                       <div className="mt-1"><PaymentStatusBadge status={selectedBooking.paymentStatus || "pending"} /></div>
                     </div>
                   </div>
+                  {(selectedBooking.paymentStatus === 'pending' || !selectedBooking.paymentStatus) &&
+                    (selectedBooking.paymentMethod !== 'cash') && (
+                      <div className="pt-4 mt-4 border-t border-dashed">
+                        <Button
+                          className="w-full bg-emerald-600/80 hover:bg-emerald-600 text-white"
+                          onClick={() => payOnlineMutation.mutate(selectedBooking.id)}
+                          disabled={payOnlineMutation.isPending}
+                        >
+                          {payOnlineMutation.isPending ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <CreditCard className="mr-2 h-4 w-4" />
+                              Pay Online
+                            </>
+                          )}
+                        </Button>
+                        <p className="text-xs text-center text-muted-foreground mt-2">
+                          You will be redirected to PayChangu to complete payment
+                        </p>
+                      </div>
+                    )}
                 </CardContent>
               </Card>
 
@@ -882,6 +935,36 @@ export default function MyBookings() {
                       <Ticket className="mr-2 h-4 w-4" />
                       View Full Details
                     </Button>
+
+                    {(booking.paymentStatus === 'pending' || !booking.paymentStatus) &&
+                      (booking.paymentMethod !== 'cash') && (
+                        <Button
+                          size="sm"
+                          className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            payOnlineMutation.mutate(booking.id);
+                          }}
+                          disabled={payOnlineMutation.isPending}
+                        >
+                          {payOnlineMutation.isPending ? "Processing..." : "Pay Online"}
+                        </Button>
+                      )}
+
+                    {(booking.paymentStatus === 'pending' || !booking.paymentStatus) &&
+                      (booking.paymentMethod !== 'cash') && (
+                        <Button
+                          size="sm"
+                          className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            payOnlineMutation.mutate(booking.id);
+                          }}
+                          disabled={payOnlineMutation.isPending}
+                        >
+                          {payOnlineMutation.isPending ? "Processing..." : "Pay Online"}
+                        </Button>
+                      )}
 
                     {/* Self-service action buttons */}
                     <div className="grid grid-cols-2 gap-2 mt-2">
@@ -1060,7 +1143,7 @@ export default function MyBookings() {
                     <Label>Payment Method *</Label>
                     <Select
                       value={newBooking.paymentMethod}
-                      onValueChange={(value: "airtel_money" | "tnm_mpamba" | "cash") =>
+                      onValueChange={(value: "airtel_money" | "tnm_mpamba" | "card" | "cash") =>
                         setNewBooking({ ...newBooking, paymentMethod: value })
                       }
                     >
@@ -1069,6 +1152,7 @@ export default function MyBookings() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="cash">Cash (on arrival)</SelectItem>
+                        <SelectItem value="card">Credit Card (Online)</SelectItem>
                         <SelectItem value="airtel_money">Airtel Money</SelectItem>
                         <SelectItem value="tnm_mpamba">TNM Mpamba</SelectItem>
                       </SelectContent>
@@ -1184,7 +1268,7 @@ export default function MyBookings() {
                   {createBookingMutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Submitting...
+                      Submitting…
                     </>
                   ) : (
                     <>
@@ -1320,7 +1404,7 @@ export default function MyBookings() {
                   {rescheduleMutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Rescheduling...
+                      Rescheduling…
                     </>
                   ) : (
                     <>
@@ -1372,7 +1456,7 @@ export default function MyBookings() {
                   {cancelMutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Cancelling...
+                      Cancelling…
                     </>
                   ) : (
                     <>
@@ -1440,7 +1524,7 @@ export default function MyBookings() {
                   {rateMutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Submitting...
+                      Submitting…
                     </>
                   ) : (
                     <>

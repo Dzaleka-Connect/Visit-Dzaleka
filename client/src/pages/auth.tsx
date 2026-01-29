@@ -350,8 +350,7 @@ export default function AuthPage() {
                           <FormLabel>Email</FormLabel>
                           <FormControl>
                             <Input
-                              type="text"
-                              inputMode="email"
+                              type="email"
                               placeholder="you@example.com"
                               autoComplete="email"
                               data-testid="input-register-email"
@@ -510,7 +509,7 @@ export default function AuthPage() {
                       {forgotPasswordMutation.isPending ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Sending...
+                          Sending…
                         </>
                       ) : (
                         "Send Reset Instructions"

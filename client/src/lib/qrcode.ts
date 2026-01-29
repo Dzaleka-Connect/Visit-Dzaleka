@@ -19,7 +19,6 @@ export async function generateQRCodeDataURL(text: string, size: number = 150): P
         });
         return dataUrl;
     } catch (error) {
-        console.error('Failed to generate QR code:', error);
         throw error;
     }
 }
