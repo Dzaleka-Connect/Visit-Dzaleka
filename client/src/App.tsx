@@ -25,6 +25,7 @@ import Guides from "@/pages/guides";
 import GuideProfile from "@/pages/guide-profile";
 import CalendarPage from "@/pages/calendar";
 import ChannelManager from "@/pages/channel-manager";
+import GetYourGuidePage from "@/pages/getyourguide";
 import GuidePerformance from "@/pages/guide-performance";
 import Zones from "@/pages/zones";
 import Security from "@/pages/security";
@@ -277,6 +278,7 @@ function Router() {
         <Route path="/favorite-guides" component={FavoriteGuides} />
         <Route path="/calendar" component={CalendarPage} />
         <Route path="/channel-manager" component={ChannelManager} />
+        <ProtectedRoute path="/getyourguide" component={GetYourGuidePage} allowedRoles={["admin", "coordinator"]} />
         <Route path="/guide-performance" component={GuidePerformance} />
         <Route path="/guides" component={Guides} />
         <Route path="/guide/:slug" component={GuideProfile} />

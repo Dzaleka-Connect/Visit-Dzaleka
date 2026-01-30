@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Loader2, RefreshCw, Wallet, ArrowUpRight, ArrowDownLeft, CheckCircle2, XCircle, Clock, CreditCard } from "lucide-react";
+import { Loader2, RefreshCw, Wallet, ArrowUpRight, ArrowDownLeft, CheckCircle2, XCircle, Clock, CreditCard, ExternalLink } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/constants";
@@ -76,6 +76,17 @@ export default function PaymentsPage() {
     // Fetch Payment Config
     const { data: config } = useQuery<{ isLiveMode: boolean, provider: string, currency: string }>({
         queryKey: ["/api/admin/payment-config"],
+        staleTime: 0, // Always fetch fresh data
+    });
+
+    // Fetch Stripe Balance
+    interface StripeBalance {
+        available: { amount: number; currency: string }[];
+        pending: { amount: number; currency: string }[];
+    }
+    const { data: stripeBalance, isLoading: isLoadingBalance } = useQuery<StripeBalance>({
+        queryKey: ["/api/admin/stripe/balance"],
+        refetchInterval: 60000, // Refresh every minute
     });
 
     const totalRevenue = transactions?.reduce((sum, t) => sum + (t.status === 'paid' ? t.amount : 0), 0) || 0;
@@ -107,25 +118,25 @@ export default function PaymentsPage() {
 
     return (
         <PageContainer>
-            <div className="flex justify-between items-start mb-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6">
                 <PageHeader
                     title="Payments Dashboard"
                     description="Overview of bookings, revenue, and fees"
                 />
-                <Button variant="outline" size="sm" onClick={() => refetchTransactions()}>
+                <Button variant="outline" size="sm" onClick={() => refetchTransactions()} className="w-full sm:w-auto">
                     <RefreshCw className="mr-2 h-4 w-4" />
                     Refresh
                 </Button>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
+            <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mb-8">
                 {/* Total Revenue (Gross) */}
                 <Card className="col-span-1">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground">Gross Revenue</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">
+                        <div className="text-xl sm:text-2xl font-bold">
                             <Amount amount={totalRevenue} currency="MWK" />
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
@@ -140,12 +151,58 @@ export default function PaymentsPage() {
                         <CardTitle className="text-sm font-medium text-emerald-600 dark:text-emerald-400">Net Revenue</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+                        <div className="text-xl sm:text-2xl font-bold text-emerald-700 dark:text-emerald-300">
                             <Amount amount={netRevenue} currency="MWK" />
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
                             Actual payout (Fees: {new Intl.NumberFormat('en-MW', { style: 'currency', currency: 'MWK' }).format(totalFees)})
                         </p>
+                    </CardContent>
+                </Card>
+
+                {/* Stripe Available Balance */}
+                <Card className="col-span-1 border-l-4 border-l-blue-500">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-blue-600 dark:text-blue-400">Available Balance</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoadingBalance ? (
+                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                        ) : (
+                            <>
+                                <div className="text-xl sm:text-2xl font-bold text-blue-700 dark:text-blue-300">
+                                    {stripeBalance?.available?.[0]
+                                        ? formatCurrency(stripeBalance.available[0].amount / 100)
+                                        : formatCurrency(0)}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Ready to payout
+                                </p>
+                            </>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* Stripe Pending Balance */}
+                <Card className="col-span-1">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Pending Balance</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoadingBalance ? (
+                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                        ) : (
+                            <>
+                                <div className="text-xl sm:text-2xl font-bold">
+                                    {stripeBalance?.pending?.[0]
+                                        ? formatCurrency(stripeBalance.pending[0].amount / 100)
+                                        : formatCurrency(0)}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Awaiting clearance
+                                </p>
+                            </>
+                        )}
                     </CardContent>
                 </Card>
             </div>
@@ -170,74 +227,78 @@ export default function PaymentsPage() {
                                     <p>No recent transactions found.</p>
                                 </div>
                             ) : (
-                                <div className="rounded-md border">
-                                    <table className="w-full text-sm text-left">
-                                        <thead className="bg-muted/50 text-muted-foreground">
-                                            <tr>
-                                                <th className="p-3 font-medium">Date</th>
-                                                <th className="p-3 font-medium">Visitor</th>
-                                                <th className="p-3 font-medium">Reference</th>
-                                                <th className="p-3 font-medium">Method</th>
-                                                <th className="p-3 font-medium">Amount</th>
-                                                <th className="p-3 font-medium">Fees / Net</th>
-                                                <th className="p-3 font-medium">Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y">
-                                            {transactions.map((tx) => (
-                                                <tr key={tx.id} className="hover:bg-muted/50 transition-colors">
-                                                    <td className="p-3">{format(new Date(tx.date), "MMM d, yyyy")}</td>
-                                                    <td className="p-3 font-medium">{tx.visitorName}</td>
-                                                    <td className="p-3 text-muted-foreground font-mono text-xs">{tx.bookingReference}</td>
-                                                    <td className="p-3">
-                                                        <div className="flex flex-col">
-                                                            <span className="capitalize font-medium">
-                                                                {tx.paymentDetails?.brand ? (
-                                                                    <span className="flex items-center gap-1">
-                                                                        {tx.paymentDetails.brand.toUpperCase()} <span className="text-muted-foreground text-xs">•••• {tx.paymentDetails.last4}</span>
+                                <div className="overflow-x-auto -mx-6 sm:mx-0">
+                                    <div className="inline-block min-w-full align-middle">
+                                        <div className="rounded-md border">
+                                            <table className="w-full text-sm text-left">
+                                                <thead className="bg-muted/50 text-muted-foreground">
+                                                    <tr>
+                                                        <th className="p-2 sm:p-3 font-medium whitespace-nowrap">Date</th>
+                                                        <th className="p-2 sm:p-3 font-medium whitespace-nowrap">Visitor</th>
+                                                        <th className="p-2 sm:p-3 font-medium whitespace-nowrap">Reference</th>
+                                                        <th className="p-2 sm:p-3 font-medium whitespace-nowrap">Method</th>
+                                                        <th className="p-2 sm:p-3 font-medium whitespace-nowrap">Amount</th>
+                                                        <th className="p-2 sm:p-3 font-medium whitespace-nowrap">Fees / Net</th>
+                                                        <th className="p-2 sm:p-3 font-medium whitespace-nowrap">Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y">
+                                                    {transactions.map((tx) => (
+                                                        <tr key={tx.id} className="hover:bg-muted/50 transition-colors">
+                                                            <td className="p-2 sm:p-3 whitespace-nowrap text-xs sm:text-sm">{format(new Date(tx.date), "MMM d, yyyy")}</td>
+                                                            <td className="p-2 sm:p-3 font-medium whitespace-nowrap text-xs sm:text-sm">{tx.visitorName}</td>
+                                                            <td className="p-2 sm:p-3 text-muted-foreground font-mono text-xs whitespace-nowrap">{tx.bookingReference}</td>
+                                                            <td className="p-2 sm:p-3">
+                                                                <div className="flex flex-col">
+                                                                    <span className="capitalize font-medium">
+                                                                        {tx.paymentDetails?.brand ? (
+                                                                            <span className="flex items-center gap-1">
+                                                                                {tx.paymentDetails.brand.toUpperCase()} <span className="text-muted-foreground text-xs">•••• {tx.paymentDetails.last4}</span>
+                                                                            </span>
+                                                                        ) : (
+                                                                            tx.method?.replace('_', ' ') || 'Unknown'
+                                                                        )}
                                                                     </span>
+                                                                    {tx.paymentDetails?.country && (
+                                                                        <span className="text-xs text-muted-foreground">
+                                                                            {tx.paymentDetails.country} {tx.paymentDetails.funding && `(${tx.paymentDetails.funding})`}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-3">
+                                                                <div className="font-medium">
+                                                                    <Amount amount={tx.amount} currency={tx.currency} />
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-3">
+                                                                {tx.paymentFees ? (
+                                                                    <div className="flex flex-col text-xs">
+                                                                        <span className="text-emerald-600 font-medium">
+                                                                            Net: <Amount amount={tx.netAmount || 0} currency={tx.currency} />
+                                                                        </span>
+                                                                        <span className="text-muted-foreground">
+                                                                            Fee: <Amount amount={tx.paymentFees} currency={tx.currency} />
+                                                                        </span>
+                                                                    </div>
                                                                 ) : (
-                                                                    tx.method?.replace('_', ' ') || 'Unknown'
+                                                                    <span className="text-muted-foreground">-</span>
                                                                 )}
-                                                            </span>
-                                                            {tx.paymentDetails?.country && (
-                                                                <span className="text-xs text-muted-foreground">
-                                                                    {tx.paymentDetails.country} {tx.paymentDetails.funding && `(${tx.paymentDetails.funding})`}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-3">
-                                                        <div className="font-medium">
-                                                            <Amount amount={tx.amount} currency={tx.currency} />
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-3">
-                                                        {tx.paymentFees ? (
-                                                            <div className="flex flex-col text-xs">
-                                                                <span className="text-emerald-600 font-medium">
-                                                                    Net: <Amount amount={tx.netAmount || 0} currency={tx.currency} />
-                                                                </span>
-                                                                <span className="text-muted-foreground">
-                                                                    Fee: <Amount amount={tx.paymentFees} currency={tx.currency} />
-                                                                </span>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-muted-foreground">-</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-3">
-                                                        <Badge
-                                                            variant={tx.status === 'paid' ? 'default' : 'secondary'}
-                                                            className={tx.status === 'paid' ? 'bg-emerald-600 hover:bg-emerald-600' : ''}
-                                                        >
-                                                            {tx.status}
-                                                        </Badge>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                                            </td>
+                                                            <td className="p-3">
+                                                                <Badge
+                                                                    variant={tx.status === 'paid' ? 'default' : 'secondary'}
+                                                                    className={tx.status === 'paid' ? 'bg-emerald-600 hover:bg-emerald-600' : ''}
+                                                                >
+                                                                    {tx.status}
+                                                                </Badge>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </CardContent>
@@ -296,9 +357,25 @@ export default function PaymentsPage() {
                                 </div>
                                 <p className="text-xs text-muted-foreground">
                                     {config?.isLiveMode
-                                        ? "Transactions are real and will charge credit cards."
+                                        ? "Processing real payments. All transactions will be charged."
                                         : "Using Stripe Test Key (sk_test_...). No actual charges will be made."}
                                 </p>
+                            </div>
+
+                            <div className="pt-4 border-t">
+                                <Button
+                                    variant="outline"
+                                    className="w-full sm:w-auto"
+                                    onClick={() => {
+                                        const dashboardUrl = config?.isLiveMode
+                                            ? 'https://dashboard.stripe.com'
+                                            : 'https://dashboard.stripe.com/test';
+                                        window.open(dashboardUrl, '_blank');
+                                    }}
+                                >
+                                    <ExternalLink className="mr-2 h-4 w-4" />
+                                    View in Stripe Dashboard
+                                </Button>
                             </div>
                         </CardContent>
                     </Card>

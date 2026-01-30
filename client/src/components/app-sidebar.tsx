@@ -239,6 +239,12 @@ const operationsItems: NavItem[] = [
     roles: ["admin", "coordinator", "security"],
   },
   {
+    title: "GetYourGuide",
+    url: "/getyourguide",
+    icon: Globe,
+    roles: ["admin", "coordinator"],
+  },
+  {
     title: "Live Operations",
     url: "/live-ops",
     icon: Activity,

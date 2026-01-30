@@ -3075,6 +3075,35 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/bookings/recent", isAuthenticated, requireRole("admin", "coordinator", "security"), async (req, res) => {
+    try {
+      const bookings = await storage.getBookings();
+      // Get 10 most recent bookings
+      const recentBookings = bookings
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 10);
+      res.json(recentBookings);
+    } catch (error: any) {
+      console.error("Failed to fetch recent bookings:", error);
+      res.status(500).send("Failed to fetch recent bookings");
+    }
+  });
+
+  // Get GetYourGuide bookings
+  app.get("/api/bookings/channel/getyourguide", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const bookings = await storage.getBookings();
+      // Filter bookings from GetYourGuide source
+      const gygBookings = bookings
+        .filter(b => b.source === 'getyourguide')
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      res.json(gygBookings);
+    } catch (error: any) {
+      console.error("Failed to fetch GetYourGuide bookings:", error);
+      res.status(500).send("Failed to fetch GetYourGuide bookings");
+    }
+  });
+
   app.get("/api/guides/:id", isAuthenticated, requireRole("admin", "coordinator", "guide"), async (req, res) => {
     try {
       const guide = await storage.getGuide(req.params.id);
@@ -3393,6 +3422,48 @@ export async function registerRoutes(
     }
   });
 
+  // Payment Configuration Endpoint
+  app.get("/api/admin/payment-config", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const stripeKey = process.env.STRIPE_SECRET_KEY || '';
+      const isLiveMode = stripeKey.startsWith('sk_live_');
+
+      res.json({
+        isLiveMode,
+        provider: 'stripe',
+        currency: 'MWK'
+      });
+    } catch (error) {
+      logError("Error fetching payment config", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch payment configuration" });
+    }
+  });
+
+  // Stripe Balance Endpoint
+  app.get("/api/admin/stripe/balance", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const stripe = (await import("./lib/stripe")).default;
+      const balance = await stripe.balance.retrieve();
+
+      // Transform balance data for frontend
+      const formattedBalance = {
+        available: balance.available.map(b => ({
+          amount: b.amount,
+          currency: b.currency.toUpperCase(),
+        })),
+        pending: balance.pending.map(b => ({
+          amount: b.amount,
+          currency: b.currency.toUpperCase(),
+        })),
+      };
+
+      res.json(formattedBalance);
+    } catch (error) {
+      logError("Error fetching Stripe balance", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch Stripe balance" });
+    }
+  });
+
   // Stripe webhook handler
   app.post("/api/webhooks/stripe", async (req, res) => {
     try {
@@ -3441,6 +3512,58 @@ export async function registerRoutes(
     } catch (err: any) {
       logError("Stripe Webhook Error", err, "webhook");
       res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+  });
+
+  // GetYourGuide Webhook Handler
+  app.post("/api/webhooks/getyourguide", async (req, res) => {
+    try {
+      const { basicAuth } = await import("./middleware/basicAuth");
+
+      // Verify Basic Auth
+      await new Promise<void>((resolve, reject) => {
+        basicAuth(req, res, (err?: any) => (err ? reject(err) : resolve()));
+      });
+
+      const { booking_id, product_id, datetime, participants, customer, total_price } = req.body;
+
+      if (!booking_id || !product_id || !datetime || !customer) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      const bookingReference = `GYG-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+      const booking = await storage.createBooking({
+        tourType: 'Community Tour',
+        preferredDate: new Date(datetime),
+        numberOfVisitors: participants || 1,
+        visitorName: customer.name || '',
+        visitorEmail: customer.email || '',
+        visitorPhone: customer.phone || '',
+        bookingReference,
+        totalAmount: total_price || 0,
+        paymentStatus: 'paid',
+        paymentMethod: 'getyourguide',
+        status: 'confirmed',
+        bookingChannel: 'getyourguide',
+        externalBookingId: booking_id,
+        visitorsInterests: [],
+        campZones: [],
+      });
+
+      logger.info(`✅ GetYourGuide booking: ${bookingReference}`);
+
+      try {
+        const { sendBookingConfirmation } = await import("./email");
+        await sendBookingConfirmation(booking);
+      } catch (emailError) {
+        logger.error('Email error:', emailError);
+      }
+
+      res.status(200).json({ success: true, booking_reference: bookingReference });
+    } catch (error: any) {
+      logError("GetYourGuide webhook error", error, req.requestId);
+      res.status(500).json({ error: ' Failed to process booking' });
     }
   });
 
@@ -6662,12 +6785,57 @@ export async function registerRoutes(
       // Set caching headers (5 min TTL)
       res.set("Cache-Control", "public, max-age=300");
       res.set("X-Cache-Source", "dzaleka-services");
-
       return data;
     } catch (error) {
       throw error;
     }
   }
+
+  // Sync availability to GetYourGuide
+  app.post("/api/getyourguide/sync-availability", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const { notifyAvailabilityUpdate } = await import('./lib/getyourguide');
+
+      // Get next 30 days of bookings to calculate availability
+      const bookings = await storage.getBookings();
+      const today = new Date();
+      const next30Days = new Date(today);
+      next30Days.setDate(today.getDate() + 30);
+
+      // For each day, calculate remaining spots and send to GetYourGuide
+      const productId = process.env.GETYOURGUIDE_PRODUCT_ID || '1188868';
+      const maxSpots = 20; // Configure based on your capacity
+
+      // Group bookings by date
+      const bookingsByDate = new Map<string, number>();
+      bookings.forEach(booking => {
+        const date = new Date(booking.visitDate).toISOString().split('T')[0];
+        const current = bookingsByDate.get(date) || 0;
+        bookingsByDate.set(date, current + (booking.numberOfPeople || 0));
+      });
+
+      // Send availability for next 30 days
+      const promises = [];
+      for (let i = 0; i < 30; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + i);
+        const dateStr = date.toISOString().split('T')[0];
+        const booked = bookingsByDate.get(dateStr) || 0;
+        const available = Math.max(0, maxSpots - booked);
+
+        promises.push(
+          notifyAvailabilityUpdate(productId, date.toISOString(), available, false)
+        );
+      }
+
+      await Promise.all(promises);
+
+      res.json({ success: true, message: 'Availability synced successfully' });
+    } catch (error: any) {
+      console.error("Failed to sync availability:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   // GET /api/community/services - Fetch service organizations
   app.get("/api/community/services", async (req, res) => {

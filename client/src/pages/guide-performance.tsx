@@ -212,33 +212,35 @@ export default function GuidePerformance() {
                 title="Guide Performance"
                 description="Track guide earnings, tour completion rates, and availability at Visit Dzaleka."
             />
-            <div className="flex flex-col gap-2">
-                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Guide Performance</h1>
-                <p className="text-muted-foreground">
+            <div className="flex flex-col gap-2 max-w-full">
+                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight break-words">Guide Performance</h1>
+                <p className="text-muted-foreground text-sm sm:text-base">
                     Track guide earnings, tour completion rates, and availability.
                 </p>
             </div>
 
             <Tabs defaultValue="earnings" className="space-y-6">
-                <TabsList>
-                    <TabsTrigger value="earnings">
-                        <DollarSign className="mr-2 h-4 w-4" />
-                        Earnings
-                    </TabsTrigger>
-                    <TabsTrigger value="compare">
-                        <GitCompare className="mr-2 h-4 w-4" />
-                        Compare Guides
-                    </TabsTrigger>
-                    <TabsTrigger value="calendar">
-                        <Calendar className="mr-2 h-4 w-4" />
-                        Availability Calendar
-                    </TabsTrigger>
-                </TabsList>
+                <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                    <TabsList className="w-max sm:w-auto">
+                        <TabsTrigger value="earnings">
+                            <DollarSign className="mr-2 h-4 w-4" />
+                            Earnings
+                        </TabsTrigger>
+                        <TabsTrigger value="compare">
+                            <GitCompare className="mr-2 h-4 w-4" />
+                            Compare Guides
+                        </TabsTrigger>
+                        <TabsTrigger value="calendar">
+                            <Calendar className="mr-2 h-4 w-4" />
+                            Availability Calendar
+                        </TabsTrigger>
+                    </TabsList>
+                </div>
 
                 {/* Earnings Tab */}
                 <TabsContent value="earnings" className="space-y-6">
                     {/* Summary Cards */}
-                    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:grid-cols-4">
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
                                 <CardTitle className="text-sm font-medium">Total Guides</CardTitle>
@@ -406,7 +408,7 @@ export default function GuidePerformance() {
                                         <div className="text-2xl font-bold">{selectedGuide.completionRate}%</div>
                                         <div className="text-sm text-muted-foreground">Completion Rate</div>
                                     </div>
-                                    <div className="col-span-3 flex justify-center mt-4 pt-4 border-t">
+                                    <div className="col-span-1 sm:col-span-3 flex justify-center mt-4 pt-4 border-t">
                                         <Button size="sm" className="gap-2" onClick={handlePayoutOpen}>
                                             <Wallet className="h-4 w-4" />
                                             Pay Guide
@@ -675,7 +677,7 @@ function CompareGuidesContent({ guideIds }: { guideIds: string[] }) {
     return (
         <div className="space-y-6">
             {/* Side-by-side Stats Cards */}
-            <div className={`grid gap-4 ${compareData.length === 2 ? "grid-cols-2" : compareData.length === 3 ? "grid-cols-3" : "grid-cols-4"}`}>
+            <div className={`grid gap-4 grid-cols-1 sm:grid-cols-2 ${compareData.length >= 3 ? "lg:grid-cols-3" : ""} ${compareData.length === 4 ? "xl:grid-cols-4" : ""}`}>
                 {compareData.map((data, index) => (
                     <Card key={data.guide.id} style={{ borderTopColor: COMPARE_COLORS[index], borderTopWidth: 3 }}>
                         <CardHeader className="pb-2">
