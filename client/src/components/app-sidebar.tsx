@@ -387,6 +387,11 @@ export function AppSidebar() {
   const filteredFinanceItems = filterByRole(financeItems);
   const filteredOperationsItems = filterByRole(operationsItems);
   const filteredAdminItems = filterByRole(adminItems);
+  const isActiveItem = (url: string) =>
+    location === url ||
+    (url !== "/" && location.startsWith(`${url}/`)) ||
+    (url === "/guides" && location.startsWith("/guide/")) ||
+    (url === "/my-bookings" && location.startsWith("/bookings/"));
 
   const roleColors: Record<string, string> = {
     admin: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
@@ -420,7 +425,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {filteredMainItems.map((item) => {
-                const isActive = location === item.url;
+                const isActive = isActiveItem(item.url);
                 const showTaskBadge = item.title === "My Tasks" && pendingTaskCount > 0;
                 const showBookingBadge = item.title === "Bookings" && pendingBookingCount > 0;
                 const showChatBadge = item.title === "Messages" && unreadChatCount > 0;
@@ -463,7 +468,7 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {filteredFinanceItems.map((item) => {
-                  const isActive = location === item.url;
+                  const isActive = isActiveItem(item.url);
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton
@@ -490,7 +495,7 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {filteredOperationsItems.map((item) => {
-                  const isActive = location === item.url;
+                  const isActive = isActiveItem(item.url);
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton
@@ -517,7 +522,7 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {filteredAdminItems.map((item) => {
-                  const isActive = location === item.url;
+                  const isActive = isActiveItem(item.url);
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton

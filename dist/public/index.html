@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Default title only - other meta tags injected by react-helmet per page -->
+  <title>Visit Dzaleka - Cultural Tours & Experiences in Malawi</title>
+
+  <!-- Geo tags for local SEO (same for all pages) -->
+  <meta name="geo.region" content="MW" />
+  <meta name="geo.placename" content="Dzaleka, Dowa, Malawi" />
+  <meta name="geo.position" content="-13.7833;33.9833" />
+  <meta name="ICBM" content="-13.7833, 33.9833" />
+
+  <!-- Favicon and Icons -->
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/favicon.png" />
+
+  <!-- PWA Manifest & Meta -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#f97316" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Visit Dzaleka" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap" rel="stylesheet">
+
+  <!-- Structured Data (Organization-level, shared across all pages) -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "TouristAttraction",
+          "name": "Dzaleka Refugee Camp Cultural Tours",
+          "description": "Book guided tours of Dzaleka Refugee Camp in Malawi. Experience vibrant African culture, meet local artists and entrepreneurs.",
+          "url": "https://visit.dzaleka.com",
+          "address": {
+            "@type": "PostalAddress",
+            "addressLocality": "Dowa",
+            "addressRegion": "Central Region",
+            "addressCountry": "MW"
+          },
+          "geo": {
+            "@type": "GeoCoordinates",
+            "latitude": "-13.7833",
+            "longitude": "33.9833"
+          }
+        },
+        {
+          "@type": "WebSite",
+          "name": "Visit Dzaleka",
+          "url": "https://visit.dzaleka.com",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://visit.dzaleka.com/blog?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "Organization",
+          "name": "Visit Dzaleka",
+          "url": "https://visit.dzaleka.com",
+          "logo": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png",
+          "sameAs": [
+            "https://www.facebook.com/dzalekaonline/",
+            "https://www.instagram.com/dzalekaonline/",
+            "https://twitter.com/dzalekaconnect",
+            "https://www.linkedin.com/company/dzalekaconnect/",
+            "https://www.tiktok.com/@dzaleka"
+          ]
+        }
+      ]
+    }
+  </script>
+  <script type="module" crossorigin src="/assets/index-DkJf8XQ8.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-renrPpTN.css">
+</head>
+
+<body>
+  <div id="root"></div>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').then(registration => {
+          console.log('SW registered: ', registration);
+        }).catch(registrationError => {
+          console.log('SW registration failed: ', registrationError);
+        });
+      });
+    }
+  </script>
+</body>
+
+</html>

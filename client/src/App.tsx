@@ -269,20 +269,20 @@ function Router() {
     <AuthenticatedLayout>
       <Switch>
         <Route path="/" component={Dashboard} />
-        <Route path="/bookings" component={Bookings} />
+        <ProtectedRoute path="/bookings" component={Bookings} allowedRoles={["admin", "coordinator", "guide", "security"]} />
         <Route path="/bookings/:id" component={BookingDetails} />
         <Route path="/bookings/:id/itinerary" component={ItineraryView} />
         <Route path="/recurring-bookings" component={RecurringBookingsPage} />
-        <Route path="/my-bookings" component={MyBookings} />
-        <Route path="/saved-itineraries" component={SavedItineraries} />
-        <Route path="/favorite-guides" component={FavoriteGuides} />
-        <Route path="/calendar" component={CalendarPage} />
-        <Route path="/channel-manager" component={ChannelManager} />
+        <ProtectedRoute path="/my-bookings" component={MyBookings} allowedRoles={["visitor"]} />
+        <ProtectedRoute path="/saved-itineraries" component={SavedItineraries} allowedRoles={["visitor"]} />
+        <ProtectedRoute path="/favorite-guides" component={FavoriteGuides} allowedRoles={["visitor"]} />
+        <ProtectedRoute path="/calendar" component={CalendarPage} allowedRoles={["admin", "coordinator", "guide"]} />
+        <ProtectedRoute path="/channel-manager" component={ChannelManager} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/getyourguide" component={GetYourGuidePage} allowedRoles={["admin", "coordinator"]} />
-        <Route path="/guide-performance" component={GuidePerformance} />
-        <Route path="/guides" component={Guides} />
-        <Route path="/guide/:slug" component={GuideProfile} />
-        <Route path="/guide-training" component={GuideTraining} />
+        <ProtectedRoute path="/guide-performance" component={GuidePerformance} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/guides" component={Guides} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/guide/:slug" component={GuideProfile} allowedRoles={["admin", "coordinator", "guide", "security"]} />
+        <ProtectedRoute path="/guide-training" component={GuideTraining} allowedRoles={["guide"]} />
         <ProtectedRoute path="/dtdw-guide" component={DTDWGuide} allowedRoles={["admin", "coordinator", "guide"]} />
         <ProtectedRoute path="/operations-manual" component={OperationsManual} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/standard-operating-procedures" component={StandardOperatingProcedures} allowedRoles={["admin", "coordinator"]} />
@@ -293,34 +293,34 @@ function Router() {
         <ProtectedRoute path="/my-tours" component={MyTours} allowedRoles={["guide"]} />
         <ProtectedRoute path="/my-earnings" component={MyEarnings} allowedRoles={["guide"]} />
         <ProtectedRoute path="/my-availability" component={MyAvailability} allowedRoles={["guide"]} />
-        <Route path="/training-admin" component={TrainingAdmin} />
-        <Route path="/zones" component={Zones} />
-        <Route path="/security" component={Security} />
-        <Route path="/share-photos" component={SharePhotos} />
+        <ProtectedRoute path="/training-admin" component={TrainingAdmin} allowedRoles={["admin"]} />
+        <ProtectedRoute path="/zones" component={Zones} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/security" component={Security} allowedRoles={["admin", "coordinator", "security"]} />
+        <ProtectedRoute path="/share-photos" component={SharePhotos} allowedRoles={["visitor"]} />
         <ProtectedRoute path="/users" component={UsersPage} allowedRoles={["admin"]} />
-        <Route path="/settings" component={Settings} />
+        <ProtectedRoute path="/settings" component={Settings} allowedRoles={["admin"]} />
         <Route path="/profile" component={Profile} />
-        <Route path="/send-email" component={EmailHistory} />
-        <Route path="/email-settings" component={EmailSettings} />
+        <ProtectedRoute path="/send-email" component={EmailHistory} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/email-settings" component={EmailSettings} allowedRoles={["admin"]} />
         <ProtectedRoute path="/revenue" component={Revenue} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/payments" component={PaymentsPage} allowedRoles={["admin"]} />
         <ProtectedRoute path="/audit-logs" component={AuditLogs} allowedRoles={["admin"]} />
         <ProtectedRoute path="/analytics" component={Analytics} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/reports" component={Reports} allowedRoles={["admin", "coordinator"]} />
-        <Route path="/visitors" component={Visitors} />
+        <ProtectedRoute path="/visitors" component={Visitors} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/cms" component={CMSPage} allowedRoles={["admin"]} />
         <ProtectedRoute path="/security-admin" component={SecurityAdmin} allowedRoles={["admin"]} />
-        <Route path="/resources" component={VisitorResources} />
-        <Route path="/tasks" component={Tasks} />
-        <Route path="/task-admin" component={TaskAdmin} />
+        <ProtectedRoute path="/resources" component={VisitorResources} allowedRoles={["visitor"]} />
+        <ProtectedRoute path="/tasks" component={Tasks} allowedRoles={["admin", "coordinator", "guide", "security"]} />
+        <ProtectedRoute path="/task-admin" component={TaskAdmin} allowedRoles={["admin", "coordinator"]} />
         <Route path="/messages" component={Messages} />
-        <ProtectedRoute path="/live-ops" component={LiveOperations} allowedRoles={["admin", "coordinator"]} />
-        <Route path="/customers" component={CustomersPage} />
-        <Route path="/customers/:id" component={CustomerProfile} />
+        <ProtectedRoute path="/live-ops" component={LiveOperations} allowedRoles={["admin", "security"]} />
+        <ProtectedRoute path="/customers" component={CustomersPage} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/customers/:id" component={CustomerProfile} allowedRoles={["admin", "coordinator"]} />
         <Route path="/help" component={HelpCenter} />
         <ProtectedRoute path="/help-admin" component={HelpAdmin} allowedRoles={["admin"]} />
-        <Route path="/itinerary-builder" component={ItineraryBuilder} />
-        <Route path="/itinerary-builder/:bookingId" component={ItineraryBuilder} />
+        <ProtectedRoute path="/itinerary-builder" component={ItineraryBuilder} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/itinerary-builder/:bookingId" component={ItineraryBuilder} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/developer" component={DeveloperSettings} allowedRoles={["admin"]} />
         <Route path="/community" component={CommunityHub} />
         <Route path="/landing" component={Landing} />

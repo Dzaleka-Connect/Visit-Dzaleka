@@ -91,11 +91,14 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
         <NavigationMenu className="hidden md:flex">
           <NavigationMenuList>
             <NavigationMenuItem>
-              <Link href="/">
-                <NavigationMenuLink className={cn(navigationMenuTriggerStyle(), isActive("/") && currentPath === "/" && "text-primary")}>
+              <NavigationMenuLink
+                asChild
+                className={cn(navigationMenuTriggerStyle(), isActive("/") && currentPath === "/" && "text-primary")}
+              >
+                <Link href="/">
                   Home
-                </NavigationMenuLink>
-              </Link>
+                </Link>
+              </NavigationMenuLink>
             </NavigationMenuItem>
 
             {/* Discover Dropdown */}
@@ -172,19 +175,25 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
             </NavigationMenuItem>
 
             <NavigationMenuItem>
-              <Link href="/blog">
-                <NavigationMenuLink className={cn(navigationMenuTriggerStyle(), isActive("/blog") && "text-primary")}>
+              <NavigationMenuLink
+                asChild
+                className={cn(navigationMenuTriggerStyle(), isActive("/blog") && "text-primary")}
+              >
+                <Link href="/blog">
                   Blog
-                </NavigationMenuLink>
-              </Link>
+                </Link>
+              </NavigationMenuLink>
             </NavigationMenuItem>
 
             <NavigationMenuItem>
-              <Link href="/faq">
-                <NavigationMenuLink className={cn(navigationMenuTriggerStyle(), isActive("/faq") && "text-primary")}>
+              <NavigationMenuLink
+                asChild
+                className={cn(navigationMenuTriggerStyle(), isActive("/faq") && "text-primary")}
+              >
+                <Link href="/faq">
                   FAQ
-                </NavigationMenuLink>
-              </Link>
+                </Link>
+              </NavigationMenuLink>
             </NavigationMenuItem>
           </NavigationMenuList>
         </NavigationMenu>

@@ -23,15 +23,10 @@ export function AccountSwitcher() {
     const [searchQuery, setSearchQuery] = useState("");
     const [isOpen, setIsOpen] = useState(false);
 
-    // Only show for admins (or when impersonating)
-    if (!user || (user.role !== "admin" && !isImpersonating)) {
-        return null;
-    }
-
     // Fetch all users for admin
     const { data: users = [], isLoading: isLoadingUsers } = useQuery<User[]>({
         queryKey: ["/api/users"],
-        enabled: user.role === "admin" || isImpersonating,
+        enabled: !!user && user.role === "admin" && !isImpersonating,
     });
 
     const impersonateMutation = useMutation({
@@ -55,6 +50,11 @@ export function AccountSwitcher() {
             });
         },
     });
+
+    // Only show for admins (or when impersonating)
+    if (!user || (user.role !== "admin" && !isImpersonating)) {
+        return null;
+    }
 
     const filteredUsers = users.filter((u) => {
         if (u.role === "admin") return false; // Can't impersonate admins

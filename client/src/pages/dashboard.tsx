@@ -117,6 +117,7 @@ function AdminDashboard() {
     subject: "",
     message: "",
   });
+  const displayName = user?.firstName || "there";
 
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/stats"],
@@ -206,7 +207,7 @@ function AdminDashboard() {
       />
       <PageHeader
         title="Dashboard"
-        description={`Welcome back, ${user?.firstName}. Here is your daily overview.`}
+        description={`Welcome back, ${displayName}. Here is what needs attention today.`}
       />
 
       {/* Quick Actions */}
@@ -275,7 +276,7 @@ function AdminDashboard() {
         )}
         {user?.role === "visitor" && (
           <>
-            <Link href="/bookings">
+            <Link href="/my-bookings?book=true">
               <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
                 <Ticket className="h-3.5 w-3.5" />
                 <span>Book</span>
@@ -303,7 +304,7 @@ function AdminDashboard() {
         )}
       </div>
 
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Bookings"
           value={dashboardStats.totalBookings}
@@ -566,7 +567,7 @@ function AdminDashboard() {
                       <Label htmlFor="subject">Subject *</Label>
                       <Input
                         id="subject"
-                        placeholder="Email subject..."
+                          placeholder="Email subject…"
                         required
                         value={emailForm.subject}
                         onChange={(e) => setEmailForm({ ...emailForm, subject: e.target.value })}
@@ -577,7 +578,7 @@ function AdminDashboard() {
                       <Label htmlFor="message">Message *</Label>
                       <Textarea
                         id="message"
-                        placeholder="Write your message here..."
+                        placeholder="Write your message here…"
                         required
                         rows={6}
                         value={emailForm.message}
@@ -680,7 +681,7 @@ function CoordinatorDashboard() {
         description="Manage bookings, guides, and tour scheduling."
       />
 
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Pending Requests"
           value={dashboardStats.pendingRequests}
@@ -846,6 +847,7 @@ function GuideDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const displayName = user?.firstName || "there";
 
   const { data: myTours, isLoading } = useQuery<RecentBooking[]>({
     queryKey: ["/api/bookings/my-tours"],
@@ -901,10 +903,10 @@ function GuideDashboard() {
     <PageContainer className="page-spacing">
       <PageHeader
         title="Guide Dashboard"
-        description={`Welcome back, ${user?.firstName}! Here are your assigned tours.`}
+        description={`Welcome back, ${displayName}. Here are your assigned tours.`}
       />
 
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Today's Tours"
           value={upcomingTours.length}
@@ -940,7 +942,7 @@ function GuideDashboard() {
             <EmptyState
               icon={CalendarDays}
               title="No tours assigned today"
-              description="You don't have any tours scheduled for today. Check back later!"
+              description="You do not have any tours scheduled for today."
               className="py-8"
             />
           ) : (
@@ -1065,7 +1067,7 @@ function SecurityDashboard() {
         description="Monitor visitor check-ins, verify bookings, and manage incidents."
       />
 
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Active Visitors"
           value={checkedInVisitors.length}
@@ -1229,6 +1231,7 @@ function VisitorDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const displayName = user?.firstName || "there";
 
   const { data: myBookings, isLoading } = useQuery<RecentBooking[]>({
     queryKey: ["/api/bookings/my-bookings"],
@@ -1239,16 +1242,12 @@ function VisitorDashboard() {
     enabled: !!user,
   });
 
-  const { data: guides } = useQuery<Guide[]>({
-    queryKey: ["/api/guides"],
-  });
-
   const { data: zones } = useQuery<{ id: string; name: string }[]>({
-    queryKey: ["/api/zones"],
+    queryKey: ["/api/public/zones"],
   });
 
   const { data: meetingPoints } = useQuery<{ id: string; name: string; address?: string }[]>({
-    queryKey: ["/api/meeting-points"],
+    queryKey: ["/api/public/meeting-points"],
   });
 
   const updatePaymentMutation = useMutation({
@@ -1286,6 +1285,7 @@ function VisitorDashboard() {
   });
 
   const handleRateGuide = (bookingId: string, rating: number) => {
+    setSelectedRating({ bookingId, rating });
     rateGuideMutation.mutate({ bookingId, rating });
   };
 
@@ -1302,16 +1302,13 @@ function VisitorDashboard() {
     },
   });
 
-  const getGuideName = (guideId: string | null | undefined) => {
-    if (!guideId || !guides) return null;
-    const guide = guides.find(g => g.id === guideId || g.userId === guideId);
-    return guide ? `${guide.firstName} ${guide.lastName}` : null;
+  const getGuideName = (booking: RecentBooking) => {
+    if (!booking.guide) return null;
+    return `${booking.guide.firstName} ${booking.guide.lastName}`.trim();
   };
 
-  const getGuidePhone = (guideId: string | null | undefined) => {
-    if (!guideId || !guides) return null;
-    const guide = guides.find(g => g.id === guideId || g.userId === guideId);
-    return guide?.phone || null;
+  const getGuidePhone = (booking: RecentBooking) => {
+    return booking.guide?.phone || null;
   };
 
   const getZoneNames = (zoneIds: string[] | null | undefined) => {
@@ -1349,8 +1346,8 @@ function VisitorDashboard() {
   return (
     <PageContainer className="page-spacing">
       <PageHeader
-        title={`Welcome, ${user?.firstName}!`}
-        description="Manage your visit bookings and explore Dzaleka Refugee Camp."
+        title={`Welcome, ${displayName}`}
+        description="Review your visits, tour details, payments, and support options."
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -1369,7 +1366,7 @@ function VisitorDashboard() {
         <StatCard
           title="Completed Tours"
           value={completedBookings.length}
-          subtitle="Enjoyed"
+          subtitle="Finished"
           icon={CheckCircle2}
         />
       </div>
@@ -1397,15 +1394,15 @@ function VisitorDashboard() {
               </div>
 
               <div className="flex-1 text-center sm:text-left space-y-1">
-                <h3 className="font-semibold text-lg">Ready to Book Your Tour?</h3>
+                <h3 className="font-semibold text-lg">Ready to book your tour?</h3>
                 <p className="text-sm text-muted-foreground">
-                  Experience Dzaleka with a local refugee guide. Choose your date, group size, and tour type to get started.
+                  Choose a date, group size, and tour type. A local guide will confirm the details with you.
                 </p>
               </div>
 
               <Button asChild size="default" className="shrink-0 w-full sm:w-auto">
                 <Link href="/my-bookings?book=true">
-                  Book Now <ArrowRight className="ml-2 h-4 w-4" />
+                  Book now <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
             </div>
@@ -1421,15 +1418,15 @@ function VisitorDashboard() {
               <Globe className="h-6 w-6 text-primary" />
             </div>
             <div className="space-y-1 text-center sm:text-left">
-              <h3 className="font-semibold text-base">Dzaleka Online Community</h3>
+              <h3 className="font-semibold text-base">Community Hub</h3>
               <p className="text-sm text-muted-foreground max-w-lg">
-                Connect with essential services, stay informed on local news, and support the refugee-led initiatives driving economic empowerment and self-reliance in Dzaleka.
+                Find local services, news, events, and community-led projects in one place.
               </p>
             </div>
           </div>
           <Button asChild size="default" className="shrink-0 w-full sm:w-auto">
             <Link href="/community">
-              Visit Community Hub <ArrowRight className="ml-2 h-4 w-4" />
+              Open Community Hub <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
         </CardContent>
@@ -1439,7 +1436,7 @@ function VisitorDashboard() {
         <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-4">
           <CardTitle className="text-lg font-semibold">Your Upcoming Visits</CardTitle>
           <Button asChild data-testid="button-book-visit">
-            <Link href="/my-bookings">
+            <Link href="/my-bookings?book=true">
               Book a Visit
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
@@ -1450,11 +1447,11 @@ function VisitorDashboard() {
             <EmptyState
               icon={CalendarDays}
               title="No upcoming visits"
-              description="You don't have any scheduled visits. Book a tour to explore Dzaleka!"
+              description="You do not have any scheduled visits."
               className="py-8"
               action={
                 <Button asChild className="mt-4">
-                  <Link href="/my-bookings">
+                  <Link href="/my-bookings?book=true">
                     Book Your First Visit
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
@@ -1464,8 +1461,8 @@ function VisitorDashboard() {
           ) : (
             <div className="space-y-4">
               {upcomingBookings.map((booking) => {
-                const guideName = getGuideName(booking.assignedGuideId);
-                const guidePhone = getGuidePhone(booking.assignedGuideId);
+                const guideName = getGuideName(booking);
+                const guidePhone = getGuidePhone(booking);
                 const zoneNames = getZoneNames(booking.selectedZones as string[]);
                 const meetingPointName = getMeetingPointName(booking.meetingPointId);
                 const isConfirmed = booking.status === "confirmed";
@@ -1634,7 +1631,7 @@ function VisitorDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-4">
             <div className="flex items-center gap-2">
-              <CardTitle className="text-lg font-semibold">Your Travel Memories</CardTitle>
+              <CardTitle className="text-lg font-semibold">Past Visits</CardTitle>
               <Badge variant="secondary" className="rounded-full">{completedBookings.length}</Badge>
             </div>
             {completedBookings.length > 2 && (
@@ -1709,11 +1706,11 @@ function VisitorDashboard() {
                           </Badge>
                         </div>
 
-                        {booking.assignedGuideId && getGuideName(booking.assignedGuideId) && (
+                        {getGuideName(booking) && (
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <UserCheck className="h-4 w-4" />
                             <span>
-                              Guided by <span className="font-medium text-foreground">{getGuideName(booking.assignedGuideId)}</span>
+                              Guided by <span className="font-medium text-foreground">{getGuideName(booking)}</span>
                             </span>
                           </div>
                         )}
@@ -1728,7 +1725,7 @@ function VisitorDashboard() {
                           </Button>
                         )}
                         <Button size="sm" variant="outline" asChild>
-                          <Link href="/bookings">
+                          <Link href="/my-bookings?book=true">
                             Book Again
                           </Link>
                         </Button>
@@ -1748,8 +1745,9 @@ function VisitorDashboard() {
                                 key={star}
                                 onClick={() => handleRateGuide(booking.id, star)}
                                 disabled={rateGuideMutation.isPending}
-                                className="p-1 focus:outline-none"
+                                className="rounded-md p-1 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                 title={`Rate ${star} stars`}
+                                aria-label={`Rate ${star} ${star === 1 ? "star" : "stars"}`}
                               >
                                 <Star
                                   className={`h-5 w-5 transition-colors ${selectedRating?.bookingId === booking.id && star <= selectedRating.rating
@@ -1779,7 +1777,7 @@ function VisitorDashboard() {
             Safety & Support
           </CardTitle>
           <CardDescription>
-            We prioritize your safety. If you encounter any issues or need assistance, please report it immediately or contact our team.
+            Need help during a visit? Report an issue or contact the team.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1800,7 +1798,7 @@ function VisitorDashboard() {
             <div className="flex-1 flex flex-col justify-center items-start border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-6">
               <h4 className="font-semibold text-sm mb-2">Report an Incident</h4>
               <p className="text-sm text-muted-foreground mb-4">
-                Witnessed something concerning? Let us know so we can address it.
+                Report safety concerns, delays, or other visit issues.
               </p>
               <ReportIncidentDialog />
             </div>
@@ -1828,7 +1826,7 @@ function VisitorDashboard() {
       {/* Explore Dzaleka Section */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg font-semibold">Explore Dzaleka</CardTitle>
+          <CardTitle className="text-lg font-semibold">Plan Your Visit</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -1867,7 +1865,7 @@ function VisitorDashboard() {
                 <Globe className="h-5 w-5 text-muted-foreground" />
                 <div className="text-left">
                   <div className="font-medium">Dzaleka Online Services</div>
-                  <div className="text-xs text-muted-foreground">Full platform & resources</div>
+                  <div className="text-xs text-muted-foreground">Services and community updates</div>
                 </div>
                 <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
               </a>

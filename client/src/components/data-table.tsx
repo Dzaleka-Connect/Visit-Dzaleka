@@ -22,7 +22,7 @@ interface DataTableProps<T> {
   isLoading?: boolean;
   emptyMessage?: string;
   className?: string;
-  getRowKey?: (item: T) => string | number;
+  getRowKey?: (item: T, index: number) => string | number;
 }
 
 function DataTableSkeleton({ columns }: { columns: DataTableColumn<any>[] }) {
@@ -47,7 +47,7 @@ export function DataTable<T>({
   isLoading = false,
   emptyMessage = "No data available",
   className,
-  getRowKey = (_, index) => index,
+  getRowKey = (_item: T, index: number) => index,
 }: DataTableProps<T>) {
   return (
     <div className={cn("rounded-lg border bg-card", className)}>

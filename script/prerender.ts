@@ -30,9 +30,7 @@ const STATIC_ROUTES = [
     "/faq",
     "/life-in-dzaleka",
     "/destinations",
-    "/visitor-essentials",
-    "/financial-framework",
-    "/marketing-strategy",
+    "/plan-your-trip/visitor-essentials",
     "/impact-report",
     "/cookie-notice",
     "/disclaimer",
@@ -74,6 +72,7 @@ async function prerender() {
 
     // Combine static and dynamic routes
     const allRoutes = [...STATIC_ROUTES, ...dynamicRoutes];
+    const failedRoutes: string[] = [];
 
     // 3. Launch Puppeteer
     const browser = await puppeteer.launch({
@@ -89,10 +88,19 @@ async function prerender() {
             await page.setViewport({ width: 1280, height: 1024 });
 
             console.log(`Crawling ${route}...`);
-            await page.goto(`${baseUrl}${route}`, {
-                waitUntil: "networkidle0",
-                timeout: 30000,
+            await page.goto(`${baseUrl}/`, {
+                waitUntil: "domcontentloaded",
+                timeout: 45000,
             });
+
+            await page.waitForSelector("#root", { timeout: 10000 });
+
+            if (route !== "/") {
+                await page.evaluate((nextRoute) => {
+                    window.history.replaceState(null, "", nextRoute);
+                    window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+                }, route);
+            }
 
             // Wait for react-helmet to update the head tags
             // This ensures SEO meta tags are properly captured
@@ -130,12 +138,19 @@ async function prerender() {
             await page.close();
         } catch (err) {
             console.error(`Failed to prerender ${route}:`, err);
+            failedRoutes.push(route);
         }
     }
 
     // 4. Cleanup
     await browser.close();
     httpServer.close();
+
+    if (failedRoutes.length > 0) {
+        console.error(`Pre-rendering failed for ${failedRoutes.length} route(s): ${failedRoutes.join(", ")}`);
+        process.exit(1);
+    }
+
     console.log("Pre-rendering complete.");
     process.exit(0);
 }
@@ -144,4 +159,3 @@ prerender().catch(err => {
     console.error("Prerendering failed:", err);
     process.exit(1);
 });
-

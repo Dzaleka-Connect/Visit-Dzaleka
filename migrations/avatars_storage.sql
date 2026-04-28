@@ -3,32 +3,35 @@
 -- ================================================
 -- Run this in your Supabase SQL Editor
 
--- Create the avatars storage bucket
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('avatars', 'avatars', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
--- Allow authenticated users to upload their own avatars
+DROP POLICY IF EXISTS "Users can upload own avatar" ON storage.objects;
+DROP POLICY IF EXISTS "Users can update own avatar" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete own avatar" ON storage.objects;
+
 CREATE POLICY "Users can upload own avatar" ON storage.objects
-FOR INSERT WITH CHECK (
-    bucket_id = 'avatars' 
-    AND auth.role() = 'authenticated'
+FOR INSERT TO authenticated
+WITH CHECK (
+  bucket_id = 'avatars'
+  AND (storage.foldername(name))[1] = auth.uid()::text
 );
 
--- Allow authenticated users to update their own avatars
 CREATE POLICY "Users can update own avatar" ON storage.objects
-FOR UPDATE WITH CHECK (
-    bucket_id = 'avatars' 
-    AND auth.role() = 'authenticated'
+FOR UPDATE TO authenticated
+USING (
+  bucket_id = 'avatars'
+  AND (storage.foldername(name))[1] = auth.uid()::text
+)
+WITH CHECK (
+  bucket_id = 'avatars'
+  AND (storage.foldername(name))[1] = auth.uid()::text
 );
 
--- Allow public read access to avatars
-CREATE POLICY "Avatars are publicly accessible" ON storage.objects
-FOR SELECT USING (bucket_id = 'avatars');
-
--- Allow authenticated users to delete their own avatars
 CREATE POLICY "Users can delete own avatar" ON storage.objects
-FOR DELETE USING (
-    bucket_id = 'avatars' 
-    AND auth.role() = 'authenticated'
+FOR DELETE TO authenticated
+USING (
+  bucket_id = 'avatars'
+  AND (storage.foldername(name))[1] = auth.uid()::text
 );

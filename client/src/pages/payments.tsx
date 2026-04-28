@@ -56,6 +56,7 @@ interface Transaction {
         brand: string;
         last4: string;
         country: string;
+        funding?: string;
     };
 }
 

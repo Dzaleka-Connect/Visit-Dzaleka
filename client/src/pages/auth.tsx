@@ -138,15 +138,26 @@ export default function AuthPage() {
   });
 
   const onLoginSubmit = (data: LoginForm) => {
-    loginMutation.mutate(data);
+    loginMutation.mutate({
+      email: data.email.trim(),
+      password: data.password,
+    });
   };
 
   const onRegisterSubmit = (data: RegisterForm) => {
-    registerMutation.mutate(data);
+    registerMutation.mutate({
+      firstName: data.firstName.trim(),
+      lastName: data.lastName.trim(),
+      email: data.email.trim(),
+      password: data.password,
+      confirmPassword: data.confirmPassword,
+    });
   };
 
   const onForgotPasswordSubmit = (data: ForgotPasswordForm) => {
-    forgotPasswordMutation.mutate(data);
+    forgotPasswordMutation.mutate({
+      email: data.email.trim(),
+    });
   };
 
   return (
@@ -178,7 +189,7 @@ export default function AuthPage() {
                 </CardDescription>
               </CardHeader>
               <Form {...loginForm}>
-                <form onSubmit={loginForm.handleSubmit(onLoginSubmit)}>
+                <form noValidate onSubmit={loginForm.handleSubmit(onLoginSubmit)}>
                   <CardContent className="space-y-4">
                     <FormField
                       control={loginForm.control}
@@ -189,8 +200,10 @@ export default function AuthPage() {
                           <FormControl>
                             <Input
                               type="email"
-                              placeholder="you@example.com"
+                              placeholder="you@example.com…"
                               autoComplete="email"
+                              inputMode="email"
+                              spellCheck={false}
                               data-testid="input-email"
                               {...field}
                             />
@@ -219,7 +232,7 @@ export default function AuthPage() {
                             <div className="relative">
                               <Input
                                 type={showPassword ? "text" : "password"}
-                                placeholder="Enter your password"
+                                placeholder="Enter your password…"
                                 autoComplete="current-password"
                                 data-testid="input-password"
                                 {...field}
@@ -251,16 +264,13 @@ export default function AuthPage() {
                       type="submit"
                       className="w-full"
                       disabled={loginMutation.isPending}
+                      aria-busy={loginMutation.isPending}
                       data-testid="button-login"
                     >
-                      {loginMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Signing in...
-                        </>
-                      ) : (
-                        "Sign In"
+                      {loginMutation.isPending && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       )}
+                      Sign In
                     </Button>
                     <p className="text-sm text-muted-foreground text-center">
                       Don&apos;t have an account?{" "}
@@ -302,7 +312,7 @@ export default function AuthPage() {
                 </div>
               </CardHeader>
               <Form {...registerForm}>
-                <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)}>
+                <form noValidate onSubmit={registerForm.handleSubmit(onRegisterSubmit)}>
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <FormField
@@ -313,7 +323,7 @@ export default function AuthPage() {
                             <FormLabel>First Name</FormLabel>
                             <FormControl>
                               <Input
-                                placeholder="John"
+                                placeholder="John…"
                                 autoComplete="given-name"
                                 data-testid="input-first-name"
                                 {...field}
@@ -331,7 +341,7 @@ export default function AuthPage() {
                             <FormLabel>Last Name</FormLabel>
                             <FormControl>
                               <Input
-                                placeholder="Doe"
+                                placeholder="Doe…"
                                 autoComplete="family-name"
                                 data-testid="input-last-name"
                                 {...field}
@@ -351,8 +361,10 @@ export default function AuthPage() {
                           <FormControl>
                             <Input
                               type="email"
-                              placeholder="you@example.com"
+                              placeholder="you@example.com…"
                               autoComplete="email"
+                              inputMode="email"
+                              spellCheck={false}
                               data-testid="input-register-email"
                               {...field}
                             />
@@ -371,7 +383,7 @@ export default function AuthPage() {
                             <div className="relative">
                               <Input
                                 type={showPassword ? "text" : "password"}
-                                placeholder="At least 8 characters"
+                                placeholder="At least 8 characters…"
                                 autoComplete="new-password"
                                 data-testid="input-register-password"
                                 {...field}
@@ -406,7 +418,7 @@ export default function AuthPage() {
                           <FormControl>
                             <Input
                               type={showPassword ? "text" : "password"}
-                              placeholder="Confirm your password"
+                              placeholder="Confirm your password…"
                               autoComplete="new-password"
                               data-testid="input-confirm-password"
                               {...field}
@@ -422,16 +434,13 @@ export default function AuthPage() {
                       type="submit"
                       className="w-full"
                       disabled={registerMutation.isPending}
+                      aria-busy={registerMutation.isPending}
                       data-testid="button-register"
                     >
-                      {registerMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Creating account...
-                        </>
-                      ) : (
-                        "Create Account"
+                      {registerMutation.isPending && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       )}
+                      Create Account
                     </Button>
                     <p className="text-sm text-muted-foreground text-center">
                       Already have an account?{" "}
@@ -473,7 +482,7 @@ export default function AuthPage() {
                 </div>
               </CardHeader>
               <Form {...forgotPasswordForm}>
-                <form onSubmit={forgotPasswordForm.handleSubmit(onForgotPasswordSubmit)}>
+                <form noValidate onSubmit={forgotPasswordForm.handleSubmit(onForgotPasswordSubmit)}>
                   <CardContent className="space-y-4">
                     <FormField
                       control={forgotPasswordForm.control}
@@ -485,8 +494,10 @@ export default function AuthPage() {
                             <div className="relative">
                               <Input
                                 type="email"
-                                placeholder="you@example.com"
+                                placeholder="you@example.com…"
                                 autoComplete="email"
+                                inputMode="email"
+                                spellCheck={false}
                                 className="pl-10"
                                 data-testid="input-forgot-email"
                                 {...field}
@@ -504,16 +515,13 @@ export default function AuthPage() {
                       type="submit"
                       className="w-full"
                       disabled={forgotPasswordMutation.isPending}
+                      aria-busy={forgotPasswordMutation.isPending}
                       data-testid="button-send-reset"
                     >
-                      {forgotPasswordMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Sending…
-                        </>
-                      ) : (
-                        "Send Reset Instructions"
+                      {forgotPasswordMutation.isPending && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       )}
+                      Send Reset Instructions
                     </Button>
                     <p className="text-sm text-muted-foreground text-center">
                       Remember your password?{" "}

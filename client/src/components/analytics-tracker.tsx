@@ -2,25 +2,16 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { AnalyticsSetting } from "@shared/schema";
 
+type PublicAnalyticsSetting = Pick<
+    AnalyticsSetting,
+    "facebookPixelId" | "ga4MeasurementId" | "googleAdsConversionId" | "isEnabled"
+>;
+
 export function AnalyticsTracker() {
-    // Only fetch settings if likely to succeed (though settings might be public?)
-    // Actually, settings/analytics likely requires admin or is restricted.
-    // If it's for public tracking (GA4), it should probably be a public endpoint.
-    // But currently likely protected.
-    // Let's check if we have a user first.
-
-    // However, tracking should work for visitors too?
-    // If /api/settings/analytics is protected, then visitors can't get the ID?
-    // That would be a bug for tracking visitors.
-
-    // Let's assume for now it Should be public or we only track if we can get it.
-    // But the error is 401. 
-    // If we suppress the retry, it won't spam.
-
-    const { data: settings } = useQuery<AnalyticsSetting>({
-        queryKey: ["/api/settings/analytics"],
+    const { data: settings } = useQuery<PublicAnalyticsSetting>({
+        queryKey: ["/api/settings/analytics/public"],
         staleTime: 5 * 60 * 1000,
-        retry: false, // Don't retry if it fails (e.g. 401)
+        retry: false,
     });
 
     useEffect(() => {
@@ -28,7 +19,6 @@ export function AnalyticsTracker() {
 
         const w = window as any;
 
-        // Helper to ensure dataLayer exists
         const ensureGtag = () => {
             if (!w.dataLayer) {
                 w.dataLayer = [];
@@ -37,7 +27,6 @@ export function AnalyticsTracker() {
             }
         };
 
-        // 1. Google Analytics 4
         if (settings.ga4MeasurementId) {
             if (!document.getElementById("ga4-script")) {
                 ensureGtag();
@@ -52,10 +41,7 @@ export function AnalyticsTracker() {
             }
         }
 
-        // 2. Google Ads
         if (settings.googleAdsConversionId) {
-            // If GA4 is not present, we might need to load gtag lib.
-            // If GA4 IS present, the lib is same.
             if (!document.getElementById("ga4-script") && !document.getElementById("google-ads-script")) {
                 ensureGtag();
                 const script = document.createElement("script");
@@ -64,17 +50,12 @@ export function AnalyticsTracker() {
                 script.src = `https://www.googletagmanager.com/gtag/js?id=${settings.googleAdsConversionId}`;
                 document.head.appendChild(script);
             } else {
-                ensureGtag(); // ensure window.gtag is available
+                ensureGtag();
             }
 
-            // Add Ads config
-            // Check if config already added to avoid duplicates on re-renders? 
-            // useEffect runs once if deps correct/stale.
-            // We'll proceed.
             w.gtag('config', settings.googleAdsConversionId);
         }
 
-        // 3. Facebook Pixel
         if (settings.facebookPixelId) {
             if (!document.getElementById("fb-pixel")) {
                 const script = document.createElement("script");

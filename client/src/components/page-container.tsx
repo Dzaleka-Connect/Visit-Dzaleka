@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 interface PageContainerProps {
   children: React.ReactNode;
   className?: string;
+  size?: "sm" | "md" | "lg" | "xl" | "2xl" | "full";
   maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "full";
 }
 
@@ -18,7 +19,8 @@ const maxWidthClasses = {
 export function PageContainer({ 
   children, 
   className,
-  maxWidth = "xl" 
+  size,
+  maxWidth = size ?? "xl" 
 }: PageContainerProps) {
   return (
     <div className={cn(

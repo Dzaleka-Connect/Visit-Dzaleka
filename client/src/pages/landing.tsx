@@ -14,8 +14,6 @@ import {
   CheckCircle,
   Star,
   Quote,
-  Menu,
-  X,
   Heart,
   Lightbulb,
   TrendingUp,
@@ -31,39 +29,39 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { Link } from "wouter";
-import { useState } from "react";
 import { SEO } from "@/components/seo";
 import { useQuery } from "@tanstack/react-query";
 import { SiteFooter } from "@/components/site-footer";
+import { PublicHeader } from "@/components/public-header";
 
 const features = [
   {
     icon: Calendar,
     key: "feature_1",
-    defaultTitle: "Effortless Booking",
+    defaultTitle: "Simple Booking",
     defaultDesc:
-      "Book your authentic cultural experience in seconds with our real-time availability system. No stress, just connection.",
+      "Choose a date, group size, and focus area. The team confirms the details and helps you prepare for the visit.",
   },
   {
     icon: Users,
     key: "feature_2",
-    defaultTitle: "Meet Your Local Ambassador",
+    defaultTitle: "Guides Who Live Here",
     defaultDesc:
-      "Connect with verified local guides—residents who are passionate storytellers with deep knowledge of Dzaleka's history, culture, and \"hidden gems.\"",
+      "Visit with trained resident guides who know the camp, speak multiple languages, and can answer practical questions from lived experience.",
   },
   {
     icon: Globe,
     key: "feature_3",
-    defaultTitle: "Immersive Experiences",
+    defaultTitle: "Food, Arts, and Daily Life",
     defaultDesc:
-      "Dive deep into the vibrant cultures of Dzaleka through immersive food tours, art workshops, and music events, fostering mutual respect.",
+      "Build a visit around community markets, food, artists, schools, sports, or events, depending on what is available that day.",
   },
   {
     icon: Shield,
     key: "feature_4",
-    defaultTitle: "A Culture of Safety & Respect",
+    defaultTitle: "Safe, Coordinated Visits",
     defaultDesc:
-      "All visits are coordinated with camp security protocols and local leaders, ensuring a safe, respectful, and responsible experience for both visitors and residents.",
+      "Visits follow local guidance and camp security protocols, with clear expectations for photography, privacy, and respectful conduct.",
     link: "https://services.dzaleka.com/visit/guidelines/",
     linkText: "Read Visitor Guidelines",
   },
@@ -87,21 +85,21 @@ const nationalities = [
 const testimonials = [
   {
     key: "testimonial_1",
-    defaultQuote: "An eye-opening experience that changed my perspective completely. The guides are incredibly knowledgeable and welcoming.",
+    defaultQuote: "Warm, clear, and well organized. I left with names, places, and context I could not have found on my own.",
     defaultAuthor: "Sarah Jenkins",
     defaultRole: "International Visitor",
     rating: 5
   },
   {
     key: "testimonial_2",
-    defaultQuote: "The booking process was seamless, and the tour was well-organized. It's amazing to see the creativity and resilience here.",
+    defaultQuote: "The booking was straightforward and the guide handled the visit with care. It felt respectful from start to finish.",
     defaultAuthor: "David Mwale",
     defaultRole: "Local Tourist",
     rating: 5
   },
   {
     key: "testimonial_3",
-    defaultQuote: "A unique opportunity to learn about the resilience and creativity within the camp. The art market is a must-visit.",
+    defaultQuote: "A practical way to learn from residents and support local work. The art market was the highlight for me.",
     defaultAuthor: "Elena Rodriguez",
     defaultRole: "NGO Worker",
     rating: 5
@@ -112,29 +110,29 @@ const pricing = [
   {
     title: "Individual",
     price: "MWK 15,000",
-    description: "A personal, one-on-one cultural immersion tailored to your specific interests. Connect deeply with your guide at your own pace.",
-    features: ["Fully Personalized Itinerary", "Dedicated Local Host", "Flexible Pace & Focus", "1-on-1 Cultural Exchange"],
+    description: "A one-on-one visit shaped around your interests, with time for questions and a slower pace.",
+    features: ["Personal itinerary", "Dedicated local guide", "Flexible pace", "1-on-1 conversation"],
     highlight: false
   },
   {
     title: "Small Group",
     price: "MWK 50,000",
-    description: "Perfect for couples or small families (2-5 people) seeking an intimate, interactive experience. Share the journey together.",
-    features: ["Interactive Group Tour", "Experienced Guide", "Family-Friendly", "Shared Experience"],
+    description: "For couples, families, or small teams of 2-5 people who want a shared visit that still feels personal.",
+    features: ["Interactive tour", "Experienced guide", "Family-friendly", "Shared visit"],
     highlight: true
   },
   {
     title: "Medium Group",
     price: "MWK 80,000",
-    description: "Ideal for extended families, friend groups, or small teams (6-10 people). A balanced experience ensuring everyone engages.",
-    features: ["Structured Group Experience", "Senior Guide", "Engaging for All Ages", "Custom Focus Options"],
+    description: "For groups of 6-10 people, with enough structure to keep the visit clear and manageable.",
+    features: ["Structured route", "Senior guide", "Good for mixed ages", "Custom focus options"],
     highlight: false
   },
   {
     title: "Large Group",
     price: "MWK 100,000",
-    description: "Designed for schools, organizations, or delegations (10+ people). Includes dedicated logistics and multiple guides for a smooth visit.",
-    features: ["Full Logistics Support", "Multiple Dedicated Guides", "Educational Focus", "Q&A & Debrief Session"],
+    description: "For schools, organizations, or delegations of 10+ people, with extra coordination and guide support.",
+    features: ["Logistics support", "Multiple guides", "Educational focus", "Q&A and debrief"],
     highlight: false
   }
 ];
@@ -142,23 +140,23 @@ const pricing = [
 const whyDzaleka = [
   {
     icon: "Sparkles",
-    title: "Vibrant Culture & Arts",
-    description: "Home to a thriving arts scene, from the internationally recognized Tumaini Festival to local dance and theater groups."
+    title: "Arts, Food, and Daily Life",
+    description: "Visit artists, performers, and creative groups connected to Tumaini Festival and year-round community work."
   },
   {
     icon: "Lightbulb",
-    title: "Innovation Hub",
-    description: "Meet the entrepreneurs at TakenoLAB, where coding and digital skills are building bridges to a brighter future."
+    title: "Resident-Led Ideas",
+    description: "Meet entrepreneurs and digital skills programs such as TakenoLAB, where residents build practical technology projects."
   },
   {
     icon: "Heart",
-    title: "Authentic Connection",
-    description: "Experience genuine hospitality, enjoy local culinary delights like \"King's Chapati\", and hear powerful personal stories."
+    title: "Real Conversations",
+    description: "Share food, ask questions, and hear directly from people who call Dzaleka home."
   },
   {
     icon: "TrendingUp",
-    title: "Meaningful Impact",
-    description: "Your visit directly supports refugee-led initiatives and economic growth within the community."
+    title: "Direct Local Income",
+    description: "Tour fees help pay guides and support community-led tourism inside Dzaleka."
   }
 ];
 
@@ -175,13 +173,13 @@ const trustBadges = [
 const dzalekaHighlights = [
   {
     title: "24 Hours in Dzaleka",
-    description: "Make the most of your day with our curated itinerary",
+    description: "A practical route for a full day in the camp",
     image: "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhQC52NEfamRlqaUT7uLWcP8ZKNUDp3_opelPFqoO6E5hyphenhyphen09lp-zxRXXig5aEnaH3PbRsia1ciM8y-vOdzDe9RMvbQApON7rdM0SrBmtVVWAPIzmiId-jvcwSa46-Y-qRApCBTmozhIbWhNZWxcLFY3bp6Q4uNk_LFB5MpYFlXywwX7vYlUQeRoirJWm50/s2048/533061219_1079243081018233_5344782622295089839_n.jpg",
     link: "/blog/24-hours-in-dzaleka"
   },
   {
     title: "Best Markets & Shopping",
-    description: "Discover Mardi Marché and artisan crafts",
+    description: "Find Mardi Marché, textiles, and local craft stalls",
     image: "https://services.dzaleka.com/images/Dzaleka_Marketplace.jpeg",
     link: "/things-to-do/shopping"
   },
@@ -193,7 +191,7 @@ const dzalekaHighlights = [
   },
   {
     title: "Food Experiences",
-    description: "Taste King's Chapati and authentic Congolese cuisine",
+    description: "Taste King's Chapati and Congolese home cooking",
     image: "https://live.staticflickr.com/65535/49083236178_c692c9746d_c.jpg",
     link: "/things-to-do"
   },
@@ -208,7 +206,7 @@ const featuredExperiences = [
   {
     title: "Experience the Tumaini Festival",
     description: "The world's only cultural festival within a refugee camp, attracting thousands of visitors and performers from over 25 countries.",
-    hook: "Plan your trip around this extraordinary event.",
+    hook: "Plan your trip around the annual festival.",
     link: "https://tumainiletu.org/tumaini-festival/",
     image: "https://idsb.tmgrup.com.tr/ly/uploads/images/2024/11/04/353422.jpg",
     duration: "3 Days",
@@ -216,8 +214,8 @@ const featuredExperiences = [
   },
   {
     title: "Meet the Makers: Innovation Tour",
-    description: "Discover tech labs, fashion designers, and film companies that thrive against all odds.",
-    hook: "Connect with digital pioneers shaping their future.",
+    description: "Visit tech labs, fashion designers, and film teams working inside the camp.",
+    hook: "See how residents teach, repair, design, and build.",
     link: "/things-to-do",
     image: "https://openlearning.mit.edu/sites/default/files/styles/event_news_detail/public/news-events/2024-02/ADAI-Circle-MIT-Emerging-Talent-00_0.JPG?itok=2H1_RlIh",
     duration: "2 Hours",
@@ -225,8 +223,8 @@ const featuredExperiences = [
   },
   {
     title: "Cultural Food Experience",
-    description: "Taste authentic Congolese, Burundian, and Rwandan cuisine prepared by local chefs.",
-    hook: "A culinary journey through the Great Lakes region.",
+    description: "Taste Congolese, Burundian, and Rwandan food prepared by local cooks.",
+    hook: "Food from across the Great Lakes region.",
     link: "/things-to-do",
     image: "https://www.wfp.org/sites/default/files/styles/media_embed/public/2022-06/WF1568463_20220519_MWI_Badre_Bahaji--_0.jpg?itok=0TrCCVT-", // Food placeholder
     duration: "3 Hours",
@@ -234,8 +232,29 @@ const featuredExperiences = [
   }
 ];
 
+const staleCmsCopy: Record<string, string[]> = {
+  hero_title: [
+    "Discover the Spirit of Dzaleka Refugee Camp",
+    "Experience Hope, Creativity, and Culture at Dzaleka.",
+  ],
+  hero_subtitle: [
+    "Join us for an immersive cultural journey. Meet resilient artists, entrepreneurs, and community leaders building a vibrant future against all odds.",
+    "Discover Malawi's hidden gem—a unique community defined by extraordinary human spirit, vibrant arts, and innovative entrepreneurship. Your journey of authentic cultural exchange starts here.",
+  ],
+  feature_1_title: ["Smart Scheduling"],
+  feature_1_desc: ["Book your visit in seconds with our real-time availability system. No more back-and-forth emails."],
+  feature_2_title: ["Expert Guides"],
+  feature_2_desc: ["Connect with verified local guides who know the camp’s history, culture, and hidden gems."],
+  feature_3_title: ["Cultural Exchange"],
+  feature_3_desc: ["Experience the diverse cultures of Dzaleka through food, art, and music tours."],
+  feature_4_title: ["Safe & Secure"],
+  feature_4_desc: ["All visits are coordinated with camp security protocols for a safe and respectful experience."],
+  testimonial_1_quote: ["An eye-opening experience that changed my perspective completely. The guides are incredibly knowledgeable and welcoming."],
+  testimonial_2_quote: ["The booking process was seamless, and the tour was well-organized. It's amazing to see the creativity and resilience here."],
+  testimonial_3_quote: ["A unique opportunity to learn about the resilience and creativity within the camp. The art market is a must-visit."],
+};
+
 export default function Landing() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { data: content } = useQuery<Record<string, string>>({
     queryKey: ["/api/content"],
     staleTime: 10 * 1000, // Consider stale after 10 seconds
@@ -251,13 +270,17 @@ export default function Landing() {
     queryKey: ["/api/blog"],
   });
 
-  const getContent = (key: string, fallback: string) => content?.[key] || fallback;
+  const getContent = (key: string, fallback: string) => {
+    const value = content?.[key]?.trim();
+    if (!value || staleCmsCopy[key]?.includes(value)) return fallback;
+    return value;
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <SEO
         title="Book Cultural Tours | Dzaleka Refugee Camp"
-        description="Book your guided tour of Dzaleka Refugee Camp in Malawi. Experience authentic African culture, meet local artists, entrepreneurs, and support refugee-led initiatives. Tours from MWK 15,000. Book online today!"
+        description="Book a guided visit to Dzaleka Refugee Camp in Malawi. Meet local guides, artists, entrepreneurs, and community groups. Tours from MWK 15,000."
         ogImage="https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg"
         canonical="https://visit.dzaleka.com/"
         keywords="book Dzaleka tour, Dzaleka refugee camp tours, cultural tourism Malawi, Tumaini Festival, guided tours Africa, visit Dzaleka, refugee camp experience, Malawi tourism booking, African cultural exchange"
@@ -283,127 +306,16 @@ export default function Landing() {
           })
         }}
       />
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div className="flex items-center gap-3">
-            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Visit Dzaleka Logo" className="h-10 w-10 rounded-lg shadow-sm" />
-            <div className="flex flex-col">
-              <span className="text-sm font-bold tracking-tight">Visit Dzaleka</span>
-              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                Official Portal
-              </span>
-            </div>
-          </div>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground focus:shadow-lg focus:ring-2 focus:ring-ring"
+      >
+        Skip to content
+      </a>
+      <PublicHeader />
 
-          {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-3">
-            {/* Discover Dropdown */}
-            <div className="relative group">
-              <button className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
-                Discover
-                <svg className="h-3 w-3 transition-transform group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              <div className="absolute left-0 top-full mt-1 w-56 rounded-md border bg-background shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                <div className="py-1">
-                  <p className="px-4 py-1 text-xs text-muted-foreground uppercase tracking-wider">About</p>
-                  <Link href="/about-dzaleka" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">About Dzaleka</Link>
-                  <Link href="/about-us" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">About Us</Link>
-                  <Link href="/life-in-dzaleka" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Life in Dzaleka</Link>
-                  <div className="border-t my-1" />
-                  <p className="px-4 py-1 text-xs text-muted-foreground uppercase tracking-wider">Things To Do</p>
-                  <Link href="/things-to-do" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">All Experiences</Link>
-                  <Link href="/things-to-do/arts-culture" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Arts & Culture</Link>
-                  <Link href="/things-to-do/shopping" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Shopping & Markets</Link>
-                  <Link href="/things-to-do/sports-recreation" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Sports & Recreation</Link>
-                  <Link href="/things-to-do/host-community" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Host Community</Link>
-                  <div className="border-t my-1" />
-                  <Link href="/whats-on" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">What's On</Link>
-                  <Link href="/blog" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Blog</Link>
-                </div>
-              </div>
-            </div>
-
-            {/* Plan Your Trip Dropdown */}
-            <div className="relative group">
-              <Link href="/plan-your-trip" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
-                Plan Your Trip
-                <svg className="h-3 w-3 transition-transform group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </Link>
-              <div className="absolute left-0 top-full mt-1 w-48 rounded-md border bg-background shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                <div className="py-1">
-                  <Link href="/plan-your-trip" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Trip Planner</Link>
-                  <Link href="/plan-your-trip/visitor-essentials" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Visitor Essentials</Link>
-                  <Link href="/accommodation" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Accommodation</Link>
-                </div>
-              </div>
-            </div>
-
-            <a href="#pricing" className="text-sm font-medium hover:text-primary transition-colors">Pricing</a>
-            <a href="#testimonials" className="text-sm font-medium hover:text-primary transition-colors">Stories</a>
-
-            <div className="flex items-center gap-2 ml-2">
-              <Button asChild variant="outline" size="sm">
-                <Link href="/login">Sign In</Link>
-              </Button>
-              <Button asChild size="sm">
-                <Link href="/login">Book Now</Link>
-              </Button>
-            </div>
-          </nav>
-
-          {/* Mobile Menu Toggle */}
-          <button
-            className="md:hidden p-2"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-            aria-expanded={mobileMenuOpen}
-          >
-            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-          </button>
-        </div>
-
-        {/* Mobile Nav */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t bg-background p-4 space-y-2 max-h-[70vh] overflow-y-auto">
-            {/* Discover Section */}
-            <p className="text-xs text-muted-foreground uppercase tracking-wider pt-1">Discover</p>
-            <Link href="/about-dzaleka" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>About Dzaleka</Link>
-            <Link href="/about-us" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>About Us</Link>
-            <Link href="/life-in-dzaleka" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>Life in Dzaleka</Link>
-            <Link href="/things-to-do" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>Things To Do</Link>
-            <Link href="/whats-on" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>What's On</Link>
-            <Link href="/blog" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>Blog</Link>
-
-            <div className="border-t my-2" />
-
-            {/* Plan Section */}
-            <p className="text-xs text-muted-foreground uppercase tracking-wider pt-1">Plan Your Trip</p>
-            <Link href="/plan-your-trip" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>Trip Planner</Link>
-            <Link href="/plan-your-trip/visitor-essentials" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>Visitor Essentials</Link>
-            <Link href="/accommodation" className="block text-sm font-medium py-1.5" onClick={() => setMobileMenuOpen(false)}>Accommodation</Link>
-
-            <div className="border-t my-2" />
-
-            {/* Buttons */}
-            <div className="flex gap-2 pt-2">
-              <Button asChild variant="outline" className="flex-1">
-                <Link href="/login">Sign In</Link>
-              </Button>
-              <Button asChild className="flex-1">
-                <Link href="/login">Book Now</Link>
-              </Button>
-            </div>
-          </div>
-        )}
-      </header>
-
-      <main className="flex-1">
-        {/* Hero Section - Full Screen Immersive */}
+      <main id="main-content" className="flex-1">
+        {/* Hero Section */}
         <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
           {/* Background Image - Full visibility */}
           <div
@@ -422,11 +334,11 @@ export default function Landing() {
               </Badge>
 
               <h1 className="mb-6 text-4xl font-extrabold tracking-tight text-white md:text-5xl lg:text-6xl drop-shadow-lg">
-                {getContent("hero_title", "Experience Hope, Creativity, and Culture at Dzaleka.")}
+                {getContent("hero_title", "Visit Dzaleka with local guides.")}
               </h1>
 
               <p className="mb-10 text-lg text-white/90 md:text-xl max-w-2xl mx-auto leading-relaxed drop-shadow-md">
-                {getContent("hero_subtitle", "Discover Malawi's hidden gem—a unique community defined by extraordinary human spirit, vibrant arts, and innovative entrepreneurship. Your journey of authentic cultural exchange starts here.")}
+                {getContent("hero_subtitle", "Plan a respectful guided visit to Dzaleka Refugee Camp. Meet residents, community groups, artists, and entrepreneurs while supporting refugee-led work.")}
               </p>
 
               <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -684,11 +596,10 @@ export default function Landing() {
           <div className="container mx-auto px-4">
             <div className="mb-16 text-center max-w-3xl mx-auto">
               <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
-                Seamless & Meaningful Visits
+                Plan a Visit Without Guesswork
               </h2>
               <p className="text-lg text-muted-foreground">
-                We've streamlined the entire process so you can focus on authentic connections
-                and the experience, not the logistics.
+                Choose your focus, share your group details, and get the practical guidance you need before arriving.
               </p>
             </div>
 
@@ -727,10 +638,10 @@ export default function Landing() {
           <div className="container mx-auto px-4">
             <div className="mb-16 text-center max-w-3xl mx-auto">
               <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
-                Why Dzaleka? A Journey Unlike Any Other
+                Why Visit Dzaleka?
               </h2>
               <p className="text-lg text-muted-foreground">
-                Discover what makes Dzaleka a truly unique destination.
+                Meet the guides, makers, cooks, organizers, and families who keep the community moving.
               </p>
             </div>
 
@@ -838,15 +749,15 @@ export default function Landing() {
               {/* Text Content */}
               <div>
                 <h2 className="mb-6 text-3xl font-bold tracking-tight md:text-4xl">
-                  A Diverse Community of Resilience
+                  A Camp With Many Communities
                 </h2>
                 <p className="mb-6 text-lg text-muted-foreground leading-relaxed">
                   Dzaleka refugee camp is home to over <span className="font-semibold text-foreground">57,000 refugees and asylum seekers</span> from
-                  several African nations. Originally designed for 10,000-12,000 people, the camp has grown to become a vibrant
-                  multicultural community reflecting the protracted nature of conflicts in the region.
+                  several African nations. Originally designed for 10,000-12,000 people, the camp has grown into a busy
+                  multicultural community shaped by long-running conflicts in the region.
                 </p>
                 <p className="text-muted-foreground leading-relaxed">
-                  Each nationality brings unique traditions, languages, cuisines, and artistic expressions, creating one of Africa's
+                  Each nationality brings distinct traditions, languages, cuisines, and artistic expressions, creating one of Africa's
                   most culturally diverse communities within a single location.
                 </p>
               </div>

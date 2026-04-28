@@ -22,7 +22,7 @@ export function SiteFooter() {
                             <span className="font-bold text-lg">Visit Dzaleka</span>
                         </div>
                         <p className="text-muted-foreground max-w-xs mb-6">
-                            Connecting visitors with the vibrant community of Dzaleka Refugee Camp through guided tours and cultural exchange.
+                            Connecting visitors with resident guides and community-led tours in Dzaleka Refugee Camp.
                         </p>
                         {/* Social Media Links */}
                         <div className="flex items-center gap-3">

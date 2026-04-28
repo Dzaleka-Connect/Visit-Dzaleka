@@ -23,7 +23,7 @@ export function SEO({
   structuredData,
   robots
 }: SEOProps) {
-  const defaultDescription = "Book guided tours of Dzaleka Refugee Camp in Malawi. Experience vibrant African culture, meet local artists and entrepreneurs, and support refugee-led initiatives. Book your transformative cultural experience today.";
+  const defaultDescription = "Book a guided visit to Dzaleka Refugee Camp in Malawi. Meet local guides, artists, entrepreneurs, and community groups while supporting refugee-led work.";
   const defaultOgImage = "https://services.dzaleka.com/images/Visit_Dzaleka.png";
   const fullDescription = description || defaultDescription;
   const fullOgImage = ogImage || defaultOgImage;
@@ -125,7 +125,7 @@ export function SEO({
         "@type": "Product",
         "@id": "https://visit.dzaleka.com/#tour-individual",
         "name": "Solo Explorer Tour",
-        "description": "2-hour guided cultural tour of Dzaleka Refugee Camp for individual visitors. Experience community life, cultural heritage, and meet local entrepreneurs.",
+        "description": "2-hour guided visit to Dzaleka Refugee Camp for individual visitors, with time for community life, cultural heritage, and local entrepreneurs.",
         "brand": {
           "@type": "Brand",
           "name": "Visit Dzaleka"
@@ -143,7 +143,7 @@ export function SEO({
         "@type": "Product",
         "@id": "https://visit.dzaleka.com/#tour-small-group",
         "name": "Small Group Tour (2-5 people)",
-        "description": "2-hour guided cultural tour for small groups of 2-5 people. Enjoy a personalized experience exploring Dzaleka's vibrant community.",
+        "description": "2-hour guided visit for small groups of 2-5 people, with a route shaped around the group's interests.",
         "brand": {
           "@type": "Brand",
           "name": "Visit Dzaleka"
@@ -333,4 +333,3 @@ export function SEO({
     </Helmet>
   );
 }
-

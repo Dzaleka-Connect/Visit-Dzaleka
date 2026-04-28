@@ -7,7 +7,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
 }
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
-    apiVersion: '2025-01-27.acacia', // Use latest API version or safe default
+    apiVersion: '2026-01-28.clover',
 });
 
 export async function createCheckoutSession(

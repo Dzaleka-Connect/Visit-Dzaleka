@@ -47,6 +47,9 @@ import { suggestGuides, getTopReason } from "./lib/guide-suggestion";
 import { checkAndSendDueReminders } from "./lib/reminder-scheduler";
 import crypto from "crypto";
 
+const dateSortValue = (date: string | Date | null | undefined) =>
+  date ? new Date(date).getTime() : 0;
+
 // Auth schemas
 const registerSchema = z.object({
   email: z.string().email(),
@@ -313,7 +316,7 @@ export async function registerRoutes(
   });
 
   // CRM: Get Customers (Visitors with stats)
-  app.get("/api/customers", requireRole("admin", "coordinator", "guide"), async (req, res) => {
+  app.get("/api/customers", requireRole("admin", "coordinator"), async (req, res) => {
     try {
       const users = await storage.getUsers();
       const bookings = await storage.getBookings();
@@ -3080,7 +3083,7 @@ export async function registerRoutes(
       const bookings = await storage.getBookings();
       // Get 10 most recent bookings
       const recentBookings = bookings
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .sort((a, b) => dateSortValue(b.createdAt) - dateSortValue(a.createdAt))
         .slice(0, 10);
       res.json(recentBookings);
     } catch (error: any) {
@@ -3096,7 +3099,7 @@ export async function registerRoutes(
       // Filter bookings from GetYourGuide source
       const gygBookings = bookings
         .filter(b => b.source === 'getyourguide')
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        .sort((a, b) => dateSortValue(b.createdAt) - dateSortValue(a.createdAt));
       res.json(gygBookings);
     } catch (error: any) {
       console.error("Failed to fetch GetYourGuide bookings:", error);
@@ -3532,30 +3535,46 @@ export async function registerRoutes(
       }
 
       const bookingReference = `GYG-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+      const visitDateTime = new Date(datetime);
+      const visitDate = visitDateTime.toISOString().split("T")[0];
+      const visitTime = visitDateTime.toISOString().slice(11, 16);
+      const participantCount = Number(participants) || 1;
+      const totalAmount = Number(total_price) || 0;
 
       const booking = await storage.createBooking({
-        tourType: 'Community Tour',
-        preferredDate: new Date(datetime),
-        numberOfVisitors: participants || 1,
+        source: 'getyourguide',
+        externalReferenceId: booking_id,
+        tourType: 'standard',
+        visitDate,
+        visitTime,
+        groupSize: participantCount > 10 ? 'custom' : participantCount > 1 ? 'small_group' : 'individual',
+        numberOfPeople: participantCount,
         visitorName: customer.name || '',
         visitorEmail: customer.email || '',
         visitorPhone: customer.phone || '',
         bookingReference,
-        totalAmount: total_price || 0,
+        totalAmount,
         paymentStatus: 'paid',
-        paymentMethod: 'getyourguide',
+        paymentMethod: 'card',
         status: 'confirmed',
-        bookingChannel: 'getyourguide',
-        externalBookingId: booking_id,
-        visitorsInterests: [],
-        campZones: [],
+        selectedInterests: [],
+        selectedZones: [],
       });
 
       logger.info(`✅ GetYourGuide booking: ${bookingReference}`);
 
       try {
         const { sendBookingConfirmation } = await import("./email");
-        await sendBookingConfirmation(booking);
+        await sendBookingConfirmation({
+          visitorName: booking.visitorName,
+          visitorEmail: booking.visitorEmail,
+          bookingReference: booking.bookingReference,
+          visitDate: booking.visitDate,
+          visitTime: booking.visitTime,
+          tourType: booking.tourType,
+          numberOfPeople: booking.numberOfPeople || participantCount,
+          totalAmount: booking.totalAmount || totalAmount,
+        });
       } catch (emailError) {
         logger.error('Email error:', emailError);
       }
@@ -6324,7 +6343,7 @@ export async function registerRoutes(
   });
 
   // Live Operations Stats
-  app.get("/api/live-ops/stats", isAuthenticated, async (req, res) => {
+  app.get("/api/live-ops/stats", isAuthenticated, requireRole("admin", "security"), async (req, res) => {
     try {
       const [activeVisits, incidents, guides] = await Promise.all([
         storage.getActiveVisits(),
@@ -6923,6 +6942,22 @@ export async function registerRoutes(
 
 
   // ===== Analytics Settings Routes =====
+
+  // Public tracking IDs are safe to expose; the admin settings endpoint stays protected.
+  app.get("/api/settings/analytics/public", async (req, res) => {
+    try {
+      const settings = await storage.getAnalyticsSettings();
+      res.json({
+        facebookPixelId: settings?.facebookPixelId ?? null,
+        ga4MeasurementId: settings?.ga4MeasurementId ?? null,
+        googleAdsConversionId: settings?.googleAdsConversionId ?? null,
+        isEnabled: settings?.isEnabled ?? false,
+      });
+    } catch (error) {
+      logError("Failed to fetch public analytics settings", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch settings" });
+    }
+  });
 
   // Get analytics settings
   app.get("/api/settings/analytics", requireRole("admin", "coordinator"), async (req, res) => {

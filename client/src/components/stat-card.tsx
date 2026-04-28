@@ -51,27 +51,27 @@ export function StatCard({
 
   return (
     <Card className={cn(
-      "hover-elevate transition-all",
+      "hover-elevate transition-[background-color,border-color,box-shadow,transform]",
       highlight && "border-primary/50 bg-primary/5 ring-1 ring-primary/20",
       className
     )}>
       <CardContent className="p-6">
         <div className="flex items-start justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              {title}
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-muted-foreground">
+              <span className="truncate">{title}</span>
               {pulse && (
-                <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="flex h-2 w-2 shrink-0 rounded-full bg-green-500 motion-safe:animate-pulse" aria-hidden="true" />
               )}
             </span>
             <span className={cn(
-              "text-2xl font-semibold tracking-tight",
+              "break-words text-2xl font-semibold tracking-tight tabular-nums",
               highlight && "text-primary"
             )}>
               {displayValue}
             </span>
             {subtitle && (
-              <span className="text-xs text-muted-foreground">{subtitle}</span>
+              <span className="break-words text-xs text-muted-foreground">{subtitle}</span>
             )}
             {trend && (
               <span
@@ -89,7 +89,7 @@ export function StatCard({
             "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
             highlight ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
           )}>
-            <Icon className="h-5 w-5" />
+            <Icon className="h-5 w-5" aria-hidden="true" />
           </div>
         </div>
       </CardContent>

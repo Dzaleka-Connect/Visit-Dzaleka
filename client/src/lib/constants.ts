@@ -69,12 +69,12 @@ export const REFERRAL_SOURCES = [
 
 // Status colors
 export const STATUS_COLORS = {
-  pending: { bg: "bg-yellow-100", text: "text-yellow-800", dark: "dark:bg-yellow-900/30 dark:text-yellow-400" },
-  confirmed: { bg: "bg-green-100", text: "text-green-800", dark: "dark:bg-green-900/30 dark:text-green-400" },
-  in_progress: { bg: "bg-purple-100", text: "text-purple-800", dark: "dark:bg-purple-900/30 dark:text-purple-400" },
-  completed: { bg: "bg-blue-100", text: "text-blue-800", dark: "dark:bg-blue-900/30 dark:text-blue-400" },
-  cancelled: { bg: "bg-red-100", text: "text-red-800", dark: "dark:bg-red-900/30 dark:text-red-400" },
-  no_show: { bg: "bg-orange-100", text: "text-orange-800", dark: "dark:bg-orange-900/30 dark:text-orange-400" },
+  pending: { bg: "bg-yellow-100", text: "text-yellow-800", border: "border-yellow-400", dark: "dark:bg-yellow-900/30 dark:text-yellow-400" },
+  confirmed: { bg: "bg-green-100", text: "text-green-800", border: "border-green-400", dark: "dark:bg-green-900/30 dark:text-green-400" },
+  in_progress: { bg: "bg-purple-100", text: "text-purple-800", border: "border-purple-400", dark: "dark:bg-purple-900/30 dark:text-purple-400" },
+  completed: { bg: "bg-blue-100", text: "text-blue-800", border: "border-blue-400", dark: "dark:bg-blue-900/30 dark:text-blue-400" },
+  cancelled: { bg: "bg-red-100", text: "text-red-800", border: "border-red-400", dark: "dark:bg-red-900/30 dark:text-red-400" },
+  no_show: { bg: "bg-orange-100", text: "text-orange-800", border: "border-orange-400", dark: "dark:bg-orange-900/30 dark:text-orange-400" },
 } as const;
 
 // Payment status colors
