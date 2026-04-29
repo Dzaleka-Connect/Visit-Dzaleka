@@ -443,6 +443,9 @@ export const emailLogs = pgTable("email_logs", {
   templateType: varchar("template_type").default("custom"), // 'booking_confirmation', 'password_reset', 'invitation', 'custom', etc.
   status: varchar("status").default("sent"), // 'sent', 'failed', 'pending'
   errorMessage: text("error_message"),
+  providerMessageId: varchar("provider_message_id"),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  lastEventAt: timestamp("last_event_at", { withTimezone: true }),
   relatedEntityType: varchar("related_entity_type"), // 'booking', 'user', 'guide', etc.
   relatedEntityId: varchar("related_entity_id"),
   metadata: jsonb("metadata").default({}),

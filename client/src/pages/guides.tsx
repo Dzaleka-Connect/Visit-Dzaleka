@@ -358,7 +358,7 @@ export default function Guides() {
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Search guides..."
+          placeholder="Search guides…"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-9"
@@ -728,7 +728,7 @@ export default function Guides() {
                     <FormLabel>Bio (Optional)</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Brief description about the guide..."
+                        placeholder="Brief description about the guide…"
                         className="min-h-[80px]"
                         {...field}
                         data-testid="textarea-bio"
@@ -891,7 +891,7 @@ export default function Guides() {
                       <FormItem>
                         <FormLabel>Emergency Contact Number</FormLabel>
                         <FormControl>
-                          <Input placeholder="+265..." {...field} />
+                          <Input placeholder="+265…" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -942,7 +942,7 @@ export default function Guides() {
                     <FormLabel>Additional Comments or Questions</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Any additional information, availability notes, or questions..."
+                        placeholder="Any additional information, availability notes, or questions…"
                         className="min-h-20"
                         {...field}
                       />

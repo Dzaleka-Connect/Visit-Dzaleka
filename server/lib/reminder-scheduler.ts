@@ -1,5 +1,6 @@
 import { storage } from "../storage";
-import { sendBookingReminderEmail } from "../email";
+import { sendBookingReminderEmailDetailed } from "../email";
+import { sendAutomatedTemplateEmail } from "./automated-email";
 import { log } from "../app";
 import { logError } from "../utils/errors";
 
@@ -108,23 +109,71 @@ async function sendUpcomingBookingReminders(): Promise<void> {
         }
 
         // Send reminder email
-        await sendBookingReminderEmail({
-          to: booking.visitorEmail,
-          bookingReference: booking.bookingReference,
-          visitorName: booking.visitorName,
-          visitDate: booking.visitDate,
-          visitTime: booking.visitTime,
-          numberOfPeople: booking.numberOfPeople ?? 1,
-          tourType: booking.tourType,
-          selectedZones: booking.selectedZones,
-          specialRequests: booking.specialRequests,
-          guideName: guide ? `${guide.firstName} ${guide.lastName}` : null,
-          guidePhone: guide?.phone,
-          meetingPointName: meetingPoint?.name,
-          meetingPointAddress: meetingPoint?.address,
+        const guideName = guide ? `${guide.firstName} ${guide.lastName}` : "";
+        const reminderEmail = await sendAutomatedTemplateEmail({
+          templateName: "booking_reminder",
+          recipientName: booking.visitorName,
+          recipientEmail: booking.visitorEmail,
+          data: {
+            visitor_name: booking.visitorName,
+            visitor_email: booking.visitorEmail,
+            booking_id: booking.bookingReference,
+            booking_reference: booking.bookingReference,
+            visit_date: booking.visitDate,
+            visit_time: booking.visitTime,
+            tour_type: booking.tourType.replace(/_/g, " "),
+            group_size: booking.groupSize,
+            number_of_people: booking.numberOfPeople ?? 1,
+            meeting_point: meetingPoint?.name,
+            guide_name: guideName,
+            guide_phone: guide?.phone,
+            special_requests: booking.specialRequests,
+          },
+          fallbackSubject: `Tomorrow: Your Dzaleka Tour at ${booking.visitTime} - ${booking.bookingReference}`,
+          fallbackMessage: `Reminder email for ${booking.visitorName} (${booking.bookingReference}).`,
+          fallbackSend: () => sendBookingReminderEmailDetailed({
+            to: booking.visitorEmail,
+            bookingReference: booking.bookingReference,
+            visitorName: booking.visitorName,
+            visitDate: booking.visitDate,
+            visitTime: booking.visitTime,
+            numberOfPeople: booking.numberOfPeople ?? 1,
+            tourType: booking.tourType,
+            selectedZones: booking.selectedZones,
+            specialRequests: booking.specialRequests,
+            guideName: guideName || null,
+            guidePhone: guide?.phone,
+            meetingPointName: meetingPoint?.name,
+            meetingPointAddress: meetingPoint?.address,
+          }),
+        });
+        const reminderResult = reminderEmail.result;
+
+        await storage.createEmailLog({
+          recipientName: booking.visitorName,
+          recipientEmail: booking.visitorEmail,
+          subject: reminderEmail.subject,
+          message: reminderEmail.message,
+          templateType: "booking_reminder",
+          status: reminderResult.success ? "accepted" : "failed",
+          errorMessage: reminderResult.error,
+          providerMessageId: reminderResult.messageId,
+          relatedEntityType: "booking",
+          relatedEntityId: booking.id,
+          metadata: {
+            bookingReference: booking.bookingReference,
+            templateId: reminderEmail.templateId,
+            templateSource: reminderEmail.templateSource,
+          },
         });
 
-        // Mark reminder as sent
+        if (!reminderResult.success) {
+          failureCount++;
+          log(`[Reminder] Failed to send reminder for booking ${booking.bookingReference}`, "reminder");
+          continue;
+        }
+
+        // Mark reminder as sent only after delivery request succeeds
         await storage.markReminderSent(booking.id);
 
         successCount++;

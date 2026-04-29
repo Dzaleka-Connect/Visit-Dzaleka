@@ -1,6 +1,7 @@
 import { SEO } from "@/components/seo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DocumentReviewMeta } from "@/components/document-review-meta";
 import { ArrowLeft, Printer } from "lucide-react";
 import { Link } from "wouter";
 
@@ -29,6 +30,7 @@ export default function StandardOperatingProcedures() {
                     <div className="text-center space-y-2">
                         <CardTitle className="text-3xl font-bold">Visit Dzaleka – Standard Operating Procedures (SOP)</CardTitle>
                         <p className="text-muted-foreground">Internal Document | Last Updated: January 2026</p>
+                        <DocumentReviewMeta reviewedBy="Operations Lead" />
                     </div>
                 </CardHeader>
                 <CardContent className="p-8 space-y-8 print:p-0">

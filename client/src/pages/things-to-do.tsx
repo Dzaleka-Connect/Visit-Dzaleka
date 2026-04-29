@@ -49,10 +49,11 @@ const structuredData = {
                 }
             ]
         },
-        // Main TouristAttraction with AggregateRating
+        // Main local business entity for Google-friendly structured data
         {
-            "@type": "TouristAttraction",
+            "@type": "LocalBusiness",
             "@id": "https://visit.dzaleka.com/things-to-do#attraction",
+            "additionalType": "https://schema.org/TouristAttraction",
             "name": "Dzaleka Refugee Camp Cultural Tours",
             "description": "Guided cultural tours of Dzaleka Refugee Camp in Malawi. Experience diverse African cultures, meet local artisans, visit community markets, and learn about refugee resilience and innovation.",
             "url": "https://visit.dzaleka.com/things-to-do",
@@ -80,13 +81,6 @@ const structuredData = {
                 "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
                 "opens": "08:00",
                 "closes": "17:00"
-            },
-            "aggregateRating": {
-                "@type": "AggregateRating",
-                "ratingValue": "4.8",
-                "reviewCount": "47",
-                "bestRating": "5",
-                "worstRating": "1"
             },
             "sameAs": [
                 "https://www.facebook.com/dzalekaOnline",

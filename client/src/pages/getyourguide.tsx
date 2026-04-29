@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CheckCircle2, XCircle, RefreshCw, ExternalLink, Globe, Clock } from "lucide-react";
+import { CalendarDays, CheckCircle2, ClipboardCheck, Clock, ExternalLink, Globe, RefreshCw, XCircle } from "lucide-react";
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -19,6 +19,75 @@ interface GetYourGuideBooking {
     visitorEmail: string | null;
 }
 
+interface SelfTestCombination {
+    key: string;
+    label: string;
+    productId: string;
+    byCategoryProductId?: string;
+    status: string;
+    timeAvailable: string;
+    priceSetup: string;
+    sampleTimes?: string[];
+    samplePrice?: number;
+    currency?: string;
+}
+
+interface MandatoryEndpoint {
+    name: string;
+    status: string;
+    detail: string;
+}
+
+interface GetYourGuideSelfTestReadiness {
+    productId: string;
+    activityId: string;
+    listingUrl: string;
+    publicBaseUrl: string;
+    webhookEndpoint: string;
+    supplierApiBaseUrl: string;
+    supplierId: string;
+    credentialsConfigured: boolean;
+    availabilityPushProductId: string | null;
+    outboundCredentialsConfigured: boolean;
+    availabilityPushConfigured: boolean;
+    selfTestProductIds: Record<string, string>;
+    productTimezone: string;
+    recommendedSelfTests: SelfTestCombination[];
+    suggestedAvailabilityWindow: {
+        from: string;
+        to: string;
+        note: string;
+    };
+    suggestedUnavailableWindow: {
+        from: string;
+        to: string;
+        note: string;
+    };
+    portalRules: string[];
+    mandatoryEndpoints: MandatoryEndpoint[];
+}
+
+interface SyncAvailabilityResult {
+    success: boolean;
+    message: string;
+    productId: string;
+    availabilityCount: number;
+    useSandbox: boolean;
+}
+
+const moneyFormatter = new Intl.NumberFormat("en-MW", {
+    style: "currency",
+    currency: "MWK",
+    maximumFractionDigits: 0,
+});
+
+function readinessVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
+    if (status === "Ready to configure" || status === "Admin push wired" || status === "Wired") return "default";
+    if (status === "Partially wired") return "secondary";
+    if (status === "Not wired yet") return "destructive";
+    return "outline";
+}
+
 export default function GetYourGuidePage() {
     const queryClient = useQueryClient();
     const [syncing, setSyncing] = useState(false);
@@ -28,15 +97,29 @@ export default function GetYourGuidePage() {
         queryKey: ["/api/bookings/channel/getyourguide"],
     });
 
+    const { data: readiness, isLoading: readinessLoading } = useQuery<GetYourGuideSelfTestReadiness>({
+        queryKey: ["/api/getyourguide/self-test-readiness"],
+    });
+
     // Sync availability mutation
-    const syncMutation = useMutation({
+    const syncMutation = useMutation<SyncAvailabilityResult, Error>({
         mutationFn: async () => {
             const response = await fetch("/api/getyourguide/sync-availability", {
                 method: "POST",
+                headers: { "Content-Type": "application/json" },
                 credentials: "include",
+                body: JSON.stringify({}),
             });
             if (!response.ok) {
-                throw new Error(await response.text());
+                const text = await response.text();
+                let message = text || `${response.status}: ${response.statusText}`;
+                try {
+                    const payload = JSON.parse(text);
+                    message = payload.detail || payload.message || message;
+                } catch {
+                    // Keep the raw response text when the server did not return JSON.
+                }
+                throw new Error(message);
             }
             return response.json();
         },
@@ -55,6 +138,11 @@ export default function GetYourGuidePage() {
     };
 
     const integrationStatus = bookings !== undefined ? "active" : "pending";
+    const syncError = syncMutation.error?.message || "Failed to sync availability.";
+    const syncResult = syncMutation.data;
+    const syncDisabled = syncing
+        || syncMutation.isPending
+        || (readiness ? !readiness.outboundCredentialsConfigured || !readiness.availabilityPushConfigured : false);
 
     return (
         <div className="min-h-screen bg-background p-6 space-y-6">
@@ -113,22 +201,27 @@ export default function GetYourGuidePage() {
                     <div className="pt-4 border-t">
                         <Button
                             onClick={handleSyncAvailability}
-                            disabled={syncing || syncMutation.isPending}
+                            disabled={syncDisabled}
                             className="w-full md:w-auto"
+                            aria-label="Sync current availability to GetYourGuide"
                         >
                             <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-                            {syncing ? "Syncing..." : "Sync Availability to GetYourGuide"}
+                            {syncing ? "Syncing…" : "Sync Availability to GetYourGuide"}
                         </Button>
                         <p className="text-xs text-muted-foreground mt-2">
-                            Manually push current availability to GetYourGuide
+                            {readiness?.outboundCredentialsConfigured === false
+                                ? "Add GetYourGuide outbound API credentials before pushing availability."
+                                : readiness?.availabilityPushConfigured === false
+                                    ? "Add the mapped GetYourGuide availability product ID before pushing availability."
+                                : "Manually push current availability for the configured GetYourGuide product"}
                         </p>
                     </div>
 
-                    {syncMutation.isSuccess && (
+                    {syncMutation.isSuccess && syncResult && (
                         <Alert className="bg-green-50 border-green-200">
                             <CheckCircle2 className="h-4 w-4 text-green-600" />
                             <AlertDescription className="text-green-800">
-                                Availability successfully synced to GetYourGuide
+                                {syncResult.message}: {syncResult.availabilityCount} availability records for {syncResult.productId}.
                             </AlertDescription>
                         </Alert>
                     )}
@@ -137,7 +230,182 @@ export default function GetYourGuidePage() {
                         <Alert variant="destructive">
                             <XCircle className="h-4 w-4" />
                             <AlertDescription>
-                                Failed to sync availability. Please try again.
+                                {syncError}
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <ClipboardCheck className="h-5 w-5" />
+                        Self-testing Readiness
+                    </CardTitle>
+                    <CardDescription>
+                        Use these values in the GetYourGuide Integrator Portal before running the mandatory tests.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                    {readinessLoading ? (
+                        <div className="flex items-center justify-center py-8 text-muted-foreground">
+                            <RefreshCw className="mr-2 h-5 w-5 animate-spin" />
+                            Loading readiness…
+                        </div>
+                    ) : readiness ? (
+                        <>
+                            <Alert>
+                                <CheckCircle2 className="h-4 w-4" />
+                                <AlertDescription>
+                                    Supplier API endpoints are now wired at /1/ for availability, reservation, booking, cancellation, product details, and product lists. Configure Basic Auth credentials before running the GetYourGuide self-testing tool.
+                                </AlertDescription>
+                            </Alert>
+
+                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                                <div className="rounded-lg border p-4">
+                                    <p className="text-xs font-medium text-muted-foreground">Base product ID</p>
+                                    <p className="mt-1 break-words font-mono text-sm">{readiness.productId}</p>
+                                </div>
+                                <div className="rounded-lg border p-4">
+                                    <p className="text-xs font-medium text-muted-foreground">Supplier API base</p>
+                                    <p className="mt-1 break-words font-mono text-sm">{readiness.supplierApiBaseUrl}</p>
+                                </div>
+                                <div className="rounded-lg border p-4">
+                                    <p className="text-xs font-medium text-muted-foreground">Timezone</p>
+                                    <p className="mt-1 font-mono text-sm">{readiness.productTimezone}</p>
+                                </div>
+                                <div className="rounded-lg border p-4">
+                                    <p className="text-xs font-medium text-muted-foreground">Basic Auth</p>
+                                    <Badge className="mt-1" variant={readiness.credentialsConfigured ? "default" : "destructive"}>
+                                        {readiness.credentialsConfigured ? "Configured" : "Missing credentials"}
+                                    </Badge>
+                                </div>
+                                <div className="rounded-lg border p-4">
+                                    <p className="text-xs font-medium text-muted-foreground">Availability Push</p>
+                                    <Badge className="mt-1" variant={readiness.outboundCredentialsConfigured && readiness.availabilityPushConfigured ? "default" : "destructive"}>
+                                        {readiness.outboundCredentialsConfigured && readiness.availabilityPushConfigured ? "Configured" : "Needs setup"}
+                                    </Badge>
+                                    <p className="mt-2 break-words font-mono text-xs text-muted-foreground">
+                                        {readiness.availabilityPushProductId || "Set GETYOURGUIDE_AVAILABILITY_PRODUCT_ID"}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="mb-3 flex items-center gap-2">
+                                    <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                                    <h2 className="text-base font-semibold">Portal Test Setup</h2>
+                                </div>
+                                <div className="grid gap-3 md:grid-cols-2">
+                                    {readiness.recommendedSelfTests.map((test) => (
+                                        <div key={test.key} className="rounded-lg border p-4">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <h3 className="font-medium">{test.label}</h3>
+                                                    <p className="mt-1 text-sm text-muted-foreground">{test.timeAvailable}</p>
+                                                </div>
+                                                <Badge variant={readinessVariant(test.status)} className="shrink-0">
+                                                    {test.status}
+                                                </Badge>
+                                            </div>
+                                            <div className="mt-3 grid gap-2 text-sm">
+                                                <div className="flex justify-between gap-3">
+                                                    <span className="text-muted-foreground">Product ID</span>
+                                                    <span className="break-all text-right font-mono text-xs">{test.productId}</span>
+                                                </div>
+                                                {test.byCategoryProductId && (
+                                                    <div className="flex justify-between gap-3">
+                                                        <span className="text-muted-foreground">Ticket-category ID</span>
+                                                        <span className="break-all text-right font-mono text-xs">{test.byCategoryProductId}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between gap-3">
+                                                    <span className="text-muted-foreground">Price setup</span>
+                                                    <span className="text-right font-medium">{test.priceSetup}</span>
+                                                </div>
+                                                {test.sampleTimes && (
+                                                    <div className="flex justify-between gap-3">
+                                                        <span className="text-muted-foreground">Sample times</span>
+                                                        <span className="text-right font-medium">{test.sampleTimes.join(", ")}</span>
+                                                    </div>
+                                                )}
+                                                {typeof test.samplePrice === "number" && (
+                                                    <div className="flex justify-between gap-3">
+                                                        <span className="text-muted-foreground">Sample price</span>
+                                                        <span className="text-right font-medium">{moneyFormatter.format(test.samplePrice)}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="rounded-lg border p-4">
+                                    <p className="text-sm font-medium">Available date range</p>
+                                    <p className="mt-1 font-mono text-sm">
+                                        {readiness.suggestedAvailabilityWindow.from} to {readiness.suggestedAvailabilityWindow.to}
+                                    </p>
+                                    <p className="mt-2 text-sm text-muted-foreground">{readiness.suggestedAvailabilityWindow.note}</p>
+                                </div>
+                                <div className="rounded-lg border p-4">
+                                    <p className="text-sm font-medium">Unavailable date</p>
+                                    <p className="mt-1 font-mono text-sm">
+                                        {readiness.suggestedUnavailableWindow.from} to {readiness.suggestedUnavailableWindow.to}
+                                    </p>
+                                    <p className="mt-2 text-sm text-muted-foreground">{readiness.suggestedUnavailableWindow.note}</p>
+                                </div>
+                            </div>
+
+                            <div className="rounded-lg border p-4">
+                                <h2 className="text-base font-semibold">Integrator Portal Rules</h2>
+                                <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+                                    {readiness.portalRules.map((rule) => (
+                                        <li key={rule} className="flex gap-2">
+                                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                                            <span>{rule}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+
+                            <div>
+                                <h2 className="mb-3 text-base font-semibold">Mandatory Endpoint Coverage</h2>
+                                <div className="rounded-md border overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Endpoint</TableHead>
+                                                <TableHead>Status</TableHead>
+                                                <TableHead>Notes</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {readiness.mandatoryEndpoints.map((endpoint) => (
+                                                <TableRow key={endpoint.name}>
+                                                    <TableCell className="font-medium">{endpoint.name}</TableCell>
+                                                    <TableCell>
+                                                        <Badge variant={readinessVariant(endpoint.status)}>
+                                                            {endpoint.status}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell className="max-w-xl text-sm text-muted-foreground">
+                                                        {endpoint.detail}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <Alert variant="destructive">
+                            <XCircle className="h-4 w-4" />
+                            <AlertDescription>
+                                Could not load GetYourGuide self-testing readiness.
                             </AlertDescription>
                         </Alert>
                     )}
@@ -178,7 +446,7 @@ export default function GetYourGuidePage() {
                                                 {booking.bookingReference}
                                             </TableCell>
                                             <TableCell className="text-sm">
-                                                {booking.visitorEmail || "N/A"}
+                                                {booking.visitorEmail || "Not available"}
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant="outline">{booking.tourType}</Badge>

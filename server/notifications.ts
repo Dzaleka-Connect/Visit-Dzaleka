@@ -68,7 +68,7 @@ export async function notifyBookingStatusChanged(
     try {
         const statusMessages: Record<string, { title: string; message: string; type: NotificationType }> = {
             confirmed: {
-                title: "Booking Confirmed!",
+                title: "Booking Confirmed",
                 message: `Your booking ${bookingRef} has been confirmed.`,
                 type: "booking_confirmed",
             },

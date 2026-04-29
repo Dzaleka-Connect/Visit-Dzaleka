@@ -34,21 +34,20 @@ export function SEO({
     "@context": "https://schema.org",
     "@graph": [
       {
-        "@type": ["TouristAttraction", "LocalBusiness"],
+        "@type": "LocalBusiness",
         "@id": "https://visit.dzaleka.com/#attraction",
+        "additionalType": "https://schema.org/TouristAttraction",
         "name": "Dzaleka Refugee Camp Cultural Tours",
         "description": fullDescription,
         "url": "https://visit.dzaleka.com",
         "image": "https://services.dzaleka.com/images/Visit_Dzaleka.png",
         "logo": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png",
-        "telephone": "",
         "email": "contact@mail.dzaleka.com",
         "address": {
           "@type": "PostalAddress",
           "streetAddress": "Dzaleka Refugee Camp",
           "addressLocality": "Dowa",
           "addressRegion": "Central Region",
-          "postalCode": "",
           "addressCountry": "MW"
         },
         "geo": {
@@ -73,6 +72,72 @@ export function SEO({
         "priceRange": "MWK 15,000 - MWK 80,000",
         "currenciesAccepted": "MWK",
         "paymentAccepted": "Cash, Mobile Money, Bank Transfer",
+        "hasOfferCatalog": {
+          "@type": "OfferCatalog",
+          "name": "Guided tour services",
+          "itemListElement": [
+            {
+              "@type": "Offer",
+              "@id": "https://visit.dzaleka.com/#offer-individual-tour",
+              "name": "Solo Explorer Tour",
+              "price": "15000",
+              "priceCurrency": "MWK",
+              "availability": "https://schema.org/InStock",
+              "url": "https://visit.dzaleka.com/login",
+              "itemOffered": {
+                "@type": "Service",
+                "name": "Solo Explorer Tour",
+                "description": "2-hour guided visit to Dzaleka Refugee Camp for individual visitors.",
+                "provider": { "@id": "https://visit.dzaleka.com/#attraction" }
+              }
+            },
+            {
+              "@type": "Offer",
+              "@id": "https://visit.dzaleka.com/#offer-small-group-tour",
+              "name": "Small Group Tour",
+              "price": "50000",
+              "priceCurrency": "MWK",
+              "availability": "https://schema.org/InStock",
+              "url": "https://visit.dzaleka.com/login",
+              "itemOffered": {
+                "@type": "Service",
+                "name": "Small Group Tour",
+                "description": "2-hour guided visit for groups of 2-5 people.",
+                "provider": { "@id": "https://visit.dzaleka.com/#attraction" }
+              }
+            },
+            {
+              "@type": "Offer",
+              "@id": "https://visit.dzaleka.com/#offer-medium-group-tour",
+              "name": "Medium Group Tour",
+              "price": "80000",
+              "priceCurrency": "MWK",
+              "availability": "https://schema.org/InStock",
+              "url": "https://visit.dzaleka.com/login",
+              "itemOffered": {
+                "@type": "Service",
+                "name": "Medium Group Tour",
+                "description": "2-hour guided cultural tour for groups of 6-10 people.",
+                "provider": { "@id": "https://visit.dzaleka.com/#attraction" }
+              }
+            },
+            {
+              "@type": "Offer",
+              "@id": "https://visit.dzaleka.com/#offer-custom-group-tour",
+              "name": "Large Group and Custom Tour",
+              "price": "100000",
+              "priceCurrency": "MWK",
+              "availability": "https://schema.org/InStock",
+              "url": "https://visit.dzaleka.com/login",
+              "itemOffered": {
+                "@type": "Service",
+                "name": "Large Group and Custom Tour",
+                "description": "Custom guided tours for groups of 10 or more people.",
+                "provider": { "@id": "https://visit.dzaleka.com/#attraction" }
+              }
+            }
+          ]
+        },
         "sameAs": [
           "https://www.facebook.com/DzalekaOnline",
           "https://x.com/Dzalekaconnect",
@@ -119,78 +184,6 @@ export function SEO({
             "@type": "Reservation",
             "name": "Tour Booking"
           }
-        }
-      },
-      {
-        "@type": "Product",
-        "@id": "https://visit.dzaleka.com/#tour-individual",
-        "name": "Solo Explorer Tour",
-        "description": "2-hour guided visit to Dzaleka Refugee Camp for individual visitors, with time for community life, cultural heritage, and local entrepreneurs.",
-        "brand": {
-          "@type": "Brand",
-          "name": "Visit Dzaleka"
-        },
-        "offers": {
-          "@type": "Offer",
-          "price": "15000",
-          "priceCurrency": "MWK",
-          "availability": "https://schema.org/InStock",
-          "url": "https://visit.dzaleka.com",
-          "validFrom": "2024-01-01"
-        }
-      },
-      {
-        "@type": "Product",
-        "@id": "https://visit.dzaleka.com/#tour-small-group",
-        "name": "Small Group Tour (2-5 people)",
-        "description": "2-hour guided visit for small groups of 2-5 people, with a route shaped around the group's interests.",
-        "brand": {
-          "@type": "Brand",
-          "name": "Visit Dzaleka"
-        },
-        "offers": {
-          "@type": "Offer",
-          "price": "50000",
-          "priceCurrency": "MWK",
-          "availability": "https://schema.org/InStock",
-          "url": "https://visit.dzaleka.com",
-          "validFrom": "2024-01-01"
-        }
-      },
-      {
-        "@type": "Product",
-        "@id": "https://visit.dzaleka.com/#tour-large-group",
-        "name": "Medium Group Tour (6-10 people)",
-        "description": "2-hour guided cultural tour for groups of 6-10 people. Perfect for organizations, schools, and tour groups.",
-        "brand": {
-          "@type": "Brand",
-          "name": "Visit Dzaleka"
-        },
-        "offers": {
-          "@type": "Offer",
-          "price": "80000",
-          "priceCurrency": "MWK",
-          "availability": "https://schema.org/InStock",
-          "url": "https://visit.dzaleka.com",
-          "validFrom": "2024-01-01"
-        }
-      },
-      {
-        "@type": "Product",
-        "@id": "https://visit.dzaleka.com/#tour-custom",
-        "name": "Large Group & Custom Tours (10+ people)",
-        "description": "Customizable guided tours for large groups of 10+ people. Tailored experiences for delegations, research teams, and special visits.",
-        "brand": {
-          "@type": "Brand",
-          "name": "Visit Dzaleka"
-        },
-        "offers": {
-          "@type": "Offer",
-          "price": "100000",
-          "priceCurrency": "MWK",
-          "availability": "https://schema.org/InStock",
-          "url": "https://visit.dzaleka.com",
-          "validFrom": "2024-01-01"
         }
       },
       {

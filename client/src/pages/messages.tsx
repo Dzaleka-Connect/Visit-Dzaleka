@@ -321,7 +321,7 @@ export default function Messages() {
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
-                                    placeholder="Search..."
+                                    placeholder="Search…"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     className="pl-9"
@@ -616,7 +616,7 @@ function ChatView({
                     <Input
                         value={messageInput}
                         onChange={(e) => setMessageInput(e.target.value)}
-                        placeholder="Type a message..."
+                        placeholder="Type a message…"
                         disabled={sendMessageMutation.isPending}
                         className="flex-1"
                     />

@@ -3,6 +3,22 @@ import { Resend } from 'resend';
 
 // Reply-to email addresses
 const REPLY_TO_EMAILS = ['info@mail.dzaleka.com', 'dzalekaconnect@gmail.com'];
+const BRAND_NAME = 'Visit Dzaleka';
+const SUPPORT_EMAIL = 'info@mail.dzaleka.com';
+const SUPPORT_PHONE = '+61 498 956 715';
+const PUBLIC_APP_URL = (process.env.APP_URL || 'https://visit.dzaleka.com').replace(/\/$/, '');
+
+function publicAppUrl(path: string): string {
+  return `${PUBLIC_APP_URL}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+function emailFooterText(): string {
+  return `&copy; ${new Date().getFullYear()} ${BRAND_NAME}`;
+}
+
+function formatTourType(tourType: string): string {
+  return tourType.replace(/_/g, ' ');
+}
 
 // Email send options
 interface EmailOptions {
@@ -11,6 +27,12 @@ interface EmailOptions {
   subject: string;
   html: string;
   replyTo?: string[];
+}
+
+export interface EmailSendResult {
+  success: boolean;
+  error?: string;
+  messageId?: string;
 }
 
 // Get Resend client using environment variables
@@ -35,7 +57,7 @@ async function sendEmailWithRetry(
   options: EmailOptions,
   maxRetries: number = 3,
   delayMs: number = 1000
-): Promise<{ success: boolean; error?: string; messageId?: string }> {
+): Promise<EmailSendResult> {
   const resendClient = getResendClient();
 
   if (!resendClient) {
@@ -138,9 +160,9 @@ interface InvitationData {
 }
 
 // Send user invitation email
-export async function sendInvitationEmail(data: InvitationData): Promise<boolean> {
+export async function sendInvitationEmailDetailed(data: InvitationData): Promise<EmailSendResult> {
   const resendClient = getResendClient();
-  if (!resendClient) return false;
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
 
   const html = `
       <!DOCTYPE html>
@@ -152,7 +174,7 @@ export async function sendInvitationEmail(data: InvitationData): Promise<boolean
         <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="background: linear-gradient(135deg, #0284C7 0%, #0369a1 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
             <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
-            <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">You've Been Invited!</p>
+            <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">You've Been Invited</p>
           </div>
           
           <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
@@ -176,7 +198,7 @@ export async function sendInvitationEmail(data: InvitationData): Promise<boolean
           
           <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
             <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">
-              © ${new Date().getFullYear()} Dzaleka Online Services
+              ${emailFooterText()}
             </p>
           </div>
         </body>
@@ -191,6 +213,11 @@ export async function sendInvitationEmail(data: InvitationData): Promise<boolean
     html
   });
 
+  return result;
+}
+
+export async function sendInvitationEmail(data: InvitationData): Promise<boolean> {
+  const result = await sendInvitationEmailDetailed(data);
   return result.success;
 }
 
@@ -203,10 +230,10 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-// Send booking confirmation email
-export async function sendBookingConfirmation(data: BookingConfirmationData): Promise<boolean> {
+// Send booking request received email
+export async function sendBookingConfirmationDetailed(data: BookingConfirmationData): Promise<EmailSendResult> {
   const resendClient = getResendClient();
-  if (!resendClient) return false;
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
 
   const html = `
     <!DOCTYPE html>
@@ -214,18 +241,18 @@ export async function sendBookingConfirmation(data: BookingConfirmationData): Pr
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Booking Confirmation</title>
+        <title>Booking Request Received</title>
       </head>
       <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #0284C7 0%, #0369a1 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
           <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
-          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Booking Confirmation</p>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Booking Request Received</p>
         </div>
         
         <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
           <p style="margin: 0 0 20px 0;">Dear ${data.visitorName},</p>
           
-          <p>Thank you for booking a visit to Dzaleka Refugee Camp. Your booking has been received and is pending confirmation.</p>
+          <p>Thank you for requesting a visit to Dzaleka Refugee Camp. We have received your request and our team is reviewing it.</p>
           
           <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
             <h2 style="color: #0284C7; margin: 0 0 15px 0; font-size: 18px;">Booking Details</h2>
@@ -244,7 +271,7 @@ export async function sendBookingConfirmation(data: BookingConfirmationData): Pr
               </tr>
               <tr>
                 <td style="padding: 8px 0; color: #6b7280;">Tour Type:</td>
-                <td style="padding: 8px 0; text-transform: capitalize;">${data.tourType.replace('_', ' ')}</td>
+                <td style="padding: 8px 0; text-transform: capitalize;">${formatTourType(data.tourType)}</td>
               </tr>
               <tr>
                 <td style="padding: 8px 0; color: #6b7280;">Group Size:</td>
@@ -265,18 +292,18 @@ export async function sendBookingConfirmation(data: BookingConfirmationData): Pr
           
           <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px; margin: 20px 0;">
             <p style="margin: 0; color: #92400e; font-size: 14px;">
-              <strong>Next Steps:</strong> Our team will review your booking and send you a confirmation email with your assigned guide details within 24 hours.
+              <strong>Next Steps:</strong> Our team will review your request and send a confirmation email once your visit time and guide assignment are confirmed.
             </p>
           </div>
           
           <p style="margin: 20px 0 0 0; font-size: 14px; color: #6b7280;">
-            If you have any questions, please contact us at visit@dzaleka.com
+            If you have any questions, please contact us at ${SUPPORT_EMAIL}
           </p>
         </div>
         
         <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
           <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">
-            © ${new Date().getFullYear()} Dzaleka Online Services
+            ${emailFooterText()}
           </p>
         </div>
       </body>
@@ -287,22 +314,27 @@ export async function sendBookingConfirmation(data: BookingConfirmationData): Pr
     from: resendClient.fromEmail,
     replyTo: resendClient.replyTo,
     to: data.visitorEmail,
-    subject: `Booking Confirmation - ${data.bookingReference}`,
+    subject: `Booking Request Received - ${data.bookingReference}`,
     html
   });
 
+  return result;
+}
+
+export async function sendBookingConfirmation(data: BookingConfirmationData): Promise<boolean> {
+  const result = await sendBookingConfirmationDetailed(data);
   return result.success;
 }
 
 // Send status update email
-export async function sendStatusUpdate(data: StatusUpdateData): Promise<boolean> {
+export async function sendStatusUpdateDetailed(data: StatusUpdateData): Promise<EmailSendResult> {
   const resendClient = getResendClient();
-  if (!resendClient) return false;
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
 
   const statusMessages: Record<string, { title: string; message: string; color: string }> = {
     confirmed: {
-      title: 'Booking Confirmed!',
-      message: 'Great news! Your booking has been confirmed. Please arrive at the designated meeting point on time.',
+      title: 'Booking Confirmed',
+      message: 'Great news. Your booking has been confirmed. Please arrive at the designated meeting point on time.',
       color: '#10b981'
     },
     completed: {
@@ -328,7 +360,7 @@ export async function sendStatusUpdate(data: StatusUpdateData): Promise<boolean>
             <p style="margin-top: 20px;">We'd appreciate it if you could share your thoughts and feelings about your visit. You can either reply to this email or complete our quick feedback form:</p>
             
             <div style="text-align: center; margin: 25px 0;">
-              <a href="https://services.dzaleka.com/visit/feedback" 
+              <a href="${publicAppUrl('/visit/feedback')}" 
                  style="display: inline-block; background: #0284C7; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
                 Share Your Feedback
               </a>
@@ -391,10 +423,10 @@ export async function sendStatusUpdate(data: StatusUpdateData): Promise<boolean>
           
           <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
             <p style="color: rgba(255,255,255,0.9); margin: 0 0 10px 0; font-size: 14px;">
-              Kind regards,<br><strong>Dzaleka Online Services</strong>
+              Kind regards,<br><strong>${BRAND_NAME}</strong>
             </p>
             <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">
-              © ${new Date().getFullYear()} Dzaleka Online Services
+              ${emailFooterText()}
             </p>
           </div>
         </body>
@@ -409,13 +441,18 @@ export async function sendStatusUpdate(data: StatusUpdateData): Promise<boolean>
     html
   });
 
+  return result;
+}
+
+export async function sendStatusUpdate(data: StatusUpdateData): Promise<boolean> {
+  const result = await sendStatusUpdateDetailed(data);
   return result.success;
 }
 
 // Send guide assignment notification
-export async function sendGuideAssignment(data: GuideAssignmentData): Promise<boolean> {
+export async function sendGuideAssignmentDetailed(data: GuideAssignmentData): Promise<EmailSendResult> {
   const resendClient = getResendClient();
-  if (!resendClient) return false;
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
 
   const html = `
       <!DOCTYPE html>
@@ -471,7 +508,7 @@ export async function sendGuideAssignment(data: GuideAssignmentData): Promise<bo
           
           <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
             <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">
-              © ${new Date().getFullYear()} Dzaleka Online Services
+              ${emailFooterText()}
             </p>
           </div>
         </body>
@@ -486,13 +523,18 @@ export async function sendGuideAssignment(data: GuideAssignmentData): Promise<bo
     html
   });
 
+  return result;
+}
+
+export async function sendGuideAssignment(data: GuideAssignmentData): Promise<boolean> {
+  const result = await sendGuideAssignmentDetailed(data);
   return result.success;
 }
 
 // Send check-in notification
-export async function sendCheckInNotification(data: CheckInNotificationData): Promise<boolean> {
+export async function sendCheckInNotificationDetailed(data: CheckInNotificationData): Promise<EmailSendResult> {
   const resendClient = getResendClient();
-  if (!resendClient) return false;
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
 
   const html = `
       <!DOCTYPE html>
@@ -504,7 +546,7 @@ export async function sendCheckInNotification(data: CheckInNotificationData): Pr
         <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
             <h1 style="color: white; margin: 0; font-size: 24px;">Welcome to Dzaleka!</h1>
-            <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Check-In Confirmed</p>
+            <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Check-in Confirmed</p>
           </div>
           
           <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
@@ -518,7 +560,7 @@ export async function sendCheckInNotification(data: CheckInNotificationData): Pr
                   <td style="padding: 8px 0; font-weight: 600;">${data.bookingReference}</td>
                 </tr>
                 <tr>
-                  <td style="padding: 8px 0; color: #6b7280;">Check-In Time:</td>
+                  <td style="padding: 8px 0; color: #6b7280;">Check-in Time:</td>
                   <td style="padding: 8px 0;">${data.checkInTime}</td>
                 </tr>
                 ${data.guideName ? `
@@ -539,7 +581,7 @@ export async function sendCheckInNotification(data: CheckInNotificationData): Pr
           
           <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
             <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">
-              © ${new Date().getFullYear()} Dzaleka Online Services
+              ${emailFooterText()}
             </p>
           </div>
         </body>
@@ -550,10 +592,15 @@ export async function sendCheckInNotification(data: CheckInNotificationData): Pr
     from: resendClient.fromEmail,
     replyTo: resendClient.replyTo,
     to: data.visitorEmail,
-    subject: `Check-In Confirmed - ${data.bookingReference}`,
+    subject: `Check-in Confirmed - ${data.bookingReference}`,
     html
   });
 
+  return result;
+}
+
+export async function sendCheckInNotification(data: CheckInNotificationData): Promise<boolean> {
+  const result = await sendCheckInNotificationDetailed(data);
   return result.success;
 }
 
@@ -574,9 +621,9 @@ interface BookingReminderData {
   meetingPointAddress: string | null | undefined;
 }
 
-export async function sendBookingReminderEmail(data: BookingReminderData): Promise<boolean> {
+export async function sendBookingReminderEmailDetailed(data: BookingReminderData): Promise<EmailSendResult> {
   const resendClient = getResendClient();
-  if (!resendClient) return false;
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
 
   const formatZones = data.selectedZones && data.selectedZones.length > 0
     ? data.selectedZones.join(", ")
@@ -592,7 +639,7 @@ export async function sendBookingReminderEmail(data: BookingReminderData): Promi
       <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
           <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
-          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 18px; font-weight: 600;">⏰ Your Tour is Tomorrow!</p>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 18px; font-weight: 600;">Your Tour is Tomorrow</p>
         </div>
         
         <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
@@ -601,7 +648,7 @@ export async function sendBookingReminderEmail(data: BookingReminderData): Promi
           <p>This is a friendly reminder that your visit to Dzaleka Refugee Camp is scheduled for <strong>tomorrow, ${data.visitDate}</strong>.</p>
           
           <div style="background: white; border: 2px solid #10b981; border-radius: 8px; padding: 20px; margin: 25px 0;">
-            <h2 style="color: #059669; margin: 0 0 15px 0; font-size: 18px;">📋 Tour Details</h2>
+            <h2 style="color: #059669; margin: 0 0 15px 0; font-size: 18px;">Tour Details</h2>
             <table style="width: 100%; border-collapse: collapse;">
               <tr>
                 <td style="padding: 8px 0; color: #6b7280; width: 40%;">Reference:</td>
@@ -621,7 +668,7 @@ export async function sendBookingReminderEmail(data: BookingReminderData): Promi
               </tr>
               <tr>
                 <td style="padding: 8px 0; color: #6b7280;">Tour Type:</td>
-                <td style="padding: 8px 0; text-transform: capitalize;">${data.tourType.replace('_', ' ')}</td>
+                <td style="padding: 8px 0; text-transform: capitalize;">${formatTourType(data.tourType)}</td>
               </tr>
               <tr>
                 <td style="padding: 8px 0; color: #6b7280;">Areas:</td>
@@ -632,18 +679,18 @@ export async function sendBookingReminderEmail(data: BookingReminderData): Promi
           
           ${data.guideName ? `
           <div style="background: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <h3 style="color: #059669; margin: 0 0 10px 0; font-size: 16px;">👤 Your Guide</h3>
+            <h3 style="color: #059669; margin: 0 0 10px 0; font-size: 16px;">Your Guide</h3>
             <p style="margin: 0; font-size: 18px; font-weight: 600; color: #1f2937;">${data.guideName}</p>
-            ${data.guidePhone ? `<p style="margin: 5px 0 0 0; color: #6b7280;">📞 ${data.guidePhone}</p>` : ''}
+            ${data.guidePhone ? `<p style="margin: 5px 0 0 0; color: #6b7280;">${data.guidePhone}</p>` : ''}
           </div>
           ` : ''}
           
           ${data.meetingPointName ? `
           <div style="background: #fff7ed; border: 1px solid #f97316; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <h3 style="color: #c2410c; margin: 0 0 10px 0; font-size: 16px;">📍 Meeting Point</h3>
+            <h3 style="color: #c2410c; margin: 0 0 10px 0; font-size: 16px;">Meeting Point</h3>
             <p style="margin: 0; font-weight: 600; color: #1f2937;">${data.meetingPointName}</p>
             ${data.meetingPointAddress ? `<p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">${data.meetingPointAddress}</p>` : ''}
-            <p style="margin: 10px 0 0 0; color: #c2410c; font-size: 14px; font-weight: 600;">⏰ Please arrive 10 minutes early</p>
+            <p style="margin: 10px 0 0 0; color: #c2410c; font-size: 14px; font-weight: 600;">Please arrive 10 minutes early.</p>
           </div>
           ` : ''}
           
@@ -656,7 +703,7 @@ export async function sendBookingReminderEmail(data: BookingReminderData): Promi
           ` : ''}
           
           <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 25px 0;">
-            <h3 style="color: #92400e; margin: 0 0 12px 0; font-size: 16px;">✅ Preparation Checklist</h3>
+            <h3 style="color: #92400e; margin: 0 0 12px 0; font-size: 16px;">Preparation Checklist</h3>
             <ul style="margin: 0; padding-left: 20px; color: #78350f;">
               <li style="margin: 8px 0;">Bring a valid ID for security verification</li>
               <li style="margin: 8px 0;">Wear comfortable walking shoes</li>
@@ -668,7 +715,7 @@ export async function sendBookingReminderEmail(data: BookingReminderData): Promi
           
           <div style="background: #ede9fe; border-left: 4px solid #7c3aed; padding: 15px 20px; margin: 20px 0;">
             <p style="margin: 0; color: #5b21b6; font-size: 14px;">
-              <strong>💜 Respectful Tourism:</strong> Please remember you're visiting a community. Be respectful, ask before taking photos, and follow your guide's instructions.
+              <strong>Respectful Tourism:</strong> Please remember you're visiting a community. Be respectful, ask before taking photos, and follow your guide's instructions.
             </p>
           </div>
           
@@ -677,16 +724,16 @@ export async function sendBookingReminderEmail(data: BookingReminderData): Promi
           </p>
           
           <p style="margin: 10px 0 0 0; font-size: 14px; color: #6b7280;">
-            Questions? Reply to this email or call us at <strong>+61 498 956 715</strong>
+            Questions? Reply to this email or call us at <strong>${SUPPORT_PHONE}</strong>
           </p>
         </div>
         
         <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
           <p style="color: rgba(255,255,255,0.9); margin: 0 0 10px 0;">
-            We're excited to welcome you tomorrow! 🎉
+            We're excited to welcome you tomorrow.
           </p>
           <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">
-            © ${new Date().getFullYear()} Dzaleka Online Services
+            ${emailFooterText()}
           </p>
         </div>
       </body>
@@ -701,6 +748,11 @@ export async function sendBookingReminderEmail(data: BookingReminderData): Promi
     html
   });
 
+  return result;
+}
+
+export async function sendBookingReminderEmail(data: BookingReminderData): Promise<boolean> {
+  const result = await sendBookingReminderEmailDetailed(data);
   return result.success;
 }
 
@@ -711,11 +763,12 @@ interface CustomEmailData {
   subject: string;
   message: string;
   senderName?: string;
+  includeGreeting?: boolean;
 }
 
-export async function sendCustomEmail(data: CustomEmailData): Promise<boolean> {
+export async function sendCustomEmailDetailed(data: CustomEmailData): Promise<EmailSendResult> {
   const resendClient = getResendClient();
-  if (!resendClient) return false;
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
 
   const html = `
       <!DOCTYPE html>
@@ -730,7 +783,9 @@ export async function sendCustomEmail(data: CustomEmailData): Promise<boolean> {
           </div>
           
           <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+            ${data.includeGreeting === false ? '' : `
             <p>Dear ${data.recipientName},</p>
+            `}
             
             <div style="white-space: pre-wrap; margin: 20px 0;">
               ${data.message.replace(/\n/g, '<br>')}
@@ -747,28 +802,31 @@ export async function sendCustomEmail(data: CustomEmailData): Promise<boolean> {
           
           <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
             <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">
-              © ${new Date().getFullYear()} Dzaleka Online Services
+              ${emailFooterText()}
             </p>
           </div>
         </body>
       </html>
     `;
 
-  const result = await sendEmailWithRetry({
+  return await sendEmailWithRetry({
     from: resendClient.fromEmail,
     replyTo: resendClient.replyTo,
     to: data.recipientEmail,
     subject: data.subject,
     html
   });
+}
 
+export async function sendCustomEmail(data: CustomEmailData): Promise<boolean> {
+  const result = await sendCustomEmailDetailed(data);
   return result.success;
 }
 
 // Send password reset email
-export async function sendPasswordReset(data: PasswordResetData): Promise<boolean> {
+export async function sendPasswordResetDetailed(data: PasswordResetData): Promise<EmailSendResult> {
   const resendClient = getResendClient();
-  if (!resendClient) return false;
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
 
   const html = `
       <!DOCTYPE html>
@@ -806,7 +864,7 @@ export async function sendPasswordReset(data: PasswordResetData): Promise<boolea
           
           <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
             <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">
-              © ${new Date().getFullYear()} Dzaleka Online Services
+              ${emailFooterText()}
             </p>
           </div>
         </body>
@@ -821,6 +879,11 @@ export async function sendPasswordReset(data: PasswordResetData): Promise<boolea
     html
   });
 
+  return result;
+}
+
+export async function sendPasswordReset(data: PasswordResetData): Promise<boolean> {
+  const result = await sendPasswordResetDetailed(data);
   return result.success;
 }
 // Send itinerary email
@@ -844,9 +907,9 @@ interface ItineraryData {
   bookingReference?: string;
 }
 
-export async function sendItineraryEmail(data: ItineraryData): Promise<boolean> {
+export async function sendItineraryEmailDetailed(data: ItineraryData): Promise<EmailSendResult> {
   const resendClient = getResendClient();
-  if (!resendClient) return false;
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
 
   const timelineHtml = data.items.map(item => `
     <tr>
@@ -932,10 +995,10 @@ export async function sendItineraryEmail(data: ItineraryData): Promise<boolean> 
                 <h3 style="color: white; margin: 0 0 15px 0; font-size: 18px;">Before You Visit</h3>
                 <p style="margin: 0 0 20px 0; font-size: 14px; opacity: 0.9;">Please review our guidelines to ensure a respectful and prepared visit.</p>
                 <div style="margin-bottom: 15px;">
-                    <a href="https://services.dzaleka.com/visit/travel-guide/" style="display: inline-block; background: #0284C7; color: white; text-decoration: none; padding: 10px 20px; border-radius: 5px; font-weight: 600; margin: 0 5px;">Travel Guide</a>
+                    <a href="${publicAppUrl('/visit/travel-guide/')}" style="display: inline-block; background: #0284C7; color: white; text-decoration: none; padding: 10px 20px; border-radius: 5px; font-weight: 600; margin: 0 5px;">Travel Guide</a>
                 </div>
                 <div>
-                    <a href="https://services.dzaleka.com/visit/guidelines/" style="color: #60a5fa; text-decoration: none; font-size: 14px;">View Visitor Guidelines &rarr;</a>
+                    <a href="${publicAppUrl('/visit/guidelines/')}" style="color: #60a5fa; text-decoration: none; font-size: 14px;">View Visitor Guidelines &rarr;</a>
                 </div>
               </div>
 
@@ -948,7 +1011,7 @@ export async function sendItineraryEmail(data: ItineraryData): Promise<boolean> 
           </div>
           
           <div style="text-align: center; margin-top: 20px; color: #9ca3af; font-size: 12px;">
-            <p>© ${new Date().getFullYear()} Dzaleka Online Services</p>
+            <p>${emailFooterText()}</p>
           </div>
         </body>
       </html>
@@ -958,9 +1021,14 @@ export async function sendItineraryEmail(data: ItineraryData): Promise<boolean> 
     from: resendClient.fromEmail,
     replyTo: resendClient.replyTo,
     to: data.recipientEmail,
-    subject: `Your Curation - Visit Dzaleka`,
+    subject: `Your Visit Dzaleka Itinerary`,
     html
   });
 
+  return result;
+}
+
+export async function sendItineraryEmail(data: ItineraryData): Promise<boolean> {
+  const result = await sendItineraryEmailDetailed(data);
   return result.success;
 }

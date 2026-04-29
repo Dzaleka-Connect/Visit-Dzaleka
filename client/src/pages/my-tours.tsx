@@ -44,7 +44,7 @@ export default function MyTours() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/guides/me/tours"] });
-            toast({ title: "Visitor Checked In", description: "The tour is now in progress." });
+            toast({ title: "Visitor checked in", description: "The tour is now in progress." });
         },
         onError: (error: Error) => {
             toast({ title: "Check-in Failed", description: error.message, variant: "destructive" });
@@ -60,7 +60,7 @@ export default function MyTours() {
             queryClient.invalidateQueries({ queryKey: ["/api/guides/me/tours"] });
             queryClient.invalidateQueries({ queryKey: ["/api/guides/me"] });
             queryClient.invalidateQueries({ queryKey: ["/api/guides/me/earnings"] });
-            toast({ title: "Tour Completed", description: "The tour has been marked as completed." });
+            toast({ title: "Tour completed", description: "The visitor has been checked out." });
         },
         onError: (error: Error) => {
             toast({ title: "Check-out Failed", description: error.message, variant: "destructive" });
@@ -195,7 +195,7 @@ export default function MyTours() {
                                     ) : (
                                         <Play className="mr-2 h-4 w-4" />
                                     )}
-                                    Check In Visitor
+                                    Check in visitor
                                 </Button>
                                 <Button
                                     variant="outline"
@@ -224,7 +224,7 @@ export default function MyTours() {
                                 ) : (
                                     <CheckCircle className="mr-2 h-4 w-4" />
                                 )}
-                                Complete Tour
+                                Check out
                             </Button>
                         )}
                         {tour.status === "completed" && (

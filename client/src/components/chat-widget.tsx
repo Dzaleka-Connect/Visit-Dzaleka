@@ -383,7 +383,7 @@ function ChatRoomView({
                     <Input
                         value={messageInput}
                         onChange={(e) => setMessageInput(e.target.value)}
-                        placeholder="Type a message..."
+                        placeholder="Type a message…"
                         disabled={sendMessageMutation.isPending}
                     />
                     <Button

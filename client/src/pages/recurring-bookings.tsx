@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CalendarClock, Plus, Trash2, RefreshCw, CalendarRange } from "lucide-react";
+import { CalendarClock, Plus, Trash2, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import {
     Dialog,
@@ -22,7 +22,6 @@ import {
     DialogHeader,
     DialogTitle,
     DialogDescription,
-    DialogTrigger,
 } from "@/components/ui/dialog";
 import {
     AlertDialog,
@@ -37,7 +36,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { SEO } from "@/components/seo";
 
 interface RecurringBooking {
@@ -54,6 +52,9 @@ interface RecurringBooking {
     lastGeneratedDate?: string;
     isActive: boolean;
 }
+
+const weekdayNames = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
+const ordinalNames = ["first", "second", "third", "fourth", "fifth"];
 
 export default function RecurringBookingsPage() {
     const { toast } = useToast();
@@ -91,13 +92,18 @@ export default function RecurringBookingsPage() {
         },
     });
 
-    // Helper to format frequency
     const getFrequencyText = (s: RecurringBooking) => {
         if (s.frequency === "weekly") {
-            const days = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
-            return `Weekly on ${s.dayOfWeek !== undefined ? days[s.dayOfWeek] : "Unknown"}`;
+            return `Weekly on ${s.dayOfWeek !== undefined ? weekdayNames[s.dayOfWeek] : "unknown day"}`;
         }
-        return "Monthly (Same Date)";
+
+        if (s.weekOfMonth && s.dayOfWeek !== undefined) {
+            return `Monthly on the ${ordinalNames[s.weekOfMonth - 1] || `${s.weekOfMonth}th`} ${weekdayNames[s.dayOfWeek]?.replace(/s$/, "") || "day"}`;
+        }
+
+        const dateOnlyDay = Number(s.startDate.split("-")[2]);
+        const startDay = Number.isFinite(dateOnlyDay) ? dateOnlyDay : new Date(s.startDate).getDate();
+        return `Monthly on day ${startDay}`;
     };
 
     if (isLoading) {
@@ -239,21 +245,28 @@ function CreateScheduleDialog({ open, onOpenChange }: { open: boolean; onOpenCha
         tourType: "standard",
         frequency: "weekly",
         dayOfWeek: "5", // Friday default
+        monthlyMode: "same_date",
+        weekOfMonth: "2",
         startDate: new Date().toISOString().split('T')[0],
         startTime: "09:00",
     });
 
     const mutation = useMutation({
         mutationFn: async (data: any) => {
+            const usesWeekdayRule = data.frequency === "weekly" || (data.frequency === "monthly" && data.monthlyMode === "weekday");
             const payload = {
                 ...data,
-                dayOfWeek: parseInt(data.dayOfWeek),
+                dayOfWeek: usesWeekdayRule ? parseInt(data.dayOfWeek) : undefined,
+                weekOfMonth: data.frequency === "monthly" && data.monthlyMode === "weekday" ? parseInt(data.weekOfMonth) : undefined,
                 numberOfPeople: parseInt(data.numberOfPeople.toString()) || 1
             };
+            delete payload.monthlyMode;
+            if (payload.dayOfWeek === undefined) delete payload.dayOfWeek;
+            if (payload.weekOfMonth === undefined) delete payload.weekOfMonth;
             return apiRequest("POST", "/api/recurring-bookings", payload);
         },
         onSuccess: () => {
-            toast({ title: "Schedule Created" });
+            toast({ title: "Schedule created" });
             onOpenChange(false);
             queryClient.invalidateQueries({ queryKey: ["/api/recurring-bookings"] });
         },
@@ -272,7 +285,7 @@ function CreateScheduleDialog({ open, onOpenChange }: { open: boolean; onOpenCha
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Create Recurring Schedule</DialogTitle>
+                    <DialogTitle>Create recurring schedule</DialogTitle>
                     <DialogDescription>Set up a template for regular visits.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-2">
@@ -312,14 +325,30 @@ function CreateScheduleDialog({ open, onOpenChange }: { open: boolean; onOpenCha
                                 <SelectTrigger><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="weekly">Weekly</SelectItem>
-                                    <SelectItem value="monthly">Monthly (Same Date)</SelectItem>
+                                    <SelectItem value="monthly">Monthly</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
-                        {formData.frequency === 'weekly' && (
+                        {formData.frequency === 'monthly' && (
                             <div className="space-y-2">
-                                <Label>Day of Week</Label>
+                                <Label>Monthly pattern</Label>
+                                <Select
+                                    value={formData.monthlyMode}
+                                    onValueChange={v => setFormData({ ...formData, monthlyMode: v })}
+                                >
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="same_date">Same date each month</SelectItem>
+                                        <SelectItem value="weekday">Nth weekday each month</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+
+                        {(formData.frequency === 'weekly' || formData.monthlyMode === 'weekday') && (
+                            <div className="space-y-2">
+                                <Label>Day of week</Label>
                                 <Select
                                     value={formData.dayOfWeek}
                                     onValueChange={v => setFormData({ ...formData, dayOfWeek: v })}
@@ -338,6 +367,25 @@ function CreateScheduleDialog({ open, onOpenChange }: { open: boolean; onOpenCha
                             </div>
                         )}
                     </div>
+
+                    {formData.frequency === 'monthly' && formData.monthlyMode === 'weekday' && (
+                        <div className="space-y-2">
+                            <Label>Week of month</Label>
+                            <Select
+                                value={formData.weekOfMonth}
+                                onValueChange={v => setFormData({ ...formData, weekOfMonth: v })}
+                            >
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="1">First</SelectItem>
+                                    <SelectItem value="2">Second</SelectItem>
+                                    <SelectItem value="3">Third</SelectItem>
+                                    <SelectItem value="4">Fourth</SelectItem>
+                                    <SelectItem value="5">Fifth</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -359,7 +407,7 @@ function CreateScheduleDialog({ open, onOpenChange }: { open: boolean; onOpenCha
                     </div>
 
                     <Button className="w-full" onClick={onSubmit} disabled={mutation.isPending}>
-                        {mutation.isPending ? "Creating…" : "Create Schedule"}
+                        {mutation.isPending ? "Creating…" : "Create schedule"}
                     </Button>
                 </div>
             </DialogContent>

@@ -1,6 +1,7 @@
 import { SEO } from "@/components/seo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DocumentReviewMeta } from "@/components/document-review-meta";
 import { ArrowLeft, Printer, Banknote } from "lucide-react";
 import { Link } from "wouter";
 
@@ -34,6 +35,7 @@ export default function FinancialFramework() {
                         </div>
                         <CardTitle className="text-3xl font-bold">Visit Dzaleka – Financial Management Framework</CardTitle>
                         <p className="text-muted-foreground">Transparency & Sustainability | Last Updated: January 2026</p>
+                        <DocumentReviewMeta reviewedBy="Finance Lead" />
                     </div>
                 </CardHeader>
                 <CardContent className="p-8 space-y-8 print:p-0">
@@ -58,7 +60,7 @@ export default function FinancialFramework() {
                                 <ul className="list-disc pl-5 space-y-1 text-sm">
                                     <li><strong>Tour Fees:</strong> Track all bookings and payments received.</li>
                                     <li><strong>Payment Methods:</strong> Accept mobile money (Airtel Money, TNM Mpamba), cash, or via <a href="https://www.getyourguide.com/mbalame-l265219/dzaleka-refugee-camp-guided-walking-tour-t1188868/" target="_blank" rel="noopener noreferrer" className="text-primary underline">GetYourGuide</a>.</li>
-                                    <li><strong>Revenue Allocation:</strong> Currently guides receive 100% of tour income. Future model may shift to 60% guides / 40% operations as the program scales.</li>
+                                    <li><strong>Revenue Allocation:</strong> Currently guides receive 100% of standard direct tour income unless a booking explicitly lists a platform, partner, or impact fee. Future model may shift to 60% guides / 40% operations as the program scales.</li>
                                 </ul>
                             </div>
 

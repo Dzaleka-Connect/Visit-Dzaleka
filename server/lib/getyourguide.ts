@@ -10,6 +10,33 @@ interface AvailabilityUpdate {
     price?: number;
 }
 
+export interface GetYourGuideAvailabilityNotification {
+    dateTime: string;
+    vacancies?: number;
+    vacanciesByCategory?: Array<{
+        category: string;
+        vacancies: number;
+    }>;
+    openingTimes?: Array<{
+        fromTime: string;
+        toTime: string;
+    }>;
+    currency?: string;
+    pricesByCategory?: {
+        retailPrices: Array<{
+            category: string;
+            price: number;
+        }>;
+    };
+}
+
+export interface GetYourGuideNotificationResult {
+    status: number;
+    productId: string;
+    availabilityCount: number;
+    response: unknown;
+}
+
 interface DealParams {
     productId: string;
     discountPercent: number;
@@ -19,6 +46,33 @@ interface DealParams {
 
 const API_URL = process.env.GETYOURGUIDE_API_URL || 'https://supplier-api.getyourguide.com/1';
 const SANDBOX_URL = process.env.GETYOURGUIDE_SANDBOX_URL || 'https://supplier-api.getyourguide.com/sandbox/1';
+
+async function parseResponseBody(response: Response): Promise<unknown> {
+    const text = await response.text();
+    if (!text) return {};
+
+    try {
+        return JSON.parse(text);
+    } catch {
+        return { message: text };
+    }
+}
+
+function formatGygApiError(status: number, body: unknown): string {
+    if (body && typeof body === 'object') {
+        const payload = body as Record<string, unknown>;
+        const code = typeof payload.errorCode === 'string' ? payload.errorCode : undefined;
+        const message = typeof payload.errorMessage === 'string'
+            ? payload.errorMessage
+            : typeof payload.message === 'string'
+                ? payload.message
+                : JSON.stringify(payload);
+
+        return [code, message].filter(Boolean).join(': ');
+    }
+
+    return String(body || `HTTP ${status}`);
+}
 
 /**
  * Get Basic Auth header for GetYourGuide API
@@ -44,18 +98,28 @@ export async function notifyAvailabilityUpdate(
     availableSpots: number,
     useSandbox: boolean = false
 ): Promise<void> {
-    const url = `${useSandbox ? SANDBOX_URL : API_URL}/notify-availability-update`;
+    await notifyAvailabilityBatch(productId, [{ dateTime: datetime, vacancies: availableSpots }], useSandbox);
+    console.log(`✅ Availability updated for product ${productId} at ${datetime}: ${availableSpots} spots`);
+}
 
+/**
+ * Notify GetYourGuide of one or more availability changes.
+ */
+export async function notifyAvailabilityBatch(
+    productId: string,
+    availabilities: GetYourGuideAvailabilityNotification[],
+    useSandbox: boolean = false
+): Promise<GetYourGuideNotificationResult> {
+    if (!availabilities.length) {
+        throw new Error('No GetYourGuide availability records were provided');
+    }
+
+    const url = `${useSandbox ? SANDBOX_URL : API_URL}/notify-availability-update`;
     const payload = {
         data: {
-            productId: productId,
-            availabilities: [
-                {
-                    dateTime: datetime,
-                    vacancies: availableSpots,
-                }
-            ]
-        }
+            productId,
+            availabilities,
+        },
     };
 
     try {
@@ -67,13 +131,19 @@ export async function notifyAvailabilityUpdate(
             },
             body: JSON.stringify(payload),
         });
+        const responseBody = await parseResponseBody(response);
 
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`GetYourGuide API error: ${response.status} - ${errorText}`);
+            throw new Error(`GetYourGuide API error: ${response.status} - ${formatGygApiError(response.status, responseBody)}`);
         }
 
-        console.log(`✅ Availability updated for product ${productId} at ${datetime}: ${availableSpots} spots`);
+        console.log(`✅ Availability batch accepted for product ${productId}: ${availabilities.length} records`);
+        return {
+            status: response.status,
+            productId,
+            availabilityCount: availabilities.length,
+            response: responseBody,
+        };
     } catch (error) {
         console.error('Failed to notify GetYourGuide of availability update:', error);
         throw error;
@@ -104,7 +174,7 @@ export async function notifyAvailabilityWithPrice(
                     pricesByCategory: {
                         retailPrices: [
                             {
-                                category: 'Adult',
+                                category: 'ADULT',
                                 price: price
                             }
                         ]

@@ -42,7 +42,7 @@ export async function createApp() {
   const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
     'http://localhost:3000',
     'http://localhost:5000',
-    process.env.APP_URL || ''
+    process.env.APP_URL || 'https://visit.dzaleka.com'
   ].filter(Boolean);
 
   app.use(cors({

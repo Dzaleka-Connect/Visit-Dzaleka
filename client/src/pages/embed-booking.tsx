@@ -180,7 +180,7 @@ export default function EmbedBooking() {
                             <div className="space-y-2">
                                 <Label className={isDark ? "text-gray-200" : ""}>Phone</Label>
                                 <Input
-                                    placeholder="+265..."
+                                    placeholder="+265…"
                                     value={formData.visitorPhone}
                                     onChange={(e) => setFormData({ ...formData, visitorPhone: e.target.value })}
                                     className={inputClass}
@@ -360,7 +360,7 @@ export default function EmbedBooking() {
                         <div className="space-y-2">
                             <Label className={isDark ? "text-gray-200" : ""}>Special Requests</Label>
                             <Textarea
-                                placeholder="Any dietary requirements, accessibility needs, or questions..."
+                                placeholder="Any dietary requirements, accessibility needs, or questions…"
                                 value={formData.specialRequests}
                                 onChange={(e) => setFormData({ ...formData, specialRequests: e.target.value })}
                                 className={inputClass}

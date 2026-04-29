@@ -8,7 +8,6 @@ import {
   Users,
   BookOpen,
   Clock,
-  TrendingUp,
   ArrowRight,
   MapPin,
   DollarSign,
@@ -27,15 +26,16 @@ import {
   Plus,
   BarChart3,
   UserPlus,
-  Bell,
   Calendar,
   MessageCircle,
   ListTodo,
   Ticket,
-  Download,
   FileDown,
   Phone,
   X,
+  Play,
+  ScanLine,
+  UserX,
 } from "lucide-react";
 import {
   Card,
@@ -54,6 +54,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -72,6 +79,7 @@ import type { Booking, Guide, Incident } from "@shared/schema";
 import { SEO } from "@/components/seo";
 import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
+import { QRScannerDialog } from "@/components/qr-scanner-dialog";
 
 interface DashboardStats {
   totalBookings: number;
@@ -86,25 +94,35 @@ interface RecentBooking extends Booking {
   guide?: Guide;
 }
 
-interface GuideStats {
-  totalTours: number;
-  completedTours: number;
-  averageRating: number;
-  upcomingTours: number;
+interface GuideAvailabilitySummary {
+  availability?: Record<string, boolean>;
+  workingHours?: { start: string; end: string };
 }
 
-interface SecurityStats {
-  activeVisitors: number;
-  todaysCheckIns: number;
-  todaysCheckOuts: number;
-  pendingVerifications: number;
-  openIncidents: number;
+interface TrainingStatsSummary {
+  completed: number;
+  total: number;
+  percentage: number;
 }
 
-interface VisitorStats {
-  totalBookings: number;
-  upcomingBookings: number;
-  completedTours: number;
+interface GuideEarningsSummary {
+  payoutSummary?: {
+    pendingAmount: number;
+    pendingCount: number;
+    paidAmount: number;
+    paidCount: number;
+    lastPaidAt: string | null;
+    status: "pending" | "paid" | "not_started";
+  };
+}
+
+const quickActionButtonClass = "h-10 min-h-10 rounded-full gap-2 px-4";
+const quickActionIconClass = "h-4 w-4";
+const dashboardActionCardClass = "relative h-full min-h-24 w-full justify-start flex-col items-start gap-2 p-4 text-left";
+
+function formatTourType(type?: string | null) {
+  if (!type) return "Tour";
+  return type.replace(/_/g, " ");
 }
 
 function AdminDashboard() {
@@ -131,11 +149,6 @@ function AdminDashboard() {
     queryKey: ["/api/bookings/today"],
   });
 
-  const { data: itineraries } = useQuery<{ bookingId: string }[]>({
-    queryKey: ["/api/my-itineraries"],
-    enabled: !!user,
-  });
-
   const sendEmailMutation = useMutation({
     mutationFn: async (data: typeof emailForm) => {
       const response = await apiRequest("POST", "/api/send-email", data);
@@ -143,7 +156,7 @@ function AdminDashboard() {
     },
     onSuccess: () => {
       toast({
-        title: "Email Sent",
+        title: "Email sent",
         description: "Your email has been sent successfully.",
       });
       setEmailDialogOpen(false);
@@ -151,7 +164,7 @@ function AdminDashboard() {
     },
     onError: (error: Error) => {
       toast({
-        title: "Failed to Send",
+        title: "Failed to send email",
         description: error.message || "There was an error sending the email. Please try again.",
         variant: "destructive",
       });
@@ -168,13 +181,13 @@ function AdminDashboard() {
       queryClientDashboard.invalidateQueries({ queryKey: ["/api/bookings/recent"] });
       queryClientDashboard.invalidateQueries({ queryKey: ["/api/stats"] });
       toast({
-        title: "Booking Confirmed",
+        title: "Booking confirmed",
         description: "The booking has been confirmed successfully.",
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Failed to Confirm",
+        title: "Failed to confirm booking",
         description: error.message || "Failed to confirm booking.",
         variant: "destructive",
       });
@@ -215,32 +228,32 @@ function AdminDashboard() {
         {user?.role === "admin" && (
           <>
             <Link href="/bookings">
-              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
-                <Plus className="h-3.5 w-3.5" />
-                <span>Booking</span>
+              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+                <Plus className={quickActionIconClass} />
+                <span>New booking</span>
               </Button>
             </Link>
             <Link href="/analytics">
-              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
-                <BarChart3 className="h-3.5 w-3.5" />
+              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+                <BarChart3 className={quickActionIconClass} />
                 <span>Analytics</span>
               </Button>
             </Link>
             <Link href="/guides">
-              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
-                <UserPlus className="h-3.5 w-3.5" />
+              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+                <UserPlus className={quickActionIconClass} />
                 <span>Guides</span>
               </Button>
             </Link>
             <Link href="/send-email">
-              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
-                <Mail className="h-3.5 w-3.5" />
-                <span>Email</span>
+              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+                <Mail className={quickActionIconClass} />
+                <span>Send email</span>
               </Button>
             </Link>
             <Link href="/revenue">
-              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
-                <DollarSign className="h-3.5 w-3.5" />
+              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+                <DollarSign className={quickActionIconClass} />
                 <span>Revenue</span>
               </Button>
             </Link>
@@ -249,26 +262,26 @@ function AdminDashboard() {
         {user?.role === "guide" && (
           <>
             <Link href="/calendar">
-              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
-                <Calendar className="h-3.5 w-3.5" />
+              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+                <Calendar className={quickActionIconClass} />
                 <span>Schedule</span>
               </Button>
             </Link>
             <Link href="/tasks">
-              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
-                <ListTodo className="h-3.5 w-3.5" />
+              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+                <ListTodo className={quickActionIconClass} />
                 <span>Tasks</span>
               </Button>
             </Link>
             <Link href="/messages">
-              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
-                <MessageCircle className="h-3.5 w-3.5" />
+              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+                <MessageCircle className={quickActionIconClass} />
                 <span>Messages</span>
               </Button>
             </Link>
             <Link href="/guide-training">
-              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
-                <BookOpen className="h-3.5 w-3.5" />
+              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+                <BookOpen className={quickActionIconClass} />
                 <span>Training</span>
               </Button>
             </Link>
@@ -277,26 +290,26 @@ function AdminDashboard() {
         {user?.role === "visitor" && (
           <>
             <Link href="/my-bookings?book=true">
-              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
-                <Ticket className="h-3.5 w-3.5" />
+              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+                <Ticket className={quickActionIconClass} />
                 <span>Book</span>
               </Button>
             </Link>
             <Link href="/my-bookings">
-              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
-                <Calendar className="h-3.5 w-3.5" />
+              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+                <Calendar className={quickActionIconClass} />
                 <span>Bookings</span>
               </Button>
             </Link>
             <Link href="/messages">
-              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
-                <MessageCircle className="h-3.5 w-3.5" />
+              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+                <MessageCircle className={quickActionIconClass} />
                 <span>Messages</span>
               </Button>
             </Link>
             <Link href="/resources">
-              <Button variant="secondary" size="sm" className="rounded-full gap-1.5 h-8 px-3">
-                <BookOpen className="h-3.5 w-3.5" />
+              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+                <BookOpen className={quickActionIconClass} />
                 <span>Resources</span>
               </Button>
             </Link>
@@ -356,7 +369,7 @@ function AdminDashboard() {
             <CardTitle className="text-lg font-semibold">Today's Schedule</CardTitle>
             <Button variant="ghost" size="sm" asChild>
               <Link href="/calendar" data-testid="link-view-calendar">
-                View Calendar
+                View calendar
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -374,18 +387,18 @@ function AdminDashboard() {
                 {todaysTours.slice(0, 4).map((tour) => (
                   <div
                     key={tour.id}
-                    className="flex items-center gap-4 rounded-lg border p-4 hover-elevate"
+                    className="flex flex-col gap-4 rounded-lg border p-4 hover-elevate sm:flex-row sm:items-center"
                     data-testid={`tour-card-${tour.id}`}
                   >
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                       <Clock className="h-5 w-5" />
                     </div>
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{tour.visitorName}</span>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="break-words font-medium">{tour.visitorName}</span>
                         <StatusBadge status={tour.status || "pending"} />
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           {formatTime(tour.visitTime)}
@@ -397,7 +410,7 @@ function AdminDashboard() {
                       </div>
                     </div>
                     {tour.guide && (
-                      <Avatar className="h-8 w-8">
+                      <Avatar className="h-8 w-8 self-start sm:self-auto">
                         <AvatarImage src={tour.guide.profileImageUrl || undefined} />
                         <AvatarFallback className="text-xs">
                           {tour.guide.firstName?.[0]}{tour.guide.lastName?.[0]}
@@ -416,7 +429,7 @@ function AdminDashboard() {
             <CardTitle className="text-lg font-semibold">Recent Booking Requests</CardTitle>
             <Button variant="ghost" size="sm" asChild>
               <Link href="/bookings" data-testid="link-view-bookings">
-                View All
+                View all
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -432,29 +445,29 @@ function AdminDashboard() {
             ) : (
               <div className="space-y-4">
                 {recentBookings.slice(0, 5).map((booking) => (
-                  <div key={booking.id} className="flex flex-wrap items-center gap-4" data-testid={`booking-row-${booking.id}`}>
+                  <div key={booking.id} className="flex flex-col gap-4 rounded-lg border p-3 sm:flex-row sm:items-center" data-testid={`booking-row-${booking.id}`}>
                     <Avatar className="h-10 w-10">
                       <AvatarFallback className="bg-primary/10 text-primary text-sm">
                         {booking.visitorName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{booking.visitorName}</span>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="break-words text-sm font-medium">{booking.visitorName}</span>
                         <StatusBadge status={booking.status || "pending"} />
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {formatDate(booking.visitDate)} at {formatTime(booking.visitTime)}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                       {booking.status === "pending" && (
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => quickConfirmMutation.mutate(booking.id)}
                           disabled={quickConfirmMutation.isPending}
-                          className="h-8"
+                          className="h-10"
                         >
                           <CheckCircle2 className="mr-1 h-3 w-3" />
                           Confirm
@@ -479,46 +492,46 @@ function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
+              <Button variant="outline" className={dashboardActionCardClass} asChild>
                 <Link href="/bookings" data-testid="action-manage-bookings">
                   <BookOpen className="h-5 w-5 text-primary" />
-                  <div className="text-left">
-                    <div className="font-medium">Manage Bookings</div>
+                  <div className="min-w-0">
+                    <div className="font-medium">Manage bookings</div>
                     <div className="text-xs text-muted-foreground">View and process requests</div>
                   </div>
                 </Link>
               </Button>
-              <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
+              <Button variant="outline" className={dashboardActionCardClass} asChild>
                 <Link href="/guides" data-testid="action-manage-guides">
                   <Users className="h-5 w-5 text-primary" />
-                  <div className="text-left">
-                    <div className="font-medium">Manage Guides</div>
+                  <div className="min-w-0">
+                    <div className="font-medium">Manage guides</div>
                     <div className="text-xs text-muted-foreground">Update availability</div>
                   </div>
                 </Link>
               </Button>
-              <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
+              <Button variant="outline" className={dashboardActionCardClass} asChild>
                 <Link href="/users" data-testid="action-manage-users">
                   <UserCheck className="h-5 w-5 text-primary" />
-                  <div className="text-left">
-                    <div className="font-medium">User Management</div>
+                  <div className="min-w-0">
+                    <div className="font-medium">User management</div>
                     <div className="text-xs text-muted-foreground">Manage user accounts</div>
                   </div>
                 </Link>
               </Button>
               <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" data-testid="action-send-email">
+                  <Button variant="outline" className={dashboardActionCardClass} data-testid="action-send-email">
                     <Mail className="h-5 w-5 text-primary" />
-                    <div className="text-left">
-                      <div className="font-medium">Send Email</div>
+                    <div className="min-w-0">
+                      <div className="font-medium">Send email</div>
                       <div className="text-xs text-muted-foreground">Compose a message</div>
                     </div>
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[500px]">
                   <DialogHeader>
-                    <DialogTitle>Compose Email</DialogTitle>
+                    <DialogTitle>Compose email</DialogTitle>
                   </DialogHeader>
                   <form
                     onSubmit={(e) => {
@@ -527,35 +540,47 @@ function AdminDashboard() {
                         e.currentTarget.reportValidity();
                         return;
                       }
-                      if (!emailForm.recipientEmail || !emailForm.subject || !emailForm.message) {
+                      const trimmedForm = {
+                        recipientName: emailForm.recipientName.trim(),
+                        recipientEmail: emailForm.recipientEmail.trim(),
+                        subject: emailForm.subject.trim(),
+                        message: emailForm.message.trim(),
+                      };
+                      if (!trimmedForm.recipientEmail || !trimmedForm.subject || !trimmedForm.message) {
                         toast({
-                          title: "Validation Error",
+                          title: "Missing required fields",
                           description: "Please fill in all required fields.",
                           variant: "destructive",
                         });
                         return;
                       }
-                      sendEmailMutation.mutate(emailForm);
+                      sendEmailMutation.mutate(trimmedForm);
                     }}
                     className="space-y-4"
                   >
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label htmlFor="recipientName">Recipient Name</Label>
+                        <Label htmlFor="recipientName">Recipient name</Label>
                         <Input
                           id="recipientName"
-                          placeholder="John Doe"
+                          name="recipientName"
+                          autoComplete="name"
+                          placeholder="Recipient name…"
                           value={emailForm.recipientName}
                           onChange={(e) => setEmailForm({ ...emailForm, recipientName: e.target.value })}
                           data-testid="input-recipient-name"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="recipientEmail">Recipient Email *</Label>
+                        <Label htmlFor="recipientEmail">Recipient email *</Label>
                         <Input
                           id="recipientEmail"
+                          name="recipientEmail"
                           type="email"
-                          placeholder="john@example.com"
+                          inputMode="email"
+                          autoComplete="email"
+                          spellCheck={false}
+                          placeholder="name@example.com"
                           required
                           value={emailForm.recipientEmail}
                           onChange={(e) => setEmailForm({ ...emailForm, recipientEmail: e.target.value })}
@@ -567,7 +592,8 @@ function AdminDashboard() {
                       <Label htmlFor="subject">Subject *</Label>
                       <Input
                         id="subject"
-                          placeholder="Email subject…"
+                        name="subject"
+                        placeholder="Subject…"
                         required
                         value={emailForm.subject}
                         onChange={(e) => setEmailForm({ ...emailForm, subject: e.target.value })}
@@ -578,11 +604,18 @@ function AdminDashboard() {
                       <Label htmlFor="message">Message *</Label>
                       <Textarea
                         id="message"
-                        placeholder="Write your message here…"
+                        name="message"
+                        placeholder="Write your message…"
                         required
                         rows={6}
                         value={emailForm.message}
                         onChange={(e) => setEmailForm({ ...emailForm, message: e.target.value })}
+                        onKeyDown={(event) => {
+                          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                            event.preventDefault();
+                            event.currentTarget.form?.requestSubmit();
+                          }
+                        }}
                         data-testid="input-email-message"
                       />
                     </div>
@@ -601,16 +634,11 @@ function AdminDashboard() {
                         data-testid="button-send-email"
                       >
                         {sendEmailMutation.isPending ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Sending…
-                          </>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         ) : (
-                          <>
-                            <Send className="mr-2 h-4 w-4" />
-                            Send Email
-                          </>
+                          <Send className="mr-2 h-4 w-4" />
                         )}
+                        Send email
                       </Button>
                     </div>
                   </form>
@@ -621,20 +649,23 @@ function AdminDashboard() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
             <CardTitle className="text-lg font-semibold">Weekly Revenue</CardTitle>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/revenue">
+                Details
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
                 <DollarSign className="h-6 w-6" />
               </div>
-              <div>
-                <div className="text-2xl font-bold">{formatCurrency(dashboardStats.weeklyRevenue)}</div>
-                <div className="flex items-center gap-1 text-sm text-green-600">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>+12% from last week</span>
-                </div>
+              <div className="min-w-0">
+                <div className="break-words text-2xl font-bold tabular-nums">{formatCurrency(dashboardStats.weeklyRevenue)}</div>
+                <div className="text-sm text-muted-foreground">Confirmed revenue this week</div>
               </div>
             </div>
           </CardContent>
@@ -716,7 +747,7 @@ function CoordinatorDashboard() {
             <CardTitle className="text-lg font-semibold">Today's Schedule</CardTitle>
             <Button variant="ghost" size="sm" asChild>
               <Link href="/calendar" data-testid="link-view-calendar">
-                View Calendar
+                View calendar
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -732,13 +763,13 @@ function CoordinatorDashboard() {
             ) : (
               <div className="space-y-3">
                 {todaysTours.slice(0, 5).map((tour) => (
-                  <div key={tour.id} className="flex items-center gap-3 rounded-lg border p-3">
+                  <div key={tour.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                       <Clock className="h-4 w-4" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium truncate">{tour.visitorName}</span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="break-words font-medium">{tour.visitorName}</span>
                         <StatusBadge status={tour.status || "pending"} />
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -757,7 +788,7 @@ function CoordinatorDashboard() {
             <CardTitle className="text-lg font-semibold">Pending Bookings</CardTitle>
             <Button variant="ghost" size="sm" asChild>
               <Link href="/bookings" data-testid="link-view-bookings">
-                View All
+                View all
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -773,19 +804,19 @@ function CoordinatorDashboard() {
             ) : (
               <div className="space-y-3">
                 {recentBookings.filter(b => b.status === "pending").slice(0, 5).map((booking) => (
-                  <div key={booking.id} className="flex items-center gap-3 rounded-lg border p-3">
+                  <div key={booking.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center">
                     <Avatar className="h-10 w-10">
                       <AvatarFallback className="bg-primary/10 text-primary text-sm">
                         {booking.visitorName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{booking.visitorName}</div>
+                      <div className="break-words font-medium">{booking.visitorName}</div>
                       <div className="text-xs text-muted-foreground">
                         {formatDate(booking.visitDate)} - {booking.numberOfPeople} people
                       </div>
                     </div>
-                    <div className="text-sm font-medium">{formatCurrency(booking.totalAmount || 0)}</div>
+                    <div className="text-sm font-medium tabular-nums sm:text-right">{formatCurrency(booking.totalAmount || 0)}</div>
                   </div>
                 ))}
               </div>
@@ -800,38 +831,38 @@ function CoordinatorDashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
+            <Button variant="outline" className={dashboardActionCardClass} asChild>
               <Link href="/bookings">
                 <BookOpen className="h-5 w-5 text-primary" />
-                <div className="text-left">
-                  <div className="font-medium">Manage Bookings</div>
+                <div className="min-w-0">
+                  <div className="font-medium">Manage bookings</div>
                   <div className="text-xs text-muted-foreground">Confirm requests</div>
                 </div>
               </Link>
             </Button>
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
+            <Button variant="outline" className={dashboardActionCardClass} asChild>
               <Link href="/guides">
                 <Users className="h-5 w-5 text-primary" />
-                <div className="text-left">
-                  <div className="font-medium">Assign Guides</div>
+                <div className="min-w-0">
+                  <div className="font-medium">Assign guides</div>
                   <div className="text-xs text-muted-foreground">Tour assignments</div>
                 </div>
               </Link>
             </Button>
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
+            <Button variant="outline" className={dashboardActionCardClass} asChild>
               <Link href="/calendar">
                 <CalendarDays className="h-5 w-5 text-primary" />
-                <div className="text-left">
-                  <div className="font-medium">View Calendar</div>
+                <div className="min-w-0">
+                  <div className="font-medium">View calendar</div>
                   <div className="text-xs text-muted-foreground">Schedule overview</div>
                 </div>
               </Link>
             </Button>
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
+            <Button variant="outline" className={dashboardActionCardClass} asChild>
               <Link href="/zones">
                 <MapPin className="h-5 w-5 text-primary" />
-                <div className="text-left">
-                  <div className="font-medium">View Zones</div>
+                <div className="min-w-0">
+                  <div className="font-medium">View zones</div>
                   <div className="text-xs text-muted-foreground">Camp areas</div>
                 </div>
               </Link>
@@ -848,27 +879,36 @@ function GuideDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const displayName = user?.firstName || "there";
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
 
   const { data: myTours, isLoading } = useQuery<RecentBooking[]>({
     queryKey: ["/api/bookings/my-tours"],
-  });
-
-  const { data: todaysTours } = useQuery<RecentBooking[]>({
-    queryKey: ["/api/bookings/today"],
   });
 
   const { data: guideProfile } = useQuery<Guide>({
     queryKey: ["/api/guides/me"],
   });
 
+  const { data: guideAvailability } = useQuery<GuideAvailabilitySummary>({
+    queryKey: ["/api/guides/me/availability"],
+  });
+
+  const { data: trainingStats } = useQuery<TrainingStatsSummary>({
+    queryKey: ["/api/training/stats"],
+    retry: false,
+  });
+
+  const { data: guideEarnings } = useQuery<GuideEarningsSummary>({
+    queryKey: ["/api/guides/me/earnings"],
+  });
+
   const startTourMutation = useMutation({
     mutationFn: async (bookingId: string) => {
-      return apiRequest("POST", `/api/bookings/${bookingId}/start`);
+      return apiRequest("POST", `/api/bookings/${bookingId}/guide-check-in`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/bookings/today"] });
       queryClient.invalidateQueries({ queryKey: ["/api/bookings/my-tours"] });
-      toast({ title: "Tour Started", description: "The tour has been marked as in progress." });
+      toast({ title: "Visitor checked in", description: "The tour is now in progress." });
     },
     onError: (error: Error) => {
       toast({ title: "Failed to start tour", description: error.message, variant: "destructive" });
@@ -877,16 +917,28 @@ function GuideDashboard() {
 
   const completeTourMutation = useMutation({
     mutationFn: async (bookingId: string) => {
-      return apiRequest("POST", `/api/bookings/${bookingId}/complete`);
+      return apiRequest("POST", `/api/bookings/${bookingId}/guide-check-out`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/bookings/today"] });
       queryClient.invalidateQueries({ queryKey: ["/api/bookings/my-tours"] });
       queryClient.invalidateQueries({ queryKey: ["/api/guides/me"] });
-      toast({ title: "Tour Completed", description: "The tour has been marked as completed." });
+      toast({ title: "Tour completed", description: "The visitor has been checked out." });
     },
     onError: (error: Error) => {
       toast({ title: "Failed to complete tour", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const noShowMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
+      return apiRequest("POST", `/api/bookings/${bookingId}/guide-no-show`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings/my-tours"] });
+      toast({ title: "Marked as no-show", description: "The visitor has been marked as a no-show." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to mark no-show", description: error.message, variant: "destructive" });
     },
   });
 
@@ -894,10 +946,59 @@ function GuideDashboard() {
     return <DashboardSkeleton />;
   }
 
-  const upcomingTours = todaysTours?.filter(t => t.status === "confirmed" || t.status === "in_progress") || [];
+  const todayKey = new Date().toDateString();
+  const upcomingTours = myTours?.filter((tour) =>
+    new Date(tour.visitDate).toDateString() === todayKey
+    && (tour.status === "confirmed" || tour.status === "in_progress")
+  ) || [];
   const averageRating = guideProfile?.totalRatings && guideProfile.totalRatings > 0
-    ? (guideProfile.rating || 0) / guideProfile.totalRatings
+    ? guideProfile.rating || 0
     : 0;
+  const todayKeyName = new Intl.DateTimeFormat("en-US", { weekday: "long" })
+    .format(new Date())
+    .toLowerCase();
+  const availableToday = guideAvailability?.availability?.[todayKeyName] ?? true;
+  const trainingPercentage = trainingStats?.percentage ?? 0;
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(todayStart.getDate() + 1);
+  const nextAssignment = (myTours || [])
+    .filter((tour) => {
+      const tourDate = new Date(tour.visitDate);
+      const status = tour.status || "pending";
+      return tourDate >= tomorrowStart && ["pending", "confirmed", "in_progress"].includes(status);
+    })
+    .sort((a, b) => {
+      const aTime = `${a.visitDate}T${a.visitTime || "00:00"}`;
+      const bTime = `${b.visitDate}T${b.visitTime || "00:00"}`;
+      return new Date(aTime).getTime() - new Date(bTime).getTime();
+    })[0];
+  const payoutSummary = guideEarnings?.payoutSummary;
+  const payoutLabel = payoutSummary?.pendingCount
+    ? `${formatCurrency(payoutSummary.pendingAmount)} pending`
+    : payoutSummary?.lastPaidAt
+      ? `Last paid ${formatDate(payoutSummary.lastPaidAt)}`
+      : "No payout records yet";
+
+  const handleQRScan = (result: string) => {
+    const reference = result.trim().toUpperCase();
+    const matchingTour = myTours?.find(
+      (tour) => tour.bookingReference?.toUpperCase() === reference && tour.status === "confirmed"
+    );
+
+    if (matchingTour) {
+      startTourMutation.mutate(matchingTour.id);
+      setIsQRScannerOpen(false);
+      return;
+    }
+
+    toast({
+      title: "Booking not found",
+      description: `No confirmed assigned tour matched ${reference}.`,
+      variant: "destructive",
+    });
+  };
 
   return (
     <PageContainer className="page-spacing">
@@ -921,7 +1022,7 @@ function GuideDashboard() {
         />
         <StatCard
           title="Average Rating"
-          value={averageRating > 0 ? averageRating.toFixed(1) : "N/A"}
+          value={averageRating > 0 ? averageRating.toFixed(1) : "Not rated"}
           subtitle={guideProfile?.totalRatings ? `${guideProfile.totalRatings} reviews` : "No reviews yet"}
           icon={Star}
         />
@@ -935,7 +1036,133 @@ function GuideDashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg font-semibold">Today's Assigned Tours</CardTitle>
+          <CardTitle className="text-lg font-semibold">Guide Readiness</CardTitle>
+          <CardDescription>Quick checks before accepting or starting assigned tours.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium">Availability</div>
+                  <div className="text-xs text-muted-foreground">
+                    {guideAvailability?.workingHours
+                      ? `${guideAvailability.workingHours.start} - ${guideAvailability.workingHours.end}`
+                      : "Default hours"}
+                  </div>
+                </div>
+                <Badge variant={availableToday ? "default" : "secondary"}>
+                  {availableToday ? "Available today" : "Off today"}
+                </Badge>
+              </div>
+              <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
+                <Link href="/my-availability">Update availability</Link>
+              </Button>
+            </div>
+            <div className="rounded-lg border p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium">Training</div>
+                  <div className="text-xs text-muted-foreground">
+                    {trainingStats ? `${trainingStats.completed} of ${trainingStats.total} modules complete` : "Progress not loaded"}
+                  </div>
+                </div>
+                <Badge variant={trainingPercentage >= 100 ? "default" : "outline"}>
+                  {trainingPercentage}% complete
+                </Badge>
+              </div>
+              <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
+                <Link href="/guide-training">Open training</Link>
+              </Button>
+            </div>
+            <div className="rounded-lg border p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium">Payout status</div>
+                  <div className="text-xs text-muted-foreground">{payoutLabel}</div>
+                </div>
+                <Badge variant={payoutSummary?.pendingCount ? "secondary" : "outline"}>
+                  {payoutSummary?.pendingCount ? "Pending" : payoutSummary?.paidCount ? "Paid" : "Not started"}
+                </Badge>
+              </div>
+              <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
+                <Link href="/my-earnings">Open earnings</Link>
+              </Button>
+            </div>
+            <div className="rounded-lg border p-4">
+              <div>
+                <div className="text-sm font-medium">Full tour workflow</div>
+                <div className="text-xs text-muted-foreground">Use My Tours for all assignments, past tours, and QR scan tools.</div>
+              </div>
+              <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
+                <Link href="/my-tours">Open My Tours</Link>
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold">Next Assignment After Today</CardTitle>
+          <CardDescription>Your next scheduled tour beyond today’s active assignments.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {nextAssignment ? (
+            <div className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <CalendarDays className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="break-words font-medium">{nextAssignment.visitorName}</span>
+                  <StatusBadge status={nextAssignment.status || "pending"} />
+                </div>
+                <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <CalendarDays className="h-3 w-3" />
+                    {formatDate(nextAssignment.visitDate)}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {formatTime(nextAssignment.visitTime)}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Users className="h-3 w-3" />
+                    {nextAssignment.numberOfPeople} {nextAssignment.numberOfPeople === 1 ? "person" : "people"}
+                  </span>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/my-tours">View assignment</Link>
+              </Button>
+            </div>
+          ) : (
+            <EmptyState
+              icon={CalendarDays}
+              title="No later assignment scheduled"
+              description="When staff assign a future tour, it will appear here."
+              className="py-8"
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="text-lg font-semibold">Today's Assigned Tours</CardTitle>
+            <CardDescription>Check visitors in, mark no-shows, or complete active tours.</CardDescription>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsQRScannerOpen(true)}
+            className="gap-2"
+          >
+            <ScanLine className="h-4 w-4" />
+            Scan QR
+          </Button>
         </CardHeader>
         <CardContent>
           {upcomingTours.length === 0 ? (
@@ -948,16 +1175,16 @@ function GuideDashboard() {
           ) : (
             <div className="space-y-4">
               {upcomingTours.map((tour) => (
-                <div key={tour.id} className="flex items-center gap-4 rounded-lg border p-4">
+                <div key={tour.id} className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <Clock className="h-5 w-5" />
                   </div>
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{tour.visitorName}</span>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="break-words font-medium">{tour.visitorName}</span>
                       <StatusBadge status={tour.status || "pending"} />
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         {formatTime(tour.visitTime)}
@@ -968,22 +1195,42 @@ function GuideDashboard() {
                       </span>
                       <span className="flex items-center gap-1">
                         <MapPin className="h-3 w-3" />
-                        {tour.tourType?.replace("_", " ")}
+                        {formatTourType(tour.tourType)}
                       </span>
                     </div>
                   </div>
                   {tour.status === "confirmed" && (
-                    <Button
-                      size="sm"
-                      data-testid={`start-tour-${tour.id}`}
-                      onClick={() => startTourMutation.mutate(tour.id)}
-                      disabled={startTourMutation.isPending}
-                    >
-                      {startTourMutation.isPending && startTourMutation.variables === tour.id ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : null}
-                      Start Tour
-                    </Button>
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                      <Button
+                        size="sm"
+                        data-testid={`start-tour-${tour.id}`}
+                        onClick={() => startTourMutation.mutate(tour.id)}
+                        disabled={startTourMutation.isPending}
+                        className="w-full gap-2 sm:w-auto"
+                      >
+                        {startTourMutation.isPending && startTourMutation.variables === tour.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Play className="h-4 w-4" />
+                        )}
+                        Check in visitor
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        data-testid={`no-show-tour-${tour.id}`}
+                        onClick={() => noShowMutation.mutate(tour.id)}
+                        disabled={noShowMutation.isPending}
+                        className="w-full gap-2 text-orange-700 border-orange-200 hover:bg-orange-50 sm:w-auto"
+                      >
+                        {noShowMutation.isPending && noShowMutation.variables === tour.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <UserX className="h-4 w-4" />
+                        )}
+                        No-show
+                      </Button>
+                    </div>
                   )}
                   {tour.status === "in_progress" && (
                     <Button
@@ -992,11 +1239,12 @@ function GuideDashboard() {
                       data-testid={`complete-tour-${tour.id}`}
                       onClick={() => completeTourMutation.mutate(tour.id)}
                       disabled={completeTourMutation.isPending}
+                      className="w-full sm:w-auto"
                     >
                       {completeTourMutation.isPending && completeTourMutation.variables === tour.id ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : null}
-                      Complete
+                      Check out
                     </Button>
                   )}
                 </div>
@@ -1033,6 +1281,14 @@ function GuideDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      <QRScannerDialog
+        open={isQRScannerOpen}
+        onOpenChange={setIsQRScannerOpen}
+        onScan={handleQRScan}
+        title="Scan Visitor QR Code"
+        description="Scan the visitor's booking QR code to check them in for an assigned confirmed tour."
+      />
     </PageContainer>
   );
 }
@@ -1100,7 +1356,7 @@ function SecurityDashboard() {
             <CardTitle className="text-lg font-semibold">Active Visitors</CardTitle>
             <Button variant="ghost" size="sm" asChild>
               <Link href="/security" data-testid="link-security">
-                View All
+                View all
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -1123,7 +1379,7 @@ function SecurityDashboard() {
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{visitor.visitorName}</div>
                       <div className="text-xs text-muted-foreground">
-                        Checked in: {visitor.checkInTime ? formatTime(visitor.checkInTime) : "N/A"}
+                        Checked in: {visitor.checkInTime ? formatTime(visitor.checkInTime) : "Not recorded"}
                       </div>
                     </div>
                     <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
@@ -1141,7 +1397,7 @@ function SecurityDashboard() {
             <CardTitle className="text-lg font-semibold">Open Incidents</CardTitle>
             <Button variant="ghost" size="sm" asChild>
               <Link href="/security?tab=incidents" data-testid="link-incidents">
-                View All
+                View all
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -1151,7 +1407,7 @@ function SecurityDashboard() {
               <EmptyState
                 icon={Shield}
                 title="No open incidents"
-                description="All clear! No incidents require attention."
+                description="No incidents require attention."
                 className="py-8"
               />
             ) : (
@@ -1184,38 +1440,38 @@ function SecurityDashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
+            <Button variant="outline" className={dashboardActionCardClass} asChild>
               <Link href="/security">
                 <UserCheck className="h-5 w-5 text-primary" />
-                <div className="text-left">
-                  <div className="font-medium">Check-In Visitor</div>
+                <div className="min-w-0">
+                  <div className="font-medium">Check in visitor</div>
                   <div className="text-xs text-muted-foreground">Verify and check in</div>
                 </div>
               </Link>
             </Button>
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
+            <Button variant="outline" className={dashboardActionCardClass} asChild>
               <Link href="/security?tab=verification">
                 <Shield className="h-5 w-5 text-primary" />
-                <div className="text-left">
-                  <div className="font-medium">Verify Booking</div>
+                <div className="min-w-0">
+                  <div className="font-medium">Verify booking</div>
                   <div className="text-xs text-muted-foreground">Check booking details</div>
                 </div>
               </Link>
             </Button>
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
+            <Button variant="outline" className={dashboardActionCardClass} asChild>
               <Link href="/security?tab=incidents">
                 <AlertTriangle className="h-5 w-5 text-primary" />
-                <div className="text-left">
-                  <div className="font-medium">Report Incident</div>
+                <div className="min-w-0">
+                  <div className="font-medium">Report incident</div>
                   <div className="text-xs text-muted-foreground">Log new incident</div>
                 </div>
               </Link>
             </Button>
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
+            <Button variant="outline" className={dashboardActionCardClass} asChild>
               <Link href="/security?tab=active">
                 <Users className="h-5 w-5 text-primary" />
-                <div className="text-left">
-                  <div className="font-medium">Active Visitors</div>
+                <div className="min-w-0">
+                  <div className="font-medium">Active visitors</div>
                   <div className="text-xs text-muted-foreground">View current visitors</div>
                 </div>
               </Link>
@@ -1250,16 +1506,32 @@ function VisitorDashboard() {
     queryKey: ["/api/public/meeting-points"],
   });
 
+  const [paymentDialogBooking, setPaymentDialogBooking] = useState<RecentBooking | null>(null);
+  const [paymentReportForm, setPaymentReportForm] = useState({
+    paymentMethod: "cash",
+    paymentReference: "",
+    note: "",
+  });
+
   const updatePaymentMutation = useMutation({
-    mutationFn: async ({ bookingId, paymentStatus }: { bookingId: string; paymentStatus: string }) => {
-      return apiRequest("PATCH", `/api/bookings/${bookingId}/visitor-payment`, { paymentStatus });
+    mutationFn: async (data: { bookingId: string; paymentMethod: string; paymentReference: string; note: string }) => {
+      return apiRequest("PATCH", `/api/bookings/${data.bookingId}/visitor-payment`, {
+        paymentMethod: data.paymentMethod,
+        paymentReference: data.paymentReference,
+        note: data.note,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bookings/my-bookings"] });
-      toast({ title: "Payment status updated" });
+      setPaymentDialogBooking(null);
+      setPaymentReportForm({ paymentMethod: "cash", paymentReference: "", note: "" });
+      toast({
+        title: "Payment reported",
+        description: "Staff will verify it before marking your booking as paid.",
+      });
     },
     onError: (error: Error) => {
-      toast({ title: "Failed to update payment", description: error.message, variant: "destructive" });
+      toast({ title: "Failed to report payment", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1287,6 +1559,15 @@ function VisitorDashboard() {
   const handleRateGuide = (bookingId: string, rating: number) => {
     setSelectedRating({ bookingId, rating });
     rateGuideMutation.mutate({ bookingId, rating });
+  };
+
+  const openPaymentReportDialog = (booking: RecentBooking) => {
+    setPaymentDialogBooking(booking);
+    setPaymentReportForm({
+      paymentMethod: booking.paymentMethod || "cash",
+      paymentReference: booking.paymentReference || "",
+      note: "",
+    });
   };
 
   const cancelBookingMutation = useMutation({
@@ -1342,6 +1623,34 @@ function VisitorDashboard() {
     b.status === "pending" || b.status === "confirmed"
   ) || [];
   const completedBookings = myBookings?.filter(b => b.status === "completed") || [];
+  const cancellationOrRefundBookings = (myBookings || [])
+    .filter((booking) => booking.status === "cancelled" || booking.paymentStatus === "refunded")
+    .sort((a, b) => new Date(b.updatedAt || b.visitDate).getTime() - new Date(a.updatedAt || a.visitDate).getTime())
+    .slice(0, 3);
+
+  const getCancellationResolution = (booking: RecentBooking) => {
+    if (booking.paymentStatus === "refunded") {
+      return {
+        label: "Refunded",
+        detail: "Payment has been refunded for this booking.",
+        variant: "default" as const,
+      };
+    }
+
+    if (booking.paymentStatus === "paid") {
+      return {
+        label: "Refund review",
+        detail: "This booking was paid before cancellation. Staff will confirm refund or credit next steps.",
+        variant: "secondary" as const,
+      };
+    }
+
+    return {
+      label: "Cancelled",
+      detail: "No payment was marked as collected for this booking.",
+      variant: "outline" as const,
+    };
+  };
 
   return (
     <PageContainer className="page-spacing">
@@ -1426,18 +1735,18 @@ function VisitorDashboard() {
           </div>
           <Button asChild size="default" className="shrink-0 w-full sm:w-auto">
             <Link href="/community">
-              Open Community Hub <ArrowRight className="ml-2 h-4 w-4" />
+              Open community hub <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-4">
+        <CardHeader className="flex flex-col items-start justify-between gap-4 space-y-0 pb-4 sm:flex-row sm:items-center">
           <CardTitle className="text-lg font-semibold">Your Upcoming Visits</CardTitle>
           <Button asChild data-testid="button-book-visit">
             <Link href="/my-bookings?book=true">
-              Book a Visit
+              Book a visit
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
@@ -1452,7 +1761,7 @@ function VisitorDashboard() {
               action={
                 <Button asChild className="mt-4">
                   <Link href="/my-bookings?book=true">
-                    Book Your First Visit
+                    Book your first visit
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
@@ -1466,26 +1775,31 @@ function VisitorDashboard() {
                 const zoneNames = getZoneNames(booking.selectedZones as string[]);
                 const meetingPointName = getMeetingPointName(booking.meetingPointId);
                 const isConfirmed = booking.status === "confirmed";
+                const paymentLabel = booking.paymentStatus === "paid"
+                  ? "Paid"
+                  : booking.paymentReference
+                    ? "Verification pending"
+                    : "Payment pending";
 
                 return (
                   <div key={booking.id} className="rounded-lg border p-4 space-y-3">
                     {/* Header Row */}
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                         <CalendarDays className="h-5 w-5" />
                       </div>
-                      <div className="flex-1 space-y-1">
+                      <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium">
-                            {booking.tourType?.replace("_", " ")} Tour
+                          <span className="break-words font-medium">
+                            {formatTourType(booking.tourType)} Tour
                           </span>
                           <StatusBadge status={booking.status || "pending"} />
                           <Badge variant={booking.paymentStatus === "paid" ? "default" : "outline"}
                             className={booking.paymentStatus === "paid" ? "bg-green-600" : ""}>
-                            {booking.paymentStatus === "paid" ? "Paid" : "Payment Pending"}
+                            {paymentLabel}
                           </Badge>
                         </div>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <CalendarDays className="h-3 w-3" />
                             {formatDate(booking.visitDate)}
@@ -1500,20 +1814,20 @@ function VisitorDashboard() {
                           </span>
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="min-w-0 sm:text-right">
                         <div className="text-sm font-medium">{formatCurrency(booking.totalAmount || 0)}</div>
-                        <div className="text-xs text-muted-foreground">Ref: {booking.bookingReference}</div>
+                        <div className="break-all text-xs text-muted-foreground">Ref: {booking.bookingReference}</div>
                       </div>
                     </div>
 
                     {/* Guide Info */}
                     {guideName && (
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                        <UserCheck className="h-5 w-5 text-green-600" />
-                        <div className="flex-1">
-                          <div className="text-sm font-medium text-green-700 dark:text-green-400">Your Guide: {guideName}</div>
+                      <div className="flex items-start gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                        <UserCheck className="h-5 w-5 shrink-0 text-green-600" />
+                        <div className="min-w-0 flex-1">
+                          <div className="break-words text-sm font-medium text-green-700 dark:text-green-400">Your guide: {guideName}</div>
                           {guidePhone && (
-                            <div className="text-xs text-green-600 dark:text-green-500">Phone: {guidePhone}</div>
+                            <div className="break-words text-xs text-green-600 dark:text-green-500">Phone: {guidePhone}</div>
                           )}
                         </div>
                       </div>
@@ -1521,18 +1835,18 @@ function VisitorDashboard() {
 
                     {/* Selected Zones */}
                     {zoneNames && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <MapPin className="h-4 w-4" />
-                        <span>Areas: {zoneNames}</span>
+                      <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span className="break-words">Areas: {zoneNames}</span>
                       </div>
                     )}
 
                     {/* Meeting Point */}
                     {meetingPointName && (
-                      <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                        <MapPin className="h-4 w-4 text-blue-600" />
-                        <span className="text-sm text-blue-700 dark:text-blue-400">
-                          <strong>Meeting Point:</strong> {meetingPointName}
+                      <div className="flex items-start gap-2 p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                        <span className="break-words text-sm text-blue-700 dark:text-blue-400">
+                          <strong>Meeting point:</strong> {meetingPointName}
                         </span>
                       </div>
                     )}
@@ -1540,8 +1854,8 @@ function VisitorDashboard() {
                     {/* Special Requests */}
                     {booking.specialRequests && (
                       <div className="p-2 rounded-lg bg-muted/50 border">
-                        <div className="text-xs font-medium text-muted-foreground mb-1">Your Special Requests:</div>
-                        <div className="text-sm">{booking.specialRequests}</div>
+                        <div className="text-xs font-medium text-muted-foreground mb-1">Your special requests:</div>
+                        <div className="break-words text-sm">{booking.specialRequests}</div>
                       </div>
                     )}
 
@@ -1551,7 +1865,7 @@ function VisitorDashboard() {
                         <div className="flex items-start gap-2">
                           <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
                           <div className="text-sm text-amber-800 dark:text-amber-300">
-                            <strong>Check-in Instructions:</strong>
+                            <strong>Check-in instructions:</strong>
                             <ul className="mt-1 ml-4 list-disc text-xs space-y-1">
                               <li>Arrive 10 minutes before your scheduled time</li>
                               <li>Bring a valid ID for verification</li>
@@ -1565,26 +1879,21 @@ function VisitorDashboard() {
 
                     {/* Payment Toggle */}
                     {booking.paymentStatus !== "paid" && (
-                      <div className="flex justify-end pt-2 border-t gap-2">
+                      <div className="flex flex-wrap justify-end pt-2 border-t gap-2">
                         {itineraries?.some((i) => i.bookingId === booking.id) && (
                           <Button size="sm" variant="default" asChild>
                             <Link href={`/bookings/${booking.id}/itinerary`}>
-                              <FileDown className="mr-2 h-4 w-4" /> View Itinerary
+                              <FileDown className="mr-2 h-4 w-4" /> View itinerary
                             </Link>
                           </Button>
                         )}
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => updatePaymentMutation.mutate({ bookingId: booking.id, paymentStatus: "paid" })}
-                          disabled={updatePaymentMutation.isPending}
+                          onClick={() => openPaymentReportDialog(booking)}
                         >
-                          {updatePaymentMutation.isPending ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <DollarSign className="mr-2 h-4 w-4" />
-                          )}
-                          Mark as Paid
+                          <DollarSign className="mr-2 h-4 w-4" />
+                          Report payment
                         </Button>
                         <Button
                           size="sm"
@@ -1599,11 +1908,11 @@ function VisitorDashboard() {
                       </div>
                     )}
                     {booking.paymentStatus === "paid" && (
-                      <div className="flex justify-end pt-2 border-t gap-2">
+                      <div className="flex flex-wrap justify-end pt-2 border-t gap-2">
                         {itineraries?.some((i) => i.bookingId === booking.id) && (
                           <Button size="sm" variant="default" asChild>
                             <Link href={`/bookings/${booking.id}/itinerary`}>
-                              <FileDown className="mr-2 h-4 w-4" /> View Itinerary
+                              <FileDown className="mr-2 h-4 w-4" /> View itinerary
                             </Link>
                           </Button>
                         )}
@@ -1615,7 +1924,7 @@ function VisitorDashboard() {
                           disabled={cancelBookingMutation.isPending}
                         >
                           <XCircle className="mr-2 h-4 w-4" />
-                          Cancel Booking
+                          Cancel booking
                         </Button>
                       </div>
                     )}
@@ -1626,6 +1935,121 @@ function VisitorDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {cancellationOrRefundBookings.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Cancellation & Refund Status</CardTitle>
+            <CardDescription>Recent cancelled visits and payment resolution status.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {cancellationOrRefundBookings.map((booking) => {
+                const resolution = getCancellationResolution(booking);
+
+                return (
+                  <div key={booking.id} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                      <XCircle className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="break-words font-medium">{formatTourType(booking.tourType)} Tour</span>
+                        <Badge variant={resolution.variant}>{resolution.label}</Badge>
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {formatDate(booking.visitDate)} at {formatTime(booking.visitTime)} · Ref: {booking.bookingReference}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">{resolution.detail}</p>
+                    </div>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href="/help?support=true&subject=Question%20about%20a%20cancelled%20booking">
+                        Ask support
+                      </Link>
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Dialog open={!!paymentDialogBooking} onOpenChange={(open) => !open && setPaymentDialogBooking(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Report Payment Made</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Staff will verify this payment before your booking is marked as paid.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="payment-method">Payment method</Label>
+              <Select
+                value={paymentReportForm.paymentMethod}
+                onValueChange={(value) => setPaymentReportForm((current) => ({ ...current, paymentMethod: value }))}
+              >
+                <SelectTrigger id="payment-method">
+                  <SelectValue placeholder="Select method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="airtel_money">Airtel Money</SelectItem>
+                  <SelectItem value="tnm_mpamba">TNM Mpamba</SelectItem>
+                  <SelectItem value="card">Card</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="payment-reference">Reference or receipt number</Label>
+              <Input
+                id="payment-reference"
+                name="paymentReference"
+                value={paymentReportForm.paymentReference}
+                onChange={(event) => setPaymentReportForm((current) => ({ ...current, paymentReference: event.target.value }))}
+                placeholder="Mobile money or receipt reference…"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="payment-note">Note</Label>
+              <Textarea
+                id="payment-note"
+                name="paymentNote"
+                value={paymentReportForm.note}
+                onChange={(event) => setPaymentReportForm((current) => ({ ...current, note: event.target.value }))}
+                placeholder="Anything staff should know…"
+                rows={3}
+              />
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => setPaymentDialogBooking(null)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={updatePaymentMutation.isPending || !paymentDialogBooking}
+                onClick={() => {
+                  if (!paymentDialogBooking) return;
+                  updatePaymentMutation.mutate({
+                    bookingId: paymentDialogBooking.id,
+                    paymentMethod: paymentReportForm.paymentMethod,
+                    paymentReference: paymentReportForm.paymentReference.trim(),
+                    note: paymentReportForm.note.trim(),
+                  });
+                }}
+              >
+                {updatePaymentMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <DollarSign className="mr-2 h-4 w-4" />
+                )}
+                Report payment
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {completedBookings.length > 0 && (
         <Card>
@@ -1655,14 +2079,14 @@ function VisitorDashboard() {
                       window.URL.revokeObjectURL(url);
                       document.body.removeChild(a);
 
-                      toast({ title: "History Exported", description: "Your visit history has been downloaded." });
+                      toast({ title: "History exported", description: "Your visit history has been downloaded." });
                     } catch (error) {
-                      toast({ title: "Export Failed", description: "Could not export visit history.", variant: "destructive" });
+                      toast({ title: "Export failed", description: "Could not export visit history.", variant: "destructive" });
                     }
                   }}
                 >
                   <FileText className="mr-2 h-4 w-4" />
-                  Export History
+                  Export history
                 </Button>
                 {completedBookings.length > 2 && (
                   <Button
@@ -1670,7 +2094,7 @@ function VisitorDashboard() {
                     size="sm"
                     onClick={() => setShowAllPastVisits(!showAllPastVisits)}
                   >
-                    {showAllPastVisits ? "Show Less" : "View All"}
+                    {showAllPastVisits ? "Show less" : "View all"}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 )}
@@ -1688,7 +2112,7 @@ function VisitorDashboard() {
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <h4 className="font-medium">
-                              {booking.tourType?.replace("_", " ")} Tour
+                              {formatTourType(booking.tourType)} Tour
                             </h4>
                             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mt-1">
                               <span className="flex items-center gap-1">
@@ -1726,7 +2150,7 @@ function VisitorDashboard() {
                         )}
                         <Button size="sm" variant="outline" asChild>
                           <Link href="/my-bookings?book=true">
-                            Book Again
+                            Book again
                           </Link>
                         </Button>
                       </div>
@@ -1796,11 +2220,19 @@ function VisitorDashboard() {
             </div>
 
             <div className="flex-1 flex flex-col justify-center items-start border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-6">
-              <h4 className="font-semibold text-sm mb-2">Report an Incident</h4>
+              <h4 className="font-semibold text-sm mb-2">Support & Incidents</h4>
               <p className="text-sm text-muted-foreground mb-4">
-                Report safety concerns, delays, or other visit issues.
+                Open a support ticket for booking questions, or report urgent safety concerns.
               </p>
-              <ReportIncidentDialog />
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button variant="outline" asChild>
+                  <Link href="/help?support=true">
+                    <MessageCircle className="mr-2 h-4 w-4" />
+                    Open support ticket
+                  </Link>
+                </Button>
+                <ReportIncidentDialog />
+              </div>
             </div>
           </div>
         </CardContent>
@@ -1830,40 +2262,40 @@ function VisitorDashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
-              <a href="https://services.dzaleka.com/visit/travel-guide/" target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" className={dashboardActionCardClass} asChild>
+              <Link href="/plan-your-trip">
                 <MapPin className="h-5 w-5 text-primary" />
-                <div className="text-left">
-                  <div className="font-medium">Travel Guide</div>
+                <div className="min-w-0">
+                  <div className="font-medium">Travel guide</div>
                   <div className="text-xs text-muted-foreground">Getting to Dzaleka</div>
                 </div>
-                <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
-              </a>
+                <ArrowRight className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
+              </Link>
             </Button>
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
-              <a href="https://services.dzaleka.com/visit/guidelines/" target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" className={dashboardActionCardClass} asChild>
+              <Link href="/visitor-essentials">
                 <Shield className="h-5 w-5 text-muted-foreground" />
-                <div className="text-left">
-                  <div className="font-medium">Visitor Guidelines</div>
+                <div className="min-w-0">
+                  <div className="font-medium">Visitor guidelines</div>
                   <div className="text-xs text-muted-foreground">What to know before you go</div>
                 </div>
-                <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
-              </a>
+                <ArrowRight className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
+              </Link>
             </Button>
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
-              <a href="https://services.dzaleka.com/dzaleka-time-capsule/" target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" className={dashboardActionCardClass} asChild>
+              <Link href="/life-in-dzaleka">
                 <Clock className="h-5 w-5 text-muted-foreground" />
-                <div className="text-left">
-                  <div className="font-medium">Time Capsule</div>
+                <div className="min-w-0">
+                  <div className="font-medium">Time capsule</div>
                   <div className="text-xs text-muted-foreground">Dzaleka's history & stories</div>
                 </div>
-                <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
-              </a>
+                <ArrowRight className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
+              </Link>
             </Button>
-            <Button variant="outline" className="h-auto flex-col items-start gap-2 p-4" asChild>
+            <Button variant="outline" className={dashboardActionCardClass} asChild>
               <a href="https://services.dzaleka.com" target="_blank" rel="noopener noreferrer">
                 <Globe className="h-5 w-5 text-muted-foreground" />
-                <div className="text-left">
+                <div className="min-w-0">
                   <div className="font-medium">Dzaleka Online Services</div>
                   <div className="text-xs text-muted-foreground">Services and community updates</div>
                 </div>

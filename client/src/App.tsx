@@ -163,12 +163,14 @@ const PUBLIC_ROUTES = [
   "/about-us",
   "/life-in-dzaleka",
   "/impact-report",
+  "/it-code-of-practice",
   "/contact",
 ];
 
 function isPublicRoute(path: string): boolean {
+  const routePath = path.split(/[?#]/)[0];
   return PUBLIC_ROUTES.some((route) =>
-    route.endsWith("/") ? path.startsWith(route) : path === route || path.startsWith(route + "/")
+    route.endsWith("/") ? routePath.startsWith(route) : routePath === route || routePath.startsWith(route + "/")
   );
 }
 
@@ -209,6 +211,7 @@ function Router() {
         <Route path="/partner-with-us" component={PartnerWithUs} />
         <Route path="/friends-of-dzaleka" component={FriendsOfDzaleka} />
         <Route path="/friends-of-dzaleka/:slug" component={FriendProfile} />
+        <Route path="/it-code-of-practice" component={ITCodeOfPractice} />
 
         <Route path="/impact-report/:id" component={ImpactReportView} />
         <Route path="/impact-report" component={ImpactReport} />
@@ -272,7 +275,7 @@ function Router() {
         <ProtectedRoute path="/bookings" component={Bookings} allowedRoles={["admin", "coordinator", "guide", "security"]} />
         <Route path="/bookings/:id" component={BookingDetails} />
         <Route path="/bookings/:id/itinerary" component={ItineraryView} />
-        <Route path="/recurring-bookings" component={RecurringBookingsPage} />
+        <ProtectedRoute path="/recurring-bookings" component={RecurringBookingsPage} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/my-bookings" component={MyBookings} allowedRoles={["visitor"]} />
         <ProtectedRoute path="/saved-itineraries" component={SavedItineraries} allowedRoles={["visitor"]} />
         <ProtectedRoute path="/favorite-guides" component={FavoriteGuides} allowedRoles={["visitor"]} />

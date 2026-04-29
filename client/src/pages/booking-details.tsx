@@ -14,6 +14,7 @@ import {
     Phone,
     CheckCircle,
     XCircle,
+    Send,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,7 +33,7 @@ import {
 } from "@/lib/constants";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { Booking, Guide, Zone, PointOfInterest, AnalyticsSetting, Itinerary } from "@shared/schema";
+import type { Booking, Guide, Zone, PointOfInterest, AnalyticsSetting, Itinerary, EmailLog } from "@shared/schema";
 import { useEffect } from "react";
 import { jsPDF } from "jspdf";
 
@@ -98,6 +99,68 @@ function BookingTimeline({ bookingId }: { bookingId: string }) {
                         )}
                         <p className="text-xs text-muted-foreground mt-1">
                             {new Date(activity.createdAt).toLocaleString()}
+                        </p>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function EmailTimeline({ bookingId }: { bookingId: string }) {
+    const { data: emails, isLoading } = useQuery<EmailLog[]>({
+        queryKey: [`/api/bookings/${bookingId}/email-timeline`],
+        enabled: !!bookingId,
+    });
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+        );
+    }
+
+    if (!emails || emails.length === 0) {
+        return (
+            <p className="text-sm text-muted-foreground py-2">
+                No email events recorded yet.
+            </p>
+        );
+    }
+
+    const statusVariant = (status?: string | null) =>
+        ["failed", "bounced", "complaint"].includes(status || "") ? "destructive" : "secondary";
+
+    return (
+        <div className="space-y-3">
+            {emails.map((email, index) => (
+                <div key={email.id} className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                        <div className="w-2 h-2 rounded-full bg-primary mt-2" />
+                        {index < emails.length - 1 && (
+                            <div className="w-0.5 h-full bg-border flex-1" />
+                        )}
+                    </div>
+                    <div className="flex-1 pb-3 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-medium capitalize">
+                                {(email.templateType || "custom").replace(/_/g, " ")}
+                            </span>
+                            <Badge variant={statusVariant(email.status)} className="capitalize">
+                                {(email.status || "sent").replace(/_/g, " ")}
+                            </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-0.5 truncate">
+                            {email.subject}
+                        </p>
+                        {email.errorMessage && (
+                            <p className="text-xs text-destructive mt-1 break-words">
+                                {email.errorMessage}
+                            </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                            {email.createdAt ? new Date(email.createdAt).toLocaleString() : "Unknown"}
                         </p>
                     </div>
                 </div>
@@ -367,6 +430,27 @@ export default function BookingDetails() {
             toast({
                 title: "Error",
                 description: "Failed to update booking status.",
+                variant: "destructive",
+            });
+        },
+    });
+
+    const resendBookingEmailMutation = useMutation({
+        mutationFn: async (type: string) => {
+            await apiRequest("POST", `/api/bookings/${id}/resend-email`, { type });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [`/api/bookings/${id}/email-timeline`] });
+            queryClient.invalidateQueries({ queryKey: ["/api/email-logs"] });
+            toast({
+                title: "Email resent",
+                description: "The selected booking email has been queued again.",
+            });
+        },
+        onError: (error: Error) => {
+            toast({
+                title: "Failed to resend email",
+                description: error.message,
                 variant: "destructive",
             });
         },
@@ -657,12 +741,62 @@ export default function BookingDetails() {
                         </Card>
                     )}
 
+                    {(user?.role === "admin" || user?.role === "coordinator") && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Resend Booking Emails</CardTitle>
+                                <CardDescription>Send a fresh copy of common booking emails.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="grid gap-2 sm:grid-cols-2">
+                                {[
+                                    ["request_received", "Request Received"],
+                                    ["booking_confirmation", "Booking Confirmed"],
+                                    ["status_update", "Status Update"],
+                                    ["booking_cancelled", "Cancellation"],
+                                    ["reminder", "Reminder"],
+                                    ["payment_receipt", "Payment Receipt"],
+                                    ["feedback_request", "Feedback Request"],
+                                    ["guide_assignment", "Guide Assigned"],
+                                    ["guide_tour_assignment", "Guide Tour Assignment"],
+                                    ["check_in", "Check-in"],
+                                    ["itinerary", "Itinerary"],
+                                ].map(([type, label]) => (
+                                    <Button
+                                        key={type}
+                                        type="button"
+                                        variant="outline"
+                                        className="justify-start gap-2"
+                                        disabled={resendBookingEmailMutation.isPending}
+                                        onClick={() => resendBookingEmailMutation.mutate(type)}
+                                    >
+                                        {resendBookingEmailMutation.isPending ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Send className="h-4 w-4" />
+                                        )}
+                                        {label}
+                                    </Button>
+                                ))}
+                            </CardContent>
+                        </Card>
+                    )}
+
                     <Card>
                         <CardHeader>
                             <CardTitle>Activity Log</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <BookingTimeline bookingId={id} />
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Email Timeline</CardTitle>
+                            <CardDescription>Visitor email sends, failures, and delivery events for this booking.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <EmailTimeline bookingId={id} />
                         </CardContent>
                     </Card>
                 </div>

@@ -753,12 +753,12 @@ export default function MyBookings() {
                           {payOnlineMutation.isPending ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Processing...
+                              Processing…
                             </>
                           ) : (
                             <>
                               <CreditCard className="mr-2 h-4 w-4" />
-                              Pay Online
+                              Pay online
                             </>
                           )}
                         </Button>
@@ -947,7 +947,7 @@ export default function MyBookings() {
                           }}
                           disabled={payOnlineMutation.isPending}
                         >
-                          {payOnlineMutation.isPending ? "Processing..." : "Pay Online"}
+                          {payOnlineMutation.isPending ? "Processing…" : "Pay online"}
                         </Button>
                       )}
 
@@ -962,7 +962,7 @@ export default function MyBookings() {
                           }}
                           disabled={payOnlineMutation.isPending}
                         >
-                          {payOnlineMutation.isPending ? "Processing..." : "Pay Online"}
+                          {payOnlineMutation.isPending ? "Processing…" : "Pay online"}
                         </Button>
                       )}
 
@@ -1046,7 +1046,7 @@ export default function MyBookings() {
                     <Label htmlFor="visitor-phone">Phone Number *</Label>
                     <Input
                       id="visitor-phone"
-                      placeholder="+265..."
+                      placeholder="+265…"
                       value={newBooking.visitorPhone}
                       onChange={(e) => setNewBooking({ ...newBooking, visitorPhone: e.target.value })}
                       data-testid="input-visitor-phone"
@@ -1242,7 +1242,7 @@ export default function MyBookings() {
                   <Label htmlFor="special-requests">Special Requests or Accessibility Needs</Label>
                   <Textarea
                     id="special-requests"
-                    placeholder="Any special requirements, interests, or accessibility needs..."
+                    placeholder="Any special requirements, interests, or accessibility needs…"
                     value={newBooking.specialRequests}
                     onChange={(e) => setNewBooking({ ...newBooking, specialRequests: e.target.value })}
                     data-testid="textarea-special-requests"

@@ -15,20 +15,29 @@ import {
   insertAllowedIpSchema,
   insertAnalyticsSettingsSchema,
   insertBlogPostSchema,
+  insertRecurringBookingSchema,
+  insertEmailTemplateSchema,
   type UserRole,
   type Booking,
+  type Guide,
+  type RecurringBooking,
+  type SupportTicket,
+  type User,
+  type Incident,
 } from "@shared/schema";
 import { generateIcalFeed, parseIcalFeed } from "./lib/ical";
 import { z } from "zod";
 import {
-  sendBookingConfirmation,
-  sendStatusUpdate,
+  sendBookingConfirmationDetailed,
+  sendStatusUpdateDetailed,
   sendCustomEmail,
-  sendGuideAssignment,
-  sendCheckInNotification,
-  sendPasswordReset,
-  sendInvitationEmail,
-  sendItineraryEmail
+  sendCustomEmailDetailed,
+  sendGuideAssignmentDetailed,
+  sendCheckInNotificationDetailed,
+  sendPasswordResetDetailed,
+  sendInvitationEmailDetailed,
+  sendItineraryEmailDetailed,
+  sendBookingReminderEmailDetailed
 } from "./email";
 import {
   notifyBookingCreated,
@@ -45,10 +54,948 @@ import { logError } from "./utils/errors";
 import { logger } from "./lib/logger";
 import { suggestGuides, getTopReason } from "./lib/guide-suggestion";
 import { checkAndSendDueReminders } from "./lib/reminder-scheduler";
+import { sendAutomatedTemplateEmail } from "./lib/automated-email";
 import crypto from "crypto";
 
 const dateSortValue = (date: string | Date | null | undefined) =>
   date ? new Date(date).getTime() : 0;
+
+const PUBLIC_APP_URL = (process.env.APP_URL || "https://visit.dzaleka.com").replace(/\/$/, "");
+
+const TEMPLATE_SAMPLE_DATA: Record<string, string> = {
+  visitor_name: "Amina Banda",
+  visitor_email: "amina@example.com",
+  visit_date: "2026-05-15",
+  visit_time: "10:00",
+  tour_type: "standard tour",
+  group_size: "Small group",
+  number_of_people: "4",
+  meeting_point: "Dzaleka Main Gate",
+  guide_name: "Joseph Mwale",
+  total_amount: "120,000",
+  booking_id: "DVS-2026-SAMPLE",
+  booking_reference: "DVS-2026-SAMPLE",
+  old_status: "pending",
+  new_status: "confirmed",
+  admin_notes: "Please arrive 10 minutes early.",
+  guide_phone: "+265 999 000 000",
+  check_in_time: "09:52",
+  old_visit_date: "2026-05-14",
+  old_visit_time: "09:00",
+  new_visit_date: "2026-05-15",
+  new_visit_time: "10:00",
+  feedback_link: `${PUBLIC_APP_URL}/visit/feedback?booking=DVS-2026-SAMPLE`,
+  visitor_phone: "+265 888 123 456",
+  visitor_organization: "Sample University",
+  selected_zones: "Market, Education Center",
+  special_requests: "Vegetarian lunch preferred",
+  accessibility_needs: "Step-free meeting point preferred",
+  cancellation_reason: "Visitor schedule changed",
+  reschedule_link: `${PUBLIC_APP_URL}/my-bookings`,
+  payment_method: "card",
+  payment_reference: "pi_sample_123",
+  paid_at: "2026-05-15 10:20",
+  ticket_id: "TKT-SAMPLE",
+  ticket_subject: "Question about arrival time",
+  ticket_status: "open",
+  support_link: `${PUBLIC_APP_URL}/help`,
+  old_guide_name: "Joseph Mwale",
+  new_guide_name: "Grace Phiri",
+  assignment_change: "Guide assignment updated",
+  incident_title: "Late arrival safety concern",
+  incident_severity: "high",
+  incident_location: "Dzaleka Main Gate",
+  incident_reporter: "Amina Banda",
+  rating: "3",
+  generated_count: "4",
+  generated_dates: "2026-05-15, 2026-05-22, 2026-05-29, 2026-06-05",
+  training_percentage: "75",
+  incomplete_modules: "Safety briefing, visitor care",
+  verification_link: `${PUBLIC_APP_URL}/verify-email?token=sample`,
+};
+
+const resendEventStatusMap: Record<string, string> = {
+  "email.sent": "accepted",
+  "email.delivered": "delivered",
+  "email.delivery_delayed": "accepted",
+  "email.bounced": "bounced",
+  "email.complained": "complaint",
+  "email.failed": "failed",
+};
+
+function renderTemplateText(value: string, data: Record<string, string> = TEMPLATE_SAMPLE_DATA) {
+  return value.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => data[key] ?? `{{${key}}}`);
+}
+
+function buildBookingTemplateData(
+  booking: Booking,
+  extras: Record<string, string | number | null | undefined> = {}
+) {
+  return {
+    visitor_name: booking.visitorName,
+    visitor_email: booking.visitorEmail,
+    booking_id: booking.bookingReference || booking.id,
+    booking_reference: booking.bookingReference || booking.id,
+    visitor_phone: booking.visitorPhone || "",
+    visitor_organization: booking.visitorOrganization || "",
+    visit_date: booking.visitDate,
+    visit_time: booking.visitTime,
+    tour_type: String(booking.tourType || "").replace(/_/g, " "),
+    group_size: booking.groupSize || "",
+    number_of_people: booking.numberOfPeople || 1,
+    total_amount: booking.totalAmount || 0,
+    status: booking.status || "",
+    payment_status: booking.paymentStatus || "",
+    selected_zones: Array.isArray(booking.selectedZones) ? booking.selectedZones.join(", ") : "",
+    special_requests: booking.specialRequests || "",
+    accessibility_needs: booking.accessibilityNeeds || "",
+    ...extras,
+  };
+}
+
+function buildEmailLogMetadata(
+  booking: Booking,
+  templateInfo: { templateId?: string; templateSource?: string },
+  extra: Record<string, unknown> = {}
+) {
+  return {
+    bookingReference: booking.bookingReference,
+    templateId: templateInfo.templateId,
+    templateSource: templateInfo.templateSource,
+    ...extra,
+  };
+}
+
+async function resolveGuideEmail(guide: Guide) {
+  if (guide.email) return guide.email;
+  if (!guide.userId) return null;
+
+  const user = await storage.getUser(guide.userId);
+  return user?.email || null;
+}
+
+function getDisplayName(user?: Pick<User, "firstName" | "lastName" | "email"> | null) {
+  const name = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
+  return name || user?.email || "Visit Dzaleka user";
+}
+
+function formatMwk(amount?: number | null) {
+  return new Intl.NumberFormat("en-MW", {
+    style: "currency",
+    currency: "MWK",
+    maximumFractionDigits: 0,
+  }).format(amount || 0);
+}
+
+async function getInternalEmailRecipients(roles: UserRole[]) {
+  const roleSet = new Set(roles);
+  const users = await storage.getUsers();
+  return users.filter(
+    (user) => user.email
+      && roleSet.has((user.role || "visitor") as UserRole)
+      && user.emailNotifications !== false
+  );
+}
+
+async function sendLoggedTemplateEmail(options: {
+  templateName: string;
+  recipientName: string;
+  recipientEmail: string;
+  data: Record<string, string | number | null | undefined>;
+  fallbackSubject: string;
+  fallbackMessage: string;
+  templateType?: string;
+  relatedEntityType?: string;
+  relatedEntityId?: string;
+  sentBy?: string | null;
+  metadata?: Record<string, unknown>;
+}) {
+  const email = await sendAutomatedTemplateEmail({
+    templateName: options.templateName,
+    recipientName: options.recipientName,
+    recipientEmail: options.recipientEmail,
+    data: options.data,
+    fallbackSubject: options.fallbackSubject,
+    fallbackMessage: options.fallbackMessage,
+    fallbackSend: () => sendCustomEmailDetailed({
+      recipientName: options.recipientName,
+      recipientEmail: options.recipientEmail,
+      subject: options.fallbackSubject,
+      message: options.fallbackMessage,
+      senderName: "Visit Dzaleka Team",
+    }),
+  });
+
+  await storage.createEmailLog({
+    sentBy: options.sentBy || undefined,
+    recipientName: options.recipientName,
+    recipientEmail: options.recipientEmail,
+    subject: email.subject,
+    message: email.message,
+    templateType: options.templateType || options.templateName,
+    status: email.result.success ? "accepted" : "failed",
+    errorMessage: email.result.error,
+    providerMessageId: email.result.messageId,
+    relatedEntityType: options.relatedEntityType,
+    relatedEntityId: options.relatedEntityId,
+    metadata: {
+      templateId: email.templateId,
+      templateSource: email.templateSource,
+      ...options.metadata,
+    },
+  });
+
+  return email.result;
+}
+
+async function sendBookingCancelledEmail(booking: Booking, reason = "Cancelled by staff", sentBy?: string | null) {
+  const guide = booking.assignedGuideId ? await storage.getGuide(booking.assignedGuideId) : null;
+  const meetingPoint = booking.meetingPointId ? await storage.getMeetingPoint(booking.meetingPointId) : null;
+  const guideName = guide ? `${guide.firstName} ${guide.lastName}` : "";
+  const rescheduleLink = `${PUBLIC_APP_URL}/my-bookings`;
+
+  const visitorResult = await sendLoggedTemplateEmail({
+    templateName: "booking_cancelled",
+    recipientName: booking.visitorName,
+    recipientEmail: booking.visitorEmail,
+    data: buildBookingTemplateData(booking, {
+      cancellation_reason: reason,
+      reschedule_link: rescheduleLink,
+      meeting_point: meetingPoint?.name,
+      guide_name: guideName,
+    }),
+    fallbackSubject: `Booking cancelled - ${booking.bookingReference}`,
+    fallbackMessage: [
+      `Dear ${booking.visitorName},`,
+      "",
+      `Your Visit Dzaleka booking ${booking.bookingReference} has been cancelled.`,
+      `Reason: ${reason}`,
+      "",
+      `Original date/time: ${booking.visitDate} at ${booking.visitTime}`,
+      meetingPoint?.name ? `Meeting point: ${meetingPoint.name}` : "",
+      "",
+      `To request another time, visit ${rescheduleLink} or reply to this email.`,
+      guideName ? `${guideName} has also been released from this assignment.` : "",
+      "",
+      "Best regards,",
+      "Visit Dzaleka Team",
+    ].filter(Boolean).join("\n"),
+    relatedEntityType: "booking",
+    relatedEntityId: booking.id,
+    sentBy,
+    metadata: { bookingReference: booking.bookingReference, reason },
+  });
+
+  if (guide) {
+    const guideEmail = await resolveGuideEmail(guide);
+    if (guideEmail) {
+      await sendLoggedTemplateEmail({
+        templateName: "booking_cancelled",
+        recipientName: guideName,
+        recipientEmail: guideEmail,
+        data: buildBookingTemplateData(booking, {
+          cancellation_reason: reason,
+          reschedule_link: `${PUBLIC_APP_URL}/calendar`,
+          meeting_point: meetingPoint?.name,
+          guide_name: guideName,
+        }),
+        fallbackSubject: `Tour cancelled - ${booking.bookingReference}`,
+        fallbackMessage: [
+          `Hello ${guideName},`,
+          "",
+          `Booking ${booking.bookingReference} has been cancelled and you are released from this assignment.`,
+          `Visitor: ${booking.visitorName}`,
+          `Original date/time: ${booking.visitDate} at ${booking.visitTime}`,
+          `Reason: ${reason}`,
+          "",
+          "No guide action is needed unless staff contact you.",
+        ].join("\n"),
+        relatedEntityType: "booking",
+        relatedEntityId: booking.id,
+        sentBy,
+        metadata: { bookingReference: booking.bookingReference, reason, audience: "guide" },
+      });
+    }
+  }
+
+  return visitorResult;
+}
+
+async function sendPaymentReceiptEmail(booking: Booking, sentBy?: string | null) {
+  return sendLoggedTemplateEmail({
+    templateName: "payment_receipt",
+    recipientName: booking.visitorName,
+    recipientEmail: booking.visitorEmail,
+    data: buildBookingTemplateData(booking, {
+      total_amount: formatMwk(booking.totalAmount || 0),
+      payment_method: String(booking.paymentMethod || "cash").replace(/_/g, " "),
+      payment_reference: booking.paymentReference || booking.bookingReference,
+      paid_at: booking.paymentVerifiedAt ? new Date(booking.paymentVerifiedAt).toLocaleString() : new Date().toLocaleString(),
+    }),
+    fallbackSubject: `Payment receipt - ${booking.bookingReference}`,
+    fallbackMessage: [
+      `Dear ${booking.visitorName},`,
+      "",
+      `We have received payment for booking ${booking.bookingReference}.`,
+      `Amount: ${formatMwk(booking.totalAmount || 0)}`,
+      `Payment method: ${String(booking.paymentMethod || "cash").replace(/_/g, " ")}`,
+      booking.paymentReference ? `Reference: ${booking.paymentReference}` : "",
+      "",
+      "Thank you for supporting Visit Dzaleka.",
+    ].filter(Boolean).join("\n"),
+    relatedEntityType: "booking",
+    relatedEntityId: booking.id,
+    sentBy,
+    metadata: { bookingReference: booking.bookingReference },
+  });
+}
+
+async function sendSupportTicketCreatedEmail(ticket: SupportTicket, user: User, sentBy?: string | null) {
+  const supportLink = `${PUBLIC_APP_URL}/help`;
+  return sendLoggedTemplateEmail({
+    templateName: "support_ticket_created",
+    recipientName: getDisplayName(user),
+    recipientEmail: user.email!,
+    data: {
+      ticket_id: ticket.id,
+      ticket_subject: ticket.subject,
+      ticket_status: ticket.status || "open",
+      support_link: supportLink,
+    },
+    fallbackSubject: `Support ticket received - ${ticket.subject}`,
+    fallbackMessage: [
+      `Hello ${getDisplayName(user)},`,
+      "",
+      "We received your support ticket and our team will review it.",
+      `Subject: ${ticket.subject}`,
+      `Status: ${ticket.status || "open"}`,
+      "",
+      `You can view your tickets here: ${supportLink}`,
+    ].join("\n"),
+    relatedEntityType: "support_ticket",
+    relatedEntityId: ticket.id,
+    sentBy,
+  });
+}
+
+async function sendSupportTicketResolvedEmail(ticket: SupportTicket, user: User, sentBy?: string | null) {
+  const supportLink = `${PUBLIC_APP_URL}/help`;
+  return sendLoggedTemplateEmail({
+    templateName: "support_ticket_resolved",
+    recipientName: getDisplayName(user),
+    recipientEmail: user.email!,
+    data: {
+      ticket_id: ticket.id,
+      ticket_subject: ticket.subject,
+      ticket_status: ticket.status || "resolved",
+      admin_notes: ticket.adminNotes || "",
+      support_link: supportLink,
+    },
+    fallbackSubject: `Support ticket resolved - ${ticket.subject}`,
+    fallbackMessage: [
+      `Hello ${getDisplayName(user)},`,
+      "",
+      `Your support ticket has been marked ${ticket.status || "resolved"}.`,
+      `Subject: ${ticket.subject}`,
+      ticket.adminNotes ? `Team note: ${ticket.adminNotes}` : "",
+      "",
+      `You can review it here: ${supportLink}`,
+    ].filter(Boolean).join("\n"),
+    relatedEntityType: "support_ticket",
+    relatedEntityId: ticket.id,
+    sentBy,
+  });
+}
+
+async function sendIncidentAlertEmail(incident: Incident, reporterName: string, sentBy?: string | null) {
+  const recipients = await getInternalEmailRecipients(["admin", "coordinator", "security"]);
+  await Promise.all(recipients.map((recipient) => sendLoggedTemplateEmail({
+    templateName: "incident_alert",
+    recipientName: getDisplayName(recipient),
+    recipientEmail: recipient.email!,
+    data: {
+      incident_title: incident.title,
+      incident_severity: incident.severity || "medium",
+      incident_location: incident.location || "",
+      incident_reporter: reporterName,
+      admin_notes: incident.description,
+      support_link: `${PUBLIC_APP_URL}/security`,
+    },
+    fallbackSubject: `Incident alert: ${incident.severity || "medium"} - ${incident.title}`,
+    fallbackMessage: [
+      `Incident severity: ${incident.severity || "medium"}`,
+      `Title: ${incident.title}`,
+      incident.location ? `Location: ${incident.location}` : "",
+      `Reported by: ${reporterName}`,
+      "",
+      incident.description,
+      "",
+      `${PUBLIC_APP_URL}/security`,
+    ].filter(Boolean).join("\n"),
+    relatedEntityType: "incident",
+    relatedEntityId: incident.id,
+    sentBy,
+  })));
+}
+
+async function sendLowRatingAlertEmail(booking: Booking, guideName: string, rating: number, sentBy?: string | null) {
+  const recipients = await getInternalEmailRecipients(["admin", "coordinator"]);
+  await Promise.all(recipients.map((recipient) => sendLoggedTemplateEmail({
+    templateName: "low_rating_alert",
+    recipientName: getDisplayName(recipient),
+    recipientEmail: recipient.email!,
+    data: buildBookingTemplateData(booking, {
+      guide_name: guideName,
+      rating,
+      support_link: `${PUBLIC_APP_URL}/guide-performance`,
+    }),
+    fallbackSubject: `Low rating alert - ${guideName}`,
+    fallbackMessage: [
+      `${guideName} received a ${rating}/5 rating from ${booking.visitorName}.`,
+      `Booking: ${booking.bookingReference}`,
+      `Visit date: ${booking.visitDate}`,
+      "",
+      `${PUBLIC_APP_URL}/guide-performance`,
+    ].join("\n"),
+    relatedEntityType: "booking",
+    relatedEntityId: booking.id,
+    sentBy,
+    metadata: { guideName, rating },
+  })));
+}
+
+async function sendGuideAssignmentChangedEmails(
+  booking: Booking,
+  oldGuide: Guide | undefined,
+  newGuide: Guide | undefined,
+  meetingPointName?: string | null,
+  sentBy?: string | null
+) {
+  const oldGuideName = oldGuide ? `${oldGuide.firstName} ${oldGuide.lastName}` : "";
+  const newGuideName = newGuide ? `${newGuide.firstName} ${newGuide.lastName}` : "";
+
+  await sendLoggedTemplateEmail({
+    templateName: "guide_assignment_changed",
+    recipientName: booking.visitorName,
+    recipientEmail: booking.visitorEmail,
+    data: buildBookingTemplateData(booking, {
+      old_guide_name: oldGuideName,
+      new_guide_name: newGuideName,
+      meeting_point: meetingPointName || "",
+      assignment_change: "Your guide assignment changed",
+    }),
+    fallbackSubject: `Guide updated - ${booking.bookingReference}`,
+    fallbackMessage: [
+      `Dear ${booking.visitorName},`,
+      "",
+      `Your guide for booking ${booking.bookingReference} has changed.`,
+      oldGuideName ? `Previous guide: ${oldGuideName}` : "",
+      newGuideName ? `New guide: ${newGuideName}` : "",
+      meetingPointName ? `Meeting point: ${meetingPointName}` : "",
+      "",
+      "Your date and time remain the same unless we have told you otherwise.",
+    ].filter(Boolean).join("\n"),
+    relatedEntityType: "booking",
+    relatedEntityId: booking.id,
+    sentBy,
+    metadata: { oldGuideId: oldGuide?.id, newGuideId: newGuide?.id, audience: "visitor" },
+  });
+
+  if (oldGuide) {
+    const oldGuideEmail = await resolveGuideEmail(oldGuide);
+    if (oldGuideEmail) {
+      await sendLoggedTemplateEmail({
+        templateName: "guide_assignment_changed",
+        recipientName: oldGuideName,
+        recipientEmail: oldGuideEmail,
+        data: buildBookingTemplateData(booking, {
+          guide_name: oldGuideName,
+          old_guide_name: oldGuideName,
+          new_guide_name: newGuideName,
+          meeting_point: meetingPointName || "",
+          assignment_change: "You have been released from this tour",
+        }),
+        fallbackSubject: `Tour assignment released - ${booking.bookingReference}`,
+        fallbackMessage: [
+          `Hello ${oldGuideName},`,
+          "",
+          `You have been released from booking ${booking.bookingReference}.`,
+          `Visitor: ${booking.visitorName}`,
+          `Date/time: ${booking.visitDate} at ${booking.visitTime}`,
+          "",
+          "You no longer need to prepare for this assignment.",
+        ].join("\n"),
+        relatedEntityType: "booking",
+        relatedEntityId: booking.id,
+        sentBy,
+        metadata: { oldGuideId: oldGuide.id, newGuideId: newGuide?.id, audience: "old_guide" },
+      });
+    }
+  }
+}
+
+async function sendRecurringBookingGeneratedEmails(
+  recurring: RecurringBooking,
+  bookings: Booking[],
+  sentBy?: string | null
+) {
+  if (bookings.length === 0) return;
+
+  const generatedDates = bookings.map((booking) => `${booking.visitDate} ${booking.visitTime}`).join(", ");
+  const recipients = await getInternalEmailRecipients(["admin", "coordinator"]);
+  await Promise.all(recipients.map((recipient) => sendLoggedTemplateEmail({
+    templateName: "recurring_booking_generated",
+    recipientName: getDisplayName(recipient),
+    recipientEmail: recipient.email!,
+    data: {
+      visitor_name: recurring.visitorName,
+      visitor_email: recurring.visitorEmail,
+      generated_count: bookings.length,
+      generated_dates: generatedDates,
+      support_link: `${PUBLIC_APP_URL}/recurring-bookings`,
+    },
+    fallbackSubject: `${bookings.length} recurring booking${bookings.length === 1 ? "" : "s"} generated`,
+    fallbackMessage: [
+      `${bookings.length} confirmed booking${bookings.length === 1 ? "" : "s"} were generated for ${recurring.visitorName}.`,
+      `Schedule: ${recurring.frequency}`,
+      `Dates: ${generatedDates}`,
+      "",
+      `${PUBLIC_APP_URL}/recurring-bookings`,
+    ].join("\n"),
+    relatedEntityType: "recurring_booking",
+    relatedEntityId: recurring.id,
+    sentBy,
+  })));
+
+  if (recurring.visitorEmail) {
+    await sendLoggedTemplateEmail({
+      templateName: "recurring_booking_generated",
+      recipientName: recurring.visitorName,
+      recipientEmail: recurring.visitorEmail,
+      data: {
+        visitor_name: recurring.visitorName,
+        visitor_email: recurring.visitorEmail,
+        generated_count: bookings.length,
+        generated_dates: generatedDates,
+        support_link: `${PUBLIC_APP_URL}/my-bookings`,
+      },
+      fallbackSubject: `Recurring Visit Dzaleka bookings confirmed`,
+      fallbackMessage: [
+        `Dear ${recurring.visitorName},`,
+        "",
+        `${bookings.length} upcoming Visit Dzaleka booking${bookings.length === 1 ? " has" : "s have"} been generated for your recurring schedule.`,
+        `Dates: ${generatedDates}`,
+        "",
+        "Please reply if any of these dates need to change.",
+      ].join("\n"),
+      relatedEntityType: "recurring_booking",
+      relatedEntityId: recurring.id,
+      sentBy,
+      metadata: { audience: "visitor_or_org" },
+    });
+  }
+}
+
+async function sendGuideTrainingReminderEmail(guide: Guide, sentBy?: string | null) {
+  const guideEmail = await resolveGuideEmail(guide);
+  if (!guideEmail) return null;
+
+  const [stats, modules, progress] = await Promise.all([
+    storage.getGuideTrainingStats(guide.id),
+    storage.getTrainingModules(),
+    storage.getGuideTrainingProgress(guide.id),
+  ]);
+
+  const completedModuleIds = new Set(
+    progress
+      .filter((item) => item.status === "completed")
+      .map((item) => item.moduleId)
+  );
+  const incompleteModules = modules
+    .filter((module) => module.isActive && module.isRequired && (module.targetAudience === "guide" || module.targetAudience === "both"))
+    .filter((module) => !completedModuleIds.has(module.id))
+    .map((module) => module.title)
+    .join(", ");
+
+  const guideName = `${guide.firstName} ${guide.lastName}`.trim();
+  return sendLoggedTemplateEmail({
+    templateName: "guide_training_reminder",
+    recipientName: guideName,
+    recipientEmail: guideEmail,
+    data: {
+      guide_name: guideName,
+      training_percentage: stats.percentage,
+      incomplete_modules: incompleteModules || "No required modules outstanding",
+      support_link: `${PUBLIC_APP_URL}/guide-training`,
+    },
+    fallbackSubject: "Training reminder - Visit Dzaleka",
+    fallbackMessage: [
+      `Hello ${guideName},`,
+      "",
+      `Your required guide training is ${stats.percentage}% complete.`,
+      incompleteModules ? `Please complete: ${incompleteModules}.` : "All required modules are complete.",
+      "",
+      `${PUBLIC_APP_URL}/guide-training`,
+    ].join("\n"),
+    relatedEntityType: "guide",
+    relatedEntityId: guide.id,
+    sentBy,
+  });
+}
+
+async function sendWelcomeOrVerificationEmail(user: User, sentBy?: string | null) {
+  if (!user.email) return;
+
+  const token = crypto.randomBytes(32).toString("hex");
+  const expires = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
+  await storage.setEmailVerificationToken(user.id, token, expires);
+  const verificationLink = `${PUBLIC_APP_URL}/verify-email?token=${encodeURIComponent(token)}`;
+
+  return sendLoggedTemplateEmail({
+    templateName: "welcome_or_email_verification",
+    recipientName: getDisplayName(user),
+    recipientEmail: user.email,
+    data: {
+      visitor_name: getDisplayName(user),
+      visitor_email: user.email,
+      verification_link: verificationLink,
+      support_link: `${PUBLIC_APP_URL}/help`,
+    },
+    fallbackSubject: "Welcome to Visit Dzaleka – Planning Your Visit",
+    fallbackMessage: [
+      `Hi ${getDisplayName(user)},`,
+      "",
+      "Thank you for signing up with Visit Dzaleka! We’re excited to share the stories, culture, and community of Dzaleka Refugee Camp with you.",
+      "",
+      "We’d love to hear if you’re planning a visit soon and help you make the most of your experience. From guided tours to community activities, we can tailor your visit to suit your interests.",
+      "",
+      "Feel free to reply to this email with your travel plans or any questions you have, and we’ll help you get started.",
+      "",
+      "Looking forward to welcoming you to Dzaleka!",
+      "",
+      "You can verify your account here:",
+      verificationLink,
+      "",
+      "Kind regards,",
+      "Bakari Mustafa",
+      "Visit Dzaleka Team",
+    ].join("\n"),
+    relatedEntityType: "user",
+    relatedEntityId: user.id,
+    sentBy,
+  });
+}
+
+async function sendBookingRescheduledEmail(booking: Booking, oldBooking: Booking, sentBy?: string | null) {
+  const meetingPoint = booking.meetingPointId
+    ? await storage.getMeetingPoint(booking.meetingPointId)
+    : null;
+  const guide = booking.assignedGuideId
+    ? await storage.getGuide(booking.assignedGuideId)
+    : null;
+  const guideName = guide ? `${guide.firstName} ${guide.lastName}` : "";
+  const oldVisitTime = oldBooking.visitTime || "";
+  const newVisitTime = booking.visitTime || "";
+
+  const email = await sendAutomatedTemplateEmail({
+    templateName: "booking_rescheduled",
+    recipientName: booking.visitorName,
+    recipientEmail: booking.visitorEmail,
+    data: buildBookingTemplateData(booking, {
+      old_visit_date: oldBooking.visitDate,
+      old_visit_time: oldVisitTime,
+      new_visit_date: booking.visitDate,
+      new_visit_time: newVisitTime,
+      meeting_point: meetingPoint?.name,
+      guide_name: guideName,
+    }),
+    fallbackSubject: `Booking Rescheduled - ${booking.bookingReference}`,
+    fallbackMessage: [
+      `Dear ${booking.visitorName},`,
+      "",
+      `Your Visit Dzaleka booking ${booking.bookingReference} has been rescheduled.`,
+      "",
+      `Previous date/time: ${oldBooking.visitDate} at ${oldVisitTime}`,
+      `New date/time: ${booking.visitDate} at ${newVisitTime}`,
+      meetingPoint?.name ? `Meeting point: ${meetingPoint.name}` : "",
+      guideName ? `Guide: ${guideName}` : "",
+      "",
+      "If this new time does not work for you, please reply to this email as soon as possible.",
+      "",
+      "Best regards,",
+      "Visit Dzaleka Team",
+    ].filter(Boolean).join("\n"),
+    fallbackSend: () => sendCustomEmailDetailed({
+      recipientName: booking.visitorName,
+      recipientEmail: booking.visitorEmail,
+      subject: `Booking Rescheduled - ${booking.bookingReference}`,
+      message: [
+        `Your Visit Dzaleka booking ${booking.bookingReference} has been rescheduled.`,
+        "",
+        `Previous date/time: ${oldBooking.visitDate} at ${oldVisitTime}`,
+        `New date/time: ${booking.visitDate} at ${newVisitTime}`,
+        meetingPoint?.name ? `Meeting point: ${meetingPoint.name}` : "",
+        guideName ? `Guide: ${guideName}` : "",
+        "",
+        "If this new time does not work for you, please reply to this email as soon as possible.",
+      ].filter(Boolean).join("\n"),
+      senderName: "Visit Dzaleka Team",
+    }),
+  });
+
+  await storage.createEmailLog({
+    sentBy: sentBy || undefined,
+    recipientName: booking.visitorName,
+    recipientEmail: booking.visitorEmail,
+    subject: email.subject,
+    message: email.message,
+    templateType: "booking_rescheduled",
+    status: email.result.success ? "accepted" : "failed",
+    errorMessage: email.result.error,
+    providerMessageId: email.result.messageId,
+    relatedEntityType: "booking",
+    relatedEntityId: booking.id,
+    metadata: buildEmailLogMetadata(booking, email, {
+      oldVisitDate: oldBooking.visitDate,
+      oldVisitTime,
+      newVisitDate: booking.visitDate,
+      newVisitTime,
+    }),
+  });
+
+  if (guide) {
+    const guideEmail = await resolveGuideEmail(guide);
+    if (guideEmail) {
+      await sendLoggedTemplateEmail({
+        templateName: "booking_rescheduled",
+        recipientName: guideName,
+        recipientEmail: guideEmail,
+        data: buildBookingTemplateData(booking, {
+          old_visit_date: oldBooking.visitDate,
+          old_visit_time: oldVisitTime,
+          new_visit_date: booking.visitDate,
+          new_visit_time: newVisitTime,
+          meeting_point: meetingPoint?.name,
+          guide_name: guideName,
+        }),
+        fallbackSubject: `Tour rescheduled - ${booking.bookingReference}`,
+        fallbackMessage: [
+          `Hello ${guideName},`,
+          "",
+          `A tour assigned to you has been rescheduled.`,
+          `Visitor: ${booking.visitorName}`,
+          `Previous date/time: ${oldBooking.visitDate} at ${oldVisitTime}`,
+          `New date/time: ${booking.visitDate} at ${newVisitTime}`,
+          meetingPoint?.name ? `Meeting point: ${meetingPoint.name}` : "",
+          "",
+          "Please review your tour schedule.",
+        ].filter(Boolean).join("\n"),
+        relatedEntityType: "booking",
+        relatedEntityId: booking.id,
+        sentBy,
+        metadata: {
+          bookingReference: booking.bookingReference,
+          audience: "guide",
+          oldVisitDate: oldBooking.visitDate,
+          oldVisitTime,
+          newVisitDate: booking.visitDate,
+          newVisitTime,
+        },
+      });
+    }
+  }
+
+  return email.result;
+}
+
+async function sendFeedbackRequestEmail(booking: Booking, sentBy?: string | null) {
+  const guide = booking.assignedGuideId
+    ? await storage.getGuide(booking.assignedGuideId)
+    : null;
+  const guideName = guide ? `${guide.firstName} ${guide.lastName}` : "";
+  const appUrl = PUBLIC_APP_URL;
+  const feedbackLink = `${appUrl.replace(/\/$/, "")}/visit/feedback?booking=${encodeURIComponent(booking.bookingReference || booking.id)}`;
+
+  const email = await sendAutomatedTemplateEmail({
+    templateName: "feedback_request",
+    recipientName: booking.visitorName,
+    recipientEmail: booking.visitorEmail,
+    data: buildBookingTemplateData(booking, {
+      guide_name: guideName,
+      feedback_link: feedbackLink,
+    }),
+    fallbackSubject: "How was your Visit Dzaleka experience?",
+    fallbackMessage: [
+      `Dear ${booking.visitorName},`,
+      "",
+      `Thank you for visiting Dzaleka Refugee Camp on ${booking.visitDate}.`,
+      "",
+      "We hope you had a meaningful experience. Your feedback helps us improve and support future visitors.",
+      guideName ? `We would especially appreciate your thoughts about your guide, ${guideName}.` : "",
+      "",
+      `Share feedback: ${feedbackLink}`,
+      "",
+      "Warm regards,",
+      "Visit Dzaleka Team",
+    ].filter(Boolean).join("\n"),
+    fallbackSend: () => sendCustomEmailDetailed({
+      recipientName: booking.visitorName,
+      recipientEmail: booking.visitorEmail,
+      subject: "How was your Visit Dzaleka experience?",
+      message: [
+        `Thank you for visiting Dzaleka Refugee Camp on ${booking.visitDate}.`,
+        "",
+        "We hope you had a meaningful experience. Your feedback helps us improve and support future visitors.",
+        guideName ? `We would especially appreciate your thoughts about your guide, ${guideName}.` : "",
+        "",
+        `Share feedback: ${feedbackLink}`,
+      ].filter(Boolean).join("\n"),
+      senderName: "Visit Dzaleka Team",
+    }),
+  });
+
+  await storage.createEmailLog({
+    sentBy: sentBy || undefined,
+    recipientName: booking.visitorName,
+    recipientEmail: booking.visitorEmail,
+    subject: email.subject,
+    message: email.message,
+    templateType: "feedback_request",
+    status: email.result.success ? "accepted" : "failed",
+    errorMessage: email.result.error,
+    providerMessageId: email.result.messageId,
+    relatedEntityType: "booking",
+    relatedEntityId: booking.id,
+    metadata: buildEmailLogMetadata(booking, email, { feedbackLink }),
+  });
+
+  return email.result;
+}
+
+async function sendGuideTourAssignmentEmail(
+  booking: Booking,
+  guide: Guide,
+  meetingPointName?: string | null,
+  sentBy?: string | null
+) {
+  const guideEmail = await resolveGuideEmail(guide);
+  if (!guideEmail) return null;
+
+  const guideName = `${guide.firstName} ${guide.lastName}`;
+  const email = await sendAutomatedTemplateEmail({
+    templateName: "guide_tour_assignment",
+    recipientName: guideName,
+    recipientEmail: guideEmail,
+    data: buildBookingTemplateData(booking, {
+      guide_name: guideName,
+      guide_phone: guide.phone,
+      meeting_point: meetingPointName || "",
+    }),
+    fallbackSubject: `New Tour Assignment - ${booking.bookingReference}`,
+    fallbackMessage: [
+      `Hello ${guideName},`,
+      "",
+      "You have been assigned to a Visit Dzaleka tour.",
+      "",
+      `Reference: ${booking.bookingReference}`,
+      `Visitor: ${booking.visitorName}`,
+      `Date: ${booking.visitDate}`,
+      `Time: ${booking.visitTime}`,
+      `Group size: ${booking.numberOfPeople || 1}`,
+      meetingPointName ? `Meeting point: ${meetingPointName}` : "",
+      booking.specialRequests ? `Special requests: ${booking.specialRequests}` : "",
+      booking.accessibilityNeeds ? `Accessibility needs: ${booking.accessibilityNeeds}` : "",
+      "",
+      "Please review the booking details before the tour.",
+    ].filter(Boolean).join("\n"),
+    fallbackSend: () => sendCustomEmailDetailed({
+      recipientName: guideName,
+      recipientEmail: guideEmail,
+      subject: `New Tour Assignment - ${booking.bookingReference}`,
+      message: [
+        "You have been assigned to a Visit Dzaleka tour.",
+        "",
+        `Reference: ${booking.bookingReference}`,
+        `Visitor: ${booking.visitorName}`,
+        `Date: ${booking.visitDate}`,
+        `Time: ${booking.visitTime}`,
+        `Group size: ${booking.numberOfPeople || 1}`,
+        meetingPointName ? `Meeting point: ${meetingPointName}` : "",
+        booking.specialRequests ? `Special requests: ${booking.specialRequests}` : "",
+        booking.accessibilityNeeds ? `Accessibility needs: ${booking.accessibilityNeeds}` : "",
+        "",
+        "Please review the booking details before the tour.",
+      ].filter(Boolean).join("\n"),
+      senderName: "Visit Dzaleka Team",
+    }),
+  });
+
+  await storage.createEmailLog({
+    sentBy: sentBy || undefined,
+    recipientName: guideName,
+    recipientEmail: guideEmail,
+    subject: email.subject,
+    message: email.message,
+    templateType: "guide_tour_assignment",
+    status: email.result.success ? "accepted" : "failed",
+    errorMessage: email.result.error,
+    providerMessageId: email.result.messageId,
+    relatedEntityType: "booking",
+    relatedEntityId: booking.id,
+    metadata: buildEmailLogMetadata(booking, email, { guideId: guide.id, audience: "guide" }),
+  });
+
+  return email.result;
+}
+
+function getHeaderValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function getSvixSecretBuffer(secret: string) {
+  return secret.startsWith("whsec_")
+    ? Buffer.from(secret.slice("whsec_".length), "base64")
+    : Buffer.from(secret, "utf8");
+}
+
+function hasMatchingSvixSignature(signatureHeader: string, expectedDigest: Buffer) {
+  return signatureHeader.split(" ").some((signaturePart) => {
+    const signature = signaturePart.includes(",")
+      ? signaturePart.split(",")[1]
+      : signaturePart.includes("=")
+        ? signaturePart.split("=")[1]
+        : signaturePart;
+    if (!signature) return false;
+
+    const actualDigest = Buffer.from(signature, "base64");
+    return actualDigest.length === expectedDigest.length
+      && crypto.timingSafeEqual(actualDigest, expectedDigest);
+  });
+}
+
+function verifyResendWebhookSignature(req: Request, secret: string) {
+  const rawBody = (req as any).rawBody as Buffer | undefined;
+  const svixId = getHeaderValue(req.headers["svix-id"]);
+  const svixTimestamp = getHeaderValue(req.headers["svix-timestamp"]);
+  const svixSignature = getHeaderValue(req.headers["svix-signature"]);
+
+  if (!rawBody || !svixId || !svixTimestamp || !svixSignature) {
+    return false;
+  }
+
+  const timestampMs = Number(svixTimestamp) * 1000;
+  if (!Number.isFinite(timestampMs) || Math.abs(Date.now() - timestampMs) > 5 * 60 * 1000) {
+    return false;
+  }
+
+  const signedPayload = `${svixId}.${svixTimestamp}.${rawBody.toString("utf8")}`;
+  const expectedDigest = crypto
+    .createHmac("sha256", getSvixSecretBuffer(secret))
+    .update(signedPayload)
+    .digest();
+
+  return hasMatchingSvixSignature(svixSignature, expectedDigest);
+}
 
 // Auth schemas
 const registerSchema = z.object({
@@ -196,6 +1143,826 @@ async function createAuditLog(
   }
 }
 
+async function userCanAccessBooking(userId: string, booking: Booking): Promise<boolean> {
+  const user = await storage.getUser(userId);
+  if (!user) return false;
+
+  if (["admin", "coordinator", "security"].includes(user.role || "")) {
+    return true;
+  }
+
+  if (user.role === "visitor") {
+    return booking.visitorUserId === user.id || booking.visitorEmail === user.email;
+  }
+
+  if (user.role === "guide") {
+    const guide = await storage.getGuideByUserId(user.id);
+    return !!guide && guide.id === booking.assignedGuideId;
+  }
+
+  return false;
+}
+
+type GygPricingMode = "individual" | "group";
+type GygTimeMode = "time_point" | "time_period";
+type GygAvailabilityMode = "total" | "by_category";
+
+interface GygProductConfig {
+  productId: string;
+  pricingMode: GygPricingMode;
+  timeMode: GygTimeMode;
+  availabilityMode: GygAvailabilityMode;
+}
+
+interface GygReservationState {
+  reservationReference: string;
+  gygBookingReference: string;
+  productId: string;
+  dateTime: string;
+  visitDate: string;
+  visitTime: string;
+  pricingMode: GygPricingMode;
+  timeMode: GygTimeMode;
+  participantCount: number;
+  unitCount: number;
+  bookingItems: any[];
+  expiresAt: Date;
+  status: "reserved" | "booked" | "cancelled";
+}
+
+const gygReservations = new Map<string, GygReservationState>();
+const GYG_TIMEZONE_OFFSET = "+02:00";
+const GYG_PRODUCT_TITLE = "Dzaleka Refugee Camp Guided Walking Tour";
+const GYG_SUPPLIER_ID = process.env.GETYOURGUIDE_SUPPLIER_ID || "visit-dzaleka";
+const GYG_SUPPLIER_NAME = process.env.GETYOURGUIDE_SUPPLIER_NAME || "Visit Dzaleka";
+const GYG_DEFAULT_START_TIMES = (process.env.GETYOURGUIDE_START_TIMES || "09:00,14:00")
+  .split(",")
+  .map((time) => time.trim())
+  .filter(Boolean);
+const GYG_SUPPORTED_INDIVIDUAL_CATEGORIES = (process.env.GETYOURGUIDE_INDIVIDUAL_CATEGORIES || "ADULT,CHILD")
+  .split(",")
+  .map((category) => category.trim().toUpperCase())
+  .filter(Boolean);
+const GYG_BLOCKED_DATES = new Set(
+  (process.env.GETYOURGUIDE_UNAVAILABLE_DATES || "2026-05-27,2026-05-28")
+    .split(",")
+    .map((date) => date.trim())
+    .filter(Boolean)
+);
+const GYG_MAX_PEOPLE_PER_SLOT = Number(process.env.GETYOURGUIDE_MAX_CAPACITY || 20);
+const GYG_MAX_GROUPS_PER_SLOT = Number(process.env.GETYOURGUIDE_MAX_GROUPS_PER_SLOT || 2);
+const GYG_CUTOFF_SECONDS = Number(process.env.GETYOURGUIDE_CUTOFF_SECONDS || 3600);
+const GYG_CURRENCY = process.env.GETYOURGUIDE_CURRENCY || "MWK";
+const GYG_PRODUCT_TIMEZONE = process.env.GETYOURGUIDE_PRODUCT_TIMEZONE || "Africa/Blantyre";
+
+function getGygBaseProductId() {
+  return process.env.GETYOURGUIDE_EXTERNAL_PRODUCT_ID
+    || process.env.GETYOURGUIDE_PRODUCT_ID
+    || "dzaleka-refugee-camp-guided-walking-tour";
+}
+
+function getGygAvailabilityPushProductId() {
+  return process.env.GETYOURGUIDE_AVAILABILITY_PRODUCT_ID
+    || process.env.GETYOURGUIDE_NOTIFY_PRODUCT_ID
+    || process.env.GETYOURGUIDE_CONNECTED_PRODUCT_ID
+    || "";
+}
+
+function isLikelyPublicGygActivityId(productId: string) {
+  return /^\d+$/.test(productId.trim());
+}
+
+function getGygSelfTestProductIds() {
+  const base = getGygBaseProductId();
+  return {
+    timePointIndividual: `${base}-time-point-individual`,
+    timePointIndividualByCategory: `${base}-time-point-individual-by-category`,
+    timePointGroup: `${base}-time-point-group`,
+    timePeriodIndividual: `${base}-time-period-individual`,
+    timePeriodIndividualByCategory: `${base}-time-period-individual-by-category`,
+    timePeriodGroup: `${base}-time-period-group`,
+  };
+}
+
+function resolveGygProduct(productId?: string): GygProductConfig | null {
+  const rawProductId = (productId || "").trim();
+  if (!rawProductId || rawProductId.includes("%")) return null;
+
+  const base = getGygBaseProductId().toLowerCase();
+  const raw = rawProductId.toLowerCase();
+  const aliases = new Set([
+    base,
+    String(process.env.GETYOURGUIDE_PRODUCT_ID || "").toLowerCase(),
+    String(process.env.GETYOURGUIDE_ACTIVITY_ID || "").toLowerCase(),
+    String(process.env.GETYOURGUIDE_AVAILABILITY_PRODUCT_ID || "").toLowerCase(),
+    String(process.env.GETYOURGUIDE_NOTIFY_PRODUCT_ID || "").toLowerCase(),
+    String(process.env.GETYOURGUIDE_CONNECTED_PRODUCT_ID || "").toLowerCase(),
+    "1188868",
+  ].filter(Boolean));
+
+  const isKnownProduct = aliases.has(raw) || raw.startsWith(`${base}-`);
+  if (!isKnownProduct) return null;
+
+  return {
+    productId: rawProductId,
+    pricingMode: raw.includes("group")
+      ? "group"
+      : process.env.GETYOURGUIDE_DEFAULT_PRICING_MODE === "group"
+        ? "group"
+        : "individual",
+    timeMode: raw.includes("period")
+      ? "time_period"
+      : process.env.GETYOURGUIDE_DEFAULT_TIME_MODE === "time_period"
+        ? "time_period"
+        : "time_point",
+    availabilityMode: raw.includes("category") || process.env.GETYOURGUIDE_AVAILABILITY_MODE === "by_category"
+      ? "by_category"
+      : "total",
+  };
+}
+
+function gygError(errorCode: string, errorMessage: string, extra: Record<string, unknown> = {}) {
+  return { errorCode, errorMessage, ...extra };
+}
+
+function sendGygResponse(res: Response, payload: unknown) {
+  return res.status(200).type("application/json").json(payload);
+}
+
+function isGygAuthorized(req: Request) {
+  const expectedUsername = process.env.GETYOURGUIDE_SUPPLIER_API_USERNAME || process.env.GETYOURGUIDE_API_USERNAME;
+  const expectedPassword = process.env.GETYOURGUIDE_SUPPLIER_API_PASSWORD || process.env.GETYOURGUIDE_API_PASSWORD;
+  if (!expectedUsername || !expectedPassword) return false;
+
+  const authHeader = req.get("authorization") || "";
+  if (!authHeader.toLowerCase().startsWith("basic ")) return false;
+
+  try {
+    const decoded = Buffer.from(authHeader.slice(6), "base64").toString("utf8");
+    const separatorIndex = decoded.indexOf(":");
+    if (separatorIndex === -1) return false;
+
+    const username = decoded.slice(0, separatorIndex);
+    const password = decoded.slice(separatorIndex + 1);
+    return username === expectedUsername && password === expectedPassword;
+  } catch {
+    return false;
+  }
+}
+
+function requireGygAuth(req: Request, res: Response) {
+  if (isGygAuthorized(req)) return true;
+  sendGygResponse(res, gygError("AUTHORIZATION_FAILURE", "The provided authentication credentials are not valid."));
+  return false;
+}
+
+function gygDateParts(dateTime?: string) {
+  const value = (dateTime || "").trim().replace(" ", "+");
+  const match = value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+  if (!match) return null;
+  return { date: match[1], time: match[2], normalized: value };
+}
+
+function formatGygDateTime(date: string, time: string) {
+  const normalizedTime = time.length === 5 ? `${time}:00` : time;
+  return `${date}T${normalizedTime}${GYG_TIMEZONE_OFFSET}`;
+}
+
+function addDaysToDateString(date: string, days: number) {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+function getGygLocalDate(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: GYG_PRODUCT_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const part = (type: string) => parts.find((item) => item.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function getGygDateRange(fromDateTime?: string, toDateTime?: string) {
+  const from = gygDateParts(fromDateTime);
+  const to = gygDateParts(toDateTime);
+  if (!from || !to) return null;
+
+  const dates: string[] = [];
+  let cursor = from.date;
+  let guard = 0;
+  while (cursor <= to.date && guard < 370) {
+    dates.push(cursor);
+    cursor = addDaysToDateString(cursor, 1);
+    guard += 1;
+  }
+  return dates;
+}
+
+function activeGygReservations() {
+  const now = Date.now();
+  for (const [reference, reservation] of Array.from(gygReservations.entries())) {
+    if (reservation.expiresAt.getTime() <= now && reservation.status === "reserved") {
+      gygReservations.delete(reference);
+    }
+  }
+
+  return Array.from(gygReservations.values()).filter(
+    (reservation) => reservation.status === "reserved" && reservation.expiresAt.getTime() > now
+  );
+}
+
+function getGygParticipantCount(bookingItems: any[] = []) {
+  return bookingItems.reduce((total, item) => {
+    const count = Math.max(0, Number(item?.count || 0));
+    if (item?.category === "GROUP") {
+      return total + count * Math.max(1, Number(item?.groupSize || 1));
+    }
+    return total + count;
+  }, 0);
+}
+
+function getGygUnitCount(config: GygProductConfig, bookingItems: any[] = []) {
+  if (config.pricingMode === "group") {
+    return bookingItems.reduce((total, item) => total + Math.max(0, Number(item?.count || 0)), 0);
+  }
+
+  return getGygParticipantCount(bookingItems);
+}
+
+function validateGygBookingItems(config: GygProductConfig, bookingItems: any[] = []) {
+  if (!Array.isArray(bookingItems) || bookingItems.length === 0) {
+    return gygError("VALIDATION_FAILURE", "bookingItems must contain at least one ticket category.");
+  }
+
+  const allowedCategories = config.pricingMode === "group" ? ["GROUP"] : GYG_SUPPORTED_INDIVIDUAL_CATEGORIES;
+  const invalidCategory = bookingItems.find((item) => !allowedCategories.includes(String(item?.category || "").toUpperCase()));
+  if (invalidCategory) {
+    return gygError(
+      "INVALID_TICKET_CATEGORY",
+      `The ticket category ${invalidCategory.category} is not sellable for this product.`,
+      { ticketCategory: invalidCategory.category }
+    );
+  }
+
+  const participantCount = getGygParticipantCount(bookingItems);
+  if (participantCount < 1 || participantCount > GYG_MAX_PEOPLE_PER_SLOT) {
+    return gygError(
+      "INVALID_PARTICIPANTS_CONFIGURATION",
+      `The activity requires between 1 and ${GYG_MAX_PEOPLE_PER_SLOT} participants.`,
+      { participantsConfiguration: { min: 1, max: GYG_MAX_PEOPLE_PER_SLOT } }
+    );
+  }
+
+  if (config.pricingMode === "group") {
+    const groupCount = getGygUnitCount(config, bookingItems);
+    if (groupCount < 1 || groupCount > GYG_MAX_GROUPS_PER_SLOT) {
+      return gygError(
+        "INVALID_PARTICIPANTS_CONFIGURATION",
+        `The activity can be booked for up to ${GYG_MAX_GROUPS_PER_SLOT} groups per timeslot.`,
+        {
+          participantsConfiguration: { min: 1, max: GYG_MAX_PEOPLE_PER_SLOT },
+          groupConfiguration: { max: GYG_MAX_GROUPS_PER_SLOT },
+        }
+      );
+    }
+  }
+
+  return null;
+}
+
+async function getGygRetailPrice(config: GygProductConfig) {
+  const groupSize = config.pricingMode === "group" ? "large_group" : "individual";
+  return calculateTotalAmount(groupSize, "standard");
+}
+
+async function getGygRetailPrices(config: GygProductConfig) {
+  const basePrice = await getGygRetailPrice(config);
+  if (config.pricingMode === "group") {
+    return [{ category: "GROUP", price: basePrice }];
+  }
+
+  return GYG_SUPPORTED_INDIVIDUAL_CATEGORIES.map((category) => ({
+    category,
+    price: category === "CHILD"
+      ? Number(process.env.GETYOURGUIDE_CHILD_PRICE || basePrice)
+      : basePrice,
+  }));
+}
+
+async function getGygAvailabilityUnits(config: GygProductConfig, visitDate: string, visitTime: string) {
+  if (GYG_BLOCKED_DATES.has(visitDate)) {
+    return 0;
+  }
+
+  const bookings = await storage.getBookings();
+  const matchingBookings = bookings.filter((booking) => {
+    if (booking.status === "cancelled" || booking.status === "no_show") return false;
+    if (booking.visitDate !== visitDate) return false;
+    if (config.timeMode === "time_period") return true;
+    return String(booking.visitTime || "").slice(0, 5) === visitTime;
+  });
+
+  const matchingReservations = activeGygReservations().filter((reservation) => {
+    if (reservation.visitDate !== visitDate) return false;
+    if (config.timeMode === "time_period") return true;
+    return reservation.visitTime === visitTime;
+  });
+
+  if (config.pricingMode === "group") {
+    const reservedGroups = matchingReservations.reduce((total, reservation) => total + reservation.unitCount, 0);
+    return Math.max(0, GYG_MAX_GROUPS_PER_SLOT - matchingBookings.length - reservedGroups);
+  }
+
+  const bookedPeople = matchingBookings.reduce((total, booking) => total + (booking.numberOfPeople || 1), 0);
+  const reservedPeople = matchingReservations.reduce((total, reservation) => total + reservation.participantCount, 0);
+  return Math.max(0, GYG_MAX_PEOPLE_PER_SLOT - bookedPeople - reservedPeople);
+}
+
+async function buildGygAvailability(config: GygProductConfig, visitDate: string, visitTime: string) {
+  const vacancies = await getGygAvailabilityUnits(config, visitDate, visitTime);
+  const availability: Record<string, unknown> = {
+    dateTime: config.timeMode === "time_period"
+      ? formatGygDateTime(visitDate, "00:00")
+      : formatGygDateTime(visitDate, visitTime),
+    productId: config.productId,
+    cutoffSeconds: GYG_CUTOFF_SECONDS,
+    currency: GYG_CURRENCY,
+    pricesByCategory: {
+      retailPrices: await getGygRetailPrices(config),
+    },
+  };
+
+  if (config.pricingMode === "individual" && config.availabilityMode === "by_category") {
+    availability.vacanciesByCategory = GYG_SUPPORTED_INDIVIDUAL_CATEGORIES.map((category) => ({
+      category,
+      vacancies,
+    }));
+  } else {
+    availability.vacancies = vacancies;
+  }
+
+  if (config.timeMode === "time_period") {
+    availability.openingTimes = [{ fromTime: "09:00", toTime: "17:00" }];
+  }
+
+  return availability;
+}
+
+function makeGygReservationReference() {
+  return `res_${crypto.randomBytes(8).toString("hex")}`;
+}
+
+function makeGygBookingReference() {
+  return `GYG-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString("hex").toUpperCase()}`;
+}
+
+function buildGygTickets(bookingReference: string, bookingItems: any[] = []) {
+  const tickets: Array<{ category: string; ticketCode: string; ticketCodeType: "QR_CODE" }> = [];
+  let index = 1;
+
+  bookingItems.forEach((item) => {
+    const count = Math.max(1, Number(item?.count || 1));
+    for (let i = 0; i < count; i += 1) {
+      tickets.push({
+        category: item?.category || "ADULT",
+        ticketCode: `${bookingReference}-${String(index).padStart(2, "0")}`,
+        ticketCodeType: "QR_CODE",
+      });
+      index += 1;
+    }
+  });
+
+  return tickets.length > 0 ? tickets : [{
+    category: "COLLECTIVE",
+    ticketCode: `${bookingReference}-01`,
+    ticketCodeType: "QR_CODE" as const,
+  }];
+}
+
+function gygBookingMatches(booking: Booking, data: any) {
+  const parts = gygDateParts(data?.dateTime);
+  if (!parts) return false;
+  return booking.visitDate === parts.date
+    && String(booking.visitTime || "").slice(0, 5) === (parts.time === "00:00" ? "09:00" : parts.time)
+    && (booking.numberOfPeople || 1) === getGygParticipantCount(data?.bookingItems || []);
+}
+
+function registerGetYourGuideSupplierApiRoutes(app: Express) {
+  app.get("/1/get-availabilities/", async (req, res) => {
+    if (!requireGygAuth(req, res)) return;
+
+    try {
+      const productId = String(req.query.productId || "");
+      logger.info("GetYourGuide get-availabilities request", {
+        productId,
+        fromDateTime: req.query.fromDateTime,
+        toDateTime: req.query.toDateTime,
+      });
+      const config = resolveGygProduct(productId);
+      if (!config) {
+        return sendGygResponse(res, gygError("INVALID_PRODUCT", "This activity should be deactivated; not sellable."));
+      }
+
+      const dates = getGygDateRange(String(req.query.fromDateTime || ""), String(req.query.toDateTime || ""));
+      if (!dates) {
+        return sendGygResponse(res, gygError("VALIDATION_FAILURE", "fromDateTime and toDateTime must be valid ISO 8601 datetime values."));
+      }
+
+      const availabilities = [];
+      for (const date of dates) {
+        if (config.timeMode === "time_period") {
+          availabilities.push(await buildGygAvailability(config, date, "09:00"));
+        } else {
+          for (const time of GYG_DEFAULT_START_TIMES) {
+            availabilities.push(await buildGygAvailability(config, date, time));
+          }
+        }
+      }
+
+      return sendGygResponse(res, { data: { availabilities } });
+    } catch (error: any) {
+      logError("GetYourGuide availability endpoint failed", error, req.requestId);
+      return sendGygResponse(res, gygError("INTERNAL_SYSTEM_FAILURE", error.message || "Failed to fetch availability."));
+    }
+  });
+
+  app.post("/1/reserve/", async (req, res) => {
+    if (!requireGygAuth(req, res)) return;
+
+    try {
+      const data = req.body?.data || {};
+      logger.info("GetYourGuide reserve request", {
+        productId: data.productId,
+        dateTime: data.dateTime,
+        gygBookingReference: data.gygBookingReference,
+        bookingItems: data.bookingItems,
+      });
+      const config = resolveGygProduct(data.productId);
+      if (!config) {
+        return sendGygResponse(res, gygError("INVALID_PRODUCT", "This activity should be deactivated; not sellable."));
+      }
+
+      const parts = gygDateParts(data.dateTime);
+      if (!parts || !data.gygBookingReference) {
+        return sendGygResponse(res, gygError("VALIDATION_FAILURE", "productId, dateTime, bookingItems, and gygBookingReference are required."));
+      }
+
+      const itemError = validateGygBookingItems(config, data.bookingItems);
+      if (itemError) return sendGygResponse(res, itemError);
+
+      const visitTime = config.timeMode === "time_period" ? "09:00" : parts.time;
+      const requestedUnits = getGygUnitCount(config, data.bookingItems);
+      const availableUnits = await getGygAvailabilityUnits(config, parts.date, visitTime);
+      if (requestedUnits > availableUnits) {
+        return sendGygResponse(res, gygError("NO_AVAILABILITY", `This activity is sold out; requested ${requestedUnits}; available ${availableUnits}.`));
+      }
+
+      const reservationReference = makeGygReservationReference();
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+      gygReservations.set(reservationReference, {
+        reservationReference,
+        gygBookingReference: data.gygBookingReference,
+        productId: config.productId,
+        dateTime: data.dateTime,
+        visitDate: parts.date,
+        visitTime,
+        pricingMode: config.pricingMode,
+        timeMode: config.timeMode,
+        participantCount: getGygParticipantCount(data.bookingItems),
+        unitCount: requestedUnits,
+        bookingItems: data.bookingItems,
+        expiresAt,
+        status: "reserved",
+      });
+
+      return sendGygResponse(res, {
+        data: {
+          reservationReference,
+          reservationExpiration: expiresAt.toISOString(),
+        },
+      });
+    } catch (error: any) {
+      logError("GetYourGuide reserve endpoint failed", error, req.requestId);
+      return sendGygResponse(res, gygError("INTERNAL_SYSTEM_FAILURE", error.message || "Failed to reserve availability."));
+    }
+  });
+
+  app.post("/1/cancel-reservation/", async (req, res) => {
+    if (!requireGygAuth(req, res)) return;
+
+    try {
+      const data = req.body?.data || {};
+      logger.info("GetYourGuide cancel-reservation request", {
+        reservationReference: data.reservationReference,
+        gygBookingReference: data.gygBookingReference,
+      });
+      const reservation = gygReservations.get(data.reservationReference);
+      if (!reservation || reservation.gygBookingReference !== data.gygBookingReference || reservation.status !== "reserved") {
+        return sendGygResponse(res, gygError("INVALID_RESERVATION", "Reservation does not exist or is not in a valid state."));
+      }
+
+      reservation.status = "cancelled";
+      gygReservations.delete(data.reservationReference);
+      return sendGygResponse(res, { data: {} });
+    } catch (error: any) {
+      logError("GetYourGuide cancel-reservation endpoint failed", error, req.requestId);
+      return sendGygResponse(res, gygError("INTERNAL_SYSTEM_FAILURE", error.message || "Failed to cancel reservation."));
+    }
+  });
+
+  app.post("/1/book/", async (req, res) => {
+    if (!requireGygAuth(req, res)) return;
+
+    try {
+      const data = req.body?.data || {};
+      logger.info("GetYourGuide book request", {
+        productId: data.productId,
+        dateTime: data.dateTime,
+        reservationReference: data.reservationReference,
+        gygBookingReference: data.gygBookingReference,
+      });
+      const config = resolveGygProduct(data.productId);
+      if (!config) {
+        return sendGygResponse(res, gygError("INVALID_PRODUCT", "This activity should be deactivated; not sellable."));
+      }
+
+      const parts = gygDateParts(data.dateTime);
+      const itemError = validateGygBookingItems(config, data.bookingItems);
+      if (!parts || itemError) {
+        return sendGygResponse(res, itemError || gygError("VALIDATION_FAILURE", "A valid dateTime and bookingItems are required."));
+      }
+
+      const existingBookings = await storage.getBookings();
+      const existingBooking = existingBookings.find((booking) =>
+        booking.source === "getyourguide"
+        && booking.externalReferenceId === data.gygBookingReference
+        && booking.status !== "cancelled"
+        && gygBookingMatches(booking, data)
+      );
+      if (existingBooking) {
+        return sendGygResponse(res, {
+          data: {
+            bookingReference: existingBooking.bookingReference,
+            tickets: buildGygTickets(existingBooking.bookingReference, data.bookingItems),
+          },
+        });
+      }
+
+      const reservation = gygReservations.get(data.reservationReference);
+      if (!reservation || reservation.status !== "reserved" || reservation.expiresAt.getTime() <= Date.now()) {
+        return sendGygResponse(res, gygError("INVALID_RESERVATION", "Expired or missing reservation."));
+      }
+
+      const traveler = data.travelers?.[0] || {};
+      const visitorName = [traveler.firstName, traveler.lastName].filter(Boolean).join(" ").trim() || "GetYourGuide Traveler";
+      const participantCount = getGygParticipantCount(data.bookingItems);
+      const visitTime = config.timeMode === "time_period" ? "09:00" : parts.time;
+      const totalAmount = (data.bookingItems || []).reduce(
+        (total: number, item: any) => total + Math.max(0, Number(item.retailPrice || 0)) * Math.max(1, Number(item.count || 1)),
+        0
+      ) || await getGygRetailPrice(config);
+      const bookingReference = makeGygBookingReference();
+
+      const booking = await storage.createBooking({
+        bookingReference,
+        source: "getyourguide",
+        externalReferenceId: data.gygBookingReference,
+        visitorName,
+        visitorEmail: traveler.email || `gyg-${data.gygBookingReference}@getyourguide.invalid`,
+        visitorPhone: traveler.phoneNumber || "Not provided",
+        visitDate: parts.date,
+        visitTime,
+        groupSize: participantCount > 5 ? "large_group" : participantCount > 1 ? "small_group" : "individual",
+        numberOfPeople: participantCount,
+        tourType: "standard",
+        paymentMethod: "card",
+        paymentStatus: "paid",
+        status: "confirmed",
+        totalAmount,
+        specialRequests: [
+          data.comment || "",
+          "Created by GetYourGuide Supplier API.",
+          `GYG booking reference: ${data.gygBookingReference}`,
+          `Reservation reference: ${data.reservationReference}`,
+          data.language ? `Language: ${data.language}` : "",
+          data.travelerHotel ? `Traveler hotel: ${data.travelerHotel}` : "",
+        ].filter(Boolean).join("\n"),
+      });
+
+      reservation.status = "booked";
+      await storage.createBookingActivityLog({
+        bookingId: booking.id,
+        action: "getyourguide_booking_created",
+        description: `GetYourGuide booking confirmed (${data.gygBookingReference}).`,
+        newStatus: "confirmed",
+      });
+
+      return sendGygResponse(res, {
+        data: {
+          bookingReference: booking.bookingReference,
+          tickets: buildGygTickets(booking.bookingReference, data.bookingItems),
+        },
+      });
+    } catch (error: any) {
+      logError("GetYourGuide book endpoint failed", error, req.requestId);
+      return sendGygResponse(res, gygError("INTERNAL_SYSTEM_FAILURE", error.message || "Failed to create booking."));
+    }
+  });
+
+  app.post("/1/cancel-booking/", async (req, res) => {
+    if (!requireGygAuth(req, res)) return;
+
+    try {
+      const data = req.body?.data || {};
+      logger.info("GetYourGuide cancel-booking request", {
+        productId: data.productId,
+        bookingReference: data.bookingReference,
+        gygBookingReference: data.gygBookingReference,
+      });
+      const config = resolveGygProduct(data.productId);
+      if (!config) {
+        return sendGygResponse(res, gygError("INVALID_PRODUCT", "This activity should be deactivated; not sellable."));
+      }
+
+      const bookings = await storage.getBookings();
+      const booking = bookings.find((item) =>
+        item.bookingReference === data.bookingReference
+        || (item.source === "getyourguide" && item.externalReferenceId === data.gygBookingReference)
+      );
+
+      if (!booking) {
+        return sendGygResponse(res, gygError("INVALID_BOOKING", "The booking does not exist."));
+      }
+
+      if (booking.status === "cancelled") {
+        return sendGygResponse(res, gygError("BOOKING_ALREADY_CANCELED", "The booking has been cancelled already."));
+      }
+
+      const nowDate = new Date().toISOString().slice(0, 10);
+      if (booking.status === "completed" || booking.status === "in_progress") {
+        return sendGygResponse(res, gygError("BOOKING_REDEEMED", "The booking has already been used."));
+      }
+      if (booking.visitDate < nowDate) {
+        return sendGygResponse(res, gygError("BOOKING_IN_PAST", "The booking is in the past and cannot be cancelled."));
+      }
+
+      await storage.updateBookingStatus(booking.id, "cancelled");
+      await storage.createBookingActivityLog({
+        bookingId: booking.id,
+        action: "getyourguide_booking_cancelled",
+        description: `GetYourGuide cancelled booking ${data.gygBookingReference}.`,
+        oldStatus: booking.status,
+        newStatus: "cancelled",
+      });
+
+      return sendGygResponse(res, { data: {} });
+    } catch (error: any) {
+      logError("GetYourGuide cancel-booking endpoint failed", error, req.requestId);
+      return sendGygResponse(res, gygError("INTERNAL_SYSTEM_FAILURE", error.message || "Failed to cancel booking."));
+    }
+  });
+
+  app.get("/1/products/:productId/pricing-categories/", async (req, res) => {
+    if (!requireGygAuth(req, res)) return;
+
+    const config = resolveGygProduct(req.params.productId);
+    if (!config) {
+      return sendGygResponse(res, gygError("INVALID_PRODUCT", "This product does not exist."));
+    }
+
+    const retailPrices = await getGygRetailPrices(config);
+    return sendGygResponse(res, {
+      data: {
+        pricingCategories: retailPrices.map(({ category, price }) => ({
+          category,
+          minTicketAmount: 1,
+          maxTicketAmount: config.pricingMode === "group" ? GYG_MAX_GROUPS_PER_SLOT : GYG_MAX_PEOPLE_PER_SLOT,
+          groupSizeMin: config.pricingMode === "group" ? 1 : null,
+          groupSizeMax: config.pricingMode === "group" ? GYG_MAX_PEOPLE_PER_SLOT : null,
+          ageFrom: category === "ADULT" ? 18 : category === "CHILD" ? 0 : null,
+          ageTo: category === "ADULT" ? 99 : category === "CHILD" ? 17 : null,
+          bookingCategory: "STANDARD",
+          price: [{ priceType: "RETAIL_PRICE", price, currency: GYG_CURRENCY }],
+        })),
+      },
+    });
+  });
+
+  app.get("/1/products/:productId/addons/", async (req, res) => {
+    if (!requireGygAuth(req, res)) return;
+
+    const config = resolveGygProduct(req.params.productId);
+    if (!config) {
+      return sendGygResponse(res, gygError("INVALID_PRODUCT", "This product does not exist."));
+    }
+
+    return sendGygResponse(res, { data: { addons: [] } });
+  });
+
+  app.get("/1/products/:productId", async (req, res) => {
+    if (!requireGygAuth(req, res)) return;
+
+    const config = resolveGygProduct(req.params.productId);
+    if (!config) {
+      return sendGygResponse(res, gygError("INVALID_PRODUCT", "This product does not exist."));
+    }
+
+    return sendGygResponse(res, {
+      data: {
+        supplierId: GYG_SUPPLIER_ID,
+        productTitle: GYG_PRODUCT_TITLE,
+        productDescription: "A guided walking tour of Dzaleka Refugee Camp led by local community guides.",
+        destinationLocation: {
+          city: "Dowa",
+          country: "MWI",
+        },
+        configuration: {
+          participantsConfiguration: {
+            min: 1,
+            max: GYG_MAX_PEOPLE_PER_SLOT,
+          },
+        },
+      },
+    });
+  });
+
+  app.get("/1/suppliers/:supplierId/products/", async (req, res) => {
+    if (!requireGygAuth(req, res)) return;
+
+    if (req.params.supplierId !== GYG_SUPPLIER_ID) {
+      return sendGygResponse(res, gygError("INVALID_SUPPLIER", "Supplier does not exist in the system."));
+    }
+
+    const ids = getGygSelfTestProductIds();
+    return sendGygResponse(res, {
+      data: {
+        supplierId: GYG_SUPPLIER_ID,
+        supplierName: GYG_SUPPLIER_NAME,
+        products: [
+          { productId: ids.timePointIndividual, productTitle: `${GYG_PRODUCT_TITLE} - Fixed time individual` },
+          { productId: ids.timePointGroup, productTitle: `${GYG_PRODUCT_TITLE} - Fixed time group` },
+          { productId: ids.timePeriodIndividual, productTitle: `${GYG_PRODUCT_TITLE} - Operating hours individual` },
+          { productId: ids.timePeriodGroup, productTitle: `${GYG_PRODUCT_TITLE} - Operating hours group` },
+        ],
+      },
+    });
+  });
+
+  app.post("/1/notify/", async (req, res) => {
+    if (!requireGygAuth(req, res)) return;
+    logger.warn("GetYourGuide product notification received", req.body?.data || {});
+    return sendGygResponse(res, { data: {} });
+  });
+}
+
+async function ensureAssignedGuideCanManageBooking(
+  req: Request,
+  res: Response,
+  booking: Booking
+): Promise<boolean> {
+  if ((req as any).currentUser?.role !== "guide") {
+    return true;
+  }
+
+  const userId = req.session?.userId;
+  if (!userId) {
+    res.status(401).json({ message: "Unauthorized" });
+    return false;
+  }
+
+  const guide = await storage.getGuideByUserId(userId);
+  if (!guide) {
+    res.status(404).json({ message: "Guide profile not found" });
+    return false;
+  }
+
+  if (booking.assignedGuideId !== guide.id) {
+    res.status(403).json({ message: "You are not assigned to this booking" });
+    return false;
+  }
+
+  return true;
+}
+
+async function getChatRoomForParticipant(roomId: string, userId: string) {
+  const room = await storage.getChatRoom(roomId);
+  if (!room) {
+    return { status: 404 as const, message: "Chat room not found" };
+  }
+
+  const participants = await storage.getChatParticipants(roomId);
+  const isParticipant = participants.some((participant) => participant.userId === userId);
+  if (!isParticipant) {
+    return { status: 403 as const, message: "You are not a participant of this chat" };
+  }
+
+  return { status: 200 as const, room, participants };
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -220,6 +1987,8 @@ export async function registerRoutes(
       });
     }
   });
+
+  registerGetYourGuideSupplierApiRoutes(app);
 
   // IP Whitelist Middleware
   app.use("/api", async (req, res, next) => {
@@ -447,6 +2216,12 @@ export async function registerRoutes(
       // Audit log
       await createAuditLog(user.id, "create", "user", user.id, null, { email, firstName, lastName }, req);
 
+      try {
+        await sendWelcomeOrVerificationEmail(user, user.id);
+      } catch (emailError) {
+        logger.error("Failed to send welcome/verification email", emailError);
+      }
+
       // Return user without password
       const { password: _, ...safeUser } = user;
       res.status(201).json(safeUser);
@@ -604,6 +2379,12 @@ export async function registerRoutes(
       // Audit log
       await createAuditLog(req.session?.userId, "create", "user", user.id, null, { email, firstName, lastName, role: validRole }, req);
 
+      try {
+        await sendWelcomeOrVerificationEmail(user, req.session?.userId);
+      } catch (emailError) {
+        logger.error("Failed to send welcome/verification email", emailError);
+      }
+
       // Return user without password
       const { password: _, ...safeUser } = user;
       res.status(201).json(safeUser);
@@ -638,14 +2419,27 @@ export async function registerRoutes(
       await storage.setPasswordResetToken(user.id, resetToken, resetTokenExpiry);
 
       // Send reset email
-      const resetUrl = `${req.protocol}://${req.get("host")}/reset-password?token=${resetToken}`;
+      const resetUrl = `${PUBLIC_APP_URL}/reset-password?token=${resetToken}`;
 
       try {
-        await sendPasswordReset({
+        const passwordResetResult = await sendPasswordResetDetailed({
           userName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "User",
           userEmail: user.email,
           resetToken,
           resetUrl,
+        });
+        await storage.createEmailLog({
+          recipientName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || null,
+          recipientEmail: user.email,
+          subject: "Password Reset Request - Visit Dzaleka",
+          message: "Password reset instructions sent.",
+          templateType: "password_reset",
+          status: passwordResetResult.success ? "accepted" : "failed",
+          errorMessage: passwordResetResult.error,
+          providerMessageId: passwordResetResult.messageId,
+          relatedEntityType: "user",
+          relatedEntityId: user.id,
+          metadata: { userId: user.id },
         });
       } catch (emailError) {
         logError("Failed to send password reset email", emailError, req.requestId);
@@ -945,6 +2739,12 @@ export async function registerRoutes(
       // Audit log
       const adminId = req.session.userId!;
       await createAuditLog(adminId, "create", "user", user.id, null, { email, firstName, lastName, role }, req);
+
+      try {
+        await sendWelcomeOrVerificationEmail(user, adminId);
+      } catch (emailError) {
+        logger.error("Failed to send welcome/verification email", emailError);
+      }
 
       // Return user without password
       const { password: _, ...safeUser } = user;
@@ -1470,7 +3270,15 @@ export async function registerRoutes(
 
   app.get("/api/bookings/today", isAuthenticated, requireRole("admin", "coordinator", "security", "guide"), async (req, res) => {
     try {
-      const todaysBookings = await storage.getTodaysBookings();
+      let todaysBookings = await storage.getTodaysBookings();
+      const currentUser = (req as any).currentUser;
+
+      if (currentUser?.role === "guide") {
+        const guide = await storage.getGuideByUserId(currentUser.id);
+        todaysBookings = guide
+          ? todaysBookings.filter((booking) => booking.assignedGuideId === guide.id)
+          : [];
+      }
 
       // Batch fetch guides
       const guideIds = Array.from(new Set(todaysBookings.map(b => b.assignedGuideId).filter(Boolean) as string[]));
@@ -1895,16 +3703,40 @@ export async function registerRoutes(
         ? await storage.getMeetingPoint(bookingData.meetingPointId)
         : null;
 
-      await sendBookingConfirmation({
-        visitorName: booking.visitorName,
-        visitorEmail: booking.visitorEmail,
-        bookingReference: booking.bookingReference!,
-        visitDate: booking.visitDate,
-        visitTime: booking.visitTime,
-        tourType: booking.tourType,
-        numberOfPeople: booking.numberOfPeople || 1,
-        totalAmount: booking.totalAmount || 0,
-        meetingPoint: meetingPoint?.name,
+      const requestEmail = await sendAutomatedTemplateEmail({
+        templateName: "booking_request_received",
+        recipientName: booking.visitorName,
+        recipientEmail: booking.visitorEmail,
+        data: buildBookingTemplateData(booking, {
+          meeting_point: meetingPoint?.name,
+        }),
+        fallbackSubject: `Booking Request Received - ${booking.bookingReference}`,
+        fallbackMessage: `Booking request received for ${booking.visitorName} (${booking.bookingReference}).`,
+        fallbackSend: () => sendBookingConfirmationDetailed({
+          visitorName: booking.visitorName,
+          visitorEmail: booking.visitorEmail,
+          bookingReference: booking.bookingReference!,
+          visitDate: booking.visitDate,
+          visitTime: booking.visitTime,
+          tourType: booking.tourType,
+          numberOfPeople: booking.numberOfPeople || 1,
+          totalAmount: booking.totalAmount || 0,
+          meetingPoint: meetingPoint?.name,
+        }),
+      });
+
+      await storage.createEmailLog({
+        recipientName: booking.visitorName,
+        recipientEmail: booking.visitorEmail,
+        subject: requestEmail.subject,
+        message: requestEmail.message,
+        templateType: "booking_request_received",
+        status: requestEmail.result.success ? "accepted" : "failed",
+        errorMessage: requestEmail.result.error,
+        providerMessageId: requestEmail.result.messageId,
+        relatedEntityType: "booking",
+        relatedEntityId: booking.id,
+        metadata: buildEmailLogMetadata(booking, requestEmail),
       });
 
       // Notify admins/coordinators
@@ -2021,16 +3853,50 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Booking not found" });
       }
 
-      // Send status update email
-      await sendStatusUpdate({
-        visitorName: booking.visitorName,
-        visitorEmail: booking.visitorEmail,
-        bookingReference: booking.bookingReference!,
-        oldStatus: oldBooking?.status || "pending",
-        newStatus: status,
-        visitDate: booking.visitDate,
-        adminNotes: booking.adminNotes || undefined,
+      if (status === "cancelled") {
+        await sendBookingCancelledEmail(booking, booking.adminNotes || "Cancelled by staff", req.session?.userId || null);
+      } else {
+        // Send status update email
+        const statusTemplateName = status === "confirmed" ? "booking_confirmation" : "status_update";
+      const statusEmail = await sendAutomatedTemplateEmail({
+        templateName: statusTemplateName,
+        recipientName: booking.visitorName,
+        recipientEmail: booking.visitorEmail,
+        data: buildBookingTemplateData(booking, {
+          old_status: oldBooking?.status || "pending",
+          new_status: status,
+          admin_notes: booking.adminNotes || "",
+        }),
+        fallbackSubject: status === "confirmed"
+          ? `Booking Confirmed - ${booking.bookingReference}`
+          : `Booking ${String(status).replace(/_/g, " ")} - ${booking.bookingReference}`,
+        fallbackMessage: `Booking status email sent for ${booking.visitorName}. New status: ${status}.`,
+        fallbackSend: () => sendStatusUpdateDetailed({
+          visitorName: booking.visitorName,
+          visitorEmail: booking.visitorEmail,
+          bookingReference: booking.bookingReference!,
+          oldStatus: oldBooking?.status || "pending",
+          newStatus: status,
+          visitDate: booking.visitDate,
+          adminNotes: booking.adminNotes || undefined,
+        }),
       });
+
+      await storage.createEmailLog({
+        sentBy: req.session?.userId,
+        recipientName: booking.visitorName,
+        recipientEmail: booking.visitorEmail,
+        subject: statusEmail.subject,
+        message: statusEmail.message,
+        templateType: statusTemplateName,
+        status: statusEmail.result.success ? "accepted" : "failed",
+        errorMessage: statusEmail.result.error,
+        providerMessageId: statusEmail.result.messageId,
+        relatedEntityType: "booking",
+        relatedEntityId: booking.id,
+        metadata: buildEmailLogMetadata(booking, statusEmail, { status }),
+      });
+      }
 
       // Create audit log
       const userId = req.session?.userId;
@@ -2103,6 +3969,8 @@ export async function registerRoutes(
         userId: userId || null,
       });
 
+      await sendBookingRescheduledEmail(booking, oldBooking, userId || null);
+
       res.json(booking);
     } catch (error) {
       logError("Error rescheduling booking", error, req.requestId);
@@ -2114,11 +3982,324 @@ export async function registerRoutes(
   app.get("/api/bookings/:id/activity", isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
+      const booking = await storage.getBooking(id);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      const canAccess = await userCanAccessBooking(req.session.userId!, booking);
+      if (!canAccess) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
       const activities = await storage.getBookingActivityLogs(id);
       res.json(activities);
     } catch (error) {
       logError("Error fetching booking activity", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch booking activity" });
+    }
+  });
+
+  app.get("/api/bookings/:id/email-timeline", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const booking = await storage.getBooking(id);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      const canAccess = await userCanAccessBooking(req.session.userId!, booking);
+      if (!canAccess) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const logs = await storage.getEmailLogsForBooking(id, booking.bookingReference);
+      res.json(logs);
+    } catch (error) {
+      logError("Error fetching booking email timeline", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch booking email timeline" });
+    }
+  });
+
+  app.post("/api/bookings/:id/resend-email", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const type = String(req.body?.type || "");
+      const booking = await storage.getBooking(id);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      const meetingPoint = booking.meetingPointId
+        ? await storage.getMeetingPoint(booking.meetingPointId)
+        : null;
+      const guide = booking.assignedGuideId
+        ? await storage.getGuide(booking.assignedGuideId)
+        : null;
+
+      if (type === "feedback_request") {
+        const result = await sendFeedbackRequestEmail(booking, req.session?.userId || null);
+        if (!result.success) {
+          return res.status(500).json({ message: result.error || "Failed to resend feedback request" });
+        }
+        return res.json({ success: true, message: "Feedback request email resent" });
+      }
+
+      if (type === "guide_tour_assignment") {
+        if (!guide) {
+          return res.status(400).json({ message: "No guide assigned to this booking" });
+        }
+
+        const result = await sendGuideTourAssignmentEmail(
+          booking,
+          guide,
+          meetingPoint?.name,
+          req.session?.userId || null
+        );
+
+        if (!result) {
+          return res.status(400).json({ message: "Assigned guide does not have an email address" });
+        }
+
+        if (!result.success) {
+          return res.status(500).json({ message: result.error || "Failed to resend guide tour assignment" });
+        }
+
+        return res.json({ success: true, message: "Guide tour assignment email resent" });
+      }
+
+      if (type === "booking_cancelled") {
+        const result = await sendBookingCancelledEmail(booking, booking.adminNotes || "Cancellation notice resent", req.session?.userId || null);
+        if (!result.success) {
+          return res.status(500).json({ message: result.error || "Failed to resend cancellation email" });
+        }
+        return res.json({ success: true, message: "Cancellation email resent" });
+      }
+
+      if (type === "payment_receipt") {
+        if (booking.paymentStatus !== "paid") {
+          return res.status(400).json({ message: "Payment receipt can only be sent for paid bookings" });
+        }
+        const result = await sendPaymentReceiptEmail(booking, req.session?.userId || null);
+        if (!result.success) {
+          return res.status(500).json({ message: result.error || "Failed to resend payment receipt" });
+        }
+        return res.json({ success: true, message: "Payment receipt resent" });
+      }
+
+      let sendResult: { success: boolean; error?: string; messageId?: string } = { success: false };
+      let subject = "";
+      let message = "";
+      let templateType = type;
+      let templateInfo: { templateId?: string; templateSource?: string } = {};
+
+      if (type === "request_received") {
+        templateType = "booking_request_received";
+        const email = await sendAutomatedTemplateEmail({
+          templateName: "booking_request_received",
+          recipientName: booking.visitorName,
+          recipientEmail: booking.visitorEmail,
+          data: buildBookingTemplateData(booking, { meeting_point: meetingPoint?.name }),
+          fallbackSubject: `Booking Request Received - ${booking.bookingReference}`,
+          fallbackMessage: `Booking request received for ${booking.visitorName} (${booking.bookingReference}).`,
+          fallbackSend: () => sendBookingConfirmationDetailed({
+            visitorName: booking.visitorName,
+            visitorEmail: booking.visitorEmail,
+            bookingReference: booking.bookingReference!,
+            visitDate: booking.visitDate,
+            visitTime: booking.visitTime,
+            tourType: booking.tourType,
+            numberOfPeople: booking.numberOfPeople || 1,
+            totalAmount: booking.totalAmount || 0,
+            meetingPoint: meetingPoint?.name,
+          }),
+        });
+        ({ result: sendResult, subject, message } = email);
+        templateInfo = email;
+      } else if (type === "booking_confirmation") {
+        templateType = "booking_confirmation";
+        const email = await sendAutomatedTemplateEmail({
+          templateName: "booking_confirmation",
+          recipientName: booking.visitorName,
+          recipientEmail: booking.visitorEmail,
+          data: buildBookingTemplateData(booking, {
+            old_status: "pending",
+            new_status: "confirmed",
+            meeting_point: meetingPoint?.name,
+            guide_name: guide ? `${guide.firstName} ${guide.lastName}` : "",
+            guide_phone: guide?.phone,
+          }),
+          fallbackSubject: `Booking Confirmed - ${booking.bookingReference}`,
+          fallbackMessage: `Booking confirmation resent for ${booking.visitorName} (${booking.bookingReference}).`,
+          fallbackSend: () => sendStatusUpdateDetailed({
+            visitorName: booking.visitorName,
+            visitorEmail: booking.visitorEmail,
+            bookingReference: booking.bookingReference!,
+            oldStatus: "pending",
+            newStatus: "confirmed",
+            visitDate: booking.visitDate,
+            adminNotes: booking.adminNotes || undefined,
+          }),
+        });
+        ({ result: sendResult, subject, message } = email);
+        templateInfo = email;
+      } else if (type === "status_update") {
+        templateType = "status_update";
+        const email = await sendAutomatedTemplateEmail({
+          templateName: "status_update",
+          recipientName: booking.visitorName,
+          recipientEmail: booking.visitorEmail,
+          data: buildBookingTemplateData(booking, {
+            old_status: booking.status || "pending",
+            new_status: booking.status || "pending",
+            admin_notes: booking.adminNotes || "",
+          }),
+          fallbackSubject: `Booking ${String(booking.status || "status").replace(/_/g, " ")} - ${booking.bookingReference}`,
+          fallbackMessage: `Booking status email resent for ${booking.visitorName}. Current status: ${booking.status}.`,
+          fallbackSend: () => sendStatusUpdateDetailed({
+            visitorName: booking.visitorName,
+            visitorEmail: booking.visitorEmail,
+            bookingReference: booking.bookingReference!,
+            oldStatus: booking.status || "pending",
+            newStatus: booking.status || "pending",
+            visitDate: booking.visitDate,
+            adminNotes: booking.adminNotes || undefined,
+          }),
+        });
+        ({ result: sendResult, subject, message } = email);
+        templateInfo = email;
+      } else if (type === "reminder") {
+        templateType = "booking_reminder";
+        const email = await sendAutomatedTemplateEmail({
+          templateName: "booking_reminder",
+          recipientName: booking.visitorName,
+          recipientEmail: booking.visitorEmail,
+          data: buildBookingTemplateData(booking, {
+            meeting_point: meetingPoint?.name,
+            guide_name: guide ? `${guide.firstName} ${guide.lastName}` : "",
+            guide_phone: guide?.phone,
+            special_requests: booking.specialRequests,
+          }),
+          fallbackSubject: `Tomorrow: Your Dzaleka Tour at ${booking.visitTime} - ${booking.bookingReference}`,
+          fallbackMessage: `Reminder resent for ${booking.visitorName} (${booking.bookingReference}).`,
+          fallbackSend: () => sendBookingReminderEmailDetailed({
+            to: booking.visitorEmail,
+            bookingReference: booking.bookingReference!,
+            visitorName: booking.visitorName,
+            visitDate: booking.visitDate,
+            visitTime: booking.visitTime,
+            numberOfPeople: booking.numberOfPeople || 1,
+            tourType: booking.tourType,
+            selectedZones: booking.selectedZones,
+            specialRequests: booking.specialRequests,
+            guideName: guide ? `${guide.firstName} ${guide.lastName}` : null,
+            guidePhone: guide?.phone,
+            meetingPointName: meetingPoint?.name,
+            meetingPointAddress: meetingPoint?.address,
+          }),
+        });
+        ({ result: sendResult, subject, message } = email);
+        templateInfo = email;
+      } else if (type === "guide_assignment") {
+        if (!guide) {
+          return res.status(400).json({ message: "No guide assigned to this booking" });
+        }
+        templateType = "guide_assignment";
+        const guideName = `${guide.firstName} ${guide.lastName}`;
+        const email = await sendAutomatedTemplateEmail({
+          templateName: "guide_assignment",
+          recipientName: booking.visitorName,
+          recipientEmail: booking.visitorEmail,
+          data: buildBookingTemplateData(booking, {
+            meeting_point: meetingPoint?.name,
+            guide_name: guideName,
+            guide_phone: guide.phone,
+          }),
+          fallbackSubject: `Guide Assigned - ${booking.bookingReference}`,
+          fallbackMessage: `Guide assignment resent for ${guideName}.`,
+          fallbackSend: () => sendGuideAssignmentDetailed({
+            visitorName: booking.visitorName,
+            visitorEmail: booking.visitorEmail,
+            bookingReference: booking.bookingReference!,
+            guideName,
+            guidePhone: guide.phone,
+            visitDate: booking.visitDate,
+            visitTime: booking.visitTime,
+            meetingPoint: meetingPoint?.name,
+          }),
+        });
+        ({ result: sendResult, subject, message } = email);
+        templateInfo = email;
+      } else if (type === "check_in") {
+        templateType = "check_in_notification";
+        const checkInTime = booking.checkInTime ? new Date(booking.checkInTime).toLocaleTimeString() : new Date().toLocaleTimeString();
+        const email = await sendAutomatedTemplateEmail({
+          templateName: "check_in_notification",
+          recipientName: booking.visitorName,
+          recipientEmail: booking.visitorEmail,
+          data: buildBookingTemplateData(booking, {
+            check_in_time: checkInTime,
+            guide_name: guide ? `${guide.firstName} ${guide.lastName}` : "",
+          }),
+          fallbackSubject: `Check-in Confirmed - ${booking.bookingReference}`,
+          fallbackMessage: `Check-in notification resent for ${booking.visitorName}.`,
+          fallbackSend: () => sendCheckInNotificationDetailed({
+            visitorName: booking.visitorName,
+            visitorEmail: booking.visitorEmail,
+            bookingReference: booking.bookingReference!,
+            checkInTime,
+            guideName: guide ? `${guide.firstName} ${guide.lastName}` : undefined,
+          }),
+        });
+        ({ result: sendResult, subject, message } = email);
+        templateInfo = email;
+      } else if (type === "itinerary") {
+        const itinerary = await storage.getItineraryByBookingId(id);
+        if (!itinerary) {
+          return res.status(400).json({ message: "No itinerary saved for this booking" });
+        }
+
+        const content = itinerary.content as any;
+        subject = "Your Visit Dzaleka Itinerary";
+        message = `Itinerary resent for ${booking.visitorName} (${booking.bookingReference}).`;
+        templateType = "itinerary";
+        sendResult = await sendItineraryEmailDetailed({
+          ...content,
+          recipientEmail: booking.visitorEmail,
+          recipientName: booking.visitorName,
+          bookingReference: booking.bookingReference,
+          date: content.date || booking.visitDate,
+          duration: content.duration || "",
+          items: content.items || [],
+          senderName: "Visit Dzaleka Team",
+        });
+      } else {
+        return res.status(400).json({ message: "Unsupported email type" });
+      }
+
+      await storage.createEmailLog({
+        sentBy: req.session?.userId,
+        recipientName: booking.visitorName,
+        recipientEmail: booking.visitorEmail,
+        subject,
+        message,
+        templateType,
+        status: sendResult.success ? "accepted" : "failed",
+        errorMessage: sendResult.error,
+        providerMessageId: sendResult.messageId,
+        relatedEntityType: "booking",
+        relatedEntityId: booking.id,
+        metadata: buildEmailLogMetadata(booking, templateInfo, { resendType: type }),
+      });
+
+      if (!sendResult.success) {
+        return res.status(500).json({ message: "Failed to resend booking email" });
+      }
+
+      res.json({ success: true, message: "Booking email resent" });
+    } catch (error) {
+      logError("Error resending booking email", error, req.requestId);
+      res.status(500).json({ message: "Failed to resend booking email" });
     }
   });
 
@@ -2130,9 +4311,13 @@ export async function registerRoutes(
       const userId = req.session?.userId;
 
       const oldBooking = await storage.getBooking(id);
-      const booking = await storage.updateBookingPaymentStatus(id, paymentStatus, userId);
+      let booking = await storage.updateBookingPaymentStatus(id, paymentStatus, userId);
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
+      }
+
+      if (paymentReference !== undefined) {
+        booking = await storage.updateBooking(id, { paymentReference: String(paymentReference || "").trim() || null }) || booking;
       }
 
       // Create audit log
@@ -2142,6 +4327,16 @@ export async function registerRoutes(
           { paymentStatus, paymentReference }, req);
       }
 
+      if (paymentStatus === "paid" && oldBooking?.paymentStatus !== "paid") {
+        await notifyPaymentReceived(
+          booking.id,
+          booking.visitorName,
+          booking.totalAmount || 0,
+          String(booking.paymentMethod || "cash").replace(/_/g, " ")
+        );
+        await sendPaymentReceiptEmail(booking, userId || null);
+      }
+
       res.json(booking);
     } catch (error) {
       logError("Error updating payment status", error, req.requestId);
@@ -2149,11 +4344,11 @@ export async function registerRoutes(
     }
   });
 
-  // Visitor can mark their own booking payment (visitor endpoint)
+  // Visitor can report payment for staff verification. Staff still mark it paid.
   app.patch("/api/bookings/:id/visitor-payment", isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const { paymentStatus } = req.body;
+      const { paymentMethod, paymentReference, note } = req.body;
       const userId = req.session?.userId;
 
       // Get booking and verify ownership
@@ -2162,25 +4357,62 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Booking not found" });
       }
 
+      const user = userId ? await storage.getUser(userId) : null;
       // Verify this booking belongs to the current user
-      if (booking.visitorUserId !== userId) {
+      if (booking.visitorUserId !== userId && booking.visitorEmail !== user?.email) {
         return res.status(403).json({ message: "Not authorized to update this booking" });
       }
 
-      // Update payment status
-      const updated = await storage.updateBookingPaymentStatus(id, paymentStatus, userId);
+      if (booking.paymentStatus === "paid") {
+        return res.status(400).json({ message: "This booking is already marked as paid" });
+      }
+
+      const allowedMethods = new Set(["cash", "airtel_money", "tnm_mpamba", "card"]);
+      const reportedMethod = String(paymentMethod || booking.paymentMethod || "cash");
+      if (!allowedMethods.has(reportedMethod)) {
+        return res.status(400).json({ message: "Invalid payment method" });
+      }
+
+      const trimmedReference = String(paymentReference || "").trim();
+      const trimmedNote = String(note || "").trim();
+      const reportedAt = new Date().toISOString();
+      const reportLines = [
+        `[PAYMENT REPORTED ${reportedAt}] Visitor reported payment by ${reportedMethod.replace(/_/g, " ")}.`,
+        trimmedReference ? `Reference: ${trimmedReference}` : null,
+        trimmedNote ? `Visitor note: ${trimmedNote}` : null,
+        "Staff verification required before marking paid.",
+      ].filter(Boolean);
+
+      const updated = await storage.updateBooking(id, {
+        paymentMethod: reportedMethod as any,
+        paymentReference: trimmedReference || booking.paymentReference || null,
+        adminNotes: [booking.adminNotes, reportLines.join(" ")].filter(Boolean).join("\n"),
+      });
+
+      await storage.createBookingActivityLog({
+        bookingId: id,
+        userId: userId || null,
+        action: "payment_reported",
+        description: `Visitor reported payment by ${reportedMethod.replace(/_/g, " ")}. Staff verification required.`,
+        oldStatus: booking.paymentStatus || null,
+        newStatus: booking.paymentStatus || null,
+      });
 
       // Create audit log
       if (userId) {
         await createAuditLog(userId, "update", "payment", id,
-          { paymentStatus: booking.paymentStatus },
-          { paymentStatus }, req);
+          { paymentStatus: booking.paymentStatus, paymentMethod: booking.paymentMethod, paymentReference: booking.paymentReference },
+          { paymentStatus: booking.paymentStatus, paymentMethod: reportedMethod, paymentReference: trimmedReference || null, reported: true }, req);
       }
 
-      res.json(updated);
+      res.json({
+        ...updated,
+        paymentReportReceived: true,
+        message: "Payment reported. Staff will verify it before marking the booking as paid.",
+      });
     } catch (error) {
       logError("Error updating visitor payment status", error, req.requestId);
-      res.status(500).json({ message: "Failed to update payment status" });
+      res.status(500).json({ message: "Failed to report payment" });
     }
   });
 
@@ -2220,16 +4452,7 @@ export async function registerRoutes(
       // Notify Admins and Guide
       await notifyBookingCancelledByVisitor(id, booking.visitorName, booking.bookingReference!, guideUserId || undefined);
 
-      // Email Visitor
-      await sendStatusUpdate({
-        visitorName: booking.visitorName,
-        visitorEmail: booking.visitorEmail,
-        bookingReference: booking.bookingReference!,
-        oldStatus: booking.status,
-        newStatus: "cancelled",
-        visitDate: String(booking.visitDate),
-        adminNotes: "Cancelled by visitor"
-      });
+      await sendBookingCancelledEmail(booking, "Cancelled by visitor", userId);
 
       // Create activity log
       await storage.createBookingActivityLog({
@@ -2317,6 +4540,7 @@ export async function registerRoutes(
       if (rating <= 3) {
         const guideName = guide ? `${guide.firstName} ${guide.lastName}` : "Unknown Guide";
         await notifyLowRatingReceived(id, guideName, rating, booking.visitorName);
+        await sendLowRatingAlertEmail(booking, guideName, rating, userId || null);
       }
 
       res.json({ success: true, message: "Guide rated successfully", rating });
@@ -2330,6 +4554,7 @@ export async function registerRoutes(
     try {
       const { id } = req.params;
       const { guideId } = req.body;
+      const oldBooking = await storage.getBooking(id);
       const booking = await storage.assignGuideToBooking(id, guideId);
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
@@ -2337,28 +4562,82 @@ export async function registerRoutes(
 
       // Get guide info and send email
       const guide = await storage.getGuide(guideId);
+      const oldGuide = oldBooking?.assignedGuideId
+        ? await storage.getGuide(oldBooking.assignedGuideId)
+        : undefined;
       const meetingPoint = booking.meetingPointId
         ? await storage.getMeetingPoint(booking.meetingPointId)
         : null;
 
+      let guideAssignmentEmailResult: { success: boolean; error?: string; messageId?: string } = { success: false };
       if (guide) {
-        await sendGuideAssignment({
-          visitorName: booking.visitorName,
-          visitorEmail: booking.visitorEmail,
-          bookingReference: booking.bookingReference!,
-          guideName: `${guide.firstName} ${guide.lastName}`,
-          guidePhone: guide.phone,
-          visitDate: booking.visitDate,
-          visitTime: booking.visitTime,
-          meetingPoint: meetingPoint?.name,
-        });
+        if (oldBooking?.assignedGuideId && oldBooking.assignedGuideId !== guideId) {
+          await sendGuideAssignmentChangedEmails(
+            booking,
+            oldGuide,
+            guide,
+            meetingPoint?.name,
+            req.session?.userId || null
+          );
+        } else {
+          const guideName = `${guide.firstName} ${guide.lastName}`;
+          const guideAssignmentEmail = await sendAutomatedTemplateEmail({
+            templateName: "guide_assignment",
+            recipientName: booking.visitorName,
+            recipientEmail: booking.visitorEmail,
+            data: buildBookingTemplateData(booking, {
+              meeting_point: meetingPoint?.name,
+              guide_name: guideName,
+              guide_phone: guide.phone,
+            }),
+            fallbackSubject: `Guide Assigned - ${booking.bookingReference}`,
+            fallbackMessage: `Guide assignment email sent for ${guideName}.`,
+            fallbackSend: () => sendGuideAssignmentDetailed({
+              visitorName: booking.visitorName,
+              visitorEmail: booking.visitorEmail,
+              bookingReference: booking.bookingReference!,
+              guideName,
+              guidePhone: guide.phone,
+              visitDate: booking.visitDate,
+              visitTime: booking.visitTime,
+              meetingPoint: meetingPoint?.name,
+            }),
+          });
+          guideAssignmentEmailResult = guideAssignmentEmail.result;
+
+          await storage.createEmailLog({
+            sentBy: req.session?.userId,
+            recipientName: booking.visitorName,
+            recipientEmail: booking.visitorEmail,
+            subject: guideAssignmentEmail.subject,
+            message: guideAssignmentEmail.message,
+            templateType: "guide_assignment",
+            status: guideAssignmentEmailResult.success ? "accepted" : "failed",
+            errorMessage: guideAssignmentEmailResult.error,
+            providerMessageId: guideAssignmentEmailResult.messageId,
+            relatedEntityType: "booking",
+            relatedEntityId: booking.id,
+            metadata: buildEmailLogMetadata(booking, guideAssignmentEmail, { guideId }),
+          });
+        }
+
+        await sendGuideTourAssignmentEmail(
+          booking,
+          guide,
+          meetingPoint?.name,
+          req.session?.userId || null
+        );
+
+        if (guide.userId) {
+          await notifyGuideAssigned(booking.id, guide.userId, booking.visitorName, booking.visitDate);
+        }
       }
 
       // Create audit log
       const userId = req.session?.userId;
       if (userId) {
         await createAuditLog(userId, "update", "booking", id,
-          null, { assignedGuideId: guideId }, req);
+          { assignedGuideId: oldBooking?.assignedGuideId || null }, { assignedGuideId: guideId }, req);
       }
 
       res.json(booking);
@@ -2404,12 +4683,39 @@ export async function registerRoutes(
       }
 
       // Send check-in notification
-      await sendCheckInNotification({
-        visitorName: booking.visitorName,
-        visitorEmail: booking.visitorEmail,
-        bookingReference: booking.bookingReference!,
-        checkInTime: new Date().toLocaleTimeString(),
-        guideName,
+      const checkInTime = new Date().toLocaleTimeString();
+      const checkInEmail = await sendAutomatedTemplateEmail({
+        templateName: "check_in_notification",
+        recipientName: booking.visitorName,
+        recipientEmail: booking.visitorEmail,
+        data: buildBookingTemplateData(booking, {
+          check_in_time: checkInTime,
+          guide_name: guideName || "",
+        }),
+        fallbackSubject: `Check-in Confirmed - ${booking.bookingReference}`,
+        fallbackMessage: `Check-in notification sent for ${booking.visitorName}.`,
+        fallbackSend: () => sendCheckInNotificationDetailed({
+          visitorName: booking.visitorName,
+          visitorEmail: booking.visitorEmail,
+          bookingReference: booking.bookingReference!,
+          checkInTime,
+          guideName,
+        }),
+      });
+
+      await storage.createEmailLog({
+        sentBy: userId,
+        recipientName: booking.visitorName,
+        recipientEmail: booking.visitorEmail,
+        subject: checkInEmail.subject,
+        message: checkInEmail.message,
+        templateType: "check_in_notification",
+        status: checkInEmail.result.success ? "accepted" : "failed",
+        errorMessage: checkInEmail.result.error,
+        providerMessageId: checkInEmail.result.messageId,
+        relatedEntityType: "booking",
+        relatedEntityId: booking.id,
+        metadata: buildEmailLogMetadata(booking, checkInEmail),
       });
 
       // Create audit log
@@ -2490,6 +4796,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Booking must be confirmed to start tour" });
       }
 
+      const canManage = await ensureAssignedGuideCanManageBooking(req, res, oldBooking);
+      if (!canManage) return;
+
       const booking = await storage.updateBookingStatus(id, "in_progress");
 
       // Create activity log
@@ -2525,17 +4834,16 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Tour must be in progress to complete" });
       }
 
+      const canManage = await ensureAssignedGuideCanManageBooking(req, res, oldBooking);
+      if (!canManage) return;
+
       const booking = await storage.updateBookingStatus(id, "completed");
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
 
-      // Update guide stats if assigned
+      // Update guide rating if assigned
       if (oldBooking.assignedGuideId) {
-        await storage.incrementGuideStats(
-          oldBooking.assignedGuideId,
-          1,
-          oldBooking.totalAmount || 0
-        );
-
-        // Update guide rating if provided
         if (rating && rating >= 1 && rating <= 5) {
           await storage.updateGuideRating(oldBooking.assignedGuideId, rating);
         }
@@ -2550,6 +4858,8 @@ export async function registerRoutes(
         oldStatus: oldBooking.status,
         newStatus: "completed",
       });
+
+      await sendFeedbackRequestEmail(booking, userId || null);
 
       res.json(booking);
     } catch (error) {
@@ -2597,17 +4907,6 @@ export async function registerRoutes(
     }
   });
 
-  // Booking activity logs
-  app.get("/api/bookings/:id/activity", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
-    try {
-      const logs = await storage.getBookingActivityLogs(req.params.id);
-      res.json(logs);
-    } catch (error) {
-      logError("Error fetching activity logs", error, req.requestId);
-      res.status(500).json({ message: "Failed to fetch activity logs" });
-    }
-  });
-
   // Guides endpoints - admin and coordinator can view all, guides can view their own
   app.get("/api/guides/me", isAuthenticated, requireRole("guide"), async (req: any, res) => {
     try {
@@ -2619,7 +4918,25 @@ export async function registerRoutes(
       if (!guide) {
         return res.status(404).json({ message: "Guide profile not found" });
       }
-      res.json(guide);
+
+      const allBookings = await storage.getBookings();
+      const assignedBookings = allBookings.filter(
+        (booking) => booking.assignedGuideId === guide.id && booking.status !== "cancelled"
+      );
+      const completedBookings = assignedBookings.filter((booking) => booking.status === "completed");
+      const totalEarnings = completedBookings.reduce((sum, booking) => {
+        if (booking.guidePayment && booking.guidePayment > 0) {
+          return sum + booking.guidePayment;
+        }
+        return sum + (booking.totalAmount || 0);
+      }, 0);
+
+      res.json({
+        ...guide,
+        totalTours: assignedBookings.length,
+        completedTours: completedBookings.length,
+        totalEarnings,
+      });
     } catch (error) {
       logError("Error fetching guide profile", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch guide profile" });
@@ -2670,6 +4987,14 @@ export async function registerRoutes(
       const monthlyEarnings = guideBookings
         .filter(b => new Date(b.visitDate) >= startOfMonth)
         .reduce((sum, b) => sum + getEarnings(b), 0);
+      const payouts = await storage.getPayouts({ guideId: guide.id });
+      const pendingPayouts = payouts.filter((payout) => payout.status === "pending");
+      const paidPayouts = payouts.filter((payout) => payout.status === "paid");
+      const pendingPayoutAmount = pendingPayouts.reduce((sum, payout) => sum + (payout.amount || 0), 0);
+      const paidPayoutAmount = paidPayouts.reduce((sum, payout) => sum + (payout.amount || 0), 0);
+      const lastPaidPayout = paidPayouts
+        .filter((payout) => payout.paidAt)
+        .sort((a, b) => new Date(b.paidAt!).getTime() - new Date(a.paidAt!).getTime())[0];
 
       // Get detailed earnings list
       const earningsList = guideBookings.map(b => ({
@@ -2687,6 +5012,14 @@ export async function registerRoutes(
         weeklyEarnings,
         monthlyEarnings,
         totalTours: guideBookings.length,
+        payoutSummary: {
+          pendingAmount: pendingPayoutAmount,
+          pendingCount: pendingPayouts.length,
+          paidAmount: paidPayoutAmount,
+          paidCount: paidPayouts.length,
+          lastPaidAt: lastPaidPayout?.paidAt || null,
+          status: pendingPayouts.length > 0 ? "pending" : paidPayouts.length > 0 ? "paid" : "not_started",
+        },
         earnings: earningsList,
       });
     } catch (error) {
@@ -2777,14 +5110,19 @@ export async function registerRoutes(
       // Update status to completed
       const updatedBooking = await storage.updateBookingStatus(bookingId, "completed");
 
-      // Update guide's completed tours count
-      await storage.updateGuide(guide.id, {
-        completedTours: (guide.completedTours || 0) + 1,
-        totalTours: (guide.totalTours || 0) + 1,
-      });
+      // Keep denormalized legacy stats from drifting on repeat check-outs.
+      if (booking.status !== "completed") {
+        await storage.updateGuide(guide.id, {
+          completedTours: (guide.completedTours || 0) + 1,
+        });
+      }
 
       await createAuditLog(userId, "check_out", "booking", bookingId,
         { status: booking.status }, { status: "completed" }, req);
+
+      if (updatedBooking) {
+        await sendFeedbackRequestEmail(updatedBooking, userId || null);
+      }
 
       res.json(updatedBooking);
     } catch (error) {
@@ -2894,10 +5232,39 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/guides", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+  app.get("/api/guides", isAuthenticated, requireRole("admin", "coordinator", "guide", "security"), async (req: any, res) => {
     try {
       const guidesList = await storage.getGuides();
-      res.json(guidesList);
+      const currentUser = req.currentUser as User | undefined;
+      const canViewFullGuideRecords = currentUser?.role === "admin" || currentUser?.role === "coordinator";
+
+      if (canViewFullGuideRecords) {
+        return res.json(guidesList);
+      }
+
+      const publicGuideDirectory = guidesList
+        .filter((guide) => guide.isActive || guide.userId === currentUser?.id)
+        .map((guide) => ({
+          id: guide.id,
+          userId: guide.userId,
+          firstName: guide.firstName,
+          lastName: guide.lastName,
+          phone: guide.phone,
+          profileImageUrl: guide.profileImageUrl,
+          bio: guide.bio,
+          languages: guide.languages,
+          specialties: guide.specialties,
+          assignedZones: guide.assignedZones,
+          availableDays: guide.availableDays,
+          preferredTimes: guide.preferredTimes,
+          isActive: guide.isActive,
+          rating: guide.rating,
+          totalRatings: guide.totalRatings,
+          availability: guide.availability,
+          workingHours: guide.workingHours,
+        }));
+
+      res.json(publicGuideDirectory);
     } catch (error) {
       logError("Error fetching guides", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch guides" });
@@ -2948,7 +5315,7 @@ export async function registerRoutes(
     }
   });
 
-  // Smart Guide Suggestion - recommends best guide for a booking
+  // Guide matching - recommends guides for a booking
   // NOTE: This must be defined BEFORE /api/guides/:id to prevent route conflicts
   app.get("/api/guides/suggest", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
     try {
@@ -3336,17 +5703,6 @@ export async function registerRoutes(
     }
   });
 
-  // Get guide payment history
-  app.get("/api/guides/:id/payments", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
-    try {
-      const payments = await storage.getGuidePayments(req.params.id);
-      res.json(payments);
-    } catch (error) {
-      logError("Error fetching guide payments", error, req.requestId);
-      res.status(500).json({ message: "Failed to fetch guide payments" });
-    }
-  });
-
   // Initiate booking payment (visitor paying for their booking)
   app.post("/api/bookings/:id/pay", isAuthenticated, async (req: any, res) => {
     try {
@@ -3374,16 +5730,12 @@ export async function registerRoutes(
       }
 
       // Create Stripe Checkout Session
-      const protocol = req.protocol;
-      const host = req.get("host");
-      const baseUrl = `${protocol}://${host}`;
-
       const session = await createCheckoutSession(
         bookingId,
         amount,
         "mwk",
-        `${baseUrl}/my-bookings?payment_success=true&booking_id=${bookingId}`,
-        `${baseUrl}/my-bookings?payment_cancel=true`,
+        `${PUBLIC_APP_URL}/my-bookings?payment_success=true&booking_id=${bookingId}`,
+        `${PUBLIC_APP_URL}/my-bookings?payment_cancel=true`,
         booking.visitorEmail,
         `Booking: ${booking.bookingReference}`
       );
@@ -3498,6 +5850,7 @@ export async function registerRoutes(
         logger.info(`[Stripe Webhook] Payment successful for booking ${bookingId}`);
 
         if (bookingId) {
+          const oldBooking = await storage.getBooking(bookingId);
           await storage.updateBooking(bookingId, {
             paymentStatus: "paid",
             // Store Stripe Session ID as payment reference
@@ -3505,9 +5858,10 @@ export async function registerRoutes(
             paymentVerifiedAt: new Date(),
           });
 
-          // Optionally send confirmation email here
-          // const booking = await storage.getBooking(bookingId);
-          // if (booking) sendPaymentConfirmationEmail(booking);
+          const booking = await storage.getBooking(bookingId);
+          if (booking && oldBooking?.paymentStatus !== "paid") {
+            await sendPaymentReceiptEmail(booking, null);
+          }
         }
       }
 
@@ -3564,16 +5918,37 @@ export async function registerRoutes(
       logger.info(`✅ GetYourGuide booking: ${bookingReference}`);
 
       try {
-        const { sendBookingConfirmation } = await import("./email");
-        await sendBookingConfirmation({
-          visitorName: booking.visitorName,
-          visitorEmail: booking.visitorEmail,
-          bookingReference: booking.bookingReference,
-          visitDate: booking.visitDate,
-          visitTime: booking.visitTime,
-          tourType: booking.tourType,
-          numberOfPeople: booking.numberOfPeople || participantCount,
-          totalAmount: booking.totalAmount || totalAmount,
+        const gygEmail = await sendAutomatedTemplateEmail({
+          templateName: "booking_confirmation",
+          recipientName: booking.visitorName,
+          recipientEmail: booking.visitorEmail,
+          data: buildBookingTemplateData(booking, {
+            old_status: "pending",
+            new_status: "confirmed",
+          }),
+          fallbackSubject: `Booking Confirmed - ${booking.bookingReference}`,
+          fallbackMessage: `GetYourGuide confirmed booking email sent for ${booking.visitorName} (${booking.bookingReference}).`,
+          fallbackSend: () => sendStatusUpdateDetailed({
+            visitorName: booking.visitorName,
+            visitorEmail: booking.visitorEmail,
+            bookingReference: booking.bookingReference,
+            oldStatus: "pending",
+            newStatus: "confirmed",
+            visitDate: booking.visitDate,
+          }),
+        });
+        await storage.createEmailLog({
+          recipientName: booking.visitorName,
+          recipientEmail: booking.visitorEmail,
+          subject: gygEmail.subject,
+          message: gygEmail.message,
+          templateType: "booking_confirmation",
+          status: gygEmail.result.success ? "accepted" : "failed",
+          errorMessage: gygEmail.result.error,
+          providerMessageId: gygEmail.result.messageId,
+          relatedEntityType: "booking",
+          relatedEntityId: booking.id,
+          metadata: buildEmailLogMetadata(booking, gygEmail, { source: "getyourguide" }),
         });
       } catch (emailError) {
         logger.error('Email error:', emailError);
@@ -3849,11 +6224,11 @@ export async function registerRoutes(
       await storage.setPasswordResetToken(req.params.id, resetToken, resetExpires);
 
       // Send email
-      const resetUrl = `${process.env.APP_URL || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+      const resetUrl = `${PUBLIC_APP_URL}/reset-password?token=${resetToken}`;
       await sendCustomEmail({
         recipientEmail: user.email,
         recipientName: user.firstName || 'User',
-        subject: 'Password Reset - Dzaleka Online Services',
+        subject: 'Password Reset - Visit Dzaleka',
         message: `An administrator has initiated a password reset for your account.\n\nClick this link to reset your password: ${resetUrl}\n\nThis link will expire in 24 hours.\n\nIf you did not request this, please contact support.`,
         senderName: 'Admin'
       });
@@ -4191,6 +6566,13 @@ export async function registerRoutes(
 
       // Notify admins and security
       await notifyIncidentReported(incident.id, incident.title, incidentData.severity || "low", user ? `${user.firstName} ${user.lastName}` : "Unknown User");
+      if (incident.severity === "high" || incident.severity === "critical") {
+        await sendIncidentAlertEmail(
+          incident,
+          user ? getDisplayName(user) : "Unknown User",
+          userId || null
+        );
+      }
 
       res.status(201).json(incident);
     } catch (error) {
@@ -4411,7 +6793,7 @@ export async function registerRoutes(
       const user = await storage.getUser(req.session?.userId);
       const senderName = user ? `${user.firstName} ${user.lastName}` : undefined;
 
-      const success = await sendCustomEmail({
+      const result = await sendCustomEmailDetailed({
         recipientName: recipientName || "Valued Customer",
         recipientEmail,
         subject,
@@ -4419,7 +6801,7 @@ export async function registerRoutes(
         senderName
       });
 
-      if (success) {
+      if (result.success) {
         await storage.createEmailLog({
           sentBy: req.session?.userId,
           recipientName: recipientName || null,
@@ -4427,7 +6809,8 @@ export async function registerRoutes(
           subject,
           message,
           templateType: "custom",
-          status: "sent",
+          status: "accepted",
+          providerMessageId: result.messageId,
         });
         res.json({ success: true, message: "Email sent successfully" });
       } else {
@@ -4439,6 +6822,7 @@ export async function registerRoutes(
           message,
           templateType: "custom",
           status: "failed",
+          errorMessage: result.error,
         });
         res.status(500).json({ message: "Failed to send email" });
       }
@@ -4459,12 +6843,12 @@ export async function registerRoutes(
       const user = await storage.getUser(req.session?.userId);
       const senderName = user ? `${user.firstName} ${user.lastName}` : "Visit Dzaleka Team";
 
-      const success = await sendItineraryEmail({
+      const itineraryEmailResult = await sendItineraryEmailDetailed({
         ...data,
         senderName
       });
 
-      if (success) {
+      if (itineraryEmailResult.success) {
         if (data.bookingId) {
           try {
             await storage.createItinerary({
@@ -4480,7 +6864,7 @@ export async function registerRoutes(
           sentBy: req.session?.userId,
           recipientName: data.recipientName,
           recipientEmail: data.recipientEmail,
-          subject: "Proposed Itinerary",
+          subject: "Your Visit Dzaleka Itinerary",
           message: [
             `Itinerary for ${data.recipientName} on ${data.date} (${data.duration})`,
             data.bookingReference ? `Ref: ${data.bookingReference}` : '',
@@ -4492,7 +6876,11 @@ export async function registerRoutes(
             data.notes ? `\nNotes: ${data.notes}` : ''
           ].filter(Boolean).join('\n'),
           templateType: "itinerary",
-          status: "sent",
+          status: "accepted",
+          providerMessageId: itineraryEmailResult.messageId,
+          relatedEntityType: data.bookingId ? "booking" : undefined,
+          relatedEntityId: data.bookingId || undefined,
+          metadata: { bookingReference: data.bookingReference },
         });
         res.json({ success: true, message: "Itinerary sent successfully" });
       } else {
@@ -4500,10 +6888,14 @@ export async function registerRoutes(
           sentBy: req.session?.userId,
           recipientName: data.recipientName,
           recipientEmail: data.recipientEmail,
-          subject: "Proposed Itinerary",
-          message: "Failed to send",
+          subject: "Your Visit Dzaleka Itinerary",
+          message: itineraryEmailResult.error || "Failed to send",
           templateType: "itinerary",
           status: "failed",
+          errorMessage: itineraryEmailResult.error,
+          relatedEntityType: data.bookingId ? "booking" : undefined,
+          relatedEntityId: data.bookingId || undefined,
+          metadata: { bookingReference: data.bookingReference },
         });
         res.status(500).json({ message: "Failed to send email" });
       }
@@ -4516,7 +6908,16 @@ export async function registerRoutes(
   // Email log endpoints (Admin/Coordinator only)
   app.get("/api/email-logs", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
     try {
-      const logs = await storage.getEmailLogs();
+      const archivedQuery = String(req.query.archived || "active");
+      const logs = await storage.getEmailLogs({
+        status: typeof req.query.status === "string" ? req.query.status : undefined,
+        templateType: typeof req.query.templateType === "string" ? req.query.templateType : undefined,
+        recipient: typeof req.query.recipient === "string" ? req.query.recipient : undefined,
+        bookingReference: typeof req.query.bookingReference === "string" ? req.query.bookingReference : undefined,
+        dateFrom: typeof req.query.dateFrom === "string" ? req.query.dateFrom : undefined,
+        dateTo: typeof req.query.dateTo === "string" ? req.query.dateTo : undefined,
+        archived: archivedQuery === "archived" || archivedQuery === "all" ? archivedQuery : "active",
+      });
       res.json(logs);
     } catch (error) {
       logError("Error fetching email logs", error, req.requestId);
@@ -4534,19 +6935,22 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Email log not found" });
       }
 
-      // Resend the email
-      const success = await sendCustomEmail({
+      const templateType = emailLog.templateType || "custom";
+      const resendRenderedBody = templateType !== "custom";
+      const result = await sendCustomEmailDetailed({
         recipientName: emailLog.recipientName || "",
         recipientEmail: emailLog.recipientEmail,
         subject: emailLog.subject,
         message: emailLog.message || "",
+        includeGreeting: !resendRenderedBody,
       });
 
-      if (success) {
+      if (result.success) {
         // Update the email log status
-        await storage.updateEmailLogStatus(id, "sent");
+        await storage.updateEmailLogStatus(id, "accepted", null, result.messageId || null);
         res.json({ success: true, message: "Email resent successfully" });
       } else {
+        await storage.updateEmailLogStatus(id, "failed", result.error || "Retry failed");
         res.status(500).json({ message: "Failed to resend email" });
       }
     } catch (error) {
@@ -4582,6 +6986,51 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/webhooks/resend", async (req, res) => {
+    try {
+      const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
+      if (webhookSecret) {
+        const sharedSecretHeader = getHeaderValue(req.headers["x-webhook-secret"]);
+        const hasSvixHeaders = Boolean(
+          req.headers["svix-id"] && req.headers["svix-timestamp"] && req.headers["svix-signature"]
+        );
+
+        const isVerified = hasSvixHeaders
+          ? verifyResendWebhookSignature(req, webhookSecret)
+          : sharedSecretHeader === webhookSecret;
+
+        if (!isVerified) {
+          return res.status(401).json({ message: "Invalid webhook signature" });
+        }
+      }
+
+      const eventType = String(req.body?.type || "");
+      const status = resendEventStatusMap[eventType] || "accepted";
+      const providerMessageId = req.body?.data?.email_id || req.body?.data?.id || req.body?.email_id;
+
+      if (!providerMessageId) {
+        return res.status(202).json({ received: true, tracked: false, message: "No provider message id in event" });
+      }
+
+      const errorMessage = req.body?.data?.bounce?.message
+        || req.body?.data?.error?.message
+        || req.body?.data?.reason
+        || null;
+
+      const updated = await storage.updateEmailLogDeliveryStatus(
+        String(providerMessageId),
+        status,
+        req.body?.created_at || req.body?.data?.created_at || null,
+        errorMessage
+      );
+
+      res.json({ received: true, tracked: !!updated, status });
+    } catch (error) {
+      logError("Error handling Resend webhook", error, req.requestId);
+      res.status(500).json({ message: "Failed to process Resend webhook" });
+    }
+  });
+
   // Booking Reminders endpoints
   app.post("/api/admin/reminders/trigger", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
@@ -4602,6 +7051,142 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error fetching email templates", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch email templates" });
+    }
+  });
+
+  app.post("/api/email-templates/initialize", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    try {
+      const requestedTemplates = Array.isArray(req.body?.templates) ? req.body.templates : [];
+      if (requestedTemplates.length === 0) {
+        return res.status(400).json({ message: "At least one template is required" });
+      }
+
+      const created = [];
+      const updated = [];
+
+      for (const requestedTemplate of requestedTemplates) {
+        const templateData = insertEmailTemplateSchema.parse({
+          name: requestedTemplate.name,
+          subject: requestedTemplate.subject,
+          body: requestedTemplate.body,
+          description: requestedTemplate.description,
+          variables: requestedTemplate.variables || [],
+          isActive: requestedTemplate.isActive ?? true,
+          updatedBy: req.session?.userId,
+        });
+
+        const existingTemplate = await storage.getEmailTemplateByName(templateData.name);
+        if (!existingTemplate) {
+          created.push(await storage.createEmailTemplate(templateData));
+          continue;
+        }
+
+        const shouldPatchFeedbackBody = templateData.name === "feedback_request"
+          && !String(existingTemplate.body || "").includes("{{feedback_link}}");
+        const shouldPatchVariables = JSON.stringify(existingTemplate.variables || []) !== JSON.stringify(templateData.variables || []);
+
+        if (shouldPatchFeedbackBody || shouldPatchVariables) {
+          const updatedTemplate = await storage.updateEmailTemplate(existingTemplate.id, {
+            body: shouldPatchFeedbackBody ? templateData.body : existingTemplate.body,
+            description: templateData.description || existingTemplate.description,
+            variables: templateData.variables,
+            updatedBy: req.session?.userId,
+          });
+
+          if (updatedTemplate) {
+            updated.push(updatedTemplate);
+          }
+        }
+      }
+
+      res.status(201).json({
+        createdCount: created.length,
+        updatedCount: updated.length,
+        created,
+        updated,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid template data", errors: error.errors });
+      }
+      logError("Error initializing email templates", error, req.requestId);
+      res.status(500).json({ message: "Failed to initialize email templates" });
+    }
+  });
+
+  app.post("/api/email-templates/:id/preview", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const template = await storage.getEmailTemplate(req.params.id);
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+
+      const sampleData = {
+        ...TEMPLATE_SAMPLE_DATA,
+        ...(req.body?.sampleData || {}),
+      };
+
+      res.json({
+        subject: renderTemplateText(template.subject, sampleData),
+        body: renderTemplateText(template.body, sampleData),
+        sampleData,
+      });
+    } catch (error) {
+      logError("Error previewing email template", error, req.requestId);
+      res.status(500).json({ message: "Failed to preview email template" });
+    }
+  });
+
+  app.post("/api/email-templates/:id/send-test", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    try {
+      const template = await storage.getEmailTemplate(req.params.id);
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+
+      const recipientEmail = String(req.body?.recipientEmail || "").trim();
+      if (!recipientEmail) {
+        return res.status(400).json({ message: "Recipient email is required" });
+      }
+
+      const user = await storage.getUser(req.session?.userId);
+      const senderName = user ? `${user.firstName} ${user.lastName}` : "Visit Dzaleka Team";
+      const sampleData = {
+        ...TEMPLATE_SAMPLE_DATA,
+        ...(req.body?.sampleData || {}),
+      };
+      const subject = `[Test] ${renderTemplateText(template.subject, sampleData)}`;
+      const message = renderTemplateText(template.body, sampleData);
+
+      const result = await sendCustomEmailDetailed({
+        recipientName: req.body?.recipientName || "Test Recipient",
+        recipientEmail,
+        subject,
+        message,
+        senderName,
+      });
+
+      await storage.createEmailLog({
+        sentBy: req.session?.userId,
+        recipientName: req.body?.recipientName || "Test Recipient",
+        recipientEmail,
+        subject,
+        message,
+        templateType: `${template.name}_test`,
+        status: result.success ? "accepted" : "failed",
+        errorMessage: result.error,
+        providerMessageId: result.messageId,
+        metadata: { templateId: template.id, test: true },
+      });
+
+      if (!result.success) {
+        return res.status(500).json({ message: result.error || "Failed to send test email" });
+      }
+
+      res.json({ success: true, message: "Test email sent", providerMessageId: result.messageId });
+    } catch (error) {
+      logError("Error sending test email", error, req.requestId);
+      res.status(500).json({ message: "Failed to send test email" });
     }
   });
 
@@ -4661,7 +7246,7 @@ export async function registerRoutes(
       const totalRevenue = paidBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
 
       // Guide share configuration: guides currently take 100% of tour revenue
-      // Platform revenue comes from other sources (not implemented yet)
+      // Platform revenue is configured as 0% for direct tour payments.
       const GUIDE_SHARE_PERCENT = 100; // 100% to guides
       const PLATFORM_SHARE_PERCENT = 0;  // 0% to platform
 
@@ -5137,14 +7722,28 @@ export async function registerRoutes(
       await storage.setPasswordResetToken(user.id, resetToken, resetTokenExpiry);
 
       // Send invitation email
-      const inviteUrl = `${req.protocol}://${req.get("host")}/reset-password?token=${resetToken}`;
+      const inviteUrl = `${PUBLIC_APP_URL}/reset-password?token=${resetToken}`;
       const inviter = await storage.getUser(req.session.userId);
 
-      await sendInvitationEmail({
+      const invitationResult = await sendInvitationEmailDetailed({
         email,
         role,
         inviteUrl,
         inviterName: inviter ? `${inviter.firstName} ${inviter.lastName}` : "Administrator"
+      });
+      await storage.createEmailLog({
+        sentBy: req.session.userId,
+        recipientName: `${firstName} ${lastName}`.trim(),
+        recipientEmail: email,
+        subject: "You have been invited to Visit Dzaleka",
+        message: `Invitation sent for ${role}.`,
+        templateType: "invitation",
+        status: invitationResult.success ? "accepted" : "failed",
+        errorMessage: invitationResult.error,
+        providerMessageId: invitationResult.messageId,
+        relatedEntityType: "user",
+        relatedEntityId: user.id,
+        metadata: { role },
       });
 
       await createAuditLog(req.session.userId, "create", "user_invite", user.id, null, { email, role }, req);
@@ -5278,16 +7877,29 @@ export async function registerRoutes(
       });
 
       // Send invitation email
-      const inviteUrl = `${req.protocol}://${req.get("host")}/accept-invite?token=${inviteToken}`;
+      const inviteUrl = `${PUBLIC_APP_URL}/accept-invite?token=${inviteToken}`;
       const currentUser = await storage.getUser(req.session.userId);
       const inviterName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Admin";
 
       try {
-        await sendInvitationEmail({
+        const invitationResult = await sendInvitationEmailDetailed({
           email,
           role: role || "visitor",
           inviteUrl,
           inviterName
+        });
+        await storage.createEmailLog({
+          sentBy: req.session.userId,
+          recipientEmail: email,
+          subject: "You have been invited to Visit Dzaleka",
+          message: `Invitation sent for ${role || "visitor"}.`,
+          templateType: "invitation",
+          status: invitationResult.success ? "accepted" : "failed",
+          errorMessage: invitationResult.error,
+          providerMessageId: invitationResult.messageId,
+          relatedEntityType: "user_invite",
+          relatedEntityId: invite.id,
+          metadata: { role: role || "visitor" },
         });
       } catch (emailError) {
         logError("Failed to send invitation email", emailError, req.requestId);
@@ -5332,16 +7944,29 @@ export async function registerRoutes(
       });
 
       // Send invitation email
-      const inviteUrl = `${req.protocol}://${req.get("host")}/accept-invite?token=${newToken}`;
+      const inviteUrl = `${PUBLIC_APP_URL}/accept-invite?token=${newToken}`;
       const currentUser = await storage.getUser(req.session.userId);
       const inviterName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Admin";
 
       try {
-        await sendInvitationEmail({
+        const invitationResult = await sendInvitationEmailDetailed({
           email: invite.email,
           role: invite.role || "visitor",
           inviteUrl,
           inviterName
+        });
+        await storage.createEmailLog({
+          sentBy: req.session.userId,
+          recipientEmail: invite.email,
+          subject: "You have been invited to Visit Dzaleka",
+          message: `Invitation resent for ${invite.role || "visitor"}.`,
+          templateType: "invitation",
+          status: invitationResult.success ? "accepted" : "failed",
+          errorMessage: invitationResult.error,
+          providerMessageId: invitationResult.messageId,
+          relatedEntityType: "user_invite",
+          relatedEntityId: newInvite.id,
+          metadata: { role: invite.role || "visitor", resent: true },
         });
       } catch (emailError) {
         logError("Failed to send invitation email", emailError, req.requestId);
@@ -5429,6 +8054,12 @@ export async function registerRoutes(
       // Audit log
       await createAuditLog(user.id, "create", "user", user.id, null, { email: invite.email, role: invite.role }, req);
 
+      try {
+        await sendWelcomeOrVerificationEmail(user, user.id);
+      } catch (emailError) {
+        logger.error("Failed to send welcome/verification email", emailError);
+      }
+
       // Return user without password
       const { password: _, ...safeUser } = user;
       res.status(201).json(safeUser);
@@ -5448,6 +8079,33 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error fetching all guides training stats", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch guides training stats" });
+    }
+  });
+
+  app.post("/api/training/reminders/send", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
+    try {
+      const stats = await storage.getAllGuidesTrainingStats();
+      const incompleteGuides = stats.filter((item) => item.total > 0 && item.percentage < 100);
+      const results = [];
+
+      for (const item of incompleteGuides) {
+        const result = await sendGuideTrainingReminderEmail(item.guide, req.session?.userId || null);
+        results.push({
+          guideId: item.guide.id,
+          guideName: `${item.guide.firstName} ${item.guide.lastName}`.trim(),
+          sent: Boolean(result?.success),
+          error: result?.error,
+        });
+      }
+
+      res.json({
+        sentCount: results.filter((item) => item.sent).length,
+        skippedCount: incompleteGuides.length - results.length,
+        results,
+      });
+    } catch (error) {
+      logError("Error sending guide training reminders", error, req.requestId);
+      res.status(500).json({ message: "Failed to send training reminders" });
     }
   });
 
@@ -5862,11 +8520,13 @@ export async function registerRoutes(
   // Get a specific chat room
   app.get("/api/chat/rooms/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const room = await storage.getChatRoom(req.params.id);
-      if (!room) {
-        return res.status(404).json({ message: "Chat room not found" });
+      const userId = req.session.userId!;
+      const access = await getChatRoomForParticipant(req.params.id, userId);
+      if (access.status !== 200) {
+        return res.status(access.status).json({ message: access.message });
       }
-      res.json(room);
+
+      res.json(access.room);
     } catch (error) {
       logError("Error fetching chat room", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch chat room" });
@@ -5879,12 +8539,9 @@ export async function registerRoutes(
       const userId = req.session.userId!;
       const roomId = req.params.id;
 
-      // Verify user is a participant
-      const participants = await storage.getChatParticipants(roomId);
-      const isParticipant = participants.some(p => p.userId === userId);
-
-      if (!isParticipant) {
-        return res.status(403).json({ message: "You are not a participant of this chat" });
+      const access = await getChatRoomForParticipant(roomId, userId);
+      if (access.status !== 200) {
+        return res.status(access.status).json({ message: access.message });
       }
 
       await storage.deleteChatRoom(roomId);
@@ -5917,10 +8574,15 @@ export async function registerRoutes(
   app.get("/api/chat/rooms/:id/messages", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const limit = parseInt(req.query.limit as string) || 50;
+      const userId = req.session.userId!;
+      const access = await getChatRoomForParticipant(req.params.id, userId);
+      if (access.status !== 200) {
+        return res.status(access.status).json({ message: access.message });
+      }
+
       const messages = await storage.getChatMessages(req.params.id, limit);
 
       // Update last read timestamp for current user
-      const userId = req.session.userId!;
       await storage.updateLastRead(req.params.id, userId);
 
       res.json(messages);
@@ -5938,6 +8600,11 @@ export async function registerRoutes(
 
       if (!content || !content.trim()) {
         return res.status(400).json({ message: "Message content is required" });
+      }
+
+      const access = await getChatRoomForParticipant(req.params.id, userId);
+      if (access.status !== 200) {
+        return res.status(access.status).json({ message: access.message });
       }
 
       const message = await storage.createChatMessage({
@@ -5960,12 +8627,14 @@ export async function registerRoutes(
       const userId = req.session.userId!;
       const messageId = req.params.id;
 
-      // Get the message first to verify ownership
-      const messages = await storage.getChatMessages("", 1000) as any[];
-      const message = messages.find((m: any) => m.id === messageId);
-
+      const message = await storage.getChatMessage(messageId);
       if (!message) {
         return res.status(404).json({ message: "Message not found" });
+      }
+
+      const access = await getChatRoomForParticipant(message.roomId, userId);
+      if (access.status !== 200) {
+        return res.status(access.status).json({ message: access.message });
       }
 
       if (message.senderId !== userId) {
@@ -5983,8 +8652,13 @@ export async function registerRoutes(
   // Get participants of a chat room
   app.get("/api/chat/rooms/:id/participants", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const participants = await storage.getChatParticipants(req.params.id);
-      res.json(participants);
+      const userId = req.session.userId!;
+      const access = await getChatRoomForParticipant(req.params.id, userId);
+      if (access.status !== 200) {
+        return res.status(access.status).json({ message: access.message });
+      }
+
+      res.json(access.participants);
     } catch (error) {
       logError("Error fetching participants", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch participants" });
@@ -6199,6 +8873,9 @@ export async function registerRoutes(
       // Notify admins about new ticket
       const user = await storage.getUser(userId);
       await notifySupportTicketCreated(ticket.id, ticketData.subject, user ? `${user.firstName} ${user.lastName}` : "User");
+      if (user?.email) {
+        await sendSupportTicketCreatedEmail(ticket, user, userId);
+      }
 
       res.status(201).json(ticket);
     } catch (error) {
@@ -6210,11 +8887,18 @@ export async function registerRoutes(
   // Admin: Update support ticket
   app.put("/api/support/tickets/:id", isAuthenticated, isAdmin, async (req, res) => {
     try {
+      const oldTicket = await storage.getSupportTicketById(req.params.id);
       const updates = req.body;
       if (updates.status === "resolved") {
         updates.resolvedAt = new Date().toISOString();
       }
       const ticket = await storage.updateSupportTicket(req.params.id, updates);
+      if (ticket.status === "resolved" && oldTicket?.status !== "resolved") {
+        const ticketUser = await storage.getUser(ticket.userId);
+        if (ticketUser?.email) {
+          await sendSupportTicketResolvedEmail(ticket, ticketUser, req.session?.userId || null);
+        }
+      }
       res.json(ticket);
     } catch (error) {
       logError("Error updating support ticket", error, req.requestId);
@@ -6238,7 +8922,38 @@ export async function registerRoutes(
 
   app.post("/api/recurring-bookings", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
     try {
-      const bookingData = req.body;
+      const parsed = insertRecurringBookingSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Invalid recurring booking",
+          errors: parsed.error.flatten(),
+        });
+      }
+
+      const bookingData = parsed.data;
+      const dayOfWeek = bookingData.dayOfWeek ?? null;
+      const weekOfMonth = bookingData.weekOfMonth ?? null;
+
+      if (Number.isNaN(new Date(bookingData.startDate).getTime())) {
+        return res.status(400).json({ message: "Invalid start date" });
+      }
+
+      if (dayOfWeek !== null && (dayOfWeek < 0 || dayOfWeek > 6)) {
+        return res.status(400).json({ message: "dayOfWeek must be between 0 and 6" });
+      }
+
+      if (weekOfMonth !== null && (weekOfMonth < 1 || weekOfMonth > 5)) {
+        return res.status(400).json({ message: "weekOfMonth must be between 1 and 5" });
+      }
+
+      if (bookingData.frequency === "weekly" && dayOfWeek === null) {
+        return res.status(400).json({ message: "Weekly schedules require dayOfWeek" });
+      }
+
+      if (bookingData.frequency === "monthly" && weekOfMonth !== null && dayOfWeek === null) {
+        return res.status(400).json({ message: "Monthly weekday schedules require dayOfWeek" });
+      }
+
       const recurring = await storage.createRecurringBooking(bookingData);
       res.status(201).json(recurring);
     } catch (error) {
@@ -6257,6 +8972,30 @@ export async function registerRoutes(
     }
   });
 
+  const getDayOfMonth = (date: string | Date) => {
+    if (date instanceof Date) return date.getDate();
+
+    const dateOnlyDay = Number(date.split("T")[0]?.split("-")[2]);
+    return Number.isFinite(dateOnlyDay) ? dateOnlyDay : new Date(date).getDate();
+  };
+
+  const getWeekOfMonth = (date: Date) => Math.ceil(date.getDate() / 7);
+  const isRecurringDateMatch = (date: Date, recurring: RecurringBooking) => {
+    if (recurring.frequency === "weekly") {
+      return recurring.dayOfWeek !== null && recurring.dayOfWeek !== undefined && date.getDay() === recurring.dayOfWeek;
+    }
+
+    if (recurring.frequency === "monthly") {
+      if (recurring.weekOfMonth && recurring.dayOfWeek !== null && recurring.dayOfWeek !== undefined) {
+        return date.getDay() === recurring.dayOfWeek && getWeekOfMonth(date) === recurring.weekOfMonth;
+      }
+
+      return date.getDate() === getDayOfMonth(recurring.startDate);
+    }
+
+    return false;
+  };
+
   app.post("/api/recurring-bookings/:id/generate", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
     try {
       const { id } = req.params;
@@ -6268,34 +9007,19 @@ export async function registerRoutes(
       }
 
       const endCap = targetDate ? new Date(targetDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default 30 days
+      if (Number.isNaN(endCap.getTime())) {
+        return res.status(400).json({ message: "Invalid target date" });
+      }
+
       const startCursor = recurring.lastGeneratedDate
         ? new Date(new Date(recurring.lastGeneratedDate).getTime() + 24 * 60 * 60 * 1000) // Start from day after last gen
         : new Date(recurring.startDate);
-
-      if (startCursor < new Date()) {
-        // Optionally enforce starting from today if last gen was long ago? 
-        // For now allow backfilling if desired, or maybe max(startCursor, today)
-      }
 
       const generatedBookings = [];
       const cursor = new Date(startCursor);
 
       while (cursor <= endCap) {
-        let shouldBook = false;
-
-        // Basic Frequency Logic
-        if (recurring.frequency === 'weekly') {
-          if (recurring.dayOfWeek !== null && cursor.getDay() === recurring.dayOfWeek) {
-            shouldBook = true;
-          }
-        } else if (recurring.frequency === 'monthly') {
-          // Ex: Same day of month (e.g. 15th)
-          const startD = new Date(recurring.startDate);
-          if (cursor.getDate() === startD.getDate()) {
-            shouldBook = true;
-          }
-          // TODO: Implement "2nd Friday" logic if needed based on weekOfMonth
-        }
+        const shouldBook = isRecurringDateMatch(cursor, recurring);
 
         if (shouldBook) {
           // Create Booking
@@ -6313,7 +9037,7 @@ export async function registerRoutes(
             tourType: recurring.tourType,
             visitDate: visitDateStr,
             visitTime: recurring.startTime, // "HH:mm:ss"
-            paymentMethod: "cash", // Default or needs adding to recurring schema
+            paymentMethod: "cash",
             status: "confirmed", // Auto-confirm? Or pending?
             adminNotes: `Auto-generated from recurring schedule: ${recurring.organizationName || ''}. ${recurring.notes || ''}`,
             recurringBookingId: recurring.id
@@ -6333,6 +9057,11 @@ export async function registerRoutes(
         await storage.updateRecurringBooking(id, {
           lastGeneratedDate: endCap.toISOString().split('T')[0]
         });
+        await sendRecurringBookingGeneratedEmails(
+          recurring,
+          generatedBookings,
+          req.session?.userId || null
+        );
       }
 
       res.json({ generatedCount: generatedBookings.length, bookings: generatedBookings });
@@ -6810,49 +9539,228 @@ export async function registerRoutes(
     }
   }
 
+  app.get("/api/getyourguide/self-test-readiness", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const productId = process.env.GETYOURGUIDE_EXTERNAL_PRODUCT_ID
+        || process.env.GETYOURGUIDE_PRODUCT_ID
+        || "dzaleka-refugee-camp-guided-walking-tour";
+      const activityId = process.env.GETYOURGUIDE_ACTIVITY_ID || "1188868";
+      const today = getGygLocalDate();
+      const fromDate = addDaysToDateString(today, 7);
+      const toDate = addDaysToDateString(today, 21);
+      const unavailableDate = addDaysToDateString(today, 28);
+      const selfTestProductIds = getGygSelfTestProductIds();
+      const availabilityPushProductId = getGygAvailabilityPushProductId();
+
+      const individualPrice = await calculateTotalAmount("individual", "standard");
+      const groupPrice = await calculateTotalAmount("large_group", "standard");
+
+      res.json({
+        productId,
+        activityId,
+        listingUrl: "https://www.getyourguide.com/mbalame-l265219/dzaleka-refugee-camp-guided-walking-tour-t1188868/",
+        publicBaseUrl: PUBLIC_APP_URL,
+        webhookEndpoint: `${PUBLIC_APP_URL}/api/webhooks/getyourguide`,
+        productTimezone: GYG_PRODUCT_TIMEZONE,
+        supplierApiBaseUrl: `${PUBLIC_APP_URL}/1`,
+        supplierId: GYG_SUPPLIER_ID,
+        credentialsConfigured: Boolean(
+          (process.env.GETYOURGUIDE_SUPPLIER_API_USERNAME || process.env.GETYOURGUIDE_API_USERNAME)
+          && (process.env.GETYOURGUIDE_SUPPLIER_API_PASSWORD || process.env.GETYOURGUIDE_API_PASSWORD)
+        ),
+        availabilityPushProductId: availabilityPushProductId || null,
+        outboundCredentialsConfigured: Boolean(
+          process.env.GETYOURGUIDE_API_USERNAME && process.env.GETYOURGUIDE_API_PASSWORD
+        ),
+        availabilityPushConfigured: Boolean(availabilityPushProductId),
+        selfTestProductIds,
+        recommendedSelfTests: [
+          {
+            key: "time_point_individual",
+            label: "Time point for Individuals",
+            productId: selfTestProductIds.timePointIndividual,
+            byCategoryProductId: selfTestProductIds.timePointIndividualByCategory,
+            status: "Ready to configure",
+            timeAvailable: "At fixed starting times (Time point)",
+            priceSetup: "Price per individual",
+            sampleTimes: ["09:00", "14:00"],
+            samplePrice: individualPrice,
+            currency: GYG_CURRENCY,
+          },
+          {
+            key: "time_point_group",
+            label: "Time point for Groups",
+            productId: selfTestProductIds.timePointGroup,
+            status: "Ready to configure",
+            timeAvailable: "At fixed starting times (Time point)",
+            priceSetup: "Price per group",
+            sampleTimes: ["09:00", "14:00"],
+            samplePrice: groupPrice,
+            currency: GYG_CURRENCY,
+          },
+          {
+            key: "time_period_individual",
+            label: "Time period for Individuals",
+            productId: selfTestProductIds.timePeriodIndividual,
+            byCategoryProductId: selfTestProductIds.timePeriodIndividualByCategory,
+            status: "Ready to configure",
+            timeAvailable: "During operation hours (Time period)",
+            priceSetup: "Price per individual",
+            sampleTimes: ["09:00-17:00"],
+            samplePrice: individualPrice,
+            currency: GYG_CURRENCY,
+          },
+          {
+            key: "time_period_group",
+            label: "Time period for Groups",
+            productId: selfTestProductIds.timePeriodGroup,
+            status: "Ready to configure",
+            timeAvailable: "During operation hours (Time period)",
+            priceSetup: "Price per group",
+            sampleTimes: ["09:00-17:00"],
+            samplePrice: groupPrice,
+            currency: GYG_CURRENCY,
+          },
+        ],
+        suggestedAvailabilityWindow: {
+          from: fromDate,
+          to: toDate,
+          note: "Use a range that contains at least two available starting times so GetYourGuide can test booking changes.",
+        },
+        suggestedUnavailableWindow: {
+          from: unavailableDate,
+          to: unavailableDate,
+          note: "Use a future blocked date after the available range.",
+        },
+        portalRules: [
+          "Use fixed time slots for the current guided walking tour setup. Operation-hours testing should stay planned unless the product is changed to arrival-anytime availability.",
+          "GetYourGuide does not mix fixed time slots and operation-hours availability in the same option.",
+          "GetYourGuide does not mix price per individual and price per group in the same option. Create separate options if both are offered.",
+          "If the portal test is set to Availability By Ticket Category, use an individual product ID that ends in -by-category.",
+          "Use the activity meeting-point timezone in both systems: Africa/Blantyre.",
+          "The public listing id 1188868 is not necessarily the same id GetYourGuide accepts for outbound availability notifications.",
+          "Availability push requires GETYOURGUIDE_AVAILABILITY_PRODUCT_ID after GetYourGuide maps and activates the connected product.",
+        ],
+        mandatoryEndpoints: [
+          {
+            name: "Availability Query",
+            status: "Wired",
+            detail: "GET /1/get-availabilities/ returns vacancies and Price over API fields for time-point and time-period products.",
+          },
+          {
+            name: "Reserve",
+            status: "Wired",
+            detail: "POST /1/reserve/ holds availability for 60 minutes and returns reservationExpiration.",
+          },
+          {
+            name: "Cancel Reserve",
+            status: "Wired",
+            detail: "POST /1/cancel-reservation/ releases a held reservation.",
+          },
+          {
+            name: "Book",
+            status: "Wired",
+            detail: "POST /1/book/ confirms a reservation, creates a GetYourGuide booking, and returns QR-code tickets.",
+          },
+          {
+            name: "Cancel Booking",
+            status: "Wired",
+            detail: "POST /1/cancel-booking/ cancels eligible future bookings and releases capacity.",
+          },
+          {
+            name: "Booking Modification",
+            status: "Wired",
+            detail: "Supported through GetYourGuide's documented change flow: reserve/book the amended details, then cancel the old supplier booking reference.",
+          },
+          {
+            name: "Notify Availability",
+            status: "Admin push wired",
+            detail: "The admin sync action can push availability updates, but this is separate from the mandatory self-test flow.",
+          },
+        ],
+      });
+    } catch (error: any) {
+      logError("Failed to build GetYourGuide self-test readiness", error, req.requestId);
+      res.status(500).json({ message: "Failed to build GetYourGuide self-test readiness" });
+    }
+  });
+
   // Sync availability to GetYourGuide
   app.post("/api/getyourguide/sync-availability", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
     try {
-      const { notifyAvailabilityUpdate } = await import('./lib/getyourguide');
-
-      // Get next 30 days of bookings to calculate availability
-      const bookings = await storage.getBookings();
-      const today = new Date();
-      const next30Days = new Date(today);
-      next30Days.setDate(today.getDate() + 30);
-
-      // For each day, calculate remaining spots and send to GetYourGuide
-      const productId = process.env.GETYOURGUIDE_PRODUCT_ID || '1188868';
-      const maxSpots = 20; // Configure based on your capacity
-
-      // Group bookings by date
-      const bookingsByDate = new Map<string, number>();
-      bookings.forEach(booking => {
-        const date = new Date(booking.visitDate).toISOString().split('T')[0];
-        const current = bookingsByDate.get(date) || 0;
-        bookingsByDate.set(date, current + (booking.numberOfPeople || 0));
-      });
-
-      // Send availability for next 30 days
-      const promises = [];
-      for (let i = 0; i < 30; i++) {
-        const date = new Date(today);
-        date.setDate(today.getDate() + i);
-        const dateStr = date.toISOString().split('T')[0];
-        const booked = bookingsByDate.get(dateStr) || 0;
-        const available = Math.max(0, maxSpots - booked);
-
-        promises.push(
-          notifyAvailabilityUpdate(productId, date.toISOString(), available, false)
-        );
+      const { notifyAvailabilityBatch } = await import("./lib/getyourguide");
+      const requestedProductId = String(req.body?.productId || getGygAvailabilityPushProductId()).trim();
+      if (!requestedProductId) {
+        return res.status(400).json({
+          message: "GetYourGuide availability push product is not configured",
+          detail: "The public listing id 1188868 is valid for the live listing and self-test, but the outbound notify endpoint needs the connected product id GetYourGuide maps as active. Set GETYOURGUIDE_AVAILABILITY_PRODUCT_ID after GetYourGuide provides or confirms it.",
+        });
       }
 
-      await Promise.all(promises);
+      if (isLikelyPublicGygActivityId(requestedProductId) && !process.env.GETYOURGUIDE_ALLOW_PUBLIC_ID_AVAILABILITY_PUSH) {
+        return res.status(400).json({
+          message: "GetYourGuide availability push is using a public listing ID",
+          detail: `${requestedProductId} looks like the public GetYourGuide activity id. The notify-availability endpoint rejected that id. Set GETYOURGUIDE_AVAILABILITY_PRODUCT_ID to the mapped connected product id, or set GETYOURGUIDE_ALLOW_PUBLIC_ID_AVAILABILITY_PUSH=true only if GetYourGuide confirms this exact id is active for API notifications.`,
+        });
+      }
 
-      res.json({ success: true, message: 'Availability synced successfully' });
+      const product = resolveGygProduct(requestedProductId);
+      if (!product) {
+        return res.status(400).json({
+          message: "Invalid GetYourGuide product ID",
+          detail: "Use the connected product ID configured in the GetYourGuide portal for availability notifications.",
+        });
+      }
+
+      if (!process.env.GETYOURGUIDE_API_USERNAME || !process.env.GETYOURGUIDE_API_PASSWORD) {
+        return res.status(400).json({
+          message: "GetYourGuide outbound API credentials are not configured",
+          detail: "Set GETYOURGUIDE_API_USERNAME and GETYOURGUIDE_API_PASSWORD before pushing availability updates to GetYourGuide.",
+        });
+      }
+
+      const requestedDays = Number(req.body?.days || 30);
+      const days = Number.isFinite(requestedDays) ? Math.min(60, Math.max(1, requestedDays)) : 30;
+      const startDate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.fromDate || ""))
+        ? String(req.body.fromDate)
+        : getGygLocalDate();
+      const useSandbox = typeof req.body?.useSandbox === "boolean"
+        ? req.body.useSandbox
+        : process.env.GETYOURGUIDE_SYNC_USE_SANDBOX === "true";
+
+      const availabilities: Record<string, unknown>[] = [];
+      for (let day = 0; day < days; day += 1) {
+        const visitDate = addDaysToDateString(startDate, day);
+        if (product.timeMode === "time_period") {
+          availabilities.push(await buildGygAvailability(product, visitDate, "09:00"));
+        } else {
+          for (const visitTime of GYG_DEFAULT_START_TIMES) {
+            availabilities.push(await buildGygAvailability(product, visitDate, visitTime));
+          }
+        }
+      }
+
+      const result = await notifyAvailabilityBatch(product.productId, availabilities as any, useSandbox);
+      logger.info("GetYourGuide availability sync completed", {
+        productId: product.productId,
+        availabilityCount: availabilities.length,
+        useSandbox,
+      });
+
+      res.json({
+        success: true,
+        message: "Availability synced successfully",
+        productId: product.productId,
+        availabilityCount: availabilities.length,
+        useSandbox,
+        response: result.response,
+      });
     } catch (error: any) {
-      console.error("Failed to sync availability:", error);
-      res.status(500).json({ error: error.message });
+      logError("Failed to sync GetYourGuide availability", error, req.requestId);
+      res.status(502).json({
+        message: "Failed to sync GetYourGuide availability",
+        detail: error.message,
+      });
     }
   });
 

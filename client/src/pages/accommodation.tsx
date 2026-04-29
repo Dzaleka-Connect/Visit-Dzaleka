@@ -24,14 +24,21 @@ const structuredData = {
             "url": "https://tumainiletu.org/the-dzaleka-homestay-program/"
         },
         {
-            "@type": "Product",
-            "name": "Homestay Night (Tumaini Festival)",
+            "@type": "Offer",
+            "name": "Homestay night",
             "description": "One night accommodation with a host family including one meal.",
-            "offers": {
-                "@type": "Offer",
-                "price": "20.00",
-                "priceCurrency": "USD",
-                "availability": "https://schema.org/InStock"
+            "price": "20.00",
+            "priceCurrency": "USD",
+            "availability": "https://schema.org/InStock",
+            "url": "https://tumainiletu.org/the-dzaleka-homestay-program/",
+            "itemOffered": {
+                "@type": "Service",
+                "name": "Dzaleka Homestay Program",
+                "provider": {
+                    "@type": "Organization",
+                    "name": "Tumaini Letu",
+                    "url": "https://tumainiletu.org"
+                }
             }
         },
         {

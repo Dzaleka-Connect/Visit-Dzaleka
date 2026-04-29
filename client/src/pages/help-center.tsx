@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -78,6 +78,17 @@ export default function HelpCenter() {
     const [showContactForm, setShowContactForm] = useState(false);
     const [ticketSubject, setTicketSubject] = useState("");
     const [ticketMessage, setTicketMessage] = useState("");
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("support") === "true") {
+            setShowContactForm(true);
+            const subject = params.get("subject");
+            if (subject) {
+                setTicketSubject(subject);
+            }
+        }
+    }, []);
 
     const { data: articles = [], isLoading } = useQuery<HelpArticle[]>({
         queryKey: ["/api/help/articles"],
@@ -258,7 +269,7 @@ export default function HelpCenter() {
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">Message</label>
                                     <Textarea
-                                        placeholder="Describe your issue or question in detail..."
+                                        placeholder="Describe your issue or question in detail…"
                                         rows={5}
                                         value={ticketMessage}
                                         onChange={(e) => setTicketMessage(e.target.value)}

@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
+import { useAuth } from "@/hooks/useAuth";
+import { DocumentReviewMeta } from "@/components/document-review-meta";
 
 // Structured Data for SEO
 const structuredData = {
@@ -22,6 +24,16 @@ const structuredData = {
 };
 
 export default function ITCodeOfPractice() {
+    const { isAuthenticated } = useAuth();
+    const openedFromManual = typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("from") === "manual"
+        : false;
+    const shouldReturnToManual = openedFromManual || isAuthenticated;
+    const backHref = shouldReturnToManual ? "/operations-manual?section=admin" : "/login";
+    const backLabel = shouldReturnToManual ? "Back to Manual" : "Back to Sign In";
+    const primaryHref = isAuthenticated ? "/" : "/login";
+    const primaryLabel = isAuthenticated ? "Dashboard" : "Sign In";
+
     return (
         <div className="min-h-screen bg-background flex flex-col">
             <SEO
@@ -53,13 +65,13 @@ export default function ITCodeOfPractice() {
                         <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">Home</Link>
                         <Link href="/plan-your-trip" className="text-sm font-medium hover:text-primary transition-colors">Plan Your Trip</Link>
                         <Button asChild size="sm">
-                            <Link href="/login">Sign In</Link>
+                            <Link href={primaryHref}>{primaryLabel}</Link>
                         </Button>
                     </nav>
 
                     <div className="md:hidden">
                         <Button asChild size="sm" variant="outline">
-                            <Link href="/login">Sign In</Link>
+                            <Link href={primaryHref}>{primaryLabel}</Link>
                         </Button>
                     </div>
                 </div>
@@ -69,9 +81,9 @@ export default function ITCodeOfPractice() {
                 {/* Hero Section */}
                 <div className="relative py-12 sm:py-16 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
                     <div className="container mx-auto px-4 max-w-4xl relative z-10">
-                        <Link href="/login" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mb-6">
+                        <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mb-6">
                             <ArrowLeft className="h-4 w-4" />
-                            Back to Sign In
+                            {backLabel}
                         </Link>
                         <div className="flex items-center gap-3 mb-4">
                             <Shield className="h-10 w-10 text-primary" />
@@ -86,6 +98,7 @@ export default function ITCodeOfPractice() {
                         <p className="text-xs text-muted-foreground mt-4">
                             Last updated: January 2025
                         </p>
+                        <DocumentReviewMeta reviewedBy="IT & Compliance Lead" className="mt-3 justify-start" />
                     </div>
                 </div>
 
@@ -444,7 +457,7 @@ export default function ITCodeOfPractice() {
                             </a>
                         </Button>
                         <Button asChild>
-                            <Link href="/login">Back to Sign In</Link>
+                            <Link href={backHref}>{backLabel}</Link>
                         </Button>
                     </section>
 

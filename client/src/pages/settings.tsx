@@ -358,7 +358,7 @@ export default function Settings() {
                     </p>
                     <Textarea
                       className="font-mono text-xs min-h-[150px]"
-                      placeholder="<script>...</script>"
+                      placeholder="<script>…</script>"
                       value={analyticsForm.customHtml || ""}
                       onChange={(e) => setAnalyticsForm({ ...analyticsForm, customHtml: e.target.value })}
                     />

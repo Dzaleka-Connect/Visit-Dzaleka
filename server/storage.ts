@@ -155,6 +155,16 @@ export interface PaginatedResult<T> {
   hasMore: boolean;
 }
 
+export interface EmailLogFilters {
+  status?: string;
+  templateType?: string;
+  recipient?: string;
+  bookingReference?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  archived?: "active" | "archived" | "all";
+}
+
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
@@ -259,7 +269,7 @@ export interface IStorage {
   createBookingActivityLog(log: InsertBookingActivityLog): Promise<BookingActivityLog>;
 
   // Email Log operations
-  getEmailLogs(): Promise<EmailLog[]>;
+  getEmailLogs(filters?: EmailLogFilters): Promise<EmailLog[]>;
   createEmailLog(log: InsertEmailLog): Promise<EmailLog>;
 
   // Blog operations
@@ -270,8 +280,10 @@ export interface IStorage {
   updateBlogPost(id: string, post: Partial<InsertBlogPost>): Promise<BlogPost | undefined>;
   deleteBlogPost(id: string): Promise<void>;
   getEmailLog(id: string): Promise<EmailLog | undefined>;
+  getEmailLogsForBooking(bookingId: string, bookingReference?: string | null): Promise<EmailLog[]>;
   createEmailLog(log: InsertEmailLog): Promise<EmailLog>;
-  updateEmailLogStatus(id: string, status: string): Promise<EmailLog | undefined>;
+  updateEmailLogStatus(id: string, status: string, errorMessage?: string | null, providerMessageId?: string | null): Promise<EmailLog | undefined>;
+  updateEmailLogDeliveryStatus(providerMessageId: string, status: string, eventAt?: string | null, errorMessage?: string | null): Promise<EmailLog | undefined>;
   archiveEmailLog(id: string): Promise<EmailLog | undefined>;
   deleteEmailLog(id: string): Promise<void>;
 
@@ -359,6 +371,8 @@ export interface IStorage {
   // Email Template operations
   getEmailTemplates(): Promise<EmailTemplate[]>;
   getEmailTemplate(id: string): Promise<EmailTemplate | undefined>;
+  getEmailTemplateByName(name: string): Promise<EmailTemplate | undefined>;
+  createEmailTemplate(template: InsertEmailTemplate): Promise<EmailTemplate>;
   updateEmailTemplate(id: string, template: Partial<EmailTemplate>): Promise<EmailTemplate | undefined>;
   toggleEmailTemplateStatus(id: string, isActive: boolean): Promise<EmailTemplate | undefined>;
 
@@ -429,6 +443,7 @@ export interface IStorage {
   getChatRoom(id: string): Promise<ChatRoom | undefined>;
   createChatRoom(room: InsertChatRoom): Promise<ChatRoom>;
   getOrCreateDirectRoom(userId1: string, userId2: string): Promise<ChatRoom>;
+  getChatMessage(id: string): Promise<ChatMessage | undefined>;
   getChatMessages(roomId: string, limit?: number): Promise<ChatMessage[]>;
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
   getChatParticipants(roomId: string): Promise<ChatParticipant[]>;
@@ -897,8 +912,10 @@ export class SupabaseStorage implements IStorage {
     const dbUpdates: any = {};
     // Manual mapping for fields we know we need
     if (updates.status) dbUpdates.status = updates.status;
+    if (updates.adminNotes !== undefined) dbUpdates.admin_notes = updates.adminNotes;
+    if (updates.paymentMethod) dbUpdates.payment_method = updates.paymentMethod;
     if (updates.paymentStatus) dbUpdates.payment_status = updates.paymentStatus;
-    if (updates.paymentReference) dbUpdates.payment_reference = updates.paymentReference;
+    if (updates.paymentReference !== undefined) dbUpdates.payment_reference = updates.paymentReference;
     if (updates.paymentVerifiedAt) dbUpdates.payment_verified_at = updates.paymentVerifiedAt;
 
     if (Object.keys(dbUpdates).length === 0) return undefined;
@@ -914,6 +931,8 @@ export class SupabaseStorage implements IStorage {
   }
 
   async updateBookingStatus(id: string, status: BookingStatus, expectedVersion?: number): Promise<Booking | undefined> {
+    const previousBooking = status === "completed" ? await this.getBooking(id) : undefined;
+
     // If expectedVersion is provided, use optimistic locking
     if (expectedVersion !== undefined) {
       const { data: updated, error } = await this.supabase
@@ -937,7 +956,7 @@ export class SupabaseStorage implements IStorage {
       if (error) throw new Error(error.message);
 
       // If completed, update guide stats
-      if (status === "completed" && updated?.assigned_guide_id) {
+      if (status === "completed" && previousBooking?.status !== "completed" && updated?.assigned_guide_id) {
         const guide = await this.getGuide(updated.assigned_guide_id);
         if (guide) {
           await this.updateGuide(updated.assigned_guide_id, {
@@ -961,7 +980,7 @@ export class SupabaseStorage implements IStorage {
     if (error) throw new Error(error.message);
 
     // If completed, update guide stats
-    if (status === "completed" && updated?.assigned_guide_id) {
+    if (status === "completed" && previousBooking?.status !== "completed" && updated?.assigned_guide_id) {
       const guide = await this.getGuide(updated.assigned_guide_id);
       if (guide) {
         await this.updateGuide(updated.assigned_guide_id, {
@@ -1025,6 +1044,7 @@ export class SupabaseStorage implements IStorage {
   }
 
   async checkOutVisitor(id: string, checkOutBy: string): Promise<Booking | undefined> {
+    const previousBooking = await this.getBooking(id);
     const { data: updated, error } = await this.supabase
       .from("bookings")
       .update({
@@ -1040,7 +1060,7 @@ export class SupabaseStorage implements IStorage {
     if (error) throw new Error(error.message);
 
     // Update guide stats on checkout
-    if (updated?.assigned_guide_id) {
+    if (previousBooking?.status !== "completed" && updated?.assigned_guide_id) {
       const guide = await this.getGuide(updated.assigned_guide_id);
       if (guide) {
         await this.updateGuide(updated.assigned_guide_id, {
@@ -1261,12 +1281,50 @@ export class SupabaseStorage implements IStorage {
   }
 
   // Email Log operations
-  async getEmailLogs(): Promise<EmailLog[]> {
-    const { data, error } = await this.supabase
+  async getEmailLogs(filters: EmailLogFilters = {}): Promise<EmailLog[]> {
+    let query = this.supabase
       .from("email_logs")
       .select("*")
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
+      .is("deleted_at", null);
+
+    if (filters.archived === "archived") {
+      query = query.eq("is_archived", true);
+    } else if (filters.archived !== "all") {
+      query = query.or("is_archived.is.null,is_archived.eq.false");
+    }
+
+    if (filters.status && filters.status !== "all") {
+      query = query.eq("status", filters.status);
+    }
+
+    if (filters.templateType && filters.templateType !== "all") {
+      query = query.eq("template_type", filters.templateType);
+    }
+
+    if (filters.recipient) {
+      const recipient = filters.recipient.replace(/[(),]/g, "").trim();
+      if (recipient) {
+        query = query.or(`recipient_email.ilike.%${recipient}%,recipient_name.ilike.%${recipient}%`);
+      }
+    }
+
+    if (filters.bookingReference) {
+      const reference = filters.bookingReference.replace(/[(),]/g, "").trim();
+      if (reference) {
+        query = query.or(`subject.ilike.%${reference}%,message.ilike.%${reference}%,related_entity_id.eq.${reference}`);
+      }
+    }
+
+    if (filters.dateFrom) {
+      query = query.gte("created_at", filters.dateFrom);
+    }
+
+    if (filters.dateTo) {
+      const dateTo = filters.dateTo.length === 10 ? `${filters.dateTo}T23:59:59.999Z` : filters.dateTo;
+      query = query.lte("created_at", dateTo);
+    }
+
+    const { data, error } = await query.order("created_at", { ascending: false });
     return this.handleResponse(data, error);
   }
 
@@ -1280,25 +1338,78 @@ export class SupabaseStorage implements IStorage {
     return this.handleResponse(data, error);
   }
 
+  async getEmailLogsForBooking(bookingId: string, bookingReference?: string | null): Promise<EmailLog[]> {
+    let query = this.supabase
+      .from("email_logs")
+      .select("*")
+      .is("deleted_at", null);
+
+    if (bookingReference) {
+      const reference = bookingReference.replace(/[(),]/g, "").trim();
+      query = query.or(`related_entity_id.eq.${bookingId},subject.ilike.%${reference}%,message.ilike.%${reference}%`);
+    } else {
+      query = query.eq("related_entity_id", bookingId);
+    }
+
+    const { data, error } = await query.order("created_at", { ascending: true });
+    return this.handleResponse(data || [], error);
+  }
+
   async createEmailLog(log: InsertEmailLog): Promise<EmailLog> {
+    const snakeData = transformToSnake(log);
     const { data, error } = await this.supabase
       .from("email_logs")
-      .insert(log)
+      .insert(snakeData)
       .select()
       .single();
 
     return this.handleResponse(data, error);
   }
 
-  async updateEmailLogStatus(id: string, status: string): Promise<EmailLog | undefined> {
+  async updateEmailLogStatus(id: string, status: string, errorMessage?: string | null, providerMessageId?: string | null): Promise<EmailLog | undefined> {
+    const updates: Record<string, any> = { status, updated_at: new Date().toISOString() };
+    if (errorMessage !== undefined) {
+      updates.error_message = errorMessage;
+    }
+    if (providerMessageId !== undefined) {
+      updates.provider_message_id = providerMessageId;
+    }
+
     const { data, error } = await this.supabase
       .from("email_logs")
-      .update({ status, updated_at: new Date().toISOString() })
+      .update(updates)
       .eq("id", id)
       .select()
       .single();
 
     return this.handleResponse(data, error);
+  }
+
+  async updateEmailLogDeliveryStatus(providerMessageId: string, status: string, eventAt?: string | null, errorMessage?: string | null): Promise<EmailLog | undefined> {
+    const eventTimestamp = eventAt || new Date().toISOString();
+    const updates: Record<string, any> = {
+      status,
+      last_event_at: eventTimestamp,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (status === "delivered") {
+      updates.delivered_at = eventTimestamp;
+    }
+
+    if (errorMessage !== undefined) {
+      updates.error_message = errorMessage;
+    }
+
+    const { data, error } = await this.supabase
+      .from("email_logs")
+      .update(updates)
+      .eq("provider_message_id", providerMessageId)
+      .select()
+      .single();
+
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
   }
 
 
@@ -1701,6 +1812,26 @@ export class SupabaseStorage implements IStorage {
     return this.handleOptionalResponse(data, error);
   }
 
+  async getEmailTemplateByName(name: string): Promise<EmailTemplate | undefined> {
+    const { data, error } = await this.supabase
+      .from("email_templates")
+      .select("*")
+      .eq("name", name)
+      .single();
+    if (error && error.code === 'PGRST116') return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createEmailTemplate(template: InsertEmailTemplate): Promise<EmailTemplate> {
+    const snakeData = transformToSnake(template);
+    const { data, error } = await this.supabase
+      .from("email_templates")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
   async updateEmailTemplate(id: string, template: Partial<EmailTemplate>): Promise<EmailTemplate | undefined> {
     const snakeData = transformToSnake(template);
     const { data, error } = await this.supabase
@@ -2048,8 +2179,14 @@ export class SupabaseStorage implements IStorage {
       .eq("guide_id", guideId)
       .eq("status", "completed");
 
-    const completedCount = progress?.length || 0;
-    const percentage = totalModules > 0 ? Math.round((completedCount / totalModules) * 100) : 0;
+    const requiredModuleIds = new Set((modules || []).map((module) => module.id));
+    const completedModuleIds = new Set(
+      (progress || [])
+        .map((item) => item.module_id)
+        .filter((moduleId) => requiredModuleIds.has(moduleId))
+    );
+    const completedCount = completedModuleIds.size;
+    const percentage = totalModules > 0 ? Math.min(100, Math.round((completedCount / totalModules) * 100)) : 0;
 
     return {
       completed: completedCount,
@@ -2080,9 +2217,15 @@ export class SupabaseStorage implements IStorage {
 
     // Calculate stats for each guide
     const results = guides.map(guide => {
-      const guideProgress = allProgress?.filter(p => p.guide_id === guide.id) || [];
-      const completedCount = guideProgress.length;
-      const percentage = totalModules > 0 ? Math.round((completedCount / totalModules) * 100) : 0;
+      const requiredModuleIds = new Set((modules || []).map((module) => module.id));
+      const completedModuleIds = new Set(
+        (allProgress || [])
+          .filter(p => p.guide_id === guide.id)
+          .map((item) => item.module_id)
+          .filter((moduleId) => requiredModuleIds.has(moduleId))
+      );
+      const completedCount = completedModuleIds.size;
+      const percentage = totalModules > 0 ? Math.min(100, Math.round((completedCount / totalModules) * 100)) : 0;
 
       return {
         guide,
@@ -2424,6 +2567,17 @@ export class SupabaseStorage implements IStorage {
       .limit(limit);
 
     return this.handleResponse<ChatMessage[]>(data, error);
+  }
+
+  async getChatMessage(id: string): Promise<ChatMessage | undefined> {
+    const { data, error } = await this.supabase
+      .from("chat_messages")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse<ChatMessage>(data, error);
   }
 
   async createChatMessage(message: InsertChatMessage): Promise<ChatMessage> {
@@ -3306,4 +3460,3 @@ export class SupabaseStorage implements IStorage {
 }
 
 export const storage = new SupabaseStorage();
-

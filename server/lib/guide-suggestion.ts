@@ -2,7 +2,7 @@ import { storage } from "../storage";
 import type { Guide, GuideAvailability, Booking } from "@shared/schema";
 
 /**
- * Smart Guide Assignment Algorithm
+ * Guide assignment scoring
  * 
  * Suggests the best guide for a booking based on:
  * - Zone expertise (30 points)

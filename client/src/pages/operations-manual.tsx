@@ -1,4 +1,6 @@
 import { SEO } from "@/components/seo";
+import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -25,7 +27,6 @@ import {
     AlertTriangle,
     CheckCircle2,
     Phone,
-    Camera,
     Globe,
     Share2,
     BarChart3,
@@ -41,11 +42,97 @@ import {
     Banknote,
     Calendar,
     Newspaper,
+    Printer,
     Code2
 } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+
+const manualSections = [
+    "bookings",
+    "guides",
+    "visitors",
+    "finance",
+    "marketing",
+    "admin",
+    "impact",
+] as const;
+
+type ManualSection = typeof manualSections[number];
+type ManualStatus = "live" | "manual" | "planned";
+
+function isManualSection(value: string | null): value is ManualSection {
+    return value !== null && manualSections.includes(value as ManualSection);
+}
+
+function getManualSectionFromSearch(search: string): ManualSection {
+    const section = new URLSearchParams(search).get("section");
+    return isManualSection(section) ? section : "bookings";
+}
+
+function getCurrentManualSection(): ManualSection {
+    if (typeof window === "undefined") return "bookings";
+    return getManualSectionFromSearch(window.location.search);
+}
+
+function ManualStatusBadge({ status }: { status: ManualStatus }) {
+    const labels: Record<ManualStatus, string> = {
+        live: "Live in app",
+        manual: "Manual process",
+        planned: "Planned",
+    };
+    const classes: Record<ManualStatus, string> = {
+        live: "border-green-200 bg-green-50 text-green-700 dark:border-green-900/40 dark:bg-green-900/20 dark:text-green-300",
+        manual: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300",
+        planned: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300",
+    };
+
+    return (
+        <Badge variant="outline" className={`shrink-0 text-[10px] font-medium ${classes[status]}`}>
+            {labels[status]}
+        </Badge>
+    );
+}
+
+function TriggerStatus({
+    children,
+    status,
+    icon,
+}: {
+    children: ReactNode;
+    status: ManualStatus;
+    icon?: ReactNode;
+}) {
+    return (
+        <span className="flex w-full min-w-0 items-center justify-between gap-3 pr-2 text-left">
+            <span className="flex min-w-0 items-center gap-2">
+                {icon}
+                <span className="truncate">{children}</span>
+            </span>
+            <ManualStatusBadge status={status} />
+        </span>
+    );
+}
 
 export default function OperationsManual() {
+    const [, setLocation] = useLocation();
+    const [activeSection, setActiveSection] = useState<ManualSection>(() => getCurrentManualSection());
+
+    useEffect(() => {
+        const syncSectionFromUrl = () => {
+            setActiveSection(getCurrentManualSection());
+        };
+
+        syncSectionFromUrl();
+        window.addEventListener("popstate", syncSectionFromUrl);
+        return () => window.removeEventListener("popstate", syncSectionFromUrl);
+    }, []);
+
+    const handleSectionChange = (section: string) => {
+        if (!isManualSection(section)) return;
+        setActiveSection(section);
+        setLocation(`/operations-manual?section=${section}`);
+    };
+
     return (
         <div className="space-y-8 max-w-6xl mx-auto pb-10">
             <SEO
@@ -54,16 +141,22 @@ export default function OperationsManual() {
             />
 
             <div className="flex flex-col gap-2 border-b pb-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight">Operations Manual</h1>
                         <p className="text-muted-foreground text-lg mt-1">
                             Central command for Visit Dzaleka policies, procedures, and strategies.
                         </p>
                     </div>
-                    <Badge variant="outline" className="h-fit py-1 px-3 border-primary/20 bg-primary/5 text-primary">
-                        Internal
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-2 print:hidden">
+                        <Badge variant="outline" className="h-fit py-1 px-3 border-primary/20 bg-primary/5 text-primary">
+                            Internal
+                        </Badge>
+                        <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
+                            <Printer className="h-4 w-4" />
+                            Print / Export PDF
+                        </Button>
+                    </div>
                 </div>
             </div>
 
@@ -141,7 +234,7 @@ export default function OperationsManual() {
                     </div>
                 </Link>
 
-                <Link href="/it-code-of-practice">
+                <Link href="/it-code-of-practice?from=manual">
                     <div className="group flex flex-col gap-2 p-3 rounded-lg border bg-card text-card-foreground hover:bg-accent/50 hover:border-primary/50 transition-all cursor-pointer shadow-sm h-full">
                         <div className="p-1.5 w-fit rounded-md bg-indigo-100/50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform">
                             <Code2 className="h-4 w-4" />
@@ -154,7 +247,7 @@ export default function OperationsManual() {
                 </Link>
             </div>
 
-            <Tabs defaultValue="bookings" className="w-full">
+            <Tabs value={activeSection} onValueChange={handleSectionChange} className="w-full">
                 <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-7 h-auto">
                     <TabsTrigger value="bookings" className="gap-2 py-3 flex items-center justify-center">
                         <BookOpen className="h-4 w-4" /> Bookings
@@ -189,7 +282,9 @@ export default function OperationsManual() {
                         <CardContent>
                             <Accordion type="single" collapsible className="w-full">
                                 <AccordionItem value="manual-entry">
-                                    <AccordionTrigger>Manual Booking Entry (Offline)</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="manual">Manual Booking Entry (Offline)</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent className="space-y-2">
                                         <p>When creating a booking for a walk-in or offline payment:</p>
                                         <ol className="list-decimal pl-5 space-y-1">
@@ -201,9 +296,12 @@ export default function OperationsManual() {
                                 </AccordionItem>
                                 <AccordionItem value="channels">
                                     <AccordionTrigger>
-                                        <div className="flex gap-2 items-center">
-                                            <RefreshCw className="h-4 w-4 text-blue-500" /> Channel Manager (Airbnb/Viator)
-                                        </div>
+                                        <TriggerStatus
+                                            status="live"
+                                            icon={<RefreshCw className="h-4 w-4 text-blue-500" aria-hidden="true" />}
+                                        >
+                                            Channel Manager (Airbnb/Viator)
+                                        </TriggerStatus>
                                     </AccordionTrigger>
                                     <AccordionContent className="space-y-2">
                                         <p>Sync availability with external platforms to prevent double bookings.</p>
@@ -216,9 +314,12 @@ export default function OperationsManual() {
                                 </AccordionItem>
                                 <AccordionItem value="itinerary">
                                     <AccordionTrigger>
-                                        <div className="flex gap-2 items-center">
-                                            <Map className="h-4 w-4 text-green-500" /> Itinerary Builder
-                                        </div>
+                                        <TriggerStatus
+                                            status="live"
+                                            icon={<Map className="h-4 w-4 text-green-500" aria-hidden="true" />}
+                                        >
+                                            Itinerary Builder
+                                        </TriggerStatus>
                                     </AccordionTrigger>
                                     <AccordionContent className="space-y-2">
                                         <p>Create custom PDF itineraries for confirmed visitors.</p>
@@ -231,17 +332,36 @@ export default function OperationsManual() {
                                     </AccordionContent>
                                 </AccordionItem>
                                 <AccordionItem value="recurring">
-                                    <AccordionTrigger>Recurring Bookings</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="live">Recurring Bookings</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent>
                                         <p>Use for regular visits (e.g., NGOs, Schools, Researchers).</p>
-                                        <p className="mt-2"><strong>Action Required:</strong> You must click "Generate" on the schedule card to create the actual booking records for the upcoming month.</p>
+                                        <p className="mt-2"><strong>Action Required:</strong> In the Active Schedules table, use the "Generate" action to create booking records for the next 30 days. Check "Last Generated" before running it again.</p>
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem value="historical-bookings">
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="live">Historical Visit Records</TriggerStatus>
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p>Use "Record Past Visit" in Bookings when a tour happened before it was entered into the system.</p>
+                                        <ol className="list-decimal pl-5 mt-2 space-y-1">
+                                            <li>Enter visitor name, email, visit date, tour type, group size, and any known guide assignment.</li>
+                                            <li>Set the payment status and amount only if the payment was confirmed from records.</li>
+                                            <li>Add admin notes explaining why the visit was entered late.</li>
+                                            <li>Use historical records for reporting and impact tracking; do not use them to recreate future schedules.</li>
+                                        </ol>
                                     </AccordionContent>
                                 </AccordionItem>
                                 <AccordionItem value="calendar">
                                     <AccordionTrigger>
-                                        <div className="flex gap-2 items-center">
-                                            <Calendar className="h-4 w-4 text-indigo-500" /> Calendar View
-                                        </div>
+                                        <TriggerStatus
+                                            status="live"
+                                            icon={<Calendar className="h-4 w-4 text-indigo-500" aria-hidden="true" />}
+                                        >
+                                            Calendar View
+                                        </TriggerStatus>
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <p>Visual calendar showing all bookings by day/week/month.</p>
@@ -253,7 +373,9 @@ export default function OperationsManual() {
                                     </AccordionContent>
                                 </AccordionItem>
                                 <AccordionItem value="live-ops">
-                                    <AccordionTrigger>Live Operations Dashboard</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="live">Live Operations Dashboard</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent>
                                         <p>Real-time view of today's active tours and check-ins.</p>
                                         <ul className="list-disc pl-5 mt-2 space-y-1">
@@ -263,19 +385,35 @@ export default function OperationsManual() {
                                         </ul>
                                     </AccordionContent>
                                 </AccordionItem>
-                                <AccordionItem value="saved-itineraries">
-                                    <AccordionTrigger>Saved Itinerary Templates</AccordionTrigger>
+                                <AccordionItem value="visitor-saved-itineraries">
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="live">Saved Visitor Itineraries</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent>
-                                        <p>Pre-built itinerary templates for common tour types.</p>
+                                        <p>Visitor-saved preferences for repeat bookings are live in the visitor workflow.</p>
                                         <ul className="list-disc pl-5 mt-2 space-y-1">
-                                            <li><strong>Create Template:</strong> Build an itinerary, then click "Save as Template".</li>
-                                            <li><strong>Reuse:</strong> When creating a new itinerary, select "Load Template" to start from a saved version.</li>
-                                            <li><strong>Best For:</strong> Standard half-day tours, VIP visits, school groups.</li>
+                                            <li><strong>Visitor reuse:</strong> Visitors open <strong>Saved Itineraries</strong> and choose "Book This Itinerary".</li>
+                                            <li><strong>Best For:</strong> Repeat visitors, standard half-day tours, VIP visits, and school groups.</li>
+                                        </ul>
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem value="staff-itinerary-reuse">
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="manual">Staff Itinerary Reuse</TriggerStatus>
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p>Staff template controls are not live yet, so repeat schedules are handled as a manual operations workflow.</p>
+                                        <ul className="list-disc pl-5 mt-2 space-y-1">
+                                            <li><strong>Current workflow:</strong> Use Itinerary Builder with "Import from Booking" and duplicate common schedules manually.</li>
+                                            <li><strong>Planned improvement:</strong> Add staff-facing save/load template controls before documenting this as a live workflow.</li>
+                                            <li><strong>Best For:</strong> Coordinator reuse of VIP visits, school groups, and standard half-day schedules.</li>
                                         </ul>
                                     </AccordionContent>
                                 </AccordionItem>
                                 <AccordionItem value="cancellations">
-                                    <AccordionTrigger>Cancellations & No-Shows</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="live">Cancellations & No-Shows</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent className="space-y-3">
                                         <div className="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-lg border border-blue-200 dark:border-blue-900/20 text-sm">
                                             <p><strong>Note:</strong> Visitors do not pay upfront, so there are no refunds to process.</p>
@@ -296,7 +434,9 @@ export default function OperationsManual() {
                                     </AccordionContent>
                                 </AccordionItem>
                                 <AccordionItem value="group-bookings">
-                                    <AccordionTrigger>Group Booking Procedures</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="manual">Group Booking Procedures</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent className="space-y-3">
                                         <p>For group visits:</p>
                                         <ul className="list-disc pl-5 space-y-1">
@@ -322,7 +462,9 @@ export default function OperationsManual() {
                         <CardContent>
                             <Accordion type="single" collapsible className="w-full">
                                 <AccordionItem value="onboarding">
-                                    <AccordionTrigger>Guide Onboarding Checklist</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="manual">Guide Onboarding Checklist</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent>
                                         <div className="space-y-2">
                                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500" /> Profile Photo Uploaded</div>
@@ -332,7 +474,9 @@ export default function OperationsManual() {
                                     </AccordionContent>
                                 </AccordionItem>
                                 <AccordionItem value="assignment">
-                                    <AccordionTrigger>Guide Assignment</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="live">Guide Assignment</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent>
                                         <p>Guides can only see bookings they are assigned to.</p>
                                         <ul className="list-disc pl-5 mt-2">
@@ -343,21 +487,26 @@ export default function OperationsManual() {
                                 </AccordionItem>
                                 <AccordionItem value="training">
                                     <AccordionTrigger>
-                                        <div className="flex gap-2 items-center">
-                                            <GraduationCap className="h-4 w-4 text-purple-500" /> Training Modules
-                                        </div>
+                                        <TriggerStatus
+                                            status="manual"
+                                            icon={<GraduationCap className="h-4 w-4 text-purple-500" aria-hidden="true" />}
+                                        >
+                                            Training Modules
+                                        </TriggerStatus>
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <p>Manage the educational content guides must complete.</p>
                                         <ul className="list-disc pl-5 mt-2 space-y-1">
                                             <li><strong>Creating Modules:</strong> Go to "Training Admin". Add Title, Content, and Est. Time.</li>
                                             <li><strong>Target Audience:</strong> Set to "Guide" for internal training, or "Visitor" for pre-arrival info.</li>
-                                            <li><strong>Tracking:</strong> Check the "Guide Progress" tab to see completion percentages. Guides cannot take tours until "Required" modules are 100% complete.</li>
+                                            <li><strong>Tracking:</strong> Check the "Guide Progress" tab before assignment. If required modules are incomplete, hold the assignment manually and create a follow-up task for the guide.</li>
                                         </ul>
                                     </AccordionContent>
                                 </AccordionItem>
                                 <AccordionItem value="performance">
-                                    <AccordionTrigger>Guide Performance Metrics</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="live">Guide Performance Metrics</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent>
                                         <p>Track individual guide performance and ratings.</p>
                                         <ul className="list-disc pl-5 mt-2 space-y-1">
@@ -365,6 +514,20 @@ export default function OperationsManual() {
                                             <li><strong>Tours Completed:</strong> Total tours and revenue generated.</li>
                                             <li><strong>Training Status:</strong> Module completion percentage.</li>
                                             <li><strong>Attendance:</strong> On-time rate and cancellation history.</li>
+                                        </ul>
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem value="guide-portal">
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="live">Guide Portal Support</TriggerStatus>
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p>Use this when helping guides understand their own dashboard.</p>
+                                        <ul className="list-disc pl-5 mt-2 space-y-1">
+                                            <li><strong>My Tours:</strong> Guides check in visitors, complete tours, and review upcoming assignments.</li>
+                                            <li><strong>My Availability:</strong> Guides update weekly availability and working hours before coordinators assign tours.</li>
+                                            <li><strong>My Earnings:</strong> Guides can review completed-tour earnings and payout history.</li>
+                                            <li><strong>Guide Training:</strong> Guides complete required modules and add learning notes. Coordinators still verify readiness before sensitive assignments.</li>
                                         </ul>
                                     </AccordionContent>
                                 </AccordionItem>
@@ -385,7 +548,9 @@ export default function OperationsManual() {
                         <CardContent>
                             <Accordion type="single" collapsible className="w-full">
                                 <AccordionItem value="incident">
-                                    <AccordionTrigger className="text-red-600 font-medium">Incident Reporting</AccordionTrigger>
+                                    <AccordionTrigger className="text-red-600 font-medium">
+                                        <TriggerStatus status="live">Incident Reporting</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent>
                                         <ol className="list-decimal pl-5 space-y-2">
                                             <li>Secure the safety of all visitors and guides first.</li>
@@ -395,8 +560,54 @@ export default function OperationsManual() {
                                         </ol>
                                     </AccordionContent>
                                 </AccordionItem>
+                                <AccordionItem value="check-in">
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="live">Visitor Check-In & QR Verification</TriggerStatus>
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p>Use the Security page for same-day verification, QR scanning, check-in, check-out, and no-show handling.</p>
+                                        <ol className="list-decimal pl-5 mt-2 space-y-1">
+                                            <li>Search by booking reference or scan the visitor QR code.</li>
+                                            <li>Confirm visitor name, tour date, booking status, and payment status before entry.</li>
+                                            <li>Click "Check In Visitor" only when the visitor is physically on site.</li>
+                                            <li>Use "Check Out Visitor" when the tour ends, or "Mark No-Show" after the agreed waiting period.</li>
+                                            <li>Report incidents from the same screen if anything occurs during arrival, tour delivery, or departure.</li>
+                                        </ol>
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem value="visitor-self-service">
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="live">Visitor Self-Service Support</TriggerStatus>
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p>When visitors ask how to use their portal, support these flows first before making manual changes for them.</p>
+                                        <ul className="list-disc pl-5 mt-2 space-y-1">
+                                            <li><strong>My Bookings:</strong> View upcoming and past visits.</li>
+                                            <li><strong>Learning Center:</strong> Read visitor preparation resources before arrival.</li>
+                                            <li><strong>Share Photos:</strong> Upload approved tour media after consent checks.</li>
+                                            <li><strong>Saved Itineraries:</strong> Rebook a preferred itinerary from prior planning.</li>
+                                            <li><strong>Favorite Guides:</strong> Save preferred guides after positive tour experiences.</li>
+                                        </ul>
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem value="zones-poi">
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="live">Zones, POI & Meeting Points</TriggerStatus>
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p>Use Zones & POI to keep route planning, safety status, and meeting locations accurate.</p>
+                                        <ol className="list-decimal pl-5 mt-2 space-y-1">
+                                            <li>Update camp zones when risk level, accessibility, or route guidance changes.</li>
+                                            <li>Add or edit points of interest before using them in itineraries or public trip content.</li>
+                                            <li>Maintain meeting points with clear physical descriptions that guides and visitors can follow.</li>
+                                            <li>Mark inactive places instead of deleting them when old bookings or reports still reference them.</li>
+                                        </ol>
+                                    </AccordionContent>
+                                </AccordionItem>
                                 <AccordionItem value="vip">
-                                    <AccordionTrigger>VIP & Special Visits</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="manual">VIP & Special Visits</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent>
                                         <p>For high-profile visits (UN, Diplomats, Donors):</p>
                                         <ol className="list-decimal pl-5 space-y-1 mt-2">
@@ -408,7 +619,9 @@ export default function OperationsManual() {
                                     </AccordionContent>
                                 </AccordionItem>
                                 <AccordionItem value="international">
-                                    <AccordionTrigger>International Visitors</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="manual">International Visitors</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent>
                                         <div className="space-y-2">
                                             <p><strong>Cultural Sensitivity:</strong> Brief visitors on photography rules before entering community areas.</p>
@@ -418,10 +631,20 @@ export default function OperationsManual() {
                                     </AccordionContent>
                                 </AccordionItem>
                                 <AccordionItem value="emergency">
-                                    <AccordionTrigger className="text-red-600 font-medium">⚠️ Emergency Procedures</AccordionTrigger>
+                                    <AccordionTrigger className="text-red-600 font-medium">
+                                        <TriggerStatus
+                                            status="manual"
+                                            icon={<AlertTriangle className="h-4 w-4" aria-hidden="true" />}
+                                        >
+                                            Emergency Procedures
+                                        </TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent className="space-y-4">
                                         <div className="bg-red-50 dark:bg-red-900/10 p-4 rounded-lg border border-red-200 dark:border-red-900/20">
-                                            <h4 className="font-semibold text-red-700 dark:text-red-400 mb-3">🏥 Medical Emergency</h4>
+                                            <h4 className="font-semibold text-red-700 dark:text-red-400 mb-3 flex items-center gap-2">
+                                                <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                                                Medical Emergency
+                                            </h4>
                                             <ol className="list-decimal pl-5 space-y-1 text-sm mb-3">
                                                 <li>Call for help immediately. Do not move the injured person.</li>
                                                 <li>Contact <strong>Dzaleka Health Centre</strong> (on-site clinic).</li>
@@ -430,16 +653,19 @@ export default function OperationsManual() {
                                             </ol>
                                             <div className="bg-white dark:bg-gray-800 p-3 rounded border text-sm space-y-2">
                                                 <p className="font-medium">Quick Reference Numbers:</p>
-                                                <ul className="space-y-1">
-                                                    <li>• <strong>Ministry of Health Line:</strong> 118</li>
-                                                    <li>• <strong>MASM Emergency:</strong> 0888 189 070 / 0888 189 072</li>
-                                                    <li>• <strong>St John Ambulance:</strong> +265 111 840 170</li>
+                                                <ul className="space-y-1 list-disc pl-5">
+                                                    <li><strong>Ministry of Health Line:</strong> 118</li>
+                                                    <li><strong>MASM Emergency:</strong> 0888 189 070 / 0888 189 072</li>
+                                                    <li><strong>St John Ambulance:</strong> +265 111 840 170</li>
                                                 </ul>
                                                 <p className="text-muted-foreground text-xs mt-2">Note: Private services (MASM/St John) are based in Lilongwe (45-60 min away). Local transport to meet ambulance is standard.</p>
                                             </div>
                                         </div>
                                         <div className="bg-amber-50 dark:bg-amber-900/10 p-4 rounded-lg border border-amber-200 dark:border-amber-900/20">
-                                            <h4 className="font-semibold text-amber-700 dark:text-amber-400 mb-3">🛡️ Security Threat / Evacuation</h4>
+                                            <h4 className="font-semibold text-amber-700 dark:text-amber-400 mb-3 flex items-center gap-2">
+                                                <Shield className="h-4 w-4" aria-hidden="true" />
+                                                Security Threat / Evacuation
+                                            </h4>
                                             <ol className="list-decimal pl-5 space-y-1 text-sm mb-3">
                                                 <li>Calmly escort all visitors to the designated Safe Zone.</li>
                                                 <li>Contact UNHCR or Police immediately.</li>
@@ -447,14 +673,17 @@ export default function OperationsManual() {
                                             </ol>
                                             <div className="bg-white dark:bg-gray-800 p-3 rounded border text-sm space-y-1">
                                                 <p className="font-medium">Protection Services:</p>
-                                                <ul className="space-y-1">
-                                                    <li>• <strong>UNHCR:</strong> +265 1 772 155</li>
-                                                    <li>• <strong>Dzaleka Dowa Police</strong></li>
+                                                <ul className="space-y-1 list-disc pl-5">
+                                                    <li><strong>UNHCR:</strong> +265 1 772 155</li>
+                                                    <li><strong>Dzaleka Dowa Police</strong></li>
                                                 </ul>
                                             </div>
                                         </div>
                                         <div className="bg-green-50 dark:bg-green-900/10 p-4 rounded-lg border border-green-200 dark:border-green-900/20">
-                                            <h4 className="font-semibold text-green-700 dark:text-green-400 mb-3">⚖️ Legal Aid</h4>
+                                            <h4 className="font-semibold text-green-700 dark:text-green-400 mb-3 flex items-center gap-2">
+                                                <FileText className="h-4 w-4" aria-hidden="true" />
+                                                Legal Aid
+                                            </h4>
                                             <div className="text-sm space-y-1">
                                                 <p><strong>Inua Advocacy:</strong> +265 886 44 72 77</p>
                                                 <p className="text-muted-foreground">Email: info@inuaadvocacy.org</p>
@@ -462,25 +691,33 @@ export default function OperationsManual() {
                                             </div>
                                         </div>
                                         <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-lg border border-blue-200 dark:border-blue-900/20">
-                                            <h4 className="font-semibold text-blue-700 dark:text-blue-400 mb-3">⚡ Power / Internet Outage</h4>
+                                            <h4 className="font-semibold text-blue-700 dark:text-blue-400 mb-3 flex items-center gap-2">
+                                                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                                                Power / Internet Outage
+                                            </h4>
                                             <ul className="list-disc pl-5 space-y-1 text-sm">
                                                 <li><strong>Bookings:</strong> Use the offline paper forms (in Guide Kits).</li>
-                                                <li><strong>Check-ins:</strong> Record manually, sync later via "Offline Sync".</li>
+                                                <li><strong>Check-ins:</strong> Record manually, then reconcile in Bookings or Security when the connection returns.</li>
                                                 <li><strong>Payments:</strong> Accept cash, issue manual receipts.</li>
                                             </ul>
                                         </div>
                                         <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border text-sm">
-                                            <p className="font-medium mb-1">📞 Dialing Tips:</p>
-                                            <ul className="text-muted-foreground space-y-1">
-                                                <li>• <strong>118</strong> is the dedicated Ministry of Health line—use first for serious medical issues.</li>
-                                                <li>• Use country code <strong>+265</strong> if dialing from international roaming SIM.</li>
-                                                <li>• Local SIMs (Airtel/TNM) work best for all emergency calls.</li>
+                                            <p className="font-medium mb-1 flex items-center gap-2">
+                                                <Phone className="h-4 w-4" aria-hidden="true" />
+                                                Dialing Tips
+                                            </p>
+                                            <ul className="text-muted-foreground space-y-1 list-disc pl-5">
+                                                <li><strong>118</strong> is the dedicated Ministry of Health line—use first for serious medical issues.</li>
+                                                <li>Use country code <strong>+265</strong> if dialing from international roaming SIM.</li>
+                                                <li>Local SIMs (Airtel/TNM) work best for all emergency calls.</li>
                                             </ul>
                                         </div>
                                     </AccordionContent>
                                 </AccordionItem>
                                 <AccordionItem value="photo-consent">
-                                    <AccordionTrigger>Photo Consent Protocol</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="manual">Photo Consent Protocol</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent className="space-y-2">
                                         <p><strong>Before photographing residents:</strong></p>
                                         <ol className="list-decimal pl-5 space-y-1">
@@ -490,7 +727,7 @@ export default function OperationsManual() {
                                             <li>Never photograph children without parent/guardian present.</li>
                                             <li>Respect refusals immediately—do not pressure.</li>
                                         </ol>
-                                        <p className="mt-2 text-muted-foreground text-sm"><strong>Storage:</strong> Upload consent forms to the visitor's Customer Profile under "Documents".</p>
+                                        <p className="mt-2 text-muted-foreground text-sm"><strong>Storage:</strong> Record consent status in the visitor's Customer Profile admin notes and store signed forms in the secure consent archive.</p>
                                     </AccordionContent>
                                 </AccordionItem>
                             </Accordion>
@@ -508,7 +745,9 @@ export default function OperationsManual() {
                         <CardContent>
                             <Accordion type="single" collapsible className="w-full">
                                 <AccordionItem value="payouts">
-                                    <AccordionTrigger>Processing Guide Payouts</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="manual">Processing Guide Payouts</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent>
                                         <p>Go to the <strong>Revenue</strong> page, specific to the "Payouts" tab.</p>
                                         <ol className="list-decimal pl-5 space-y-2 mt-2">
@@ -520,9 +759,12 @@ export default function OperationsManual() {
                                 </AccordionItem>
                                 <AccordionItem value="reports">
                                     <AccordionTrigger>
-                                        <div className="flex gap-2 items-center">
-                                            <BarChart3 className="h-4 w-4 text-blue-500" /> Generating Reports
-                                        </div>
+                                        <TriggerStatus
+                                            status="live"
+                                            icon={<BarChart3 className="h-4 w-4 text-blue-500" aria-hidden="true" />}
+                                        >
+                                            Generating Reports
+                                        </TriggerStatus>
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <p>Navigate to the <strong>Reports</strong> page for detailed analytics.</p>
@@ -531,6 +773,20 @@ export default function OperationsManual() {
                                             <li><strong>Heatmaps:</strong> Use "Schedule" tab to see peak visiting hours/days.</li>
                                             <li><strong>Revenue Share:</strong> "Payments" tab shows Gross Margin vs Guide Share breakdown.</li>
                                         </ul>
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem value="payments">
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="live">Payments & Reconciliation</TriggerStatus>
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p>Use the Payments and Revenue pages together: Payments controls collection setup, Revenue records operational outcomes.</p>
+                                        <ol className="list-decimal pl-5 mt-2 space-y-1">
+                                            <li>Review payment provider configuration in Payments before enabling a new online collection method.</li>
+                                            <li>Use Revenue → Overview to confirm paid, pending, refunded, and no-show amounts.</li>
+                                            <li>Record offline guide payouts only after the cash or mobile-money transfer has actually been made.</li>
+                                            <li>For mismatches, compare Booking Details, Revenue transaction history, and Email History before editing records.</li>
+                                        </ol>
                                     </AccordionContent>
                                 </AccordionItem>
                             </Accordion>
@@ -549,9 +805,12 @@ export default function OperationsManual() {
                             <Accordion type="single" collapsible className="w-full">
                                 <AccordionItem value="cms">
                                     <AccordionTrigger>
-                                        <div className="flex gap-2 items-center">
-                                            <LayoutTemplate className="h-4 w-4 text-orange-500" /> Landing Page CMS
-                                        </div>
+                                        <TriggerStatus
+                                            status="live"
+                                            icon={<LayoutTemplate className="h-4 w-4 text-orange-500" aria-hidden="true" />}
+                                        >
+                                            Landing Page CMS
+                                        </TriggerStatus>
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <p>To update the public homepage text:</p>
@@ -563,7 +822,9 @@ export default function OperationsManual() {
                                     </AccordionContent>
                                 </AccordionItem>
                                 <AccordionItem value="social">
-                                    <AccordionTrigger>Social Media & Images</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="manual">Social Media & Images</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent>
                                         <ul className="list-disc pl-5 space-y-2">
                                             <li><strong>Hashtags:</strong> Use #DzalekaVisit #RefugeeVoices.</li>
@@ -573,9 +834,12 @@ export default function OperationsManual() {
                                 </AccordionItem>
                                 <AccordionItem value="blog">
                                     <AccordionTrigger>
-                                        <div className="flex gap-2 items-center">
-                                            <Newspaper className="h-4 w-4 text-teal-500" /> Blog Management
-                                        </div>
+                                        <TriggerStatus
+                                            status="live"
+                                            icon={<Newspaper className="h-4 w-4 text-teal-500" aria-hidden="true" />}
+                                        >
+                                            Blog Management
+                                        </TriggerStatus>
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <p>Publish stories and updates to the public blog.</p>
@@ -588,7 +852,9 @@ export default function OperationsManual() {
                                     </AccordionContent>
                                 </AccordionItem>
                                 <AccordionItem value="embed">
-                                    <AccordionTrigger>Embeddable Booking Widget</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="live">Embeddable Booking Widget</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent>
                                         <p>Allow partner websites to embed a booking form.</p>
                                         <ul className="list-disc pl-5 mt-2 space-y-1">
@@ -600,36 +866,57 @@ export default function OperationsManual() {
                                 </AccordionItem>
                                 <AccordionItem value="partner-onboarding">
                                     <AccordionTrigger>
-                                        <div className="flex gap-2 items-center">
-                                            <Share2 className="h-4 w-4 text-purple-500" /> Partner Onboarding
-                                        </div>
+                                        <TriggerStatus
+                                            status="manual"
+                                            icon={<Share2 className="h-4 w-4 text-purple-500" aria-hidden="true" />}
+                                        >
+                                            Partner Onboarding
+                                        </TriggerStatus>
                                     </AccordionTrigger>
                                     <AccordionContent className="space-y-4">
                                         <p className="text-muted-foreground">We believe in partnerships that are mutually beneficial, transparent, and impact-driven.</p>
 
                                         <div className="grid md:grid-cols-2 gap-3">
                                             <div className="border p-3 rounded-lg">
-                                                <h5 className="font-semibold text-sm mb-1">🗺️ Expert Local Knowledge</h5>
+                                                <h5 className="font-semibold text-sm mb-1 flex items-center gap-2">
+                                                    <Map className="h-4 w-4 text-primary" aria-hidden="true" />
+                                                    Expert Local Knowledge
+                                                </h5>
                                                 <p className="text-sm text-muted-foreground">Our guides are passionate locals who know every corner of Dzaleka, ensuring authentic experiences.</p>
                                             </div>
                                             <div className="border p-3 rounded-lg">
-                                                <h5 className="font-semibold text-sm mb-1">💚 Support Community Growth</h5>
+                                                <h5 className="font-semibold text-sm mb-1 flex items-center gap-2">
+                                                    <HeartHandshake className="h-4 w-4 text-green-600" aria-hidden="true" />
+                                                    Support Community Growth
+                                                </h5>
                                                 <p className="text-sm text-muted-foreground">Directly supporting refugee-led initiatives and economic empowerment.</p>
                                             </div>
                                             <div className="border p-3 rounded-lg">
-                                                <h5 className="font-semibold text-sm mb-1">🎭 Exclusive Cultural Access</h5>
+                                                <h5 className="font-semibold text-sm mb-1 flex items-center gap-2">
+                                                    <Globe className="h-4 w-4 text-orange-600" aria-hidden="true" />
+                                                    Exclusive Cultural Access
+                                                </h5>
                                                 <p className="text-sm text-muted-foreground">From Tumaini Festival to hidden art workshops—experiences you won't find elsewhere.</p>
                                             </div>
                                             <div className="border p-3 rounded-lg">
-                                                <h5 className="font-semibold text-sm mb-1">📋 Customizable Itineraries</h5>
+                                                <h5 className="font-semibold text-sm mb-1 flex items-center gap-2">
+                                                    <LayoutTemplate className="h-4 w-4 text-purple-600" aria-hidden="true" />
+                                                    Customizable Itineraries
+                                                </h5>
                                                 <p className="text-sm text-muted-foreground">Tailored for educational groups, researchers, or cultural tourists.</p>
                                             </div>
                                             <div className="border p-3 rounded-lg">
-                                                <h5 className="font-semibold text-sm mb-1">📞 Reliable Communication</h5>
+                                                <h5 className="font-semibold text-sm mb-1 flex items-center gap-2">
+                                                    <Phone className="h-4 w-4 text-blue-600" aria-hidden="true" />
+                                                    Reliable Communication
+                                                </h5>
                                                 <p className="text-sm text-muted-foreground">Direct access to our coordination team for seamless planning.</p>
                                             </div>
                                             <div className="border p-3 rounded-lg">
-                                                <h5 className="font-semibold text-sm mb-1">📊 Impact Reporting</h5>
+                                                <h5 className="font-semibold text-sm mb-1 flex items-center gap-2">
+                                                    <BarChart3 className="h-4 w-4 text-teal-600" aria-hidden="true" />
+                                                    Impact Reporting
+                                                </h5>
                                                 <p className="text-sm text-muted-foreground">See exactly how your visits contribute to the local community.</p>
                                             </div>
                                         </div>
@@ -643,6 +930,20 @@ export default function OperationsManual() {
                                                 <li>Generate embed widget code or share booking link.</li>
                                             </ol>
                                         </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem value="seo-analytics">
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="manual">SEO, Analytics & Structured Data QA</TriggerStatus>
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <p>Use this checklist after publishing public pages, blog posts, pricing changes, or tour content updates.</p>
+                                        <ul className="list-disc pl-5 mt-2 space-y-1">
+                                            <li><strong>SEO:</strong> Confirm each public page has a clear title, description, canonical URL, and representative image.</li>
+                                            <li><strong>Structured data:</strong> Validate Product/Event/Organization schemas before requesting Google revalidation.</li>
+                                            <li><strong>Analytics:</strong> Check Website Analytics for traffic changes and booking conversion after major updates.</li>
+                                            <li><strong>Content quality:</strong> Avoid unsupported claims about automated sync, awards, reviews, or prices unless the app stores that data.</li>
+                                        </ul>
                                     </AccordionContent>
                                 </AccordionItem>
                             </Accordion>
@@ -680,50 +981,101 @@ export default function OperationsManual() {
                             <div className="grid md:grid-cols-3 gap-4">
                                 <Link href="/tasks">
                                     <div className="border p-4 rounded-lg hover:bg-muted cursor-pointer transition-colors">
-                                        <h4 className="font-semibold mb-2 flex items-center gap-2"><ListTodo className="h-4 w-4" /> Task Tracking</h4>
+                                        <h4 className="font-semibold mb-2 flex items-center justify-between gap-2">
+                                            <span className="flex items-center gap-2"><ListTodo className="h-4 w-4" /> Task Tracking</span>
+                                            <ManualStatusBadge status="live" />
+                                        </h4>
                                         <p className="text-sm text-muted-foreground">Assign work to staff.</p>
                                     </div>
                                 </Link>
                                 <Link href="/users">
                                     <div className="border p-4 rounded-lg hover:bg-muted cursor-pointer transition-colors">
-                                        <h4 className="font-semibold mb-2 flex items-center gap-2"><Users className="h-4 w-4" /> User Accounts</h4>
+                                        <h4 className="font-semibold mb-2 flex items-center justify-between gap-2">
+                                            <span className="flex items-center gap-2"><Users className="h-4 w-4" /> User Accounts</span>
+                                            <ManualStatusBadge status="live" />
+                                        </h4>
                                         <p className="text-sm text-muted-foreground">Reset passwords, Roles.</p>
                                     </div>
                                 </Link>
                                 <Link href="/audit-logs">
                                     <div className="border p-4 rounded-lg hover:bg-muted cursor-pointer transition-colors">
-                                        <h4 className="font-semibold mb-2 flex items-center gap-2"><FileText className="h-4 w-4" /> Audit Logs</h4>
+                                        <h4 className="font-semibold mb-2 flex items-center justify-between gap-2">
+                                            <span className="flex items-center gap-2"><FileText className="h-4 w-4" /> Audit Logs</span>
+                                            <ManualStatusBadge status="live" />
+                                        </h4>
                                         <p className="text-sm text-muted-foreground">Review access logs.</p>
                                     </div>
                                 </Link>
-                                <Link href="/dashboard">
+                                <Link href="/">
                                     <div className="border p-4 rounded-lg hover:bg-muted cursor-pointer transition-colors">
-                                        <h4 className="font-semibold mb-2 flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Dashboard</h4>
+                                        <h4 className="font-semibold mb-2 flex items-center justify-between gap-2">
+                                            <span className="flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Dashboard</span>
+                                            <ManualStatusBadge status="live" />
+                                        </h4>
                                         <p className="text-sm text-muted-foreground">Overview of key metrics.</p>
                                     </div>
                                 </Link>
                                 <Link href="/analytics">
                                     <div className="border p-4 rounded-lg hover:bg-muted cursor-pointer transition-colors">
-                                        <h4 className="font-semibold mb-2 flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Analytics</h4>
+                                        <h4 className="font-semibold mb-2 flex items-center justify-between gap-2">
+                                            <span className="flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Analytics</span>
+                                            <ManualStatusBadge status="live" />
+                                        </h4>
                                         <p className="text-sm text-muted-foreground">Detailed visitor analytics.</p>
                                     </div>
                                 </Link>
                                 <Link href="/settings">
                                     <div className="border p-4 rounded-lg hover:bg-muted cursor-pointer transition-colors">
-                                        <h4 className="font-semibold mb-2 flex items-center gap-2"><Settings className="h-4 w-4" /> Settings</h4>
+                                        <h4 className="font-semibold mb-2 flex items-center justify-between gap-2">
+                                            <span className="flex items-center gap-2"><Settings className="h-4 w-4" /> Settings</span>
+                                            <ManualStatusBadge status="live" />
+                                        </h4>
                                         <p className="text-sm text-muted-foreground">System configuration.</p>
                                     </div>
                                 </Link>
-                                <Link href="/developer-settings">
+                                <Link href="/developer">
                                     <div className="border p-4 rounded-lg hover:bg-muted cursor-pointer transition-colors">
-                                        <h4 className="font-semibold mb-2 flex items-center gap-2"><Code2 className="h-4 w-4" /> Developer Settings</h4>
+                                        <h4 className="font-semibold mb-2 flex items-center justify-between gap-2">
+                                            <span className="flex items-center gap-2"><Code2 className="h-4 w-4" /> Developer Settings</span>
+                                            <ManualStatusBadge status="live" />
+                                        </h4>
                                         <p className="text-sm text-muted-foreground">API keys, webhooks.</p>
                                     </div>
                                 </Link>
                                 <Link href="/email-settings">
                                     <div className="border p-4 rounded-lg hover:bg-muted cursor-pointer transition-colors">
-                                        <h4 className="font-semibold mb-2 flex items-center gap-2"><Mail className="h-4 w-4" /> Email Settings</h4>
+                                        <h4 className="font-semibold mb-2 flex items-center justify-between gap-2">
+                                            <span className="flex items-center gap-2"><Mail className="h-4 w-4" /> Email Settings</span>
+                                            <ManualStatusBadge status="live" />
+                                        </h4>
                                         <p className="text-sm text-muted-foreground">SMTP and templates.</p>
+                                    </div>
+                                </Link>
+                                <Link href="/security-admin">
+                                    <div className="border p-4 rounded-lg hover:bg-muted cursor-pointer transition-colors">
+                                        <h4 className="font-semibold mb-2 flex items-center justify-between gap-2">
+                                            <span className="flex items-center gap-2"><Shield className="h-4 w-4" /> Security Admin</span>
+                                            <ManualStatusBadge status="live" />
+                                        </h4>
+                                        <p className="text-sm text-muted-foreground">IP allowlist, login history, invites.</p>
+                                    </div>
+                                </Link>
+                                <Link href="/help-admin">
+                                    <div className="border p-4 rounded-lg hover:bg-muted cursor-pointer transition-colors">
+                                        <h4 className="font-semibold mb-2 flex items-center justify-between gap-2">
+                                            <span className="flex items-center gap-2"><Phone className="h-4 w-4" /> Help Admin</span>
+                                            <ManualStatusBadge status="live" />
+                                        </h4>
+                                        <p className="text-sm text-muted-foreground">Articles and support tickets.</p>
+                                    </div>
+                                </Link>
+                                <Link href="/task-admin">
+                                    <div className="border p-4 rounded-lg hover:bg-muted cursor-pointer transition-colors">
+                                        <h4 className="font-semibold mb-2 flex items-center justify-between gap-2">
+                                            <span className="flex items-center gap-2"><ListTodo className="h-4 w-4" /> Task Admin</span>
+                                            <ManualStatusBadge status="live" />
+                                        </h4>
+                                        <p className="text-sm text-muted-foreground">Create, assign, and prioritize work.</p>
                                     </div>
                                 </Link>
                             </div>
@@ -741,7 +1093,9 @@ export default function OperationsManual() {
                         <CardContent>
                             <Accordion type="single" collapsible className="w-full">
                                 <AccordionItem value="login-issues">
-                                    <AccordionTrigger>Can't log in / Session expired</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="manual">Can't log in / Session expired</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent>
                                         <ol className="list-decimal pl-5 space-y-1">
                                             <li>Clear browser cache and cookies.</li>
@@ -752,7 +1106,9 @@ export default function OperationsManual() {
                                     </AccordionContent>
                                 </AccordionItem>
                                 <AccordionItem value="sync-issues">
-                                    <AccordionTrigger>Channel sync not working</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="live">Channel sync not working</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent>
                                         <ol className="list-decimal pl-5 space-y-1">
                                             <li>Check OTA iCal URL is still valid (not expired).</li>
@@ -762,7 +1118,9 @@ export default function OperationsManual() {
                                     </AccordionContent>
                                 </AccordionItem>
                                 <AccordionItem value="email-issues">
-                                    <AccordionTrigger>Emails not sending</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="manual">Emails not sending</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent>
                                         <ol className="list-decimal pl-5 space-y-1">
                                             <li>Check <strong>Email Settings</strong> → Verify SMTP credentials.</li>
@@ -773,7 +1131,9 @@ export default function OperationsManual() {
                                     </AccordionContent>
                                 </AccordionItem>
                                 <AccordionItem value="payment-issues">
-                                    <AccordionTrigger>Payment not recorded</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="manual">Payment not recorded</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent>
                                         <ol className="list-decimal pl-5 space-y-1">
                                             <li>Manually record payment in <strong>Revenue</strong> page.</li>
@@ -783,7 +1143,9 @@ export default function OperationsManual() {
                                     </AccordionContent>
                                 </AccordionItem>
                                 <AccordionItem value="data-missing">
-                                    <AccordionTrigger>Data appears missing</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="manual">Data appears missing</TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent>
                                         <ol className="list-decimal pl-5 space-y-1">
                                             <li>Check date filters—data may be outside the selected range.</li>
@@ -791,6 +1153,31 @@ export default function OperationsManual() {
                                             <li>Refresh the page (Ctrl+Shift+R / Cmd+Shift+R).</li>
                                             <li>Check <strong>Audit Logs</strong> to see if data was deleted.</li>
                                         </ol>
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem value="support-triage">
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="live">Help Center & Ticket Triage</TriggerStatus>
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <ol className="list-decimal pl-5 space-y-1">
+                                            <li>Use <strong>Help Admin</strong> to publish staff-approved help articles for visitors and guides.</li>
+                                            <li>Review open tickets daily and update status when a case is acknowledged, waiting, resolved, or closed.</li>
+                                            <li>Convert repeated ticket answers into help articles so the public Help Center improves over time.</li>
+                                            <li>Escalate payment, safety, and data privacy tickets to the correct owner before replying.</li>
+                                        </ol>
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem value="api-keys">
+                                    <AccordionTrigger>
+                                        <TriggerStatus status="live">API Keys, Embeds & Webhooks</TriggerStatus>
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <ul className="list-disc pl-5 space-y-1">
+                                            <li><strong>API keys:</strong> Create named keys with only the scopes needed, and revoke unused keys immediately.</li>
+                                            <li><strong>Embed widgets:</strong> Use Developer Settings to generate partner booking widgets and record where each embed is installed.</li>
+                                            <li><strong>Webhooks:</strong> Webhook UI is not active yet, so treat webhook setup as planned and document partner requests manually.</li>
+                                        </ul>
                                     </AccordionContent>
                                 </AccordionItem>
                             </Accordion>
@@ -808,7 +1195,13 @@ export default function OperationsManual() {
                         <CardContent>
                             <div className="space-y-4">
                                 <div className="bg-green-50 dark:bg-green-900/10 p-4 rounded-lg border border-green-200 dark:border-green-900/20">
-                                    <h4 className="font-semibold text-green-700 dark:text-green-400 mb-2">🔒 Data Protection</h4>
+                                    <h4 className="font-semibold text-green-700 dark:text-green-400 mb-2 flex items-center justify-between gap-2">
+                                        <span className="flex items-center gap-2">
+                                            <Shield className="h-4 w-4" aria-hidden="true" />
+                                            Data Protection
+                                        </span>
+                                        <ManualStatusBadge status="live" />
+                                    </h4>
                                     <ul className="list-disc pl-5 space-y-1 text-sm">
                                         <li><strong>Encryption:</strong> All data is encrypted in transit (HTTPS) and at rest.</li>
                                         <li><strong>Access Control:</strong> Role-based permissions ensure staff only see what they need.</li>
@@ -816,7 +1209,13 @@ export default function OperationsManual() {
                                     </ul>
                                 </div>
                                 <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-lg border border-blue-200 dark:border-blue-900/20">
-                                    <h4 className="font-semibold text-blue-700 dark:text-blue-400 mb-2">💾 Backup Schedule</h4>
+                                    <h4 className="font-semibold text-blue-700 dark:text-blue-400 mb-2 flex items-center justify-between gap-2">
+                                        <span className="flex items-center gap-2">
+                                            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                                            Backup Schedule
+                                        </span>
+                                        <ManualStatusBadge status="manual" />
+                                    </h4>
                                     <ul className="list-disc pl-5 space-y-1 text-sm">
                                         <li><strong>Database:</strong> Automatic daily backups retained for 30 days.</li>
                                         <li><strong>Files/Images:</strong> Stored in cloud storage with redundancy.</li>
@@ -824,11 +1223,17 @@ export default function OperationsManual() {
                                     </ul>
                                 </div>
                                 <div className="bg-amber-50 dark:bg-amber-900/10 p-4 rounded-lg border border-amber-200 dark:border-amber-900/20">
-                                    <h4 className="font-semibold text-amber-700 dark:text-amber-400 mb-2">🛡️ Privacy Compliance</h4>
+                                    <h4 className="font-semibold text-amber-700 dark:text-amber-400 mb-2 flex items-center justify-between gap-2">
+                                        <span className="flex items-center gap-2">
+                                            <FileText className="h-4 w-4" aria-hidden="true" />
+                                            Privacy Compliance
+                                        </span>
+                                        <ManualStatusBadge status="manual" />
+                                    </h4>
                                     <ul className="list-disc pl-5 space-y-1 text-sm">
                                         <li><strong>Visitor Data:</strong> Only collected for operational purposes. Not shared with third parties.</li>
-                                        <li><strong>Consent:</strong> Photo consent forms stored securely in Customer Profiles.</li>
-                                        <li><strong>Deletion Requests:</strong> Process via Settings → Privacy → "Data Deletion Request".</li>
+                                        <li><strong>Consent:</strong> Consent status is recorded in Customer Profiles and signed forms are kept in the secure consent archive.</li>
+                                        <li><strong>Deletion Requests:</strong> Log the request through Help Admin, verify identity, and process approved deletion in the relevant customer, booking, storage, and email records.</li>
                                     </ul>
                                 </div>
                             </div>
@@ -841,7 +1246,7 @@ export default function OperationsManual() {
                     <Card>
                         <CardHeader>
                             <CardTitle>Dzaleka Impact Management Framework</CardTitle>
-                            <CardDescription>Measuring our contribution to economic, social, and detailed wellbeing.</CardDescription>
+                            <CardDescription>Measuring our contribution to economic, social, cultural, and community wellbeing outcomes.</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="mb-6 p-4 bg-muted/20 rounded-lg">
@@ -864,7 +1269,14 @@ export default function OperationsManual() {
 
                             <Accordion type="single" collapsible className="w-full">
                                 <AccordionItem value="economic">
-                                    <AccordionTrigger>1️⃣ Economic & Livelihood Impact</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus
+                                            status="manual"
+                                            icon={<span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">1</span>}
+                                        >
+                                            Economic & Livelihood Impact
+                                        </TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent className="space-y-4">
                                         <p className="text-muted-foreground">Measures whether tourism genuinely benefits people financially.</p>
 
@@ -891,7 +1303,14 @@ export default function OperationsManual() {
                                 </AccordionItem>
 
                                 <AccordionItem value="social-cultural">
-                                    <AccordionTrigger>2️⃣ Social & Cultural Well-Being</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus
+                                            status="manual"
+                                            icon={<span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">2</span>}
+                                        >
+                                            Social & Cultural Well-Being
+                                        </TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent className="space-y-4">
                                         <p className="text-muted-foreground">Assesses tourism’s influence on residents’ social conditions and culture.</p>
 
@@ -918,7 +1337,14 @@ export default function OperationsManual() {
                                 </AccordionItem>
 
                                 <AccordionItem value="visitor-experience">
-                                    <AccordionTrigger>3️⃣ Visitor Experience & Inclusion</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus
+                                            status="manual"
+                                            icon={<span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">3</span>}
+                                        >
+                                            Visitor Experience & Inclusion
+                                        </TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent className="space-y-4">
                                         <p className="text-muted-foreground">Measures how tourism affects visitors and community experience.</p>
 
@@ -944,7 +1370,14 @@ export default function OperationsManual() {
                                 </AccordionItem>
 
                                 <AccordionItem value="community-wellbeing">
-                                    <AccordionTrigger>4️⃣ Community Well-Being & Quality of Life</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus
+                                            status="planned"
+                                            icon={<span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">4</span>}
+                                        >
+                                            Community Well-Being & Quality of Life
+                                        </TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent className="space-y-4">
                                         <p className="text-muted-foreground">Measures broader social effects within the camp.</p>
 
@@ -970,7 +1403,14 @@ export default function OperationsManual() {
                                 </AccordionItem>
 
                                 <AccordionItem value="governance">
-                                    <AccordionTrigger>5️⃣ Governance & Ethical Standards</AccordionTrigger>
+                                    <AccordionTrigger>
+                                        <TriggerStatus
+                                            status="manual"
+                                            icon={<span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">5</span>}
+                                        >
+                                            Governance & Ethical Standards
+                                        </TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent className="space-y-4">
                                         <p className="text-muted-foreground">Evaluates whether tourism is delivered fairly and responsibly.</p>
 
@@ -996,7 +1436,14 @@ export default function OperationsManual() {
                                 </AccordionItem>
 
                                 <AccordionItem value="tools-methods">
-                                    <AccordionTrigger className="text-blue-600">📌 Measurement Tools & Advanced Methods</AccordionTrigger>
+                                    <AccordionTrigger className="text-blue-600">
+                                        <TriggerStatus
+                                            status="planned"
+                                            icon={<BarChart3 className="h-4 w-4" aria-hidden="true" />}
+                                        >
+                                            Measurement Tools & Advanced Methods
+                                        </TriggerStatus>
+                                    </AccordionTrigger>
                                     <AccordionContent className="space-y-4">
                                         <div className="grid md:grid-cols-2 gap-4">
                                             <div>

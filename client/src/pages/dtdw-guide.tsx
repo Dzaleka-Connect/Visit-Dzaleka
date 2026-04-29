@@ -6,6 +6,7 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
+import { DocumentReviewMeta } from "@/components/document-review-meta";
 import {
     Accordion,
     AccordionContent,
@@ -54,6 +55,7 @@ export default function DTDWGuide() {
                     <p className="text-muted-foreground mt-2 text-lg">
                         How to create and maintain tour listings in the system.
                     </p>
+                    <DocumentReviewMeta reviewedBy="Listings Lead" className="mt-3 justify-start" />
                 </div>
                 <Link href="/bookings">
                     <Button size="lg" className="gap-2">
@@ -74,24 +76,25 @@ export default function DTDWGuide() {
                     <CardContent>
                         <p className="leading-relaxed">
                             The <strong>Dzaleka Tourism Data Warehouse (DTDW)</strong> is our internal system
-                            for managing tour data. Information entered here syncs to our website, GetYourGuide,
-                            and partner booking widgets.
+                            for keeping tour listing content accurate across the website, GetYourGuide,
+                            and partner booking widgets. Use this guide as the shared QA checklist until
+                            automated publishing is enabled.
                         </p>
                         <div className="mt-4 grid gap-4 sm:grid-cols-3">
                             <div className="flex flex-col gap-2 p-4 bg-background rounded-lg border">
                                 <CheckCircle2 className="h-5 w-5 text-green-600" />
-                                <h3 className="font-semibold">Single Source</h3>
-                                <p className="text-xs text-muted-foreground">Update once, syncs everywhere.</p>
+                                <h3 className="font-semibold">Single Reference</h3>
+                                <p className="text-xs text-muted-foreground">Keep approved listing copy in one place.</p>
                             </div>
                             <div className="flex flex-col gap-2 p-4 bg-background rounded-lg border">
                                 <CheckCircle2 className="h-5 w-5 text-green-600" />
-                                <h3 className="font-semibold">Auto-Distribution</h3>
-                                <p className="text-xs text-muted-foreground">Pushes to website, GYG, and embeds.</p>
+                                <h3 className="font-semibold">Channel QA</h3>
+                                <p className="text-xs text-muted-foreground">Review each channel after copy or price changes.</p>
                             </div>
                             <div className="flex flex-col gap-2 p-4 bg-background rounded-lg border">
                                 <CheckCircle2 className="h-5 w-5 text-green-600" />
                                 <h3 className="font-semibold">Data Accuracy</h3>
-                                <p className="text-xs text-muted-foreground">Keeps all channels consistent.</p>
+                                <p className="text-xs text-muted-foreground">Keep titles, descriptions, images, and prices aligned.</p>
                             </div>
                         </div>
                     </CardContent>
@@ -111,8 +114,8 @@ export default function DTDWGuide() {
                             <AccordionItem value="item-1">
                                 <AccordionTrigger>1. Be specific, not generic</AccordionTrigger>
                                 <AccordionContent>
-                                    <p className="mb-2"><strong>❌ Don't write:</strong> "We offer walking tours"</p>
-                                    <p><strong>✅ Do write:</strong> "Guided walking tour through Dzaleka's artisan workshops and community markets"</p>
+                                    <p className="mb-2"><strong>Avoid:</strong> "We offer walking tours"</p>
+                                    <p><strong>Use:</strong> "Guided walking tour through Dzaleka's artisan workshops and community markets"</p>
                                 </AccordionContent>
                             </AccordionItem>
                             <AccordionItem value="item-2">
@@ -188,11 +191,11 @@ export default function DTDWGuide() {
                     </CardHeader>
                     <CardContent>
                         <p className="text-sm text-muted-foreground mb-4">
-                            Keep pricing and availability up to date in both the system and GetYourGuide.
+                            Keep pricing and availability up to date in the booking system and any external sales channel.
                         </p>
                         <ul className="text-sm space-y-1 list-disc pl-4 text-muted-foreground">
                             <li>Update availability when guides are unavailable</li>
-                            <li>Sync pricing changes across all channels</li>
+                            <li>Apply pricing changes across the website, GetYourGuide, and partner embeds</li>
                             <li>For group bookings, assign at least 2 guides</li>
                         </ul>
                     </CardContent>
@@ -245,7 +248,7 @@ export default function DTDWGuide() {
                         <Share2 className="h-5 w-5 text-purple-600" />
                         <CardTitle>Where Listings Appear</CardTitle>
                     </div>
-                    <CardDescription>Channels that pull from the DTDW</CardDescription>
+                    <CardDescription>Channels to keep aligned with the approved listing checklist</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="grid md:grid-cols-3 gap-4">

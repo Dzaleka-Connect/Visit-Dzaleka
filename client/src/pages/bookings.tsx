@@ -1626,11 +1626,10 @@ export default function Bookings() {
           <DialogHeader>
             <DialogTitle>Assign Guide</DialogTitle>
             <DialogDescription>
-              Select a guide to assign to this booking, or get smart suggestions based on availability and expertise.
+              Select a guide to assign to this booking, or review matches based on availability and expertise.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Smart Suggestion Feature */}
             <GuideSuggestionPanel
               booking={selectedBooking}
               onSelectGuide={(guideId) => setSelectedGuideId(guideId)}
@@ -1681,7 +1680,7 @@ export default function Bookings() {
           <DialogHeader>
             <DialogTitle>Send Email</DialogTitle>
             <DialogDescription>
-              Send an email to {selectedBooking?.visitorName}
+              Send an email to {selectedBooking?.visitorName}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1698,7 +1697,7 @@ export default function Bookings() {
               <Label htmlFor="email-subject">Subject</Label>
               <Input
                 id="email-subject"
-                placeholder="Email subject..."
+                placeholder="Subject…"
                 value={emailSubject}
                 onChange={(e) => setEmailSubject(e.target.value)}
                 data-testid="input-email-subject"
@@ -1708,9 +1707,30 @@ export default function Bookings() {
               <Label htmlFor="email-message">Message</Label>
               <Textarea
                 id="email-message"
-                placeholder="Type your message here..."
+                placeholder="Write your message…"
                 value={emailMessage}
                 onChange={(e) => setEmailMessage(e.target.value)}
+                onKeyDown={(event) => {
+                  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                    event.preventDefault();
+                    const trimmedSubject = emailSubject.trim();
+                    const trimmedMessage = emailMessage.trim();
+                    if (!selectedBooking || !trimmedSubject || !trimmedMessage) {
+                      toast({
+                        title: "Missing required fields",
+                        description: "Please add a subject and message before sending.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    sendEmailMutation.mutate({
+                      recipientName: selectedBooking.visitorName,
+                      recipientEmail: selectedBooking.visitorEmail,
+                      subject: trimmedSubject,
+                      message: trimmedMessage,
+                    });
+                  }
+                }}
                 className="min-h-[150px]"
                 data-testid="textarea-email-message"
               />
@@ -1721,19 +1741,32 @@ export default function Bookings() {
               Cancel
             </Button>
             <Button
-              onClick={() =>
-                selectedBooking &&
+              onClick={() => {
+                const trimmedSubject = emailSubject.trim();
+                const trimmedMessage = emailMessage.trim();
+                if (!selectedBooking || !trimmedSubject || !trimmedMessage) {
+                  toast({
+                    title: "Missing required fields",
+                    description: "Please add a subject and message before sending.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
                 sendEmailMutation.mutate({
                   recipientName: selectedBooking.visitorName,
                   recipientEmail: selectedBooking.visitorEmail,
-                  subject: emailSubject,
-                  message: emailMessage,
-                })
-              }
-              disabled={!emailSubject || !emailMessage || sendEmailMutation.isPending}
+                  subject: trimmedSubject,
+                  message: trimmedMessage,
+                });
+              }}
+              disabled={sendEmailMutation.isPending}
               data-testid="button-send-email"
             >
-              <Mail className="mr-2 h-4 w-4" />
+              {sendEmailMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Mail className="mr-2 h-4 w-4" />
+              )}
               Send Email
             </Button>
           </DialogFooter>
@@ -2262,7 +2295,7 @@ export default function Bookings() {
   );
 }
 
-// Smart Guide Suggestion Panel Component
+// Guide matching panel component
 interface GuideSuggestion {
   guide: {
     id: string;
@@ -2318,7 +2351,7 @@ function GuideSuggestionPanel({
       <div className="flex items-center justify-between">
         <Label className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-amber-500" />
-          Smart Guide Suggestions
+          Guide matches
         </Label>
         <Button
           variant="outline"
@@ -2337,7 +2370,7 @@ function GuideSuggestionPanel({
           {isLoading ? (
             <div className="flex items-center justify-center py-4">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-sm text-muted-foreground">Analyzing best matches...</span>
+              <span className="ml-2 text-sm text-muted-foreground">Checking guide availability…</span>
             </div>
           ) : suggestions && suggestions.length > 0 ? (
             <div className="space-y-2 max-h-60 overflow-y-auto">

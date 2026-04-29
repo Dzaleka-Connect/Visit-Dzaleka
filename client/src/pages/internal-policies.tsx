@@ -1,6 +1,7 @@
 import { SEO } from "@/components/seo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DocumentReviewMeta } from "@/components/document-review-meta";
 import { ArrowLeft, Printer } from "lucide-react";
 import { Link } from "wouter";
 
@@ -29,6 +30,7 @@ export default function InternalPolicies() {
                     <div className="text-center space-y-2">
                         <CardTitle className="text-3xl font-bold">Visit Dzaleka – Internal Policies & Compliance</CardTitle>
                         <p className="text-muted-foreground">Official Operational Standards | Last Updated: January 2026</p>
+                        <DocumentReviewMeta reviewedBy="Compliance Lead" />
                     </div>
                 </CardHeader>
                 <CardContent className="p-8 space-y-8 print:p-0">
@@ -93,7 +95,7 @@ export default function InternalPolicies() {
                                 <li><strong>Transparency:</strong> Guides must strictly adhere to the pricing structure listed on the booking. Overcharging is a serious disciplinary offence.</li>
                             </ul>
                             <h3 className="font-semibold text-lg mt-2">Platform & Impact Fees</h3>
-                            <p>If a booking involves a platform or impact fee (for community projects), this must be remitted by the guide to the Finance Lead within 24 hours of the tour.</p>
+                            <p>If a booking is explicitly configured with a platform, partner, or community impact fee, the fee must be recorded in Revenue and remitted to the Finance Lead within 24 hours of the tour. Standard direct bookings currently pay guides 100% of tour income.</p>
                         </div>
                     </section>
 
@@ -147,4 +149,3 @@ export default function InternalPolicies() {
         </div>
     );
 }
-

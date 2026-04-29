@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { format, formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 import {
   Mail,
   Search,
@@ -10,22 +10,24 @@ import {
   Inbox,
   Archive,
   Trash2,
-  Star,
-  Paperclip,
   ChevronLeft,
-  MoreVertical,
   Clock,
-  User,
   PenSquare
 } from "lucide-react";
 import { useState } from "react";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -41,8 +43,14 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SEO } from "@/components/seo";
 
-export default function SendEmail() {
+export default function EmailHistory() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [templateFilter, setTemplateFilter] = useState("all");
+  const [archiveFilter, setArchiveFilter] = useState("active");
+  const [bookingReferenceFilter, setBookingReferenceFilter] = useState("");
+  const [dateFromFilter, setDateFromFilter] = useState("");
+  const [dateToFilter, setDateToFilter] = useState("");
   const [selectedEmail, setSelectedEmail] = useState<EmailLog | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [emailForm, setEmailForm] = useState({
@@ -53,8 +61,21 @@ export default function SendEmail() {
   });
   const { toast } = useToast();
 
+  const emailLogsQuery = (() => {
+    const params = new URLSearchParams();
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    if (templateFilter !== "all") params.set("templateType", templateFilter);
+    if (archiveFilter !== "active") params.set("archived", archiveFilter);
+    if (searchTerm.trim()) params.set("recipient", searchTerm.trim());
+    if (bookingReferenceFilter.trim()) params.set("bookingReference", bookingReferenceFilter.trim());
+    if (dateFromFilter) params.set("dateFrom", dateFromFilter);
+    if (dateToFilter) params.set("dateTo", dateToFilter);
+    const query = params.toString();
+    return query ? `/api/email-logs?${query}` : "/api/email-logs";
+  })();
+
   const { data: emailLogs, isLoading } = useQuery<EmailLog[]>({
-    queryKey: ["/api/email-logs"],
+    queryKey: [emailLogsQuery],
   });
 
   const sendEmailMutation = useMutation({
@@ -142,7 +163,14 @@ export default function SendEmail() {
   });
 
   const handleSendEmail = () => {
-    if (!emailForm.recipientEmail || !emailForm.subject || !emailForm.message) {
+    const trimmedForm = {
+      recipientName: emailForm.recipientName.trim(),
+      recipientEmail: emailForm.recipientEmail.trim(),
+      subject: emailForm.subject.trim(),
+      message: emailForm.message.trim(),
+    };
+
+    if (!trimmedForm.recipientEmail || !trimmedForm.subject || !trimmedForm.message) {
       toast({
         title: "Missing fields",
         description: "Please fill in all required fields.",
@@ -150,15 +178,11 @@ export default function SendEmail() {
       });
       return;
     }
-    sendEmailMutation.mutate(emailForm);
+    sendEmailMutation.mutate(trimmedForm);
   };
 
-  const filteredLogs = emailLogs?.filter(
-    (log) =>
-      log.recipientEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (log.recipientName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
-  );
+  const filteredLogs = emailLogs || [];
+  const templateTypes = Array.from(new Set(filteredLogs.map((log) => log.templateType).filter(Boolean)));
 
   const getInitials = (name?: string | null, email?: string) => {
     if (name) {
@@ -168,20 +192,51 @@ export default function SendEmail() {
   };
 
   const stats = {
-    total: emailLogs?.length || 0,
-    sent: emailLogs?.filter(e => e.status === "sent").length || 0,
-    failed: emailLogs?.filter(e => e.status === "failed").length || 0,
+    total: filteredLogs.length,
+    sent: filteredLogs.filter(e => ["sent", "accepted", "delivered"].includes(e.status || "")).length,
+    failed: filteredLogs.filter(e => ["failed", "bounced", "complaint"].includes(e.status || "")).length,
+  };
+
+  const getStatusBadge = (status?: string | null) => {
+    const normalized = status || "sent";
+    const isFailure = ["failed", "bounced", "complaint"].includes(normalized);
+    const label = normalized === "accepted"
+      ? "Accepted"
+      : normalized === "delivered"
+        ? "Delivered"
+        : normalized === "bounced"
+          ? "Bounced"
+          : normalized === "complaint"
+            ? "Complaint"
+            : normalized === "failed"
+              ? "Failed"
+              : "Sent";
+
+    return (
+      <Badge
+        variant="outline"
+        className={cn(
+          "text-[10px] px-1.5 py-0 h-5",
+          isFailure
+            ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800"
+            : "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800"
+        )}
+      >
+        {isFailure ? <XCircle className="mr-1 h-2.5 w-2.5" /> : <CheckCircle className="mr-1 h-2.5 w-2.5" />}
+        {label}
+      </Badge>
+    );
   };
 
   return (
     <div className="h-[calc(100vh-7rem)]">
-      <SEO title="Email" description="Compose and view sent emails" />
+      <SEO title="Email History" description="Compose and review outgoing Visit Dzaleka emails." />
 
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold">Email</h1>
-          <p className="text-sm text-muted-foreground">Send and track outgoing emails</p>
+          <h1 className="text-2xl font-bold">Email History</h1>
+          <p className="text-sm text-muted-foreground">Compose and review outgoing Visit Dzaleka emails.</p>
         </div>
         <Button onClick={() => setComposeOpen(true)} className="gap-2" data-testid="button-send-email">
           <PenSquare className="h-4 w-4" />
@@ -197,27 +252,87 @@ export default function SendEmail() {
         )}>
           {/* Search and Stats */}
           <div className="p-4 border-b space-y-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <div className="grid gap-2 md:grid-cols-2">
+              <div className="relative md:col-span-2">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  aria-label="Filter by recipient"
+                  placeholder="Recipient name or email…"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 bg-muted/50"
+                  data-testid="input-search-emails"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger aria-label="Filter by status">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="accepted">Accepted</SelectItem>
+                  <SelectItem value="delivered">Delivered</SelectItem>
+                  <SelectItem value="bounced">Bounced</SelectItem>
+                  <SelectItem value="complaint">Complaint</SelectItem>
+                  <SelectItem value="failed">Failed</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={archiveFilter} onValueChange={setArchiveFilter}>
+                <SelectTrigger aria-label="Filter archived emails">
+                  <SelectValue placeholder="Archive" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                  <SelectItem value="all">All emails</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={templateFilter} onValueChange={setTemplateFilter}>
+                <SelectTrigger aria-label="Filter by template type">
+                  <SelectValue placeholder="Template" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All templates</SelectItem>
+                  {templateTypes.map((type) => (
+                    <SelectItem key={type} value={type || "custom"}>
+                      {(type || "custom").replace(/_/g, " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Input
-                placeholder="Search emails..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 bg-muted/50"
-                data-testid="input-search-emails"
+                aria-label="Filter by booking reference"
+                placeholder="Booking reference…"
+                value={bookingReferenceFilter}
+                onChange={(e) => setBookingReferenceFilter(e.target.value)}
+                className="bg-muted/50"
+              />
+              <Input
+                aria-label="Filter from date"
+                type="date"
+                value={dateFromFilter}
+                onChange={(e) => setDateFromFilter(e.target.value)}
+                className="bg-muted/50"
+              />
+              <Input
+                aria-label="Filter to date"
+                type="date"
+                value={dateToFilter}
+                onChange={(e) => setDateToFilter(e.target.value)}
+                className="bg-muted/50"
               />
             </div>
             <div className="flex gap-4 text-xs">
               <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-blue-500" />
+                <div className="h-2 w-2 rounded-full bg-blue-500" aria-hidden="true" />
                 <span className="text-muted-foreground">{stats.total} Total</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-green-500" />
+                <div className="h-2 w-2 rounded-full bg-green-500" aria-hidden="true" />
                 <span className="text-muted-foreground">{stats.sent} Sent</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-red-500" />
+                <div className="h-2 w-2 rounded-full bg-red-500" aria-hidden="true" />
                 <span className="text-muted-foreground">{stats.failed} Failed</span>
               </div>
             </div>
@@ -234,19 +349,20 @@ export default function SendEmail() {
                 <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
                   <Inbox className="h-6 w-6 text-muted-foreground" />
                 </div>
-                <h3 className="font-medium">No emails yet</h3>
+                <h3 className="font-medium">No outgoing emails yet</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Compose your first email to get started
+                  Compose a message to start a visitor or staff email thread.
                 </p>
               </div>
             ) : (
               <div className="divide-y">
                 {filteredLogs.map((log) => (
-                  <div
+                  <button
+                    type="button"
                     key={log.id}
                     onClick={() => setSelectedEmail(log)}
                     className={cn(
-                      "flex items-start gap-3 p-4 cursor-pointer hover:bg-muted/50 transition-colors",
+                      "flex w-full items-start gap-3 p-4 text-left hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                       selectedEmail?.id === log.id && "bg-muted"
                     )}
                     data-testid={`email-row-${log.id}`}
@@ -272,23 +388,15 @@ export default function SendEmail() {
                       </div>
                       <p className="text-sm font-medium truncate mt-0.5">{log.subject}</p>
                       <div className="flex items-center gap-2 mt-1">
-                        {log.status === "sent" ? (
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">
-                            <CheckCircle className="mr-1 h-2.5 w-2.5" />
-                            Sent
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800">
-                            <XCircle className="mr-1 h-2.5 w-2.5" />
-                            Failed
-                          </Badge>
-                        )}
+                        {getStatusBadge(log.status)}
                         <span className="text-xs text-muted-foreground truncate">
-                          {log.message?.substring(0, 50)}...
+                          {log.message
+                            ? `${log.message.substring(0, 50)}${log.message.length > 50 ? "…" : ""}`
+                            : ""}
                         </span>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -310,7 +418,7 @@ export default function SendEmail() {
                 Back
               </Button>
               <div className="flex items-center gap-2 ml-auto">
-                {selectedEmail.status === "failed" && (
+                {["failed", "bounced", "complaint"].includes(selectedEmail.status || "") && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -329,21 +437,24 @@ export default function SendEmail() {
                   onClick={() => archiveEmailMutation.mutate(selectedEmail.id)}
                   disabled={archiveEmailMutation.isPending}
                   title="Archive email"
+                  aria-label="Archive email"
                 >
                   <Archive className={cn("h-4 w-4", archiveEmailMutation.isPending && "animate-pulse")} />
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => deleteEmailMutation.mutate(selectedEmail.id)}
+                  onClick={() => {
+                    if (window.confirm("Delete this email log? This cannot be undone.")) {
+                      deleteEmailMutation.mutate(selectedEmail.id);
+                    }
+                  }}
                   disabled={deleteEmailMutation.isPending}
                   title="Delete email"
+                  aria-label="Delete email"
                   className="text-red-500 hover:text-red-600 hover:bg-red-50"
                 >
                   <Trash2 className={cn("h-4 w-4", deleteEmailMutation.isPending && "animate-pulse")} />
-                </Button>
-                <Button variant="ghost" size="icon">
-                  <MoreVertical className="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -366,17 +477,7 @@ export default function SendEmail() {
                       <span className="font-semibold">
                         To: {selectedEmail.recipientName || selectedEmail.recipientEmail}
                       </span>
-                      {selectedEmail.status === "sent" ? (
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">
-                          <CheckCircle className="mr-1 h-3 w-3" />
-                          Delivered
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800">
-                          <XCircle className="mr-1 h-3 w-3" />
-                          Failed
-                        </Badge>
-                      )}
+                      {getStatusBadge(selectedEmail.status)}
                     </div>
                     <p className="text-sm text-muted-foreground">{selectedEmail.recipientEmail}</p>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
@@ -420,7 +521,7 @@ export default function SendEmail() {
               </div>
               <h3 className="font-medium text-lg">Select an email</h3>
               <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-                Choose an email from the list to view its contents
+                Choose an email from the list to view its contents.
               </p>
             </div>
           </div>
@@ -433,10 +534,10 @@ export default function SendEmail() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <PenSquare className="h-5 w-5" />
-              New Message
+              New Email
             </DialogTitle>
             <DialogDescription>
-              Compose and send an email
+              Compose a visitor or staff message.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -445,7 +546,9 @@ export default function SendEmail() {
                 <Label className="w-16 text-muted-foreground text-sm">To</Label>
                 <div className="flex-1 flex gap-2">
                   <Input
-                    placeholder="Name"
+                    name="recipientName"
+                    autoComplete="name"
+                    placeholder="Recipient name…"
                     value={emailForm.recipientName}
                     onChange={(e) =>
                       setEmailForm({ ...emailForm, recipientName: e.target.value })
@@ -455,7 +558,9 @@ export default function SendEmail() {
                   />
                   <Input
                     type="email"
-                    placeholder="email@example.com"
+                    name="recipientEmail"
+                    autoComplete="email"
+                    placeholder="name@example.com"
                     value={emailForm.recipientEmail}
                     onChange={(e) =>
                       setEmailForm({ ...emailForm, recipientEmail: e.target.value })
@@ -468,7 +573,8 @@ export default function SendEmail() {
               <div className="flex items-center gap-3 border-b pb-3">
                 <Label className="w-16 text-muted-foreground text-sm">Subject</Label>
                 <Input
-                  placeholder="Subject"
+                  name="subject"
+                  placeholder="Subject…"
                   value={emailForm.subject}
                   onChange={(e) =>
                     setEmailForm({ ...emailForm, subject: e.target.value })
@@ -479,48 +585,43 @@ export default function SendEmail() {
               </div>
             </div>
             <Textarea
-              placeholder="Write your message..."
+              name="message"
+              placeholder="Write your message…"
               value={emailForm.message}
               onChange={(e) =>
                 setEmailForm({ ...emailForm, message: e.target.value })
               }
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                  event.preventDefault();
+                  handleSendEmail();
+                }
+              }}
               className="min-h-[200px] border-0 shadow-none focus-visible:ring-0 resize-none"
               data-testid="input-email-message"
             />
           </div>
-          <div className="flex items-center justify-between">
-            <div className="flex gap-2">
-              <Button variant="ghost" size="icon">
-                <Paperclip className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setComposeOpen(false)}
-                data-testid="button-cancel-email"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSendEmail}
-                disabled={sendEmailMutation.isPending}
-                className="gap-2"
-                data-testid="button-submit-email"
-              >
-                {sendEmailMutation.isPending ? (
-                  <>
-                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                    Sending…
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4" />
-                    Send
-                  </>
-                )}
-              </Button>
-            </div>
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setComposeOpen(false)}
+              data-testid="button-cancel-email"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSendEmail}
+              disabled={sendEmailMutation.isPending}
+              className="gap-2"
+              data-testid="button-submit-email"
+            >
+              {sendEmailMutation.isPending ? (
+                <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" aria-hidden="true" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              Send
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
