@@ -229,22 +229,22 @@ export default function EmailHistory() {
   };
 
   return (
-    <div className="h-[calc(100vh-7rem)]">
+    <div className="min-h-[calc(100vh-7rem)] space-y-4">
       <SEO title="Email History" description="Compose and review outgoing Visit Dzaleka emails." />
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold">Email History</h1>
           <p className="text-sm text-muted-foreground">Compose and review outgoing Visit Dzaleka emails.</p>
         </div>
-        <Button onClick={() => setComposeOpen(true)} className="gap-2" data-testid="button-send-email">
+        <Button onClick={() => setComposeOpen(true)} className="w-full gap-2 sm:w-auto" data-testid="button-send-email">
           <PenSquare className="h-4 w-4" />
           Compose
         </Button>
       </div>
 
-      <div className="flex h-[calc(100%-4rem)] gap-0 rounded-lg border bg-background overflow-hidden">
+      <div className="flex min-h-[640px] gap-0 overflow-hidden rounded-lg border bg-background lg:h-[calc(100vh-12rem)]">
         {/* Left Sidebar - Email List */}
         <div className={cn(
           "flex flex-col border-r transition-all",
@@ -322,7 +322,7 @@ export default function EmailHistory() {
                 className="bg-muted/50"
               />
             </div>
-            <div className="flex gap-4 text-xs">
+            <div className="flex flex-wrap gap-3 text-xs sm:gap-4">
               <div className="flex items-center gap-1.5">
                 <div className="h-2 w-2 rounded-full bg-blue-500" aria-hidden="true" />
                 <span className="text-muted-foreground">{stats.total} Total</span>

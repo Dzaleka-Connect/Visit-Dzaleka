@@ -1651,6 +1651,36 @@ function VisitorDashboard() {
       variant: "outline" as const,
     };
   };
+  const nextVisit = [...upcomingBookings].sort((a, b) => {
+    const aTime = `${a.visitDate}T${a.visitTime || "00:00"}`;
+    const bTime = `${b.visitDate}T${b.visitTime || "00:00"}`;
+    return new Date(aTime).getTime() - new Date(bTime).getTime();
+  })[0];
+  const nextVisitMeetingPoint = nextVisit ? getMeetingPointName(nextVisit.meetingPointId) : null;
+  const nextVisitPaymentLabel = nextVisit?.paymentStatus === "paid"
+    ? "Paid"
+    : nextVisit?.paymentReference
+      ? "Payment verification pending"
+      : "Payment not reported";
+  const visitHubItems = [
+    {
+      label: "Next visit",
+      value: nextVisit ? `${formatDate(nextVisit.visitDate)} at ${formatTime(nextVisit.visitTime)}` : "No visit scheduled",
+      detail: nextVisit ? `${formatTourType(nextVisit.tourType)} tour` : "Book a visit when you are ready.",
+    },
+    {
+      label: "Payment",
+      value: nextVisitPaymentLabel,
+      detail: nextVisit?.totalAmount ? formatCurrency(nextVisit.totalAmount) : "No upcoming payment due",
+    },
+    {
+      label: "Support",
+      value: cancellationOrRefundBookings.length > 0 ? "Recent cancellation/refund" : "Help available",
+      detail: cancellationOrRefundBookings.length > 0
+        ? "Ask support if you need refund or reschedule help."
+        : "Contact support from the Help Center.",
+    },
+  ];
 
   return (
     <PageContainer className="page-spacing">
@@ -1679,6 +1709,64 @@ function VisitorDashboard() {
           icon={CheckCircle2}
         />
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="text-lg font-semibold">Your Visit Hub</CardTitle>
+            <CardDescription>One place for your next visit, payment status, support, and preparation links.</CardDescription>
+          </div>
+          <Button asChild className="w-full sm:w-auto">
+            <Link href="/my-bookings?book=true">
+              Book a visit
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {visitHubItems.map((item) => (
+                <div key={item.label} className="rounded-lg border p-4">
+                  <p className="text-xs font-medium text-muted-foreground">{item.label}</p>
+                  <p className="mt-1 break-words text-sm font-semibold">{item.value}</p>
+                  <p className="mt-2 break-words text-xs text-muted-foreground">{item.detail}</p>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-lg border p-4">
+              <p className="text-sm font-semibold">Next best action</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {nextVisit
+                  ? nextVisitMeetingPoint
+                    ? `Meet at ${nextVisitMeetingPoint}.`
+                    : "Confirm your meeting point before arrival."
+                  : "Create a booking request to plan your visit."}
+              </p>
+              <div className="mt-4 grid gap-2">
+                {nextVisit && nextVisit.paymentStatus !== "paid" && (
+                  <Button type="button" variant="outline" className="w-full justify-start" onClick={() => openPaymentReportDialog(nextVisit)}>
+                    <DollarSign className="mr-2 h-4 w-4" />
+                    Report payment
+                  </Button>
+                )}
+                <Button variant="outline" className="w-full justify-start" asChild>
+                  <Link href="/help?support=true">
+                    <MessageCircle className="mr-2 h-4 w-4" />
+                    Contact support
+                  </Link>
+                </Button>
+                <Button variant="outline" className="w-full justify-start" asChild>
+                  <Link href="/visitor-resources">
+                    <BookOpen className="mr-2 h-4 w-4" />
+                    Visitor resources
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Book Your Tour CTA - Show prominently if no upcoming bookings and not dismissed */}
       {upcomingBookings.length === 0 && showBookingCTA && (

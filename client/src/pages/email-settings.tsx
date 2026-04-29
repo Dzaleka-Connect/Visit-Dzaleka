@@ -854,6 +854,18 @@ export default function EmailSettings() {
         ]
         : defaultDisplayTemplates;
     const hasUninitializedTemplates = displayTemplates.some((template) => template.id.startsWith("default-"));
+    const templateHealthStats = displayTemplates.reduce(
+        (acc, template) => {
+            const health = getTemplateHealth(template as EmailTemplate).label;
+            if (template.isActive) acc.active += 1;
+            if (health === "Used by automation") acc.automated += 1;
+            if (health === "Manual only") acc.manual += 1;
+            if (health === "Not wired yet") acc.unwired += 1;
+            if (health === "Disabled") acc.disabled += 1;
+            return acc;
+        },
+        { active: 0, automated: 0, manual: 0, unwired: 0, disabled: 0 }
+    );
 
     if (isLoading) {
         return (
@@ -894,6 +906,29 @@ export default function EmailSettings() {
                 )}
             </div>
 
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-lg border p-4">
+                    <p className="text-xs font-medium text-muted-foreground">Automation coverage</p>
+                    <p className="mt-1 text-2xl font-semibold tabular-nums">{templateHealthStats.automated}</p>
+                    <p className="text-xs text-muted-foreground">Templates wired to automated sends</p>
+                </div>
+                <div className="rounded-lg border p-4">
+                    <p className="text-xs font-medium text-muted-foreground">Manual templates</p>
+                    <p className="mt-1 text-2xl font-semibold tabular-nums">{templateHealthStats.manual}</p>
+                    <p className="text-xs text-muted-foreground">Available for staff-triggered messages</p>
+                </div>
+                <div className="rounded-lg border p-4">
+                    <p className="text-xs font-medium text-muted-foreground">Needs wiring</p>
+                    <p className="mt-1 text-2xl font-semibold tabular-nums">{templateHealthStats.unwired}</p>
+                    <p className="text-xs text-muted-foreground">Templates present but not connected yet</p>
+                </div>
+                <div className="rounded-lg border p-4">
+                    <p className="text-xs font-medium text-muted-foreground">Active templates</p>
+                    <p className="mt-1 text-2xl font-semibold tabular-nums">{templateHealthStats.active}</p>
+                    <p className="text-xs text-muted-foreground">{templateHealthStats.disabled} disabled</p>
+                </div>
+            </div>
+
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -905,7 +940,8 @@ export default function EmailSettings() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Table>
+                    <div className="overflow-x-auto">
+                    <Table className="min-w-[760px]">
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Template</TableHead>
@@ -919,11 +955,11 @@ export default function EmailSettings() {
                             {displayTemplates.map((template) => (
                                 <TableRow key={template.id}>
                                     <TableCell>
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex min-w-[220px] items-center gap-3">
                                             {getTemplateIcon(template.name)}
-                                            <div>
-                                                <div className="font-medium">{getTemplateLabel(template.name)}</div>
-                                                <div className="text-xs text-muted-foreground">{template.description}</div>
+                                            <div className="min-w-0">
+                                                <div className="break-words font-medium">{getTemplateLabel(template.name)}</div>
+                                                <div className="line-clamp-2 text-xs text-muted-foreground">{template.description}</div>
                                             </div>
                                         </div>
                                     </TableCell>
@@ -987,6 +1023,7 @@ export default function EmailSettings() {
                             ))}
                         </TableBody>
                     </Table>
+                    </div>
                 </CardContent>
             </Card>
 

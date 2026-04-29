@@ -917,6 +917,11 @@ export class SupabaseStorage implements IStorage {
     if (updates.paymentStatus) dbUpdates.payment_status = updates.paymentStatus;
     if (updates.paymentReference !== undefined) dbUpdates.payment_reference = updates.paymentReference;
     if (updates.paymentVerifiedAt) dbUpdates.payment_verified_at = updates.paymentVerifiedAt;
+    if (updates.cancellationCategory !== undefined) dbUpdates.cancellation_category = updates.cancellationCategory;
+    if (updates.cancellationReason !== undefined) dbUpdates.cancellation_reason = updates.cancellationReason;
+    if (updates.cancellationNote !== undefined) dbUpdates.cancellation_note = updates.cancellationNote;
+    if (updates.cancelledAt !== undefined) dbUpdates.cancelled_at = updates.cancelledAt;
+    if (updates.cancelledBy !== undefined) dbUpdates.cancelled_by = updates.cancelledBy;
 
     if (Object.keys(dbUpdates).length === 0) return undefined;
 

@@ -416,8 +416,20 @@ export default function BookingDetails() {
     });
 
     const updateStatusMutation = useMutation({
-        mutationFn: async ({ status }: { status: string }) => {
-            await apiRequest("PATCH", `/api/bookings/${id}/status`, { status });
+        mutationFn: async ({
+            status,
+            cancellationCategory,
+            cancellationReason,
+        }: {
+            status: string;
+            cancellationCategory?: string;
+            cancellationReason?: string;
+        }) => {
+            await apiRequest("PATCH", `/api/bookings/${id}/status`, {
+                status,
+                cancellationCategory,
+                cancellationReason,
+            });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: [`/api/bookings/${id}`] });
@@ -512,6 +524,84 @@ export default function BookingDetails() {
         );
     }
 
+    const voucherChecklist = [
+        {
+            label: "Tour title",
+            done: Boolean(booking.tourType),
+            detail: getTourTypeName(booking.tourType),
+        },
+        {
+            label: "Date and time",
+            done: Boolean(booking.visitDate && booking.visitTime),
+            detail: `${formatDate(booking.visitDate)} at ${formatTime(booking.visitTime)}`,
+        },
+        {
+            label: "Meeting point",
+            done: Boolean(booking.meetingPointId),
+            detail: getMeetingPointName(booking.meetingPointId),
+        },
+        {
+            label: "Visitor contact",
+            done: Boolean(booking.visitorEmail || booking.visitorPhone),
+            detail: booking.visitorEmail || booking.visitorPhone || "Missing visitor contact",
+        },
+        {
+            label: "Guide contact",
+            done: Boolean(booking.guide?.phone || booking.guide?.email),
+            detail: booking.guide ? `${booking.guide.firstName} ${booking.guide.lastName}` : "No guide assigned",
+        },
+        {
+            label: "Payment state",
+            done: booking.paymentStatus === "paid",
+            detail: booking.paymentStatus || "pending",
+        },
+    ];
+    const voucherReadyCount = voucherChecklist.filter((item) => item.done).length;
+    const guideName = booking.guide
+        ? `${booking.guide.firstName} ${booking.guide.lastName}`.trim()
+        : "";
+    const workflowNextStep = (() => {
+        if (booking.status === "cancelled") return "Review cancellation and refund/support follow-up";
+        if (booking.status === "pending") return "Confirm or cancel the booking request";
+        if (!booking.assignedGuideId) return "Assign a guide";
+        if (booking.paymentStatus !== "paid") return "Follow up payment verification";
+        if (voucherReadyCount < voucherChecklist.length) return "Complete voucher details";
+        if (booking.status === "confirmed") return "Ready for check-in";
+        if (booking.status === "in_progress") return "Check visitor out when the tour ends";
+        if (booking.status === "completed") return "Send feedback request or review follow-up";
+        return "Review booking details";
+    })();
+    const workflowStateItems = [
+        {
+            label: "Booking status",
+            value: (booking.status || "pending").replace(/_/g, " "),
+            detail: booking.status === "cancelled"
+                ? booking.cancellationReason || "Cancelled"
+                : `Visit ${formatDate(booking.visitDate)} at ${formatTime(booking.visitTime)}`,
+        },
+        {
+            label: "Payment",
+            value: (booking.paymentStatus || "pending").replace(/_/g, " "),
+            detail: booking.paymentReference
+                ? `Reference ${booking.paymentReference}`
+                : booking.paymentStatus === "paid"
+                    ? "Payment marked paid"
+                    : "No payment reference yet",
+        },
+        {
+            label: "Guide",
+            value: guideName || "Unassigned",
+            detail: booking.guide?.phone || booking.guide?.email || "Assign or confirm guide contact",
+        },
+        {
+            label: "Voucher readiness",
+            value: `${voucherReadyCount}/${voucherChecklist.length} ready`,
+            detail: voucherReadyCount === voucherChecklist.length
+                ? "Ready to export"
+                : "Complete missing visitor-facing details",
+        },
+    ];
+
     return (
         <div className="space-y-6">
             <SEO
@@ -519,16 +609,16 @@ export default function BookingDetails() {
                 description="View booking details"
             />
 
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" asChild>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
+                    <Button variant="ghost" size="icon" aria-label="Back to bookings" asChild>
                         <Link href="/bookings">
                             <ArrowLeft className="h-4 w-4" />
                         </Link>
                     </Button>
-                    <div>
-                        <h1 className="text-2xl font-bold flex items-center gap-2">
-                            Booking #{booking.bookingReference || booking.id.slice(0, 8)}
+                    <div className="min-w-0">
+                        <h1 className="flex flex-wrap items-center gap-2 break-words text-xl font-bold sm:text-2xl">
+                            <span className="min-w-0 break-all">Booking #{booking.bookingReference || booking.id.slice(0, 8)}</span>
                             <StatusBadge status={booking.status || "pending"} />
                         </h1>
                         <p className="text-muted-foreground">
@@ -537,34 +627,62 @@ export default function BookingDetails() {
                     </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end">
                     {booking.status !== "cancelled" && (
                         <Button
                             variant="destructive"
-                            onClick={() => updateStatusMutation.mutate({ status: "cancelled" })}
+                            className="w-full sm:w-auto"
+                            onClick={() => updateStatusMutation.mutate({
+                                status: "cancelled",
+                                cancellationCategory: "staff_cancelled",
+                                cancellationReason: "Cancelled by staff",
+                            })}
                         >
                             Cancel Booking
                         </Button>
                     )}
                     {(user?.role === "admin" || user?.role === "coordinator") && (
-                        <Button size="sm" variant="outline" asChild>
+                        <Button size="sm" variant="outline" className="w-full sm:w-auto" asChild>
                             <Link href={`/itinerary-builder/${booking.id}`}>
                                 <Mail className="mr-2 h-4 w-4" /> Send Proposal
                             </Link>
                         </Button>
                     )}
                     {itinerary && (
-                        <Button size="sm" variant="outline" asChild>
+                        <Button size="sm" variant="outline" className="w-full sm:w-auto" asChild>
                             <Link href={`/bookings/${booking.id}/itinerary`}>
                                 <FileDown className="mr-2 h-4 w-4" /> View Itinerary
                             </Link>
                         </Button>
                     )}
-                    <Button size="sm" onClick={() => generateBookingPDF(booking, getMeetingPointName(booking.meetingPointId))}>
+                    <Button size="sm" className="w-full sm:w-auto" onClick={() => generateBookingPDF(booking, getMeetingPointName(booking.meetingPointId))}>
                         <FileDown className="mr-2 h-4 w-4" /> Export PDF
                     </Button>
                 </div>
             </div>
+
+            <Card>
+                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <CardTitle>Booking Workflow Snapshot</CardTitle>
+                        <CardDescription>Current state, next operational action, and details that affect visitor communication.</CardDescription>
+                    </div>
+                    <Badge variant={booking.status === "cancelled" ? "destructive" : "secondary"} className="w-fit">
+                        Next: {workflowNextStep}
+                    </Badge>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        {workflowStateItems.map((item) => (
+                            <div key={item.label} className="rounded-lg border p-4">
+                                <p className="text-xs font-medium text-muted-foreground">{item.label}</p>
+                                <p className="mt-1 break-words text-sm font-semibold capitalize">{item.value}</p>
+                                <p className="mt-2 break-words text-xs text-muted-foreground">{item.detail}</p>
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
 
             <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-6">
@@ -699,6 +817,45 @@ export default function BookingDetails() {
                 </div>
 
                 <div className="space-y-6">
+                    {booking.status === "cancelled" && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Cancellation Details</CardTitle>
+                                <CardDescription>Reason captured for staff follow-up and visitor support.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                    <div>
+                                        <Label className="text-xs text-muted-foreground">Category</Label>
+                                        <p className="break-words text-sm font-medium">
+                                            {booking.cancellationCategory?.replace(/_/g, " ") || "Not recorded"}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <Label className="text-xs text-muted-foreground">Cancelled At</Label>
+                                        <p className="break-words text-sm font-medium">
+                                            {booking.cancelledAt ? formatDate(booking.cancelledAt) : "Not recorded"}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-muted-foreground">Reason</Label>
+                                    <p className="mt-1 break-words rounded-md bg-muted p-2 text-sm">
+                                        {booking.cancellationReason || "No reason recorded."}
+                                    </p>
+                                </div>
+                                {booking.cancellationNote && (
+                                    <div>
+                                        <Label className="text-xs text-muted-foreground">Staff Note</Label>
+                                        <p className="mt-1 break-words rounded-md bg-muted p-2 text-sm">
+                                            {booking.cancellationNote}
+                                        </p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
+
                     <Card>
                         <CardHeader>
                             <CardTitle>Payment Details</CardTitle>
@@ -780,6 +937,29 @@ export default function BookingDetails() {
                             </CardContent>
                         </Card>
                     )}
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Visitor Voucher Readiness</CardTitle>
+                            <CardDescription>Checks the details visitors need before arrival.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            {voucherChecklist.map((item) => (
+                                <div key={item.label} className="flex items-start justify-between gap-3 rounded-lg border p-3">
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-medium">{item.label}</p>
+                                        <p className="mt-1 break-words text-sm text-muted-foreground">{item.detail}</p>
+                                    </div>
+                                    <Badge variant={item.done ? "default" : "destructive"} className="shrink-0">
+                                        {item.done ? "Ready" : "Needs update"}
+                                    </Badge>
+                                </div>
+                            ))}
+                            <p className="text-xs text-muted-foreground">
+                                Use Export PDF after these checks are ready, especially for mobile voucher and print workflows.
+                            </p>
+                        </CardContent>
+                    </Card>
 
                     <Card>
                         <CardHeader>

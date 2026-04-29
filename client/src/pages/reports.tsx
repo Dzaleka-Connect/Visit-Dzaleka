@@ -12,6 +12,9 @@ import {
     Search,
     ChevronDown,
     Mail,
+    AlertTriangle,
+    Lightbulb,
+    UserPlus,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -409,6 +412,96 @@ export default function Reports() {
         return guide ? `${guide.firstName} ${guide.lastName}` : "Unknown";
     };
 
+    const recommendedActions = useMemo(() => {
+        const actions: Array<{
+            title: string;
+            detail: string;
+            status: "Act now" | "Monitor" | "Good";
+            icon: typeof AlertTriangle;
+        }> = [];
+        const unassignedCount = filteredBookings.filter(
+            b => b.status !== "cancelled" && b.status !== "completed" && !b.assignedGuideId
+        ).length;
+        const pendingPaymentCount = filteredBookings.filter(
+            b => b.status !== "cancelled" && b.paymentStatus !== "paid"
+        ).length;
+
+        if (statusBreakdownData.cancellationRate >= 10) {
+            actions.push({
+                title: "Review cancellation reasons",
+                detail: `${statusBreakdownData.cancellationRate}% of filtered bookings are cancelled. Capture a reason before cancelling and offer reschedule alternatives where possible.`,
+                status: "Act now",
+                icon: AlertTriangle,
+            });
+        }
+
+        if (unassignedCount > 0) {
+            actions.push({
+                title: "Assign guides earlier",
+                detail: `${unassignedCount} active booking${unassignedCount === 1 ? "" : "s"} still need a guide. Earlier assignment improves visitor confidence and guide readiness.`,
+                status: "Act now",
+                icon: UserPlus,
+            });
+        }
+
+        if (pendingPaymentCount > 0) {
+            actions.push({
+                title: "Follow up on unpaid bookings",
+                detail: `${pendingPaymentCount} active booking${pendingPaymentCount === 1 ? "" : "s"} still show pending or partial payment.`,
+                status: "Monitor",
+                icon: DollarSign,
+            });
+        }
+
+        if (participantsData.averageGroupSize <= 2 && summaryStats.totalBookings >= 3) {
+            actions.push({
+                title: "Promote group visits",
+                detail: `Average group size is ${participantsData.averageGroupSize}. Consider school, university, NGO, and organization packages.`,
+                status: "Monitor",
+                icon: Users,
+            });
+        }
+
+        if (actions.length === 0) {
+            actions.push({
+                title: "Performance looks steady",
+                detail: "No urgent action was detected for the current filters. Keep monitoring cancellations, guide assignments, payment follow-up, and visitor feedback.",
+                status: "Good",
+                icon: Lightbulb,
+            });
+        }
+
+        return actions.slice(0, 4);
+    }, [filteredBookings, participantsData.averageGroupSize, statusBreakdownData.cancellationRate, summaryStats.totalBookings]);
+    const unassignedActiveCount = filteredBookings.filter((booking) =>
+        !booking.assignedGuideId && ["pending", "confirmed"].includes(booking.status || "pending")
+    ).length;
+    const unpaidActiveCount = filteredBookings.filter((booking) =>
+        booking.paymentStatus !== "paid" && booking.status !== "cancelled" && booking.status !== "completed"
+    ).length;
+    const reportSnapshot = [
+        {
+            label: "Cancellation rate",
+            value: `${statusBreakdownData.cancellationRate}%`,
+            detail: `${summaryStats.cancelledCount} cancelled in current filters`,
+        },
+        {
+            label: "Unassigned active bookings",
+            value: unassignedActiveCount,
+            detail: "Pending or confirmed bookings without a guide",
+        },
+        {
+            label: "Payment follow-up",
+            value: unpaidActiveCount,
+            detail: "Active bookings not yet marked paid",
+        },
+        {
+            label: "Average group size",
+            value: participantsData.averageGroupSize,
+            detail: "Useful for guide allocation and pricing review",
+        },
+    ];
+
     return (
         <div className="space-y-6">
             <SEO title="Reports" description="Monitor your business with detailed reports and analytics." />
@@ -416,6 +509,16 @@ export default function Reports() {
             <div className="flex flex-col gap-1 sm:gap-2">
                 <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Reports</h1>
                 <p className="text-sm sm:text-base text-muted-foreground">Monitor your business with detailed reports and data exports.</p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {reportSnapshot.map((item) => (
+                    <div key={item.label} className="rounded-lg border p-4">
+                        <p className="text-xs font-medium text-muted-foreground">{item.label}</p>
+                        <p className="mt-1 text-2xl font-semibold tabular-nums">{item.value}</p>
+                        <p className="mt-2 text-xs text-muted-foreground">{item.detail}</p>
+                    </div>
+                ))}
             </div>
 
             {/* Tabs */}
@@ -543,7 +646,7 @@ export default function Reports() {
                                         <div className="relative">
                                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                             <Input
-                                                placeholder="Search by name, email, or reference..."
+                                                placeholder="Search by name, email, or reference…"
                                                 value={searchQuery}
                                                 onChange={(e) => setSearchQuery(e.target.value)}
                                                 className="pl-10"
@@ -586,6 +689,44 @@ export default function Reports() {
                         </CardContent>
                     </Card>
                 </div>
+
+                <Card className="mt-4">
+                    <CardHeader>
+                        <div className="flex items-center gap-2">
+                            <Lightbulb className="h-5 w-5 text-primary" />
+                            <CardTitle className="text-base sm:text-lg">Recommended Actions</CardTitle>
+                        </div>
+                        <CardDescription>
+                            Performance prompts based on the current report filters.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid gap-3 md:grid-cols-2">
+                            {recommendedActions.map((action) => {
+                                const Icon = action.icon;
+                                return (
+                                    <div key={action.title} className="rounded-lg border p-4">
+                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                            <div className="flex min-w-0 items-start gap-3">
+                                                <Icon className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+                                                <div className="min-w-0">
+                                                    <h2 className="text-sm font-semibold">{action.title}</h2>
+                                                    <p className="mt-1 text-sm text-muted-foreground">{action.detail}</p>
+                                                </div>
+                                            </div>
+                                            <Badge
+                                                variant={action.status === "Act now" ? "destructive" : action.status === "Good" ? "default" : "secondary"}
+                                                className="w-fit shrink-0"
+                                            >
+                                                {action.status}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </CardContent>
+                </Card>
 
                 {/* Bookings Tab */}
                 <TabsContent value="bookings" className="mt-4">

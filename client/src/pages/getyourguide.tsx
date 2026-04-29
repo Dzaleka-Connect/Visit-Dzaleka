@@ -44,6 +44,7 @@ interface GetYourGuideSelfTestReadiness {
     listingUrl: string;
     publicBaseUrl: string;
     webhookEndpoint: string;
+    testingConfigurationBaseUrl: string;
     supplierApiBaseUrl: string;
     supplierId: string;
     credentialsConfigured: boolean;
@@ -75,11 +76,13 @@ interface SyncAvailabilityResult {
     useSandbox: boolean;
 }
 
-const moneyFormatter = new Intl.NumberFormat("en-MW", {
-    style: "currency",
-    currency: "MWK",
-    maximumFractionDigits: 0,
-});
+function formatGygMoney(amount: number, currency = "USD") {
+    return new Intl.NumberFormat(currency === "MWK" ? "en-MW" : "en-US", {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 0,
+    }).format(currency === "USD" ? amount / 100 : amount);
+}
 
 function readinessVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
     if (status === "Ready to configure" || status === "Admin push wired" || status === "Wired") return "default";
@@ -143,17 +146,44 @@ export default function GetYourGuidePage() {
     const syncDisabled = syncing
         || syncMutation.isPending
         || (readiness ? !readiness.outboundCredentialsConfigured || !readiness.availabilityPushConfigured : false);
+    const setupChecklist = readiness
+        ? [
+            {
+                label: "Supplier API credentials",
+                ready: readiness.credentialsConfigured,
+                detail: readiness.credentialsConfigured ? "Basic Auth is configured for self-testing." : "Set Supplier API Basic Auth credentials.",
+            },
+            {
+                label: "Endpoint prefix",
+                ready: Boolean(readiness.supplierApiBaseUrl),
+                detail: readiness.supplierApiBaseUrl || "Use the public /1/ Supplier API prefix.",
+            },
+            {
+                label: "Product mapping",
+                ready: Boolean(readiness.productId),
+                detail: `Self-test product ID: ${readiness.productId}`,
+            },
+            {
+                label: "Availability push",
+                ready: readiness.outboundCredentialsConfigured && readiness.availabilityPushConfigured,
+                detail: readiness.availabilityPushConfigured
+                    ? `Push product: ${readiness.availabilityPushProductId}`
+                    : "Set GETYOURGUIDE_AVAILABILITY_PRODUCT_ID after GYG maps the connected product.",
+            },
+        ]
+        : [];
+    const setupCompleteCount = setupChecklist.filter((step) => step.ready).length;
 
     return (
-        <div className="min-h-screen bg-background p-6 space-y-6">
-            <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-3xl font-bold text-foreground">GetYourGuide Integration</h1>
+        <div className="min-h-screen bg-background p-4 sm:p-6 space-y-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                    <h1 className="text-2xl font-bold text-foreground sm:text-3xl">GetYourGuide Integration</h1>
                     <p className="text-muted-foreground">
                         Manage GetYourGuide bookings and sync availability
                     </p>
                 </div>
-                <Badge variant={integrationStatus === "active" ? "default" : "secondary"} className="flex items-center gap-1">
+                <Badge variant={integrationStatus === "active" ? "default" : "secondary"} className="flex w-fit items-center gap-1">
                     {integrationStatus === "active" ? (
                         <>
                             <CheckCircle2 className="h-3 w-3" />
@@ -167,6 +197,49 @@ export default function GetYourGuidePage() {
                     )}
                 </Badge>
             </div>
+
+            <Card>
+                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <CardTitle className="flex items-center gap-2">
+                            <ClipboardCheck className="h-5 w-5" />
+                            Setup & Testing Command Center
+                        </CardTitle>
+                        <CardDescription>
+                            Track the pieces GetYourGuide needs before self-testing and availability push can pass reliably.
+                        </CardDescription>
+                    </div>
+                    <Badge variant={setupCompleteCount === setupChecklist.length && setupChecklist.length > 0 ? "default" : "secondary"} className="w-fit">
+                        {setupCompleteCount}/{setupChecklist.length || 4} ready
+                    </Badge>
+                </CardHeader>
+                <CardContent>
+                    {readinessLoading ? (
+                        <div className="flex items-center py-4 text-sm text-muted-foreground">
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                            Checking setup…
+                        </div>
+                    ) : (
+                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                            {setupChecklist.map((step) => (
+                                <div key={step.label} className="rounded-lg border p-4">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-semibold">{step.label}</p>
+                                            <p className="mt-2 break-words text-xs text-muted-foreground">{step.detail}</p>
+                                        </div>
+                                        {step.ready ? (
+                                            <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" aria-label="Ready" />
+                                        ) : (
+                                            <XCircle className="h-5 w-5 shrink-0 text-amber-600" aria-label="Needs setup" />
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
 
             {/* Integration Status Card */}
             <Card>
@@ -183,7 +256,7 @@ export default function GetYourGuidePage() {
                     <div className="grid gap-4 md:grid-cols-3">
                         <div className="space-y-1">
                             <p className="text-sm font-medium text-muted-foreground">Webhook Endpoint</p>
-                            <p className="text-sm font-mono bg-muted p-2 rounded">/api/webhooks/getyourguide</p>
+                            <p className="break-all rounded bg-muted p-2 font-mono text-sm">/api/webhooks/getyourguide</p>
                         </div>
                         <div className="space-y-1">
                             <p className="text-sm font-medium text-muted-foreground">Authentication</p>
@@ -257,18 +330,18 @@ export default function GetYourGuidePage() {
                         <>
                             <Alert>
                                 <CheckCircle2 className="h-4 w-4" />
-                                <AlertDescription>
+                                <AlertDescription className="break-words">
                                     Supplier API endpoints are now wired at /1/ for availability, reservation, booking, cancellation, product details, and product lists. Configure Basic Auth credentials before running the GetYourGuide self-testing tool.
                                 </AlertDescription>
                             </Alert>
 
                             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                                 <div className="rounded-lg border p-4">
-                                    <p className="text-xs font-medium text-muted-foreground">Base product ID</p>
-                                    <p className="mt-1 break-words font-mono text-sm">{readiness.productId}</p>
+                                    <p className="text-xs font-medium text-muted-foreground">Testing Config URL</p>
+                                    <p className="mt-1 break-words font-mono text-sm">{readiness.testingConfigurationBaseUrl}</p>
                                 </div>
                                 <div className="rounded-lg border p-4">
-                                    <p className="text-xs font-medium text-muted-foreground">Supplier API base</p>
+                                    <p className="text-xs font-medium text-muted-foreground">Endpoint prefix</p>
                                     <p className="mt-1 break-words font-mono text-sm">{readiness.supplierApiBaseUrl}</p>
                                 </div>
                                 <div className="rounded-lg border p-4">
@@ -300,7 +373,7 @@ export default function GetYourGuidePage() {
                                 <div className="grid gap-3 md:grid-cols-2">
                                     {readiness.recommendedSelfTests.map((test) => (
                                         <div key={test.key} className="rounded-lg border p-4">
-                                            <div className="flex items-start justify-between gap-3">
+                                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                                 <div className="min-w-0">
                                                     <h3 className="font-medium">{test.label}</h3>
                                                     <p className="mt-1 text-sm text-muted-foreground">{test.timeAvailable}</p>
@@ -310,30 +383,30 @@ export default function GetYourGuidePage() {
                                                 </Badge>
                                             </div>
                                             <div className="mt-3 grid gap-2 text-sm">
-                                                <div className="flex justify-between gap-3">
+                                                <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3">
                                                     <span className="text-muted-foreground">Product ID</span>
-                                                    <span className="break-all text-right font-mono text-xs">{test.productId}</span>
+                                                    <span className="break-all font-mono text-xs sm:text-right">{test.productId}</span>
                                                 </div>
                                                 {test.byCategoryProductId && (
-                                                    <div className="flex justify-between gap-3">
+                                                    <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3">
                                                         <span className="text-muted-foreground">Ticket-category ID</span>
-                                                        <span className="break-all text-right font-mono text-xs">{test.byCategoryProductId}</span>
+                                                        <span className="break-all font-mono text-xs sm:text-right">{test.byCategoryProductId}</span>
                                                     </div>
                                                 )}
-                                                <div className="flex justify-between gap-3">
+                                                <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3">
                                                     <span className="text-muted-foreground">Price setup</span>
-                                                    <span className="text-right font-medium">{test.priceSetup}</span>
+                                                    <span className="font-medium sm:text-right">{test.priceSetup}</span>
                                                 </div>
                                                 {test.sampleTimes && (
-                                                    <div className="flex justify-between gap-3">
+                                                    <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3">
                                                         <span className="text-muted-foreground">Sample times</span>
-                                                        <span className="text-right font-medium">{test.sampleTimes.join(", ")}</span>
+                                                        <span className="font-medium sm:text-right">{test.sampleTimes.join(", ")}</span>
                                                     </div>
                                                 )}
                                                 {typeof test.samplePrice === "number" && (
-                                                    <div className="flex justify-between gap-3">
+                                                    <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-3">
                                                         <span className="text-muted-foreground">Sample price</span>
-                                                        <span className="text-right font-medium">{moneyFormatter.format(test.samplePrice)}</span>
+                                                        <span className="font-medium sm:text-right">{formatGygMoney(test.samplePrice, test.currency)}</span>
                                                     </div>
                                                 )}
                                             </div>

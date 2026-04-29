@@ -1212,7 +1212,7 @@ const GYG_BLOCKED_DATES = new Set(
 const GYG_MAX_PEOPLE_PER_SLOT = Number(process.env.GETYOURGUIDE_MAX_CAPACITY || 20);
 const GYG_MAX_GROUPS_PER_SLOT = Number(process.env.GETYOURGUIDE_MAX_GROUPS_PER_SLOT || 2);
 const GYG_CUTOFF_SECONDS = Number(process.env.GETYOURGUIDE_CUTOFF_SECONDS || 3600);
-const GYG_CURRENCY = process.env.GETYOURGUIDE_CURRENCY || "MWK";
+const GYG_CURRENCY = process.env.GETYOURGUIDE_CURRENCY || "USD";
 const GYG_PRODUCT_TIMEZONE = process.env.GETYOURGUIDE_PRODUCT_TIMEZONE || "Africa/Blantyre";
 
 function getGygBaseProductId() {
@@ -1435,6 +1435,17 @@ function validateGygBookingItems(config: GygProductConfig, bookingItems: any[] =
 }
 
 async function getGygRetailPrice(config: GygProductConfig) {
+  const configuredPrice = config.pricingMode === "group"
+    ? process.env.GETYOURGUIDE_GROUP_PRICE || process.env.GETYOURGUIDE_PRICE
+    : process.env.GETYOURGUIDE_ADULT_PRICE || process.env.GETYOURGUIDE_PRICE;
+  if (configuredPrice && Number.isFinite(Number(configuredPrice))) {
+    return Number(configuredPrice);
+  }
+
+  if (GYG_CURRENCY === "USD") {
+    return config.pricingMode === "group" ? 8000 : 1500;
+  }
+
   const groupSize = config.pricingMode === "group" ? "large_group" : "individual";
   return calculateTotalAmount(groupSize, "standard");
 }
@@ -1448,7 +1459,7 @@ async function getGygRetailPrices(config: GygProductConfig) {
   return GYG_SUPPORTED_INDIVIDUAL_CATEGORIES.map((category) => ({
     category,
     price: category === "CHILD"
-      ? Number(process.env.GETYOURGUIDE_CHILD_PRICE || basePrice)
+      ? Number(process.env.GETYOURGUIDE_CHILD_PRICE || process.env.GETYOURGUIDE_PRICE || basePrice)
       : basePrice,
   }));
 }
@@ -1811,6 +1822,17 @@ function registerGetYourGuideSupplierApiRoutes(app: Express) {
       }
 
       await storage.updateBookingStatus(booking.id, "cancelled");
+      await storage.updateBooking(booking.id, {
+        cancellationCategory: "getyourguide",
+        cancellationReason: "Cancelled by GetYourGuide",
+        cancellationNote: typeof data.cancellationReason === "string"
+          ? data.cancellationReason
+          : typeof data.reason === "string"
+            ? data.reason
+            : null,
+        cancelledAt: new Date(),
+        cancelledBy: null,
+      });
       await storage.createBookingActivityLog({
         bookingId: booking.id,
         action: "getyourguide_booking_cancelled",
@@ -3845,64 +3867,95 @@ export async function registerRoutes(
     try {
       const { id } = req.params;
       const { status, version } = req.body;
+      const cancellationCategory = typeof req.body?.cancellationCategory === "string"
+        ? req.body.cancellationCategory.trim()
+        : "";
+      const cancellationReason = typeof req.body?.cancellationReason === "string"
+        ? req.body.cancellationReason.trim()
+        : typeof req.body?.reason === "string"
+          ? req.body.reason.trim()
+          : "";
+      const cancellationNote = typeof req.body?.cancellationNote === "string"
+        ? req.body.cancellationNote.trim()
+        : "";
       const oldBooking = await storage.getBooking(id);
 
       // Use optimistic locking if version is provided
-      const booking = await storage.updateBookingStatus(id, status, version);
+      let booking = await storage.updateBookingStatus(id, status, version);
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
       }
 
       if (status === "cancelled") {
-        await sendBookingCancelledEmail(booking, booking.adminNotes || "Cancelled by staff", req.session?.userId || null);
+        const resolvedCancellationReason = cancellationReason
+          || booking.cancellationReason
+          || booking.adminNotes
+          || "Cancelled by staff";
+
+        const cancellationUpdate = await storage.updateBooking(id, {
+          cancellationCategory: cancellationCategory || null,
+          cancellationReason: resolvedCancellationReason,
+          cancellationNote: cancellationNote || null,
+          cancelledAt: new Date(),
+          cancelledBy: req.session?.userId || null,
+        });
+        booking = cancellationUpdate || booking;
+
+        await sendBookingCancelledEmail(booking, resolvedCancellationReason, req.session?.userId || null);
       } else {
         // Send status update email
         const statusTemplateName = status === "confirmed" ? "booking_confirmation" : "status_update";
-      const statusEmail = await sendAutomatedTemplateEmail({
-        templateName: statusTemplateName,
-        recipientName: booking.visitorName,
-        recipientEmail: booking.visitorEmail,
-        data: buildBookingTemplateData(booking, {
-          old_status: oldBooking?.status || "pending",
-          new_status: status,
-          admin_notes: booking.adminNotes || "",
-        }),
-        fallbackSubject: status === "confirmed"
-          ? `Booking Confirmed - ${booking.bookingReference}`
-          : `Booking ${String(status).replace(/_/g, " ")} - ${booking.bookingReference}`,
-        fallbackMessage: `Booking status email sent for ${booking.visitorName}. New status: ${status}.`,
-        fallbackSend: () => sendStatusUpdateDetailed({
-          visitorName: booking.visitorName,
-          visitorEmail: booking.visitorEmail,
-          bookingReference: booking.bookingReference!,
-          oldStatus: oldBooking?.status || "pending",
-          newStatus: status,
-          visitDate: booking.visitDate,
-          adminNotes: booking.adminNotes || undefined,
-        }),
-      });
+        const statusBooking = booking;
+        const statusEmail = await sendAutomatedTemplateEmail({
+          templateName: statusTemplateName,
+          recipientName: statusBooking.visitorName,
+          recipientEmail: statusBooking.visitorEmail,
+          data: buildBookingTemplateData(statusBooking, {
+            old_status: oldBooking?.status || "pending",
+            new_status: status,
+            admin_notes: statusBooking.adminNotes || "",
+          }),
+          fallbackSubject: status === "confirmed"
+            ? `Booking Confirmed - ${statusBooking.bookingReference}`
+            : `Booking ${String(status).replace(/_/g, " ")} - ${statusBooking.bookingReference}`,
+          fallbackMessage: `Booking status email sent for ${statusBooking.visitorName}. New status: ${status}.`,
+          fallbackSend: () => sendStatusUpdateDetailed({
+            visitorName: statusBooking.visitorName,
+            visitorEmail: statusBooking.visitorEmail,
+            bookingReference: statusBooking.bookingReference!,
+            oldStatus: oldBooking?.status || "pending",
+            newStatus: status,
+            visitDate: statusBooking.visitDate,
+            adminNotes: statusBooking.adminNotes || undefined,
+          }),
+        });
 
-      await storage.createEmailLog({
-        sentBy: req.session?.userId,
-        recipientName: booking.visitorName,
-        recipientEmail: booking.visitorEmail,
-        subject: statusEmail.subject,
-        message: statusEmail.message,
-        templateType: statusTemplateName,
-        status: statusEmail.result.success ? "accepted" : "failed",
-        errorMessage: statusEmail.result.error,
-        providerMessageId: statusEmail.result.messageId,
-        relatedEntityType: "booking",
-        relatedEntityId: booking.id,
-        metadata: buildEmailLogMetadata(booking, statusEmail, { status }),
-      });
+        await storage.createEmailLog({
+          sentBy: req.session?.userId,
+          recipientName: statusBooking.visitorName,
+          recipientEmail: statusBooking.visitorEmail,
+          subject: statusEmail.subject,
+          message: statusEmail.message,
+          templateType: statusTemplateName,
+          status: statusEmail.result.success ? "accepted" : "failed",
+          errorMessage: statusEmail.result.error,
+          providerMessageId: statusEmail.result.messageId,
+          relatedEntityType: "booking",
+          relatedEntityId: statusBooking.id,
+          metadata: buildEmailLogMetadata(statusBooking, statusEmail, { status }),
+        });
       }
 
       // Create audit log
       const userId = req.session?.userId;
       if (userId) {
         await createAuditLog(userId, "update", "booking", id,
-          { status: oldBooking?.status }, { status }, req);
+          { status: oldBooking?.status }, {
+            status,
+            cancellationCategory: cancellationCategory || undefined,
+            cancellationReason: cancellationReason || undefined,
+            cancellationNote: cancellationNote || undefined,
+          }, req);
       }
 
       // Send in-app notification to visitor if they have an account
@@ -4440,7 +4493,15 @@ export async function registerRoutes(
       }
 
       // Update booking status
-      const updated = await storage.updateBookingStatus(id, "cancelled");
+      let updated = await storage.updateBookingStatus(id, "cancelled");
+      const cancellationUpdate = await storage.updateBooking(id, {
+        cancellationCategory: "visitor_requested",
+        cancellationReason: "Cancelled by visitor",
+        cancellationNote: typeof req.body?.reason === "string" ? req.body.reason.trim() || null : null,
+        cancelledAt: new Date(),
+        cancelledBy: userId,
+      });
+      updated = cancellationUpdate || updated;
 
       // Get guideUserId if assigned
       let guideUserId;
@@ -4452,7 +4513,7 @@ export async function registerRoutes(
       // Notify Admins and Guide
       await notifyBookingCancelledByVisitor(id, booking.visitorName, booking.bookingReference!, guideUserId || undefined);
 
-      await sendBookingCancelledEmail(booking, "Cancelled by visitor", userId);
+      await sendBookingCancelledEmail(updated || booking, "Cancelled by visitor", userId);
 
       // Create activity log
       await storage.createBookingActivityLog({
@@ -4467,7 +4528,7 @@ export async function registerRoutes(
       // Create audit log
       await createAuditLog(userId, "update", "booking", id,
         { status: booking.status },
-        { status: "cancelled" }, req);
+        { status: "cancelled", cancellationCategory: "visitor_requested", cancellationReason: "Cancelled by visitor" }, req);
 
       res.json(updated);
     } catch (error) {
@@ -9562,6 +9623,7 @@ export async function registerRoutes(
         publicBaseUrl: PUBLIC_APP_URL,
         webhookEndpoint: `${PUBLIC_APP_URL}/api/webhooks/getyourguide`,
         productTimezone: GYG_PRODUCT_TIMEZONE,
+        testingConfigurationBaseUrl: PUBLIC_APP_URL,
         supplierApiBaseUrl: `${PUBLIC_APP_URL}/1`,
         supplierId: GYG_SUPPLIER_ID,
         credentialsConfigured: Boolean(
@@ -9633,6 +9695,8 @@ export async function registerRoutes(
           note: "Use a future blocked date after the available range.",
         },
         portalRules: [
+          "On the Testing Configuration page, if the field asks for the system/base URL, enter https://visit.dzaleka.com without /1.",
+          "The Supplier API endpoint paths already include /1, for example /1/get-availabilities/.",
           "Use fixed time slots for the current guided walking tour setup. Operation-hours testing should stay planned unless the product is changed to arrival-anytime availability.",
           "GetYourGuide does not mix fixed time slots and operation-hours availability in the same option.",
           "GetYourGuide does not mix price per individual and price per group in the same option. Create separate options if both are offered.",

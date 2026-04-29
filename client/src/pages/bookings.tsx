@@ -97,6 +97,44 @@ interface BookingWithGuide extends Booking {
   guide?: Guide;
 }
 
+const CANCELLATION_REASONS = [
+  {
+    value: "guide_unavailable",
+    label: "Guide unavailable",
+    detail: "Guide is sick, delayed, or otherwise unavailable.",
+  },
+  {
+    value: "access_or_public_holiday",
+    label: "Activity not accessible",
+    detail: "Public holiday, maintenance, access restriction, or local closure.",
+  },
+  {
+    value: "minimum_participants_not_met",
+    label: "Minimum participants not reached",
+    detail: "The visit cannot run at the current group size.",
+  },
+  {
+    value: "weather_or_safety",
+    label: "Weather or safety issue",
+    detail: "Weather, safety, or force-majeure condition affects the visit.",
+  },
+  {
+    value: "customer_requested",
+    label: "Visitor requested cancellation",
+    detail: "Use only when the visitor explicitly asked to cancel.",
+  },
+  {
+    value: "activity_not_as_described",
+    label: "Activity details changed",
+    detail: "The original listing or booking details are no longer accurate.",
+  },
+  {
+    value: "other",
+    label: "Other operational reason",
+    detail: "Use when none of the standard categories fit.",
+  },
+];
+
 // Timeline component for booking activity history
 function BookingTimeline({ bookingId }: { bookingId: string }) {
   const { data: activities, isLoading } = useQuery<{
@@ -360,6 +398,9 @@ export default function Bookings() {
   const [isEmailOpen, setIsEmailOpen] = useState(false);
   const [isCreateBookingOpen, setIsCreateBookingOpen] = useState(false);
   const [isHistoricalOpen, setIsHistoricalOpen] = useState(false);
+  const [cancelBookingTarget, setCancelBookingTarget] = useState<BookingWithGuide | null>(null);
+  const [cancellationReason, setCancellationReason] = useState("customer_requested");
+  const [cancellationNote, setCancellationNote] = useState("");
   const [selectedGuideId, setSelectedGuideId] = useState<string>("");
   const [adminNotes, setAdminNotes] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
@@ -412,15 +453,31 @@ export default function Bookings() {
     mutationFn: async ({
       id,
       status,
+      cancellationCategory,
+      cancellationReason,
+      cancellationNote,
     }: {
       id: string;
       status: BookingStatus;
+      cancellationCategory?: string;
+      cancellationReason?: string;
+      cancellationNote?: string;
     }) => {
-      await apiRequest("PATCH", `/api/bookings/${id}/status`, { status });
+      await apiRequest("PATCH", `/api/bookings/${id}/status`, {
+        status,
+        cancellationCategory,
+        cancellationReason,
+        cancellationNote,
+      });
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      if (variables.status === "cancelled") {
+        setCancelBookingTarget(null);
+        setCancellationReason("customer_requested");
+        setCancellationNote("");
+      }
       toast({
         title: "Status updated",
         description: "Booking status has been updated successfully.",
@@ -445,6 +502,25 @@ export default function Bookings() {
       });
     },
   });
+
+  const openCancellationDialog = (booking: BookingWithGuide) => {
+    setCancelBookingTarget(booking);
+    setCancellationReason("customer_requested");
+    setCancellationNote("");
+  };
+
+  const submitCancellation = () => {
+    if (!cancelBookingTarget) return;
+    const reason = CANCELLATION_REASONS.find((item) => item.value === cancellationReason);
+    const note = cancellationNote.trim();
+    updateStatusMutation.mutate({
+      id: cancelBookingTarget.id,
+      status: "cancelled",
+      cancellationCategory: cancellationReason,
+      cancellationReason: reason?.label || "Cancellation",
+      cancellationNote: note || undefined,
+    });
+  };
 
   const assignGuideMutation = useMutation({
     mutationFn: async ({
@@ -831,33 +907,34 @@ export default function Bookings() {
         title={isDetailOpen ? "Booking Details" : "Bookings"}
         description={
           isDetailOpen
-            ? `Managing booking #${selectedBooking?.bookingReference || selectedBooking?.id.slice(0, 8) || "..."}`
+            ? `Managing booking #${selectedBooking?.bookingReference || selectedBooking?.id.slice(0, 8) || "…"}`
             : "Manage visitor booking requests and tour assignments."
         }
       />
 
       {isDetailOpen && selectedBooking ? (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="flex items-center justify-between pb-4 border-b">
-            <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
+          <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setIsDetailOpen(false)}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to List
             </Button>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
               {selectedBooking.status !== "cancelled" && (
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => updateStatusMutation.mutate({ id: selectedBooking.id, status: "cancelled" })}
+                  className="w-full sm:w-auto"
+                  onClick={() => openCancellationDialog(selectedBooking)}
                 >
                   Cancel Booking
                 </Button>
               )}
-              <Button size="sm" onClick={() => generateBookingPDF(selectedBooking, getMeetingPointName(selectedBooking.meetingPointId))}>
+              <Button size="sm" className="w-full sm:w-auto" onClick={() => generateBookingPDF(selectedBooking, getMeetingPointName(selectedBooking.meetingPointId))}>
                 <FileDown className="mr-2 h-4 w-4" /> Export PDF
               </Button>
               {selectedItinerary && (
-                <Button size="sm" variant="outline" asChild>
+                <Button size="sm" variant="outline" className="w-full sm:w-auto" asChild>
                   <a href={`/bookings/${selectedBooking.id}/itinerary`} target="_blank" rel="noopener noreferrer">
                     <FileDown className="mr-2 h-4 w-4" /> View Itinerary
                   </a>
@@ -1110,7 +1187,7 @@ export default function Bookings() {
                       <Button className="w-full" onClick={() => updateStatusMutation.mutate({ id: selectedBooking.id, status: "confirmed" })}>
                         <CheckCircle className="mr-2 h-4 w-4" /> Confirm
                       </Button>
-                      <Button className="w-full" variant="destructive" onClick={() => updateStatusMutation.mutate({ id: selectedBooking.id, status: "cancelled" })}>
+                      <Button className="w-full" variant="destructive" onClick={() => openCancellationDialog(selectedBooking)}>
                         <XCircle className="mr-2 h-4 w-4" /> Reject
                       </Button>
                     </div>
@@ -1580,12 +1657,7 @@ export default function Bookings() {
                               )}
                               {booking.status !== "cancelled" && (
                                 <DropdownMenuItem
-                                  onClick={() =>
-                                    updateStatusMutation.mutate({
-                                      id: booking.id,
-                                      status: "cancelled",
-                                    })
-                                  }
+	                                  onClick={() => openCancellationDialog(booking)}
                                   className="text-destructive"
                                 >
                                   <XCircle className="mr-2 h-4 w-4" />
@@ -1620,6 +1692,63 @@ export default function Bookings() {
       )}
 
 
+
+      <Dialog open={!!cancelBookingTarget} onOpenChange={(open) => !open && setCancelBookingTarget(null)}>
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Cancel Booking</DialogTitle>
+            <DialogDescription>
+              Capture the reason before cancelling so staff, visitors, and reports have the same context.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="cancellation-reason">Cancellation reason</Label>
+              <Select value={cancellationReason} onValueChange={setCancellationReason}>
+                <SelectTrigger id="cancellation-reason">
+                  <SelectValue placeholder="Select a reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CANCELLATION_REASONS.map((reason) => (
+                    <SelectItem key={reason.value} value={reason.value}>
+                      {reason.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {CANCELLATION_REASONS.find((reason) => reason.value === cancellationReason)?.detail}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cancellation-note">Staff note</Label>
+              <Textarea
+                id="cancellation-note"
+                name="cancellation_note"
+                value={cancellationNote}
+                onChange={(event) => setCancellationNote(event.target.value)}
+                placeholder="Add details or reschedule option…"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => setCancelBookingTarget(null)}>
+              Keep Booking
+            </Button>
+            <Button type="button" variant="destructive" className="w-full sm:w-auto" onClick={submitCancellation} disabled={updateStatusMutation.isPending}>
+              {updateStatusMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Cancelling…
+                </>
+              ) : (
+                "Cancel Booking"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
         <DialogContent className="max-w-xl">

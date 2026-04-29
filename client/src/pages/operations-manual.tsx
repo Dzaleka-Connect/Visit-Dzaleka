@@ -142,9 +142,9 @@ export default function OperationsManual() {
 
             <div className="flex flex-col gap-2 border-b pb-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Operations Manual</h1>
-                        <p className="text-muted-foreground text-lg mt-1">
+                    <div className="min-w-0">
+                        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Operations Manual</h1>
+                        <p className="mt-1 text-base text-muted-foreground sm:text-lg">
                             Central command for Visit Dzaleka policies, procedures, and strategies.
                         </p>
                     </div>
@@ -160,8 +160,26 @@ export default function OperationsManual() {
                 </div>
             </div>
 
+            <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border p-4">
+                    <p className="text-xs font-medium text-muted-foreground">Manual status</p>
+                    <p className="mt-1 text-sm font-semibold">Operational source of truth</p>
+                    <p className="mt-2 text-xs text-muted-foreground">Sections use Live, Manual, and Planned badges to separate app behavior from procedure.</p>
+                </div>
+                <div className="rounded-lg border p-4">
+                    <p className="text-xs font-medium text-muted-foreground">Deep links</p>
+                    <p className="mt-1 text-sm font-semibold">URL-backed sections</p>
+                    <p className="mt-2 text-xs text-muted-foreground">Use ?section=bookings, guides, visitors, finance, marketing, admin, or impact.</p>
+                </div>
+                <div className="rounded-lg border p-4">
+                    <p className="text-xs font-medium text-muted-foreground">Export</p>
+                    <p className="mt-1 text-sm font-semibold">Print/PDF ready</p>
+                    <p className="mt-2 text-xs text-muted-foreground">Use Print / Export PDF for staff packs and offline reviews.</p>
+                </div>
+            </div>
+
             {/* Quick Access Tiles */}
-            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7">
                 <Link href="/standard-operating-procedures">
                     <div className="group flex flex-col gap-2 p-3 rounded-lg border bg-card text-card-foreground hover:bg-accent/50 hover:border-primary/50 transition-all cursor-pointer shadow-sm h-full">
                         <div className="p-1.5 w-fit rounded-md bg-blue-100/50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">

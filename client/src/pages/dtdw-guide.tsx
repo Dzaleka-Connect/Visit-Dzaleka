@@ -35,7 +35,7 @@ import { Link } from "wouter";
 
 export default function DTDWGuide() {
     return (
-        <div className="space-y-6 max-w-5xl mx-auto pb-10">
+        <div className="mx-auto max-w-5xl space-y-6 px-4 pb-10 sm:px-0">
             <SEO
                 title="DTDW Guide"
                 description="Learn how to create a high-quality listing on the Dzaleka Tourism Data Warehouse."
@@ -51,14 +51,14 @@ export default function DTDWGuide() {
             {/* Hero Section */}
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-primary">DTDW Listing Guide</h1>
-                    <p className="text-muted-foreground mt-2 text-lg">
+                    <h1 className="text-2xl font-bold tracking-tight text-primary sm:text-3xl">DTDW Listing Guide</h1>
+                    <p className="mt-2 text-base text-muted-foreground sm:text-lg">
                         How to create and maintain tour listings in the system.
                     </p>
                     <DocumentReviewMeta reviewedBy="Listings Lead" className="mt-3 justify-start" />
                 </div>
                 <Link href="/bookings">
-                    <Button size="lg" className="gap-2">
+                    <Button size="lg" className="w-full gap-2 sm:w-auto">
                         Go to Bookings <ArrowRight className="h-4 w-4" />
                     </Button>
                 </Link>
@@ -160,6 +160,28 @@ export default function DTDWGuide() {
                                     <span className="font-medium text-foreground">Minimum resolution:</span> 1200px wide for website, 2000px for GetYourGuide.
                                 </li>
                             </ul>
+                        </div>
+                        <div className="rounded-lg border bg-muted/30 p-3">
+                            <h4 className="font-medium text-sm">First Four Photo Story</h4>
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                {[
+                                    ["1", "Wide hero", "Show the walking tour context clearly, with real visitors or guides in frame."],
+                                    ["2", "Human moment", "Use an authentic interaction rather than a posed selfie or stock-style image."],
+                                    ["3", "Place detail", "Show a recognizable market, workshop, community space, or route moment."],
+                                    ["4", "Trust builder", "Show guide presence, group movement, or an activity outcome visitors can expect."],
+                                ].map(([step, title, detail]) => (
+                                    <div key={step} className="rounded-md bg-background p-3 text-sm">
+                                        <div className="flex items-center gap-2 font-medium">
+                                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs text-primary">{step}</span>
+                                            {title}
+                                        </div>
+                                        <p className="mt-2 text-muted-foreground">{detail}</p>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="mt-3 text-xs text-muted-foreground">
+                                Reject blurry, over-filtered, watermarked, collaged, heavily staged, or misleading images before publishing.
+                            </p>
                         </div>
                     </CardContent>
                 </Card>

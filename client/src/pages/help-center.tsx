@@ -94,6 +94,36 @@ export default function HelpCenter() {
         queryKey: ["/api/help/articles"],
     });
 
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const articleSlug = params.get("article");
+        const search = params.get("search");
+
+        if (search) {
+            setSearchQuery(search);
+        }
+
+        if (!articleSlug || articles.length === 0) return;
+
+        const article = articles.find((item) => item.slug === articleSlug);
+        if (!article) return;
+
+        setActiveCategory(article.category || "all");
+        setExpandedArticles((prev) => {
+            const next = new Set(prev);
+            next.add(article.id);
+            return next;
+        });
+
+        window.setTimeout(() => {
+            const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            document.getElementById(`help-article-${article.id}`)?.scrollIntoView({
+                block: "start",
+                behavior: reduceMotion ? "auto" : "smooth",
+            });
+        }, 100);
+    }, [articles]);
+
     const createTicketMutation = useMutation({
         mutationFn: async (data: { subject: string; message: string }) => {
             const res = await apiRequest("POST", "/api/support/tickets", data);
@@ -331,7 +361,7 @@ export default function HelpCenter() {
 
                                         <div className="grid gap-3">
                                             {categoryArticles.map((article) => (
-                                                <Card key={article.id}>
+                                                <Card key={article.id} id={`help-article-${article.id}`} className="scroll-mt-24">
                                                     <Collapsible
                                                         open={expandedArticles.has(article.id)}
                                                         onOpenChange={() => toggleArticle(article.id)}
