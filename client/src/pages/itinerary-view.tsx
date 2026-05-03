@@ -22,7 +22,10 @@ interface ItineraryData {
     guideName?: string;
     guideContact?: string;
     pois?: string[];
+    organizationStops?: string | string[];
+    paymentStatus?: string;
     bookingReference?: string;
+    version?: number;
 }
 
 export default function ItineraryView() {
@@ -62,8 +65,17 @@ export default function ItineraryView() {
         guideName: rawContent.guideName || rawContent.guide_name,
         guideContact: rawContent.guideContact || rawContent.guide_contact,
         pois: rawContent.pois,
+        organizationStops: rawContent.organizationStops || rawContent.organization_stops,
+        paymentStatus: rawContent.paymentStatus || rawContent.payment_status,
         bookingReference: rawContent.bookingReference || rawContent.booking_reference,
+        version: rawContent.version,
     };
+    const organizationStops = Array.isArray(content.organizationStops)
+        ? content.organizationStops
+        : (content.organizationStops || "")
+            .split(/\r?\n/)
+            .map((item) => item.trim())
+            .filter(Boolean);
 
     return (
         <div className="container mx-auto p-4 md:p-8 max-w-4xl">
@@ -81,7 +93,9 @@ export default function ItineraryView() {
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Your Itinerary</h1>
-                    <p className="text-gray-500 mt-1">Ref: {content.bookingReference || 'N/A'}</p>
+                    <p className="text-gray-500 mt-1">
+                        Ref: {content.bookingReference || 'N/A'}{content.version ? ` · Version ${content.version}` : ''}
+                    </p>
                 </div>
                 <Button variant="outline" onClick={() => window.print()}>
                     <Printer className="mr-2 h-4 w-4" /> Print
@@ -96,7 +110,7 @@ export default function ItineraryView() {
                         <CardContent className="pt-6">
                             <h2 className="text-2xl font-bold mb-2">Welcome, {content.recipientName}</h2>
                             <p className="opacity-90">
-                                Here is the curated plan for your visit on <strong>{content.date}</strong>.
+                                Here is the planned route for your visit on <strong>{content.date}</strong>. It may change based on safety guidance, weather, market days, and community availability.
                             </p>
                         </CardContent>
                     </Card>
@@ -144,6 +158,29 @@ export default function ItineraryView() {
                         </Card>
                     )}
 
+                    {organizationStops.length > 0 && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <MapPin className="h-5 w-5" /> Community / Organization Stops
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {organizationStops.map((organization) => (
+                                        <li key={organization} className="flex items-center gap-2 text-gray-700">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
+                                            {organization}
+                                        </li>
+                                    ))}
+                                </ul>
+                                <p className="mt-4 text-sm text-muted-foreground">
+                                    Organization visits depend on consent, timing, and availability.
+                                </p>
+                            </CardContent>
+                        </Card>
+                    )}
+
                     {/* Before You Visit */}
                     <Card className="bg-slate-900 text-white border-none">
                         <CardHeader>
@@ -179,7 +216,12 @@ export default function ItineraryView() {
                                 <div>
                                     <p className="text-sm text-muted-foreground">Estimated Cost</p>
                                     <p className="font-medium text-sky-600">{content.totalCost}</p>
-                                    <p className="text-xs text-muted-foreground">Cash upon arrival</p>
+                                </div>
+                            )}
+                            {content.paymentStatus && (
+                                <div>
+                                    <p className="text-sm text-muted-foreground">Payment Status</p>
+                                    <p className="font-medium">{content.paymentStatus}</p>
                                 </div>
                             )}
                         </CardContent>

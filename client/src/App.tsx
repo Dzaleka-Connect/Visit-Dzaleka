@@ -26,7 +26,10 @@ import GuideProfile from "@/pages/guide-profile";
 import CalendarPage from "@/pages/calendar";
 import ChannelManager from "@/pages/channel-manager";
 import GetYourGuidePage from "@/pages/getyourguide";
+import SpecialOffersPage from "@/pages/special-offers";
 import GuidePerformance from "@/pages/guide-performance";
+import GuideCertificates from "@/pages/guide-certificates";
+import ReviewsPerformance from "@/pages/reviews-performance";
 import Zones from "@/pages/zones";
 import Security from "@/pages/security";
 import UsersPage from "@/pages/users";
@@ -51,6 +54,8 @@ import ContinuousImprovement from "@/pages/continuous-improvement";
 import FinancialFramework from "@/pages/financial-framework";
 import TrainingAdmin from "@/pages/training-admin";
 import ThingsToDo from "@/pages/things-to-do";
+import DzalekaGuidedWalkingTour from "@/pages/dzaleka-guided-walking-tour";
+import VisitFeedback from "@/pages/visit-feedback";
 import ArtsCulture from "@/pages/arts-culture";
 import ShoppingMarkets from "@/pages/shopping";
 import SportsRecreation from "@/pages/sports-recreation";
@@ -158,6 +163,7 @@ const PUBLIC_ROUTES = [
   "/faq",
   "/support-our-work",
   "/newsletter",
+  "/visit/feedback",
   "/friends-of-dzaleka",
   "/about-dzaleka",
   "/about-us",
@@ -188,6 +194,7 @@ function Router() {
         <Route path="/embed/booking" component={EmbedBooking} />
         <Route path="/blog" component={BlogList} />
         <Route path="/blog/:slug" component={BlogPostPage} />
+        <Route path="/things-to-do/dzaleka-refugee-camp-guided-walking-tour" component={DzalekaGuidedWalkingTour} />
         <Route path="/things-to-do" component={ThingsToDo} />
         <Route path="/things-to-do/arts-culture" component={ArtsCulture} />
         <Route path="/things-to-do/shopping" component={ShoppingMarkets} />
@@ -219,6 +226,7 @@ function Router() {
         <Route path="/support-our-work" component={SupportOurWork} />
         <Route path="/contact" component={ContactUs} />
         <Route path="/newsletter" component={Newsletter} />
+        <Route path="/visit/feedback" component={VisitFeedback} />
       </Switch>
     );
   }
@@ -244,6 +252,7 @@ function Router() {
         <Route path="/verify-email" component={VerifyEmail} />
         <Route path="/accept-invite" component={AcceptInvite} />
         <Route path="/embed/booking" component={EmbedBooking} />
+        <Route path="/things-to-do/dzaleka-refugee-camp-guided-walking-tour" component={DzalekaGuidedWalkingTour} />
         <Route path="/things-to-do" component={ThingsToDo} />
         <Route path="/whats-on" component={WhatsOn} />
         <Route path="/plan-your-trip" component={PlanYourTrip} />
@@ -263,6 +272,7 @@ function Router() {
         <Route path="/faq" component={FAQPage} />
         <Route path="/support-our-work" component={SupportOurWork} />
         <Route path="/contact" component={ContactUs} />
+        <Route path="/visit/feedback" component={VisitFeedback} />
         <Route component={Landing} />
       </Switch>
     );
@@ -282,7 +292,10 @@ function Router() {
         <ProtectedRoute path="/calendar" component={CalendarPage} allowedRoles={["admin", "coordinator", "guide"]} />
         <ProtectedRoute path="/channel-manager" component={ChannelManager} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/getyourguide" component={GetYourGuidePage} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/special-offers" component={SpecialOffersPage} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/guide-performance" component={GuidePerformance} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/guide-certificates" component={GuideCertificates} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/reviews-performance" component={ReviewsPerformance} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/guides" component={Guides} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/guide/:slug" component={GuideProfile} allowedRoles={["admin", "coordinator", "guide", "security"]} />
         <ProtectedRoute path="/guide-training" component={GuideTraining} allowedRoles={["guide"]} />

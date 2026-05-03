@@ -28,6 +28,7 @@ const navItems: NavItem[] = [
       { label: "About Us", href: "/about-us", description: "Our mission and team" },
       { label: "Life in Dzaleka", href: "/life-in-dzaleka", description: "Daily life and culture" },
       { label: "Things To Do", href: "/things-to-do", description: "Experiences and activities" },
+      { label: "Guided Walking Tour", href: "/things-to-do/dzaleka-refugee-camp-guided-walking-tour", description: "Official Visit Dzaleka tour listing" },
       { label: "Arts & Culture", href: "/things-to-do/arts-culture", description: "Local art scene and performances" },
       { label: "Shopping & Markets", href: "/things-to-do/shopping", description: "Markets and local crafts" },
       { label: "Sports & Recreation", href: "/things-to-do/sports-recreation", description: "Sports and outdoor activities" },
@@ -128,6 +129,9 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
                   <ListItem href="/things-to-do" title="All Experiences">
                     Browse all activities
                   </ListItem>
+                  <ListItem href="/things-to-do/dzaleka-refugee-camp-guided-walking-tour" title="Guided Walking Tour">
+                    Official Visit Dzaleka tour listing
+                  </ListItem>
                   <ListItem href="/things-to-do/arts-culture" title="Arts & Culture">
                     Local art and performances
                   </ListItem>
@@ -204,7 +208,7 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
             <Link href="/login">Sign In</Link>
           </Button>
           <Button asChild size="sm">
-            <Link href="/login">Book Now</Link>
+            <Link href="/things-to-do/dzaleka-refugee-camp-guided-walking-tour">Book Now</Link>
           </Button>
         </div>
 
@@ -242,6 +246,9 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
             </MobileNavLink>
             <MobileNavLink href="/things-to-do" onClick={() => setMobileMenuOpen(false)} active={isActive("/things-to-do")}>
               Things To Do
+            </MobileNavLink>
+            <MobileNavLink href="/things-to-do/dzaleka-refugee-camp-guided-walking-tour" onClick={() => setMobileMenuOpen(false)} active={isActive("/things-to-do/dzaleka-refugee-camp-guided-walking-tour")}>
+              Guided Walking Tour
             </MobileNavLink>
             <MobileNavLink href="/whats-on" onClick={() => setMobileMenuOpen(false)} active={isActive("/whats-on")}>
               What's On
@@ -284,7 +291,7 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
                 <Link href="/login">Sign In</Link>
               </Button>
               <Button asChild className="flex-1">
-                <Link href="/login">Book Now</Link>
+                <Link href="/things-to-do/dzaleka-refugee-camp-guided-walking-tour">Book Now</Link>
               </Button>
             </div>
           </div>

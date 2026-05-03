@@ -354,13 +354,14 @@ export async function sendStatusUpdateDetailed(data: StatusUpdateData): Promise<
     message: `Your booking status has been updated to: ${data.newStatus}`,
     color: '#6b7280'
   };
+  const feedbackLink = publicAppUrl(`/visit/feedback?booking=${encodeURIComponent(data.bookingReference)}`);
 
   // Special HTML for completed tours with feedback request
   const completedTourContent = data.newStatus === 'completed' ? `
             <p style="margin-top: 20px;">We'd appreciate it if you could share your thoughts and feelings about your visit. You can either reply to this email or complete our quick feedback form:</p>
             
             <div style="text-align: center; margin: 25px 0;">
-              <a href="${publicAppUrl('/visit/feedback')}" 
+              <a href="${feedbackLink}" 
                  style="display: inline-block; background: #0284C7; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
                 Share Your Feedback
               </a>
@@ -899,17 +900,27 @@ interface ItineraryData {
   duration: string;
   items: ItineraryItem[];
   totalCost?: string;
+  paymentStatus?: string;
   notes?: string;
   guideName?: string;
   guideContact?: string;
   senderName?: string;
   pois?: string[];
+  organizationStops?: string | string[];
   bookingReference?: string;
+  version?: number;
 }
 
 export async function sendItineraryEmailDetailed(data: ItineraryData): Promise<EmailSendResult> {
   const resendClient = getResendClient();
   if (!resendClient) return { success: false, error: 'Email service not configured' };
+
+  const organizationStops = Array.isArray(data.organizationStops)
+    ? data.organizationStops
+    : (data.organizationStops || "")
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean);
 
   const timelineHtml = data.items.map(item => `
     <tr>
@@ -937,14 +948,15 @@ export async function sendItineraryEmailDetailed(data: ItineraryData): Promise<E
               <p style="font-size: 16px; margin-bottom: 25px;">Dear ${data.recipientName},</p>
               
               <p style="font-size: 16px; color: #4b5563; margin-bottom: 30px;">
-                We are delighted to present your personalized itinerary for <strong>${data.date}</strong>. 
-                Our team has carefully designed this schedule to ensure you have a meaningful and insightful experience at Dzaleka.
+                Here is your planned Visit Dzaleka itinerary for <strong>${data.date}</strong>. 
+                The route may change based on safety guidance, weather, market days, and community availability.
               </p>
 
               ${data.bookingReference ? `
               <div style="background: #f8fafc; border-left: 4px solid #0284C7; padding: 15px; margin-bottom: 30px;">
                 <p style="margin: 0; font-size: 14px; color: #64748b;">Booking Reference</p>
                 <p style="margin: 5px 0 0 0; font-size: 18px; font-weight: 700; color: #0f172a;">${data.bookingReference}</p>
+                ${data.version ? `<p style="margin: 5px 0 0 0; font-size: 12px; color: #64748b;">Itinerary version ${data.version}</p>` : ''}
               </div>
               ` : ''}
               
@@ -964,14 +976,35 @@ export async function sendItineraryEmailDetailed(data: ItineraryData): Promise<E
               </div>
               ` : ''}
 
+              ${organizationStops.length > 0 ? `
+              <div style="margin-bottom: 35px;">
+                <h3 style="color: #0f172a; font-size: 18px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 20px;">Community / Organization Stops</h3>
+                <ul style="padding-left: 20px; color: #4b5563;">
+                  ${organizationStops.map((stop) => `<li style="margin-bottom: 8px;">${stop}</li>`).join('')}
+                </ul>
+                <p style="margin: 12px 0 0 0; font-size: 13px; color: #64748b;">Organization visits depend on consent, timing, and availability.</p>
+              </div>
+              ` : ''}
+
               <div style="background: #f8fafc; border-radius: 8px; padding: 25px; margin-bottom: 30px;">
                 <h3 style="color: #0f172a; font-size: 16px; margin: 0 0 15px 0;">Trip Details</h3>
+
+                <div style="margin-bottom: 15px;">
+                  <p style="margin: 0; font-size: 14px; color: #64748b;">Duration</p>
+                  <p style="margin: 2px 0 0 0; font-size: 16px; font-weight: 600; color: #0f172a;">${data.duration}</p>
+                </div>
                 
                 ${data.totalCost ? `
                 <div style="margin-bottom: 15px;">
                   <p style="margin: 0; font-size: 14px; color: #64748b;">Estimated Cost</p>
                   <p style="margin: 2px 0 0 0; font-size: 16px; font-weight: 600; color: #0f172a;">${data.totalCost}</p>
-                  <p style="margin: 2px 0 0 0; font-size: 12px; color: #64748b;">Payment collected upon arrival (Cash).</p>
+                </div>
+                ` : ''}
+
+                ${data.paymentStatus ? `
+                <div style="margin-bottom: 15px;">
+                  <p style="margin: 0; font-size: 14px; color: #64748b;">Payment Status</p>
+                  <p style="margin: 2px 0 0 0; font-size: 16px; font-weight: 600; color: #0f172a;">${data.paymentStatus}</p>
                 </div>
                 ` : ''}
 

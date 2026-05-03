@@ -27,12 +27,16 @@ import {
   RefreshCw,
   Search,
   CalendarDays,
+  BadgePercent,
 } from "lucide-react";
 import { Link } from "wouter";
 import { SEO } from "@/components/seo";
 import { useQuery } from "@tanstack/react-query";
 import { SiteFooter } from "@/components/site-footer";
 import { PublicHeader } from "@/components/public-header";
+
+const guidedTourPath = "/things-to-do/dzaleka-refugee-camp-guided-walking-tour";
+const guidedTourOptionsPath = `${guidedTourPath}#tour-options`;
 
 const features = [
   {
@@ -146,7 +150,7 @@ const whyDzaleka = [
   {
     icon: "Lightbulb",
     title: "Resident-Led Ideas",
-    description: "Meet entrepreneurs and digital skills programs such as TakenoLAB, where residents build practical technology projects."
+    description: "Meet entrepreneurs, educators, service providers, and digital skills programs across Dzaleka when visits can be arranged."
   },
   {
     icon: "Heart",
@@ -197,7 +201,7 @@ const dzalekaHighlights = [
   },
 ];
 
-import { type Event, type BlogPost } from "@shared/schema";
+import { type Event, type BlogPost, type SpecialOffer } from "@shared/schema";
 
 // Featured events (would be pulled from API in production)
 // const featuredEvents = []; // Now fetching from API
@@ -232,28 +236,6 @@ const featuredExperiences = [
   }
 ];
 
-const staleCmsCopy: Record<string, string[]> = {
-  hero_title: [
-    "Discover the Spirit of Dzaleka Refugee Camp",
-    "Experience Hope, Creativity, and Culture at Dzaleka.",
-  ],
-  hero_subtitle: [
-    "Join us for an immersive cultural journey. Meet resilient artists, entrepreneurs, and community leaders building a vibrant future against all odds.",
-    "Discover Malawi's hidden gem—a unique community defined by extraordinary human spirit, vibrant arts, and innovative entrepreneurship. Your journey of authentic cultural exchange starts here.",
-  ],
-  feature_1_title: ["Simple Scheduling"],
-  feature_1_desc: ["Book your visit with real-time availability, clear times, and confirmation details in one place."],
-  feature_2_title: ["Expert Guides"],
-  feature_2_desc: ["Connect with verified local guides who know the camp’s history, culture, and hidden gems."],
-  feature_3_title: ["Cultural Exchange"],
-  feature_3_desc: ["Experience the diverse cultures of Dzaleka through food, art, and music tours."],
-  feature_4_title: ["Safe & Secure"],
-  feature_4_desc: ["All visits are coordinated with camp security protocols for a safe and respectful experience."],
-  testimonial_1_quote: ["An eye-opening experience that changed my perspective completely. The guides are incredibly knowledgeable and welcoming."],
-  testimonial_2_quote: ["The booking process was seamless, and the tour was well-organized. It's amazing to see the creativity and resilience here."],
-  testimonial_3_quote: ["A unique opportunity to learn about the resilience and creativity within the camp. The art market is a must-visit."],
-};
-
 export default function Landing() {
   const { data: content } = useQuery<Record<string, string>>({
     queryKey: ["/api/content"],
@@ -270,10 +252,26 @@ export default function Landing() {
     queryKey: ["/api/blog"],
   });
 
+  const { data: specialOffers = [] } = useQuery<SpecialOffer[]>({
+    queryKey: ["/api/public/special-offers"],
+  });
+
   const getContent = (key: string, fallback: string) => {
     const value = content?.[key]?.trim();
-    if (!value || staleCmsCopy[key]?.includes(value)) return fallback;
-    return value;
+    return value || fallback;
+  };
+
+  const formatOfferDate = (date: string) =>
+    new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(date));
+
+  const describeOfferScope = (offer: SpecialOffer) => {
+    const tourTypes = offer.tourTypes?.length
+      ? offer.tourTypes.map((type) => type.replace("_", " ")).join(", ")
+      : "all tours";
+    const groupSizes = offer.groupSizes?.length
+      ? offer.groupSizes.map((size) => size.replace("_", " ")).join(", ")
+      : "all group sizes";
+    return `${tourTypes} · ${groupSizes}`;
   };
 
   return (
@@ -343,7 +341,7 @@ export default function Landing() {
 
               <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
                 <Button size="lg" className="h-14 px-10 text-lg shadow-2xl" asChild>
-                  <Link href="/login">
+                  <Link href={guidedTourPath}>
                     {getContent("hero_cta", "Book Your Visit")}
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Link>
@@ -443,7 +441,7 @@ export default function Landing() {
                     </Select>
                   </div>
                   <Button size="lg" className="w-full md:w-auto px-8 h-12 text-base" asChild>
-                    <Link href="/login">
+                    <Link href={guidedTourPath}>
                       <Search className="mr-2 h-4 w-4" />
                       Find Tours
                     </Link>
@@ -926,6 +924,64 @@ export default function Landing() {
           </section>
         )}
 
+        {specialOffers.length > 0 && (
+          <section id="special-offers" className="border-y bg-primary/5 py-16">
+            <div className="container mx-auto px-4">
+              <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <Badge className="mb-3 gap-1">
+                    <BadgePercent className="h-3.5 w-3.5" />
+                    Limited-time offers
+                  </Badge>
+                  <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Special prices for upcoming visits</h2>
+                  <p className="mt-2 max-w-2xl text-muted-foreground">
+                    These discounts apply automatically when your selected visit date, tour type, and group size are eligible.
+                  </p>
+                </div>
+                <Button asChild variant="outline">
+                  <Link href={guidedTourOptionsPath}>
+                    Book with offer
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {specialOffers.slice(0, 3).map((offer) => (
+                  <Card key={offer.id} className="border-primary/20 bg-background shadow-sm">
+                    <CardHeader>
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <Badge variant="default">{offer.discountPercent}% off</Badge>
+                        <span className="text-xs text-muted-foreground">
+                          Until {formatOfferDate(offer.activityEndDate)}
+                        </span>
+                      </div>
+                      <CardTitle>{offer.description || "Save on a guided Visit Dzaleka tour"}</CardTitle>
+                      <CardDescription>{describeOfferScope(offer)}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <CalendarDays className="h-4 w-4 text-primary" />
+                        <span>{formatOfferDate(offer.activityStartDate)} – {formatOfferDate(offer.activityEndDate)}</span>
+                      </div>
+                      {offer.discountedSeats && (
+                        <div className="mt-2 text-sm text-muted-foreground">
+                          {Math.max(0, offer.discountedSeats - (offer.usedSeats || 0))} discounted seats remaining
+                        </div>
+                      )}
+                    </CardContent>
+                    <CardFooter>
+                      <Button asChild className="w-full">
+                        <Link href={guidedTourOptionsPath}>Choose an eligible date</Link>
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* Pricing Section */}
         <section id="pricing" className="py-24">
           <div className="container mx-auto px-4">
@@ -969,7 +1025,7 @@ export default function Landing() {
                   </CardContent>
                   <CardFooter>
                     <Button className="w-full" variant={plan.highlight ? "default" : "outline"} asChild>
-                      <Link href="/login">Choose Plan</Link>
+                      <Link href={guidedTourOptionsPath}>Choose Plan</Link>
                     </Button>
                   </CardFooter>
                 </Card>
@@ -1096,7 +1152,7 @@ export default function Landing() {
               {getContent("cta_desc", "Create an account to check availability, book your tour, and manage your itinerary.")}
             </p>
             <Button size="lg" className="h-12 px-8 text-base" asChild>
-              <Link href="/login">
+              <Link href={guidedTourPath}>
                 Get Started Now
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>

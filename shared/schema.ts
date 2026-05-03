@@ -8,6 +8,7 @@ import {
   text,
   integer,
   boolean,
+  doublePrecision,
   date,
   time,
   pgEnum,
@@ -188,6 +189,12 @@ export const zones = pgTable("zones", {
   name: varchar("name").notNull(),
   description: text("description"),
   icon: varchar("icon"),
+  zoneType: varchar("zone_type").default("route_area"),
+  isPublic: boolean("is_public").default(true),
+  sortOrder: integer("sort_order").default(0),
+  internalNotes: text("internal_notes"),
+  lastReviewedAt: date("last_reviewed_at"),
+  lastReviewedBy: varchar("last_reviewed_by"),
   isActive: boolean("is_active").default(true),
   totalVisits: integer("total_visits").default(0),
   deletedAt: timestamp("deleted_at"),
@@ -201,6 +208,17 @@ export const pointsOfInterest = pgTable("points_of_interest", {
   name: varchar("name").notNull(),
   description: text("description"),
   category: varchar("category"),
+  visitorDescription: text("visitor_description"),
+  internalNotes: text("internal_notes"),
+  estimatedDurationMinutes: integer("estimated_duration_minutes"),
+  photoPolicy: varchar("photo_policy").default("ask_first"),
+  mobilityLevel: varchar("mobility_level").default("easy"),
+  bestVisitDays: text("best_visit_days").array().default(sql`ARRAY[]::text[]`),
+  requiresPermission: boolean("requires_permission").default(false),
+  serviceDirectoryUrl: text("service_directory_url"),
+  isPublic: boolean("is_public").default(true),
+  lastReviewedAt: date("last_reviewed_at"),
+  lastReviewedBy: varchar("last_reviewed_by"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -211,6 +229,17 @@ export const meetingPoints = pgTable("meeting_points", {
   name: varchar("name").notNull(),
   description: text("description"),
   address: text("address"),
+  googleMapsUrl: text("google_maps_url"),
+  latitude: doublePrecision("latitude"),
+  longitude: doublePrecision("longitude"),
+  meetingInstructions: text("meeting_instructions"),
+  guideIdentificationNote: text("guide_identification_note"),
+  arrivalBufferMinutes: integer("arrival_buffer_minutes").default(10),
+  backupMeetingPoint: text("backup_meeting_point"),
+  safetyNotes: text("safety_notes"),
+  isDefault: boolean("is_default").default(false),
+  lastReviewedAt: date("last_reviewed_at"),
+  lastReviewedBy: varchar("last_reviewed_by"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -226,6 +255,29 @@ export const pricingConfig = pgTable("pricing_config", {
   additionalHourPrice: integer("additional_hour_price").default(10000),
   currency: varchar("currency").default("MWK"),
   isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Special offers for limited-time public discounts
+export const specialOffers = pgTable("special_offers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  offerType: varchar("offer_type").default("standard").notNull(), // standard, early_bird, last_minute
+  discountPercent: integer("discount_percent").notNull(),
+  activityStartDate: date("activity_start_date").notNull(),
+  activityEndDate: date("activity_end_date").notNull(),
+  bookingNoticeDays: integer("booking_notice_days"),
+  discountedSeats: integer("discounted_seats"),
+  usedSeats: integer("used_seats").default(0),
+  tourTypes: text("tour_types").array().default(sql`ARRAY[]::text[]`),
+  groupSizes: text("group_sizes").array().default(sql`ARRAY[]::text[]`),
+  weekdays: text("weekdays").array().default(sql`ARRAY[]::text[]`),
+  timeSlots: text("time_slots").array().default(sql`ARRAY[]::text[]`),
+  isActive: boolean("is_active").default(true),
+  isPublic: boolean("is_public").default(true),
+  createdBy: varchar("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -283,6 +335,50 @@ export const bookings = pgTable("bookings", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Tour Reviews table for verified post-visit feedback
+export const tourReviews = pgTable("tour_reviews", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  bookingId: varchar("booking_id").notNull(),
+  bookingReference: varchar("booking_reference").notNull(),
+  visitorName: varchar("visitor_name").notNull(),
+  visitorEmail: varchar("visitor_email").notNull(),
+  guideId: varchar("guide_id"),
+  rating: integer("rating"),
+  title: varchar("title"),
+  comment: text("comment"),
+  tourGuideName: varchar("tour_guide_name"),
+  country: varchar("country"),
+  purposeOfVisit: varchar("purpose_of_visit"),
+  groupSize: varchar("group_size"),
+  referralSource: varchar("referral_source"),
+  overallExperience: varchar("overall_experience"),
+  guideExperience: varchar("guide_experience"),
+  enjoyedMost: text("enjoyed_most"),
+  improvementSuggestions: text("improvement_suggestions"),
+  wouldRecommend: varchar("would_recommend"),
+  otherComments: text("other_comments"),
+  wouldVisitAgain: varchar("would_visit_again"),
+  consentPhotos: boolean("consent_photos").default(false),
+  consentTestimonial: boolean("consent_testimonial").default(false),
+  consentDataProcessing: boolean("consent_data_processing").default(false),
+  source: varchar("source").default("direct"),
+  status: varchar("status").default("pending"), // pending, published, hidden
+  reviewToken: varchar("review_token").unique(),
+  staffNotes: text("staff_notes"),
+  responseText: text("response_text"),
+  responseBy: varchar("response_by"),
+  respondedAt: timestamp("responded_at"),
+  requestedAt: timestamp("requested_at"),
+  submittedAt: timestamp("submitted_at"),
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_tour_reviews_booking").on(table.bookingId),
+  index("IDX_tour_reviews_reference").on(table.bookingReference),
+  index("IDX_tour_reviews_status").on(table.status),
+]);
 
 export const recurringFrequencyEnum = pgEnum("recurring_frequency", [
   "weekly",
@@ -677,6 +773,13 @@ export const insertPricingConfigSchema = createInsertSchema(pricingConfig).omit(
   updatedAt: true,
 });
 
+export const insertSpecialOfferSchema = createInsertSchema(specialOffers).omit({
+  id: true,
+  usedSeats: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertBookingSchema = createInsertSchema(bookings).omit({
   id: true,
   bookingReference: true,
@@ -690,6 +793,12 @@ export const insertBookingSchema = createInsertSchema(bookings).omit({
   checkOutTime: true,
   checkInBy: true,
   checkOutBy: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTourReviewSchema = createInsertSchema(tourReviews).omit({
+  id: true,
   createdAt: true,
   updatedAt: true,
 });
@@ -799,8 +908,14 @@ export type MeetingPoint = typeof meetingPoints.$inferSelect;
 export type InsertPricingConfig = z.infer<typeof insertPricingConfigSchema>;
 export type PricingConfig = typeof pricingConfig.$inferSelect;
 
+export type InsertSpecialOffer = z.infer<typeof insertSpecialOfferSchema>;
+export type SpecialOffer = typeof specialOffers.$inferSelect;
+
 export type InsertBooking = z.infer<typeof insertBookingSchema>;
 export type Booking = typeof bookings.$inferSelect;
+
+export type InsertTourReview = z.infer<typeof insertTourReviewSchema>;
+export type TourReview = typeof tourReviews.$inferSelect;
 
 export type InsertGuideAvailability = z.infer<typeof insertGuideAvailabilitySchema>;
 export type GuideAvailability = typeof guideAvailability.$inferSelect;

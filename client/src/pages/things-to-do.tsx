@@ -8,6 +8,10 @@ import { useState } from "react";
 import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
 
+const guidedTourPath = "/things-to-do/dzaleka-refugee-camp-guided-walking-tour";
+const guidedTourOptionsPath = `${guidedTourPath}#tour-options`;
+const guidedTourUrl = "https://visit.dzaleka.com/things-to-do/dzaleka-refugee-camp-guided-walking-tour";
+
 // Structured Data for Google "Things to do" - TouristAttraction + TouristTrip
 // Using valid schema.org types only: https://schema.org/TouristAttraction
 const structuredData = {
@@ -112,7 +116,7 @@ const structuredData = {
                 "availability": "https://schema.org/InStock",
                 "validFrom": "2024-01-01",
                 "priceValidUntil": "2026-12-31",
-                "url": "https://visit.dzaleka.com/login"
+                "url": guidedTourUrl
             },
             "provider": { "@id": "https://visit.dzaleka.com#organization" }
         },
@@ -131,7 +135,7 @@ const structuredData = {
                 "availability": "https://schema.org/InStock",
                 "validFrom": "2024-01-01",
                 "priceValidUntil": "2026-12-31",
-                "url": "https://visit.dzaleka.com/login"
+                "url": guidedTourUrl
             },
             "provider": { "@id": "https://visit.dzaleka.com#organization" }
         },
@@ -149,7 +153,7 @@ const structuredData = {
                 "priceCurrency": "MWK",
                 "availability": "https://schema.org/InStock",
                 "priceValidUntil": "2026-12-31",
-                "url": "https://visit.dzaleka.com/login"
+                "url": guidedTourUrl
             },
             "provider": { "@id": "https://visit.dzaleka.com#organization" }
         },
@@ -167,7 +171,7 @@ const structuredData = {
                 "priceCurrency": "MWK",
                 "availability": "https://schema.org/InStock",
                 "priceValidUntil": "2026-12-31",
-                "url": "https://visit.dzaleka.com/login"
+                "url": guidedTourUrl
             },
             "provider": { "@id": "https://visit.dzaleka.com#organization" }
         },
@@ -451,6 +455,7 @@ export default function ThingsToDo() {
                             <div className="absolute left-0 top-full mt-1 w-48 rounded-md border bg-background shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
                                 <div className="py-1">
                                     <Link href="/things-to-do" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">All Experiences</Link>
+                                    <Link href={guidedTourPath} className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Guided Walking Tour</Link>
                                     <Link href="/things-to-do/arts-culture" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Arts & Culture</Link>
                                     <Link href="/things-to-do/shopping" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Shopping & Markets</Link>
                                     <Link href="/things-to-do/nature-outdoors" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Nature & Outdoors</Link>
@@ -480,7 +485,7 @@ export default function ThingsToDo() {
                         </div>
                         <div className="flex items-center gap-2 ml-2">
                             <Button asChild size="sm">
-                                <Link href="/login">Book Now</Link>
+                                <Link href={guidedTourPath}>Book Now</Link>
                             </Button>
                         </div>
                     </nav>
@@ -502,6 +507,7 @@ export default function ThingsToDo() {
                         <Link href="/" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Home</Link>
                         <Link href="/blog" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Blog</Link>
                         <Link href="/things-to-do" className="block text-sm font-medium py-1 text-primary" onClick={() => setMobileMenuOpen(false)}>Things To Do</Link>
+                        <Link href={guidedTourPath} className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>Guided Walking Tour</Link>
                         <Link href="/things-to-do/arts-culture" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Arts & Culture</Link>
                         <Link href="/things-to-do/shopping" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Shopping & Markets</Link>
                         <Link href="/things-to-do/nature-outdoors" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Nature & Outdoors</Link>
@@ -515,7 +521,7 @@ export default function ThingsToDo() {
                         <Link href="/plan-your-trip/public-holidays" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Public Holidays</Link>
                         <div className="flex gap-2 pt-2">
                             <Button asChild className="flex-1">
-                                <Link href="/login">Book Now</Link>
+                                <Link href={guidedTourPath}>Book Now</Link>
                             </Button>
                         </div>
                     </div>
@@ -542,7 +548,7 @@ export default function ThingsToDo() {
                             Things to do in Dzaleka
                         </h1>
                         <p className="text-lg md:text-xl text-white/90 leading-relaxed max-w-2xl mx-auto drop-shadow-sm">
-                            Dzaleka Refugee Camp offers unique opportunities for cultural immersion and community engagement. Visitors can participate in guided tours, attend the annual Tumaini Festival, and support local, refugee-led businesses and art projects.
+                            Plan a respectful visit with resident guides, community markets, cultural events, and local projects. Each experience is shaped by availability, consent, and direct community benefit.
                         </p>
                     </div>
                 </div>
@@ -567,33 +573,33 @@ export default function ThingsToDo() {
                             </div>
                             <h2 className="text-3xl font-bold tracking-tight">Guided Tours & Cultural Exchange</h2>
                             <p className="text-muted-foreground text-lg">
-                                The most recommended way to experience Dzaleka is through a local, guided tour arranged via our booking portal.
+                                The clearest way to visit Dzaleka is with a resident guide who can explain context, coordinate access, and help visitors follow community expectations.
                             </p>
                             <ul className="space-y-4">
                                 <li className="flex gap-3">
                                     <Globe className="h-5 w-5 text-primary shrink-0 mt-1" />
                                     <div>
                                         <span className="font-semibold block text-foreground">Explore diverse zones</span>
-                                        <span className="text-muted-foreground">Guides can take you through different areas of the camp, each with its own character and residents from various countries like the DRC, Burundi, and Rwanda.</span>
+                                        <span className="text-muted-foreground">Guides can take you through selected areas of the camp, depending on safety guidance, timing, and community availability.</span>
                                     </div>
                                 </li>
                                 <li className="flex gap-3">
                                     <BookOpen className="h-5 w-5 text-primary shrink-0 mt-1" />
                                     <div>
                                         <span className="font-semibold block text-foreground">Learn the history</span>
-                                        <span className="text-muted-foreground">Gain insight into the camp's history and the daily lives and challenges of its over 50,000 residents.</span>
+                                        <span className="text-muted-foreground">Learn how Dzaleka was established, how the settlement has changed, and how residents organize daily life today.</span>
                                     </div>
                                 </li>
                                 <li className="flex gap-3">
                                     <Users className="h-5 w-5 text-primary shrink-0 mt-1" />
                                     <div>
-                                        <span className="font-semibold block text-foreground">Interact with residents</span>
-                                        <span className="text-muted-foreground">Tours often include opportunities to talk with community members and ask questions about their experiences and initiatives.</span>
+                                        <span className="font-semibold block text-foreground">Meet community projects</span>
+                                        <span className="text-muted-foreground">When available, tours may include conversations with artists, traders, educators, or entrepreneurs connected to the route.</span>
                                     </div>
                                 </li>
                             </ul>
                             <Button asChild size="lg" className="mt-4">
-                                <Link href="/login">Book a Tour</Link>
+                                <Link href={guidedTourPath}>View Tour Listing</Link>
                             </Button>
                         </div>
                     </section>
@@ -622,7 +628,7 @@ export default function ThingsToDo() {
                                             <span className="text-muted-foreground text-sm">/ person</span>
                                         </div>
                                         <Button asChild className="w-full">
-                                            <Link href="/login">Book Individual</Link>
+                                            <Link href={guidedTourOptionsPath}>View Individual Option</Link>
                                         </Button>
                                     </div>
                                 </CardContent>
@@ -642,7 +648,7 @@ export default function ThingsToDo() {
                                             <span className="text-muted-foreground text-sm">/ group</span>
                                         </div>
                                         <Button asChild className="w-full">
-                                            <Link href="/login">Book Small Group</Link>
+                                            <Link href={guidedTourOptionsPath}>View Small Group Option</Link>
                                         </Button>
                                     </div>
                                 </CardContent>
@@ -662,7 +668,7 @@ export default function ThingsToDo() {
                                             <span className="text-muted-foreground text-sm">/ group</span>
                                         </div>
                                         <Button asChild className="w-full">
-                                            <Link href="/login">Book Medium Group</Link>
+                                            <Link href={guidedTourOptionsPath}>View Medium Group Option</Link>
                                         </Button>
                                     </div>
                                 </CardContent>
@@ -682,7 +688,7 @@ export default function ThingsToDo() {
                                             <span className="text-muted-foreground text-sm">/ group</span>
                                         </div>
                                         <Button asChild className="w-full">
-                                            <Link href="/login">Book Large Group</Link>
+                                            <Link href={guidedTourOptionsPath}>View Large Group Option</Link>
                                         </Button>
                                     </div>
                                 </CardContent>
@@ -720,7 +726,7 @@ export default function ThingsToDo() {
                                     <div className="h-2 w-2 rounded-full bg-primary mt-2 shrink-0" />
                                     <div>
                                         <span className="font-semibold text-foreground">Learn new skills:</span>
-                                        <span className="text-muted-foreground ml-1">Organizations like TakenoLAB and There Is Hope Malawi offer educational and vocational training in areas like IT, tailoring, and farming. Visitors may be able to see these programs in action.</span>
+                                        <span className="text-muted-foreground ml-1">Education, vocational training, technology, arts, and community organizations operate across Dzaleka. Visitors may be able to learn from selected projects when visits are arranged in advance.</span>
                                     </div>
                                 </li>
                             </ul>

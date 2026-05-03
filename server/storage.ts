@@ -11,8 +11,12 @@ import {
   type InsertMeetingPoint,
   type PricingConfig,
   type InsertPricingConfig,
+  type SpecialOffer,
+  type InsertSpecialOffer,
   type Booking,
   type InsertBooking,
+  type TourReview,
+  type InsertTourReview,
   type BookingStatus,
   type PaymentStatus,
   type GuideAvailability,
@@ -36,6 +40,7 @@ import {
   type Notification,
   type InsertNotification,
   bookings,
+  specialOffers,
   type UserRole,
   type NotificationType,
   type EmailTemplate,
@@ -218,6 +223,20 @@ export interface IStorage {
   // Pricing operations
   getPricingConfigs(): Promise<PricingConfig[]>;
   updatePricing(data: Record<string, number>): Promise<void>;
+  getSpecialOffers(): Promise<SpecialOffer[]>;
+  getSpecialOffer(id: string): Promise<SpecialOffer | undefined>;
+  getPublicSpecialOffers(): Promise<SpecialOffer[]>;
+  findApplicableSpecialOffer(criteria: {
+    groupSize: string;
+    tourType: string;
+    visitDate: string;
+    visitTime?: string;
+    seats?: number;
+  }): Promise<SpecialOffer | undefined>;
+  createSpecialOffer(offer: InsertSpecialOffer): Promise<SpecialOffer>;
+  updateSpecialOffer(id: string, offer: Partial<SpecialOffer>): Promise<SpecialOffer | undefined>;
+  deleteSpecialOffer(id: string): Promise<void>;
+  incrementSpecialOfferUsage(id: string, seats: number): Promise<void>;
 
   // Booking operations
   getBookings(): Promise<Booking[]>;
@@ -234,6 +253,15 @@ export interface IStorage {
   checkOutVisitor(id: string, checkOutBy: string): Promise<Booking | undefined>;
   updateBookingRating(id: string, rating: number): Promise<Booking | undefined>;
   rescheduleBooking(id: string, visitDate: string, visitTime: string): Promise<Booking | undefined>;
+
+  // Tour Review operations
+  getTourReviews(): Promise<TourReview[]>;
+  getPublicTourReviews(limit?: number): Promise<TourReview[]>;
+  getTourReview(id: string): Promise<TourReview | undefined>;
+  getTourReviewByBookingReference(bookingReference: string): Promise<TourReview | undefined>;
+  createTourReview(review: InsertTourReview): Promise<TourReview>;
+  updateTourReview(id: string, review: Partial<TourReview>): Promise<TourReview | undefined>;
+  upsertTourReviewForBooking(booking: Booking, review: Partial<InsertTourReview>): Promise<TourReview>;
 
   // Guide Helper
   getGuidesByIds(ids: string[]): Promise<Guide[]>;
@@ -666,7 +694,11 @@ export class SupabaseStorage implements IStorage {
     const cached = cache.get<Zone[]>(CACHE_KEYS.ZONES);
     if (cached) return cached;
 
-    const { data, error } = await this.supabase.from("zones").select("*").is("deleted_at", null).order("name");
+    const { data, error } = await this.supabase
+      .from("zones")
+      .select("*")
+      .is("deleted_at", null)
+      .order("name");
     const zones = this.handleResponse(data, error);
 
     // Cache for 5 minutes
@@ -683,18 +715,21 @@ export class SupabaseStorage implements IStorage {
   async createZone(zone: InsertZone): Promise<Zone> {
     const snakeData = transformToSnake(zone);
     const { data, error } = await this.supabase.from("zones").insert(snakeData).select().single();
+    cache.invalidate(CACHE_KEYS.ZONES);
     return this.handleResponse(data, error);
   }
 
   async updateZone(id: string, zone: Partial<Zone>): Promise<Zone | undefined> {
     const snakeData = transformToSnake(zone);
     const { data, error } = await this.supabase.from("zones").update(snakeData).eq("id", id).select().single();
+    cache.invalidate(CACHE_KEYS.ZONES);
     return this.handleOptionalResponse(data, error);
   }
 
   async deleteZone(id: string): Promise<void> {
     // Soft delete - set deleted_at timestamp
     const { error } = await this.supabase.from("zones").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+    cache.invalidate(CACHE_KEYS.ZONES);
     if (error) throw new Error(error.message);
   }
 
@@ -798,6 +833,120 @@ export class SupabaseStorage implements IStorage {
         });
       }
     }
+  }
+
+  // Special offer operations
+  async getSpecialOffers(): Promise<SpecialOffer[]> {
+    const { data, error } = await this.supabase
+      .from("special_offers")
+      .select("*")
+      .order("created_at", { ascending: false });
+    return this.handleResponse(data, error);
+  }
+
+  async getSpecialOffer(id: string): Promise<SpecialOffer | undefined> {
+    const { data, error } = await this.supabase
+      .from("special_offers")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async getPublicSpecialOffers(): Promise<SpecialOffer[]> {
+    const today = new Date().toISOString().split("T")[0];
+    const { data, error } = await this.supabase
+      .from("special_offers")
+      .select("*")
+      .eq("is_active", true)
+      .eq("is_public", true)
+      .gte("activity_end_date", today)
+      .order("discount_percent", { ascending: false });
+    return this.handleResponse(data, error);
+  }
+
+  async findApplicableSpecialOffer(criteria: {
+    groupSize: string;
+    tourType: string;
+    visitDate: string;
+    visitTime?: string;
+    seats?: number;
+  }): Promise<SpecialOffer | undefined> {
+    const visitDate = criteria.visitDate;
+    const seats = Math.max(1, criteria.seats || 1);
+    const { data, error } = await this.supabase
+      .from("special_offers")
+      .select("*")
+      .eq("is_active", true)
+      .eq("is_public", true)
+      .lte("activity_start_date", visitDate)
+      .gte("activity_end_date", visitDate)
+      .order("discount_percent", { ascending: false });
+
+    const offers = this.handleResponse<SpecialOffer[]>(data, error);
+    const visit = new Date(`${visitDate}T00:00:00`);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const daysUntilVisit = Math.ceil((visit.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const weekday = visit.toLocaleDateString("en-US", { weekday: "short" }).toLowerCase();
+    const visitTime = criteria.visitTime ? String(criteria.visitTime).slice(0, 5) : "";
+
+    return offers.find((offer) => {
+      const tourTypes = offer.tourTypes || [];
+      const groupSizes = offer.groupSizes || [];
+      const weekdays = offer.weekdays || [];
+      const timeSlots = offer.timeSlots || [];
+      const remainingSeats = offer.discountedSeats == null
+        ? Number.POSITIVE_INFINITY
+        : offer.discountedSeats - (offer.usedSeats || 0);
+
+      if (remainingSeats < seats) return false;
+      if (tourTypes.length > 0 && !tourTypes.includes(criteria.tourType)) return false;
+      if (groupSizes.length > 0 && !groupSizes.includes(criteria.groupSize)) return false;
+      if (weekdays.length > 0 && !weekdays.includes(weekday)) return false;
+      if (timeSlots.length > 0 && (!visitTime || !timeSlots.includes(visitTime))) return false;
+      if (offer.offerType === "early_bird" && daysUntilVisit < (offer.bookingNoticeDays || 0)) return false;
+      if (offer.offerType === "last_minute" && daysUntilVisit > (offer.bookingNoticeDays || 0)) return false;
+      return true;
+    });
+  }
+
+  async createSpecialOffer(offer: InsertSpecialOffer): Promise<SpecialOffer> {
+    const snakeData = transformToSnake(offer);
+    const { data, error } = await this.supabase
+      .from("special_offers")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async updateSpecialOffer(id: string, offer: Partial<SpecialOffer>): Promise<SpecialOffer | undefined> {
+    const snakeData = transformToSnake({ ...offer, updatedAt: new Date() });
+    const { data, error } = await this.supabase
+      .from("special_offers")
+      .update(snakeData)
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async deleteSpecialOffer(id: string): Promise<void> {
+    const { error } = await this.supabase.from("special_offers").delete().eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+
+  async incrementSpecialOfferUsage(id: string, seats: number): Promise<void> {
+    const offer = await this.getSpecialOffer(id);
+    if (!offer) return;
+    const nextUsedSeats = (offer.usedSeats || 0) + Math.max(1, seats);
+    const { error } = await this.supabase
+      .from("special_offers")
+      .update({ used_seats: nextUsedSeats, updated_at: new Date() })
+      .eq("id", id);
+    if (error) throw new Error(error.message);
   }
 
   // Booking operations
@@ -1086,6 +1235,91 @@ export class SupabaseStorage implements IStorage {
       .select()
       .single();
     return this.handleOptionalResponse(data, error);
+  }
+
+  async getTourReviews(): Promise<TourReview[]> {
+    const { data, error } = await this.supabase
+      .from("tour_reviews")
+      .select("*")
+      .order("created_at", { ascending: false });
+    return this.handleResponse(data || [], error);
+  }
+
+  async getPublicTourReviews(limit = 6): Promise<TourReview[]> {
+    const { data, error } = await this.supabase
+      .from("tour_reviews")
+      .select("*")
+      .eq("status", "published")
+      .order("submitted_at", { ascending: false, nullsFirst: false })
+      .limit(limit);
+    return this.handleResponse(data || [], error);
+  }
+
+  async getTourReview(id: string): Promise<TourReview | undefined> {
+    const { data, error } = await this.supabase
+      .from("tour_reviews")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async getTourReviewByBookingReference(bookingReference: string): Promise<TourReview | undefined> {
+    const { data, error } = await this.supabase
+      .from("tour_reviews")
+      .select("*")
+      .eq("booking_reference", bookingReference)
+      .maybeSingle();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createTourReview(review: InsertTourReview): Promise<TourReview> {
+    const snakeData = transformToSnake(review);
+    const { data, error } = await this.supabase
+      .from("tour_reviews")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async updateTourReview(id: string, review: Partial<TourReview>): Promise<TourReview | undefined> {
+    const snakeData = transformToSnake({ ...review, updatedAt: new Date() });
+    const { data, error } = await this.supabase
+      .from("tour_reviews")
+      .update(snakeData)
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async upsertTourReviewForBooking(booking: Booking, review: Partial<InsertTourReview>): Promise<TourReview> {
+    const existing = await this.getTourReviewByBookingReference(booking.bookingReference);
+    const baseReview: InsertTourReview = {
+      bookingId: booking.id,
+      bookingReference: booking.bookingReference,
+      visitorName: booking.visitorName,
+      visitorEmail: booking.visitorEmail,
+      guideId: booking.assignedGuideId || undefined,
+      source: booking.source || "direct",
+      status: "pending",
+      reviewToken: crypto.randomBytes(16).toString("hex"),
+      ...review,
+    } as InsertTourReview;
+
+    if (existing) {
+      const updated = await this.updateTourReview(existing.id, {
+        ...baseReview,
+        reviewToken: existing.reviewToken || baseReview.reviewToken,
+      } as Partial<TourReview>);
+      if (!updated) throw new Error("Failed to update tour review");
+      return updated;
+    }
+
+    return this.createTourReview(baseReview);
   }
 
   async rescheduleBooking(id: string, visitDate: string, visitTime: string): Promise<Booking | undefined> {

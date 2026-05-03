@@ -34,6 +34,9 @@ import {
   Heart,
   Map,
   CreditCard,
+  BadgePercent,
+  Star,
+  Award,
 } from "lucide-react";
 import {
   Sidebar,
@@ -143,6 +146,18 @@ const mainNavigationItems: NavItem[] = [
     roles: ["admin", "coordinator"],
   },
   {
+    title: "Guide Certificates",
+    url: "/guide-certificates",
+    icon: Award,
+    roles: ["admin", "coordinator"],
+  },
+  {
+    title: "Reviews + Opportunities",
+    url: "/reviews-performance",
+    icon: Star,
+    roles: ["admin", "coordinator"],
+  },
+  {
     title: "Zones & POI",
     url: "/zones",
     icon: MapPin,
@@ -242,6 +257,12 @@ const operationsItems: NavItem[] = [
     title: "GetYourGuide",
     url: "/getyourguide",
     icon: Globe,
+    roles: ["admin", "coordinator"],
+  },
+  {
+    title: "Special Offers",
+    url: "/special-offers",
+    icon: BadgePercent,
     roles: ["admin", "coordinator"],
   },
   {

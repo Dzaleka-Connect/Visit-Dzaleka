@@ -159,7 +159,7 @@ export default function PartnerWithUs() {
                             Partner with Dzaleka Visit
                         </h1>
                         <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-                            Join us in redefining narrative through tourism. Connect your clients with authentic stories, resilience, and the vibrant creativity of Dzaleka Refugee Camp.
+                            Work with resident guides and the Visit Dzaleka team to plan respectful, well-coordinated visits that support local livelihoods and community-led projects.
                         </p>
                     </div>
                 </section>
@@ -202,7 +202,7 @@ export default function PartnerWithUs() {
                             <div>
                                 <h2 className="text-3xl font-bold tracking-tight mb-6">Let's Build Something Together</h2>
                                 <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
-                                    Are you a tour operator, travel agent, or educational institution? We'd love to discuss how we can work together to create unforgettable experiences for your groups.
+                                    Are you a tour operator, travel agent, or educational institution? We can help you plan visits with clear expectations, practical logistics, and direct community benefit.
                                 </p>
 
                                 <div className="space-y-6">

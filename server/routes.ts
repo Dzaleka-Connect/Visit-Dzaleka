@@ -19,6 +19,7 @@ import {
   insertEmailTemplateSchema,
   type UserRole,
   type Booking,
+  type SpecialOffer,
   type Guide,
   type RecurringBooking,
   type SupportTicket,
@@ -62,6 +63,39 @@ const dateSortValue = (date: string | Date | null | undefined) =>
 
 const PUBLIC_APP_URL = (process.env.APP_URL || "https://visit.dzaleka.com").replace(/\/$/, "");
 
+const buildFeedbackLink = (bookingReference: string) =>
+  `${PUBLIC_APP_URL}/visit/feedback?booking=${encodeURIComponent(bookingReference)}`;
+
+const publicReviewSchema = z.object({
+  bookingReference: z.string().min(1),
+  rating: z.coerce.number().int().min(1).max(5),
+  title: z.string().trim().max(120).optional(),
+  comment: z.string().trim().max(3000).optional(),
+  tourGuideName: z.string().trim().max(160).optional(),
+  country: z.string().trim().max(120).optional(),
+  purposeOfVisit: z.string().trim().max(120).optional(),
+  groupSize: z.string().trim().max(80).optional(),
+  referralSource: z.string().trim().max(120).optional(),
+  overallExperience: z.string().trim().max(40).optional(),
+  guideExperience: z.string().trim().max(40).optional(),
+  enjoyedMost: z.string().trim().max(3000).optional(),
+  improvementSuggestions: z.string().trim().max(3000).optional(),
+  wouldRecommend: z.string().trim().max(40).optional(),
+  otherComments: z.string().trim().max(3000).optional(),
+  wouldVisitAgain: z.string().trim().max(40).optional(),
+  consentPhotos: z.boolean().optional(),
+  consentTestimonial: z.boolean().optional(),
+  consentDataProcessing: z.literal(true, {
+    errorMap: () => ({ message: "Data processing consent is required to submit feedback." }),
+  }),
+});
+
+const reviewModerationSchema = z.object({
+  status: z.enum(["pending", "published", "hidden"]).optional(),
+  responseText: z.string().trim().max(3000).optional().nullable(),
+  staffNotes: z.string().trim().max(3000).optional().nullable(),
+});
+
 const TEMPLATE_SAMPLE_DATA: Record<string, string> = {
   visitor_name: "Amina Banda",
   visitor_email: "amina@example.com",
@@ -84,7 +118,7 @@ const TEMPLATE_SAMPLE_DATA: Record<string, string> = {
   old_visit_time: "09:00",
   new_visit_date: "2026-05-15",
   new_visit_time: "10:00",
-  feedback_link: `${PUBLIC_APP_URL}/visit/feedback?booking=DVS-2026-SAMPLE`,
+  feedback_link: buildFeedbackLink("DVS-2026-SAMPLE"),
   visitor_phone: "+265 888 123 456",
   visitor_organization: "Sample University",
   selected_zones: "Market, Education Center",
@@ -813,8 +847,7 @@ async function sendFeedbackRequestEmail(booking: Booking, sentBy?: string | null
     ? await storage.getGuide(booking.assignedGuideId)
     : null;
   const guideName = guide ? `${guide.firstName} ${guide.lastName}` : "";
-  const appUrl = PUBLIC_APP_URL;
-  const feedbackLink = `${appUrl.replace(/\/$/, "")}/visit/feedback?booking=${encodeURIComponent(booking.bookingReference || booking.id)}`;
+  const feedbackLink = buildFeedbackLink(booking.bookingReference || booking.id);
 
   const email = await sendAutomatedTemplateEmail({
     templateName: "feedback_request",
@@ -1080,6 +1113,61 @@ async function calculateTotalAmount(groupSize: string, tourType: string, customD
   }
 
   return basePrice;
+}
+
+const specialOfferFieldsSchema = z.object({
+  name: z.string().trim().min(2, "Offer name is required"),
+  description: z.string().trim().optional().nullable(),
+  offerType: z.enum(["standard", "early_bird", "last_minute"]).default("standard"),
+  discountPercent: z.coerce.number().int().min(1).max(90),
+  activityStartDate: z.string().min(1),
+  activityEndDate: z.string().min(1),
+  bookingNoticeDays: z.coerce.number().int().min(0).nullable().optional(),
+  discountedSeats: z.coerce.number().int().min(1).nullable().optional(),
+  tourTypes: z.array(z.enum(["standard", "extended", "custom"])).default([]),
+  groupSizes: z.array(z.enum(["individual", "small_group", "large_group", "custom"])).default([]),
+  weekdays: z.array(z.enum(["sun", "mon", "tue", "wed", "thu", "fri", "sat"])).default([]),
+  timeSlots: z.array(z.string().regex(/^\d{2}:\d{2}$/)).default([]),
+  isActive: z.boolean().default(true),
+  isPublic: z.boolean().default(true),
+});
+
+const specialOfferRequestSchema = specialOfferFieldsSchema.superRefine((data, ctx) => {
+  if (new Date(data.activityEndDate) < new Date(data.activityStartDate)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["activityEndDate"],
+      message: "End date must be on or after the start date",
+    });
+  }
+  if ((data.offerType === "early_bird" || data.offerType === "last_minute") && data.bookingNoticeDays == null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["bookingNoticeDays"],
+      message: "Booking notice days are required for early-bird and last-minute offers",
+    });
+  }
+});
+
+const specialOfferUpdateSchema = specialOfferFieldsSchema.partial().superRefine((data, ctx) => {
+  if (data.activityStartDate && data.activityEndDate && new Date(data.activityEndDate) < new Date(data.activityStartDate)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["activityEndDate"],
+      message: "End date must be on or after the start date",
+    });
+  }
+});
+
+function applySpecialOfferAmount(baseAmount: number, offer?: SpecialOffer) {
+  if (!offer) {
+    return { totalAmount: baseAmount, discountAmount: 0 };
+  }
+  const discountAmount = Math.round(baseAmount * ((offer.discountPercent || 0) / 100));
+  return {
+    totalAmount: Math.max(0, baseAmount - discountAmount),
+    discountAmount,
+  };
 }
 
 // Role-based access control middleware (session-based)
@@ -3710,15 +3798,39 @@ export async function registerRoutes(
   app.post("/api/bookings", async (req, res) => {
     try {
       const bookingData = insertBookingSchema.parse(req.body);
-      const totalAmount = await calculateTotalAmount(
+      const baseTotalAmount = await calculateTotalAmount(
         bookingData.groupSize,
         bookingData.tourType,
         bookingData.customDuration || undefined
       );
+      const specialOffer = await storage.findApplicableSpecialOffer({
+        groupSize: bookingData.groupSize,
+        tourType: bookingData.tourType,
+        visitDate: bookingData.visitDate,
+        visitTime: bookingData.visitTime,
+        seats: bookingData.numberOfPeople || 1,
+      });
+      const { totalAmount, discountAmount } = applySpecialOfferAmount(baseTotalAmount, specialOffer);
       const booking = await storage.createBooking({
         ...bookingData,
         totalAmount,
+        paymentDetails: {
+          ...(bookingData.paymentDetails as Record<string, unknown> | null || {}),
+          ...(specialOffer ? {
+            specialOffer: {
+              id: specialOffer.id,
+              name: specialOffer.name,
+              discountPercent: specialOffer.discountPercent,
+              originalAmount: baseTotalAmount,
+              discountAmount,
+            }
+          } : {}),
+        },
       });
+
+      if (specialOffer) {
+        await storage.incrementSpecialOfferUsage(specialOffer.id, bookingData.numberOfPeople || 1);
+      }
 
       // Send confirmation email
       const meetingPoint = bookingData.meetingPointId
@@ -6313,10 +6425,11 @@ export async function registerRoutes(
     try {
       const zonesList = await storage.getZones();
       // Return only active zones with limited fields
-      const publicList = zonesList.filter(z => z.isActive !== false).map(z => ({
+      const publicList = zonesList.filter(z => z.isActive !== false && z.isPublic !== false).map(z => ({
         id: z.id,
         name: z.name,
         description: z.description,
+        zoneType: z.zoneType,
         icon: z.icon,
       }));
       res.json(publicList);
@@ -6448,11 +6561,16 @@ export async function registerRoutes(
     try {
       const poiList = await storage.getPointsOfInterest();
       // Return only active POIs with limited fields
-      const publicList = poiList.filter(poi => poi.isActive !== false).map(poi => ({
+      const publicList = poiList.filter(poi => poi.isActive !== false && poi.isPublic !== false).map(poi => ({
         id: poi.id,
         name: poi.name,
-        description: poi.description,
+        description: poi.visitorDescription || poi.description,
         category: poi.category,
+        estimatedDurationMinutes: poi.estimatedDurationMinutes,
+        photoPolicy: poi.photoPolicy,
+        mobilityLevel: poi.mobilityLevel,
+        requiresPermission: poi.requiresPermission,
+        serviceDirectoryUrl: poi.serviceDirectoryUrl,
       }));
       res.json(publicList);
     } catch (error) {
@@ -6520,6 +6638,12 @@ export async function registerRoutes(
         id: mp.id,
         name: mp.name,
         description: mp.description,
+        address: mp.address,
+        googleMapsUrl: mp.googleMapsUrl,
+        meetingInstructions: mp.meetingInstructions,
+        guideIdentificationNote: mp.guideIdentificationNote,
+        arrivalBufferMinutes: mp.arrivalBufferMinutes,
+        isDefault: mp.isDefault,
       }));
       res.json(publicList);
     } catch (error) {
@@ -6830,12 +6954,102 @@ export async function registerRoutes(
     }
   });
 
+  // Special offers endpoints
+  app.get("/api/public/special-offers", async (_req, res) => {
+    try {
+      const offers = await storage.getPublicSpecialOffers();
+      res.json(offers);
+    } catch (error) {
+      logError("Error fetching public special offers", error);
+      res.status(500).json({ message: "Failed to fetch special offers" });
+    }
+  });
+
+  app.get("/api/special-offers", isAuthenticated, requireRole("admin", "coordinator"), async (_req, res) => {
+    try {
+      const offers = await storage.getSpecialOffers();
+      res.json(offers);
+    } catch (error) {
+      logError("Error fetching special offers", error);
+      res.status(500).json({ message: "Failed to fetch special offers" });
+    }
+  });
+
+  app.post("/api/special-offers", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
+    try {
+      const payload = specialOfferRequestSchema.parse(req.body);
+      const offer = await storage.createSpecialOffer({
+        ...payload,
+        description: payload.description || null,
+        bookingNoticeDays: payload.bookingNoticeDays ?? null,
+        discountedSeats: payload.discountedSeats ?? null,
+        createdBy: req.session.userId,
+      });
+      res.status(201).json(offer);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Invalid special offer data", errors: error.errors });
+      } else {
+        logError("Error creating special offer", error, req.requestId);
+        res.status(500).json({ message: "Failed to create special offer" });
+      }
+    }
+  });
+
+  app.patch("/api/special-offers/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const payload = specialOfferUpdateSchema.parse(req.body);
+      const offer = await storage.updateSpecialOffer(req.params.id, payload as Partial<SpecialOffer>);
+      if (!offer) {
+        return res.status(404).json({ message: "Special offer not found" });
+      }
+      res.json(offer);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Invalid special offer data", errors: error.errors });
+      } else {
+        logError("Error updating special offer", error, req.requestId);
+        res.status(500).json({ message: "Failed to update special offer" });
+      }
+    }
+  });
+
+  app.delete("/api/special-offers/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      await storage.deleteSpecialOffer(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      logError("Error deleting special offer", error, req.requestId);
+      res.status(500).json({ message: "Failed to delete special offer" });
+    }
+  });
+
   // Calculate price endpoint (public for booking form)
   app.post("/api/calculate-price", async (req, res) => {
     try {
-      const { groupSize, tourType, customDuration } = req.body;
-      const totalAmount = await calculateTotalAmount(groupSize, tourType, customDuration);
-      res.json({ totalAmount });
+      const { groupSize, tourType, customDuration, visitDate, visitTime, numberOfPeople } = req.body;
+      const baseAmount = await calculateTotalAmount(groupSize, tourType, customDuration);
+      const specialOffer = visitDate
+        ? await storage.findApplicableSpecialOffer({
+          groupSize,
+          tourType,
+          visitDate,
+          visitTime,
+          seats: numberOfPeople || 1,
+        })
+        : undefined;
+      const { totalAmount, discountAmount } = applySpecialOfferAmount(baseAmount, specialOffer);
+      res.json({
+        totalAmount,
+        originalAmount: baseAmount,
+        discountAmount,
+        specialOffer: specialOffer ? {
+          id: specialOffer.id,
+          name: specialOffer.name,
+          discountPercent: specialOffer.discountPercent,
+          offerType: specialOffer.offerType,
+        } : null,
+      });
     } catch (error) {
       logError("Error calculating price", error, req.requestId);
       res.status(500).json({ message: "Failed to calculate price" });
@@ -6903,18 +7117,34 @@ export async function registerRoutes(
 
       const user = await storage.getUser(req.session?.userId);
       const senderName = user ? `${user.firstName} ${user.lastName}` : "Visit Dzaleka Team";
+      let itineraryVersion = 1;
+      let previousItineraryId: string | undefined;
+
+      if (data.bookingId) {
+        const previousItinerary = await storage.getItineraryByBookingId(data.bookingId);
+        const previousContent = previousItinerary?.content as any;
+        itineraryVersion = previousItinerary ? Number(previousContent?.version || 1) + 1 : 1;
+        previousItineraryId = previousItinerary?.id;
+      }
+
+      const itineraryPayload = {
+        ...data,
+        version: itineraryVersion,
+        previousItineraryId,
+        updatedAt: new Date().toISOString(),
+      };
 
       const itineraryEmailResult = await sendItineraryEmailDetailed({
-        ...data,
+        ...itineraryPayload,
         senderName
       });
 
       if (itineraryEmailResult.success) {
-        if (data.bookingId) {
+        if (itineraryPayload.bookingId) {
           try {
             await storage.createItinerary({
-              bookingId: data.bookingId,
-              content: data
+              bookingId: itineraryPayload.bookingId,
+              content: itineraryPayload
             });
           } catch (e) {
             logError("Failed to save itinerary to DB", e, req.requestId);
@@ -6923,40 +7153,50 @@ export async function registerRoutes(
 
         await storage.createEmailLog({
           sentBy: req.session?.userId,
-          recipientName: data.recipientName,
-          recipientEmail: data.recipientEmail,
+          recipientName: itineraryPayload.recipientName,
+          recipientEmail: itineraryPayload.recipientEmail,
           subject: "Your Visit Dzaleka Itinerary",
           message: [
-            `Itinerary for ${data.recipientName} on ${data.date} (${data.duration})`,
-            data.bookingReference ? `Ref: ${data.bookingReference}` : '',
+            `Itinerary v${itineraryPayload.version} for ${itineraryPayload.recipientName} on ${itineraryPayload.date} (${itineraryPayload.duration})`,
+            itineraryPayload.bookingReference ? `Ref: ${itineraryPayload.bookingReference}` : '',
             `\nTimeline:`,
-            ...data.items.map((i: any) => `- ${i.time}: ${i.activity}`),
-            (data.pois && data.pois.length > 0) ? `\nHighlights: ${data.pois.join(', ')}` : '',
-            data.totalCost ? `Cost: ${data.totalCost}` : '',
-            data.guideName ? `Guide: ${data.guideName}` : '',
-            data.notes ? `\nNotes: ${data.notes}` : ''
+            ...itineraryPayload.items.map((i: any) => `- ${i.time}: ${i.activity}`),
+            (itineraryPayload.pois && itineraryPayload.pois.length > 0) ? `\nHighlights: ${itineraryPayload.pois.join(', ')}` : '',
+            itineraryPayload.organizationStops ? `\nOrganizations: ${itineraryPayload.organizationStops}` : '',
+            itineraryPayload.totalCost ? `Cost: ${itineraryPayload.totalCost}` : '',
+            itineraryPayload.paymentStatus ? `Payment status: ${itineraryPayload.paymentStatus}` : '',
+            itineraryPayload.guideName ? `Guide: ${itineraryPayload.guideName}` : '',
+            itineraryPayload.notes ? `\nNotes: ${itineraryPayload.notes}` : ''
           ].filter(Boolean).join('\n'),
           templateType: "itinerary",
           status: "accepted",
           providerMessageId: itineraryEmailResult.messageId,
-          relatedEntityType: data.bookingId ? "booking" : undefined,
-          relatedEntityId: data.bookingId || undefined,
-          metadata: { bookingReference: data.bookingReference },
+          relatedEntityType: itineraryPayload.bookingId ? "booking" : undefined,
+          relatedEntityId: itineraryPayload.bookingId || undefined,
+          metadata: {
+            bookingReference: itineraryPayload.bookingReference,
+            itineraryVersion: itineraryPayload.version,
+            previousItineraryId,
+          },
         });
         res.json({ success: true, message: "Itinerary sent successfully" });
       } else {
         await storage.createEmailLog({
           sentBy: req.session?.userId,
-          recipientName: data.recipientName,
-          recipientEmail: data.recipientEmail,
+          recipientName: itineraryPayload.recipientName,
+          recipientEmail: itineraryPayload.recipientEmail,
           subject: "Your Visit Dzaleka Itinerary",
           message: itineraryEmailResult.error || "Failed to send",
           templateType: "itinerary",
           status: "failed",
           errorMessage: itineraryEmailResult.error,
-          relatedEntityType: data.bookingId ? "booking" : undefined,
-          relatedEntityId: data.bookingId || undefined,
-          metadata: { bookingReference: data.bookingReference },
+          relatedEntityType: itineraryPayload.bookingId ? "booking" : undefined,
+          relatedEntityId: itineraryPayload.bookingId || undefined,
+          metadata: {
+            bookingReference: itineraryPayload.bookingReference,
+            itineraryVersion: itineraryPayload.version,
+            previousItineraryId,
+          },
         });
         res.status(500).json({ message: "Failed to send email" });
       }
@@ -7490,6 +7730,7 @@ export async function registerRoutes(
 
   app.get("/api/content", async (req, res) => {
     try {
+      res.set("Cache-Control", "no-store");
       const content = await storage.getContentBlocks();
       // Convert array to object key-value pairs for easier frontend consumption
       const contentMap = content.reduce((acc: Record<string, string>, item) => {
@@ -7505,6 +7746,7 @@ export async function registerRoutes(
 
   app.put("/api/content", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
+      res.set("Cache-Control", "no-store");
       const { updates } = req.body; // Expecting object { key: value }
       const userId = req.session.userId!;
 
@@ -9259,6 +9501,410 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error syncing calendars", error, req.requestId);
       res.status(500).json({ message: "Failed to sync calendars" });
+    }
+  });
+
+  // ===== Reviews + Performance Opportunities =====
+
+  app.get("/api/public/reviews", async (req: Request, res: Response) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 6, 24);
+      const reviews = await storage.getPublicTourReviews(limit);
+      res.json(reviews.filter((review) => review.consentTestimonial === true).map((review) => ({
+        id: review.id,
+        rating: review.rating,
+        title: review.title,
+        comment: review.comment,
+        visitorName: review.visitorName,
+        source: review.source,
+        submittedAt: review.submittedAt,
+        responseText: review.responseText,
+      })));
+    } catch (error) {
+      logError("Error fetching public reviews", error, req.requestId);
+      res.json([]);
+    }
+  });
+
+  app.get("/api/public/reviews/request", async (req: Request, res: Response) => {
+    try {
+      const bookingReference = String(req.query.booking || "").trim();
+      if (!bookingReference) {
+        return res.status(400).json({ message: "Missing booking reference" });
+      }
+
+      const bookings = await storage.getBookings();
+      const booking = bookings.find((item) =>
+        item.bookingReference === bookingReference || item.id === bookingReference
+      );
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      const review = await storage.getTourReviewByBookingReference(booking.bookingReference);
+      const guide = booking.assignedGuideId ? await storage.getGuide(booking.assignedGuideId) : null;
+      res.json({
+        bookingReference: booking.bookingReference,
+        visitorName: booking.visitorName,
+        visitDate: booking.visitDate,
+        visitTime: booking.visitTime,
+        status: booking.status,
+        guideName: guide ? `${guide.firstName} ${guide.lastName}` : null,
+        canReview: booking.status === "completed",
+        review: review ? {
+          id: review.id,
+          rating: review.rating,
+          title: review.title,
+          comment: review.comment,
+          tourGuideName: review.tourGuideName,
+          country: review.country,
+          purposeOfVisit: review.purposeOfVisit,
+          groupSize: review.groupSize,
+          referralSource: review.referralSource,
+          overallExperience: review.overallExperience,
+          guideExperience: review.guideExperience,
+          enjoyedMost: review.enjoyedMost,
+          improvementSuggestions: review.improvementSuggestions,
+          wouldRecommend: review.wouldRecommend,
+          otherComments: review.otherComments,
+          wouldVisitAgain: review.wouldVisitAgain,
+          consentPhotos: review.consentPhotos,
+          consentTestimonial: review.consentTestimonial,
+          consentDataProcessing: review.consentDataProcessing,
+          status: review.status,
+          submittedAt: review.submittedAt,
+        } : null,
+      });
+    } catch (error) {
+      logError("Error loading review request", error, req.requestId);
+      res.status(500).json({ message: "Failed to load review request" });
+    }
+  });
+
+  app.post("/api/public/reviews/request", async (req: Request, res: Response) => {
+    try {
+      const payload = publicReviewSchema.parse(req.body);
+      const bookings = await storage.getBookings();
+      const booking = bookings.find((item) =>
+        item.bookingReference === payload.bookingReference || item.id === payload.bookingReference
+      );
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+      if (booking.status !== "completed") {
+        return res.status(400).json({ message: "Reviews open after the tour is completed." });
+      }
+
+      const publicTitle = payload.title || (payload.overallExperience
+        ? `${payload.overallExperience} Visit Dzaleka experience`
+        : undefined);
+      const publicComment = payload.comment || payload.enjoyedMost || payload.otherComments;
+      const review = await storage.upsertTourReviewForBooking(booking, {
+        rating: payload.rating,
+        title: publicTitle || undefined,
+        comment: publicComment || undefined,
+        tourGuideName: payload.tourGuideName || undefined,
+        country: payload.country || undefined,
+        purposeOfVisit: payload.purposeOfVisit || undefined,
+        groupSize: payload.groupSize || undefined,
+        referralSource: payload.referralSource || undefined,
+        overallExperience: payload.overallExperience || undefined,
+        guideExperience: payload.guideExperience || undefined,
+        enjoyedMost: payload.enjoyedMost || undefined,
+        improvementSuggestions: payload.improvementSuggestions || undefined,
+        wouldRecommend: payload.wouldRecommend || undefined,
+        otherComments: payload.otherComments || undefined,
+        wouldVisitAgain: payload.wouldVisitAgain || undefined,
+        consentPhotos: payload.consentPhotos || false,
+        consentTestimonial: payload.consentTestimonial || false,
+        consentDataProcessing: payload.consentDataProcessing,
+        status: "pending",
+        submittedAt: new Date(),
+      });
+
+      await storage.updateBookingRating(booking.id, payload.rating);
+
+      res.status(201).json({
+        success: true,
+        message: "Thank you for your review. Our team will read it before publishing.",
+        review: {
+          id: review.id,
+          rating: review.rating,
+          status: review.status,
+          submittedAt: review.submittedAt,
+        },
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid review data", errors: error.errors });
+      }
+      logError("Error submitting review", error, req.requestId);
+      res.status(500).json({ message: "Failed to submit review" });
+    }
+  });
+
+  app.get("/api/reviews-performance", isAuthenticated, requireRole("admin", "coordinator"), async (req: Request, res: Response) => {
+    try {
+      const now = new Date();
+      const last30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const setupIssues: { key: string; label: string; message: string }[] = [];
+      const loadDashboardData = async <T,>(
+        key: string,
+        label: string,
+        fallback: T,
+        loader: () => Promise<T>
+      ): Promise<T> => {
+        try {
+          return await loader();
+        } catch (error: any) {
+          const message = error?.message || "Unavailable";
+          setupIssues.push({ key, label, message });
+          logError(`Reviews performance data unavailable: ${label}`, error, req.requestId);
+          return fallback;
+        }
+      };
+
+      const [
+        bookings,
+        reviews,
+        emailLogs,
+        meetingPoints,
+        pointsOfInterest,
+        specialOffers,
+        contentBlocks,
+        emailTemplates,
+      ] = await Promise.all([
+        loadDashboardData("bookings", "Bookings", [], () => storage.getBookings()),
+        loadDashboardData("tour_reviews", "Tour reviews", [], () => storage.getTourReviews()),
+        loadDashboardData("email_logs", "Email logs", [], () => storage.getEmailLogs({ archived: "active" })),
+        loadDashboardData("meeting_points", "Meeting points", [], () => storage.getMeetingPoints()),
+        loadDashboardData("points_of_interest", "Points of interest", [], () => storage.getPointsOfInterest()),
+        loadDashboardData("special_offers", "Special offers", [], () => storage.getSpecialOffers()),
+        loadDashboardData("content_blocks", "CMS content", [], () => storage.getContentBlocks()),
+        loadDashboardData("email_templates", "Email templates", [], () => storage.getEmailTemplates()),
+      ]);
+
+      const pageStats = await loadDashboardData("page_views", "Page analytics", null, () => storage.getPageViewStats(last30, now));
+      const completedBookings = bookings.filter((booking) => booking.status === "completed");
+      const bookingsLast30 = bookings.filter((booking) => dateSortValue(booking.createdAt) >= last30.getTime());
+      const reviewByBooking = new Map(reviews.map((review) => [review.bookingReference, review]));
+      const submittedReviews = reviews.filter((review) => review.rating != null);
+      const publishedReviews = reviews.filter((review) => review.status === "published" && review.rating != null);
+      const pendingModeration = reviews.filter((review) => review.status === "pending" && review.rating != null);
+      const averageRating = submittedReviews.length
+        ? Number((submittedReviews.reduce((sum, review) => sum + (review.rating || 0), 0) / submittedReviews.length).toFixed(1))
+        : 0;
+      const pendingReviewRequests = completedBookings.filter((booking) => !reviewByBooking.get(booking.bookingReference)?.submittedAt);
+      const feedbackTemplate = emailTemplates.find((template) => template.name === "feedback_request");
+      const failedEmails = emailLogs.filter((log) =>
+        log.status === "failed" && dateSortValue(log.createdAt) >= last30.getTime()
+      );
+      const feedbackEmails = emailLogs.filter((log) =>
+        log.templateType === "feedback_request" && dateSortValue(log.createdAt) >= last30.getTime()
+      );
+      const listingViews = pageStats?.pageBreakdown
+        .filter((page) => page.page.includes("/things-to-do/dzaleka-refugee-camp-guided-walking-tour"))
+        .reduce((sum, page) => sum + page.views, 0) || 0;
+      const conversionRate = pageStats?.uniqueVisitors
+        ? Number(((bookingsLast30.length / pageStats.uniqueVisitors) * 100).toFixed(1))
+        : 0;
+      const publicContent = Object.fromEntries(contentBlocks.map((block) => [block.key, block.value]));
+      const activeOffer = specialOffers.some((offer) =>
+        offer.isActive !== false &&
+        offer.isPublic !== false &&
+        new Date(offer.activityEndDate) >= now
+      );
+
+      const opportunities = [
+        ...(setupIssues.length > 0 ? [{
+          id: "setup-diagnostics",
+          priority: "high",
+          title: "Review dashboard setup needs attention",
+          description: "One or more data sources could not be read. The dashboard is still usable, but review collection or opportunity metrics may be incomplete.",
+          metric: `${setupIssues.length} issue${setupIssues.length === 1 ? "" : "s"}`,
+          actionLabel: "Open diagnostics",
+          href: "/reviews-performance",
+        }] : []),
+        {
+          id: "first-reviews",
+          priority: publishedReviews.length < 3 ? "high" : publishedReviews.length < 15 ? "medium" : "low",
+          title: publishedReviews.length < 3 ? "Get the first 3 published reviews" : "Build toward 15 published reviews",
+          description: publishedReviews.length < 3
+            ? "The tour page needs early social proof. Start by sending review requests for completed tours."
+            : "More recent reviews will make the listing feel safer to book and easier to trust.",
+          metric: `${publishedReviews.length} published`,
+          actionLabel: "Send review requests",
+          href: "/reviews-performance",
+        },
+        {
+          id: "moderation",
+          priority: pendingModeration.length > 0 ? "high" : "low",
+          title: "Review moderation queue",
+          description: pendingModeration.length > 0
+            ? "Publish strong verified reviews or hide unsuitable ones so the public listing stays fresh."
+            : "No submitted reviews are waiting for moderation.",
+          metric: `${pendingModeration.length} pending`,
+          actionLabel: "Review queue",
+          href: "/reviews-performance",
+        },
+        {
+          id: "feedback-template",
+          priority: feedbackTemplate?.isActive === false || !feedbackTemplate ? "high" : "low",
+          title: "Feedback request email",
+          description: feedbackTemplate?.isActive === false || !feedbackTemplate
+            ? "The feedback_request template is missing or disabled. Review requests may not go out cleanly."
+            : "Feedback request template is wired and active.",
+          metric: feedbackTemplate?.isActive === false || !feedbackTemplate ? "Needs setup" : "Active",
+          actionLabel: "Open templates",
+          href: "/email-settings",
+        },
+        {
+          id: "failed-emails",
+          priority: failedEmails.length > 0 ? "high" : "low",
+          title: "Failed email delivery",
+          description: failedEmails.length > 0
+            ? "Failed emails can block confirmations, reminders, and feedback requests."
+            : "No failed emails in the last 30 days.",
+          metric: `${failedEmails.length} failed`,
+          actionLabel: "Open email history",
+          href: "/send-email",
+        },
+        {
+          id: "meeting-point-detail",
+          priority: meetingPoints.some((point) => point.isActive !== false && (!point.googleMapsUrl || !point.meetingInstructions)) ? "medium" : "low",
+          title: "Meeting point clarity",
+          description: "Add map links and clear handoff instructions to reduce arrival confusion and protect reviews.",
+          metric: `${meetingPoints.filter((point) => point.isActive !== false && (!point.googleMapsUrl || !point.meetingInstructions)).length} need detail`,
+          actionLabel: "Update meeting points",
+          href: "/zones?section=meeting",
+        },
+        {
+          id: "listing-content",
+          priority: (!publicContent.hero_title || !publicContent.hero_subtitle) ? "medium" : "low",
+          title: "Public content freshness",
+          description: "Keep the landing page and tour listing specific, current, and human. Avoid generic AI-sounding copy.",
+          metric: (!publicContent.hero_title || !publicContent.hero_subtitle) ? "Needs copy" : "CMS ready",
+          actionLabel: "Open CMS",
+          href: "/cms",
+        },
+        {
+          id: "special-offer",
+          priority: activeOffer ? "low" : "medium",
+          title: "Limited-time offer",
+          description: activeOffer
+            ? "A public special offer is active."
+            : "Consider a limited offer for slower dates or first-review momentum.",
+          metric: activeOffer ? "Active" : "No active offer",
+          actionLabel: "Open offers",
+          href: "/special-offers",
+        },
+        {
+          id: "poi-completeness",
+          priority: pointsOfInterest.some((poi) => poi.isActive !== false && (!poi.visitorDescription || !poi.photoPolicy)) ? "medium" : "low",
+          title: "Route stop completeness",
+          description: "Visitor descriptions, photo rules, and access notes help staff create stronger itineraries.",
+          metric: `${pointsOfInterest.filter((poi) => poi.isActive !== false && (!poi.visitorDescription || !poi.photoPolicy)).length} need detail`,
+          actionLabel: "Open POIs",
+          href: "/zones?section=poi",
+        },
+      ].sort((a, b) => {
+        const rank: Record<string, number> = { high: 0, medium: 1, low: 2 };
+        return rank[a.priority] - rank[b.priority];
+      });
+
+      const reviewCandidates = pendingReviewRequests
+        .sort((a, b) => dateSortValue(b.visitDate) - dateSortValue(a.visitDate))
+        .slice(0, 12)
+        .map((booking) => ({
+          bookingId: booking.id,
+          bookingReference: booking.bookingReference,
+          visitorName: booking.visitorName,
+          visitorEmail: booking.visitorEmail,
+          visitDate: booking.visitDate,
+          guideId: booking.assignedGuideId,
+          reviewLink: buildFeedbackLink(booking.bookingReference),
+        }));
+
+      res.json({
+        stats: {
+          listingViews,
+          uniqueVisitors: pageStats?.uniqueVisitors || 0,
+          bookingRequestsLast30: bookingsLast30.length,
+          conversionRate,
+          completedTours: completedBookings.length,
+          totalReviews: submittedReviews.length,
+          publishedReviews: publishedReviews.length,
+          pendingModeration: pendingModeration.length,
+          averageRating,
+          pendingReviewRequests: pendingReviewRequests.length,
+          feedbackEmailsLast30: feedbackEmails.length,
+        failedEmailsLast30: failedEmails.length,
+        },
+        opportunities,
+        reviews,
+        reviewCandidates,
+        setupIssues,
+      });
+    } catch (error) {
+      logError("Error building reviews performance dashboard", error, req.requestId);
+      res.status(500).json({ message: "Failed to build reviews performance dashboard" });
+    }
+  });
+
+  app.post("/api/reviews/request/:bookingId", isAuthenticated, requireRole("admin", "coordinator"), async (req: Request, res: Response) => {
+    try {
+      const booking = await storage.getBooking(req.params.bookingId);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+      if (booking.status !== "completed") {
+        return res.status(400).json({ message: "Review requests are meant for completed tours." });
+      }
+
+      const review = await storage.upsertTourReviewForBooking(booking, {
+        requestedAt: new Date(),
+      });
+      const emailResult = await sendFeedbackRequestEmail(booking, req.session?.userId || null);
+
+      res.json({
+        success: emailResult.success,
+        review,
+        reviewLink: buildFeedbackLink(booking.bookingReference),
+        emailError: emailResult.error,
+      });
+    } catch (error) {
+      logError("Error sending review request", error, req.requestId);
+      res.status(500).json({ message: "Failed to send review request" });
+    }
+  });
+
+  app.patch("/api/reviews/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req: Request, res: Response) => {
+    try {
+      const payload = reviewModerationSchema.parse(req.body);
+      const existing = await storage.getTourReview(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Review not found" });
+      }
+      const nextStatus = payload.status || existing.status;
+      if (nextStatus === "published" && !existing.consentTestimonial) {
+        return res.status(400).json({
+          message: "This visitor did not consent to featuring their feedback as a public testimonial.",
+        });
+      }
+      const review = await storage.updateTourReview(req.params.id, {
+        ...payload,
+        status: nextStatus,
+        responseBy: payload.responseText ? req.session?.userId || undefined : existing.responseBy || undefined,
+        respondedAt: payload.responseText ? new Date() : existing.respondedAt || undefined,
+        publishedAt: nextStatus === "published" && !existing.publishedAt ? new Date() : existing.publishedAt || undefined,
+      });
+      res.json(review);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid review update", errors: error.errors });
+      }
+      logError("Error updating review", error, req.requestId);
+      res.status(500).json({ message: "Failed to update review" });
     }
   });
 
