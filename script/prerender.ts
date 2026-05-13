@@ -54,7 +54,7 @@ async function prerender() {
     const baseUrl = `http://localhost:${port}`;
     const publicDir = join(__dirname, "../dist/public");
 
-    // 2. Fetch dynamic routes (blog posts)
+    // 2. Fetch dynamic routes (blog posts and event detail pages)
     let dynamicRoutes: string[] = [];
     try {
         console.log("Fetching blog posts for pre-rendering...");
@@ -68,6 +68,21 @@ async function prerender() {
         }
     } catch (err) {
         console.warn("Could not fetch blog posts for pre-rendering:", err);
+    }
+
+    try {
+        console.log("Fetching events for pre-rendering...");
+        const response = await fetch(`${baseUrl}/api/community/events`);
+        if (response.ok) {
+            const eventsResponse = await response.json() as { data?: { events?: Array<{ id: string }> } };
+            const eventRoutes = (eventsResponse.data?.events || [])
+                .filter((event) => event.id)
+                .map((event) => `/whats-on/${encodeURIComponent(event.id)}`);
+            dynamicRoutes = [...dynamicRoutes, ...eventRoutes];
+            console.log(`Found ${eventRoutes.length} event pages to pre-render`);
+        }
+    } catch (err) {
+        console.warn("Could not fetch events for pre-rendering:", err);
     }
 
     // Combine static and dynamic routes
@@ -88,26 +103,20 @@ async function prerender() {
             await page.setViewport({ width: 1280, height: 1024 });
 
             console.log(`Crawling ${route}...`);
-            await page.goto(`${baseUrl}/`, {
-                waitUntil: "domcontentloaded",
+            await page.goto(`${baseUrl}${route}`, {
+                waitUntil: "networkidle0",
                 timeout: 45000,
             });
 
             await page.waitForSelector("#root", { timeout: 10000 });
 
-            if (route !== "/") {
-                await page.evaluate((nextRoute) => {
-                    window.history.replaceState(null, "", nextRoute);
-                    window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
-                }, route);
-            }
-
             // Wait for react-helmet to update the head tags
             // This ensures SEO meta tags are properly captured
             await page.waitForFunction(() => {
                 const title = document.querySelector('title');
+                const ogUrl = document.querySelector('meta[property="og:url"]')?.getAttribute("content");
                 // Check if helmet has updated the title (won't be just the default)
-                return title && !title.textContent?.includes('Visit Dzaleka - Cultural Tours & Experiences') ||
+                return (title && !title.textContent?.includes('Visit Dzaleka - Cultural Tours & Experiences') && !!ogUrl) ||
                     // Or if it's the landing page, the default is fine
                     window.location.pathname === '/' || window.location.pathname === '/landing';
             }, { timeout: 5000 }).catch(() => {

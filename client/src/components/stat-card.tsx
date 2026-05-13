@@ -55,17 +55,17 @@ export function StatCard({
       highlight && "border-primary/50 bg-primary/5 ring-1 ring-primary/20",
       className
     )}>
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between gap-4">
+      <CardContent className="p-4 sm:p-6">
+        <div className="flex min-w-0 items-start justify-between gap-3 sm:gap-4">
           <div className="flex min-w-0 flex-col gap-1">
-            <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-muted-foreground">
-              <span className="truncate">{title}</span>
+            <span className="flex min-w-0 items-start gap-2 text-sm font-medium leading-snug text-muted-foreground">
+              <span className="min-w-0 break-words">{title}</span>
               {pulse && (
                 <span className="flex h-2 w-2 shrink-0 rounded-full bg-green-500 motion-safe:animate-pulse" aria-hidden="true" />
               )}
             </span>
             <span className={cn(
-              "break-words text-2xl font-semibold tracking-tight tabular-nums",
+              "max-w-full break-words text-2xl font-semibold tracking-tight tabular-nums",
               highlight && "text-primary"
             )}>
               {displayValue}

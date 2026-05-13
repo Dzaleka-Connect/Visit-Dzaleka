@@ -113,6 +113,7 @@ export default function PlanYourTrip() {
                                 <div className="py-1">
                                     <Link href="/plan-your-trip" className="block px-4 py-2 text-sm hover:bg-muted transition-colors font-medium">Trip Planner</Link>
                                     <Link href="/plan-your-trip/visitor-essentials" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Visitor Essentials</Link>
+                                    <Link href="/plan-your-trip/transport" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Trusted Transport</Link>
                                     <Link href="/plan-your-trip/safe-travel" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Safe Travel</Link>
                                     <Link href="/plan-your-trip/public-holidays" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Public Holidays</Link>
                                     <Link href="/plan-your-trip/dzaleka-map" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Dzaleka Map</Link>
@@ -144,6 +145,7 @@ export default function PlanYourTrip() {
                         <Link href="/life-in-dzaleka" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Life in Dzaleka</Link>
                         <Link href="/plan-your-trip" className="block text-sm font-medium py-1 text-primary" onClick={() => setMobileMenuOpen(false)}>Plan Your Trip</Link>
                         <Link href="/plan-your-trip/visitor-essentials" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Visitor Essentials</Link>
+                        <Link href="/plan-your-trip/transport" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Trusted Transport</Link>
                         <Link href="/plan-your-trip/public-holidays" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Public Holidays</Link>
                         <Link href="/accommodation" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Accommodation</Link>
                         <div className="flex gap-2 pt-2">
@@ -361,6 +363,9 @@ export default function PlanYourTrip() {
                                         <li><strong>Private Taxi:</strong> Recommended. approx. $40-$60 round trip.</li>
                                         <li><strong>Minibus:</strong> Cheap (~$2) but crowded and slow. Departs from Lilongwe Bus Terminal.</li>
                                     </ul>
+                                    <Button asChild variant="outline" size="sm" className="mt-4">
+                                        <Link href="/plan-your-trip/transport">View trusted transport options</Link>
+                                    </Button>
                                 </CardContent>
                             </Card>
                         </div>

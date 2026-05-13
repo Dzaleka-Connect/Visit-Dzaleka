@@ -1,6 +1,7 @@
 import { sql, relations } from "drizzle-orm";
 import {
   index,
+  uniqueIndex,
   jsonb,
   pgTable,
   timestamp,
@@ -59,6 +60,28 @@ export const userRoleEnum = pgEnum("user_role", [
   "guide",
   "security",
   "visitor",
+  "transport_partner",
+]);
+
+export const transportRequestStatusEnum = pgEnum("transport_request_status", [
+  "pending",
+  "sent_to_partner",
+  "quote_sent",
+  "accepted",
+  "visitor_approved",
+  "visitor_declined",
+  "confirmed",
+  "reschedule_requested",
+  "completed",
+  "cancelled",
+]);
+
+export const partnerReferralStatusEnum = pgEnum("partner_referral_status", [
+  "submitted",
+  "contacted",
+  "booked",
+  "completed",
+  "cancelled",
 ]);
 
 export const incidentSeverityEnum = pgEnum("incident_severity", [
@@ -335,6 +358,214 @@ export const bookings = pgTable("bookings", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+export const transportPartners = pgTable(
+  "transport_partners",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    userId: varchar("user_id").references(() => users.id),
+    companyName: varchar("company_name").notNull(),
+    contactName: varchar("contact_name"),
+    email: varchar("email").notNull(),
+    phone: varchar("phone"),
+    whatsapp: varchar("whatsapp"),
+    baseLocation: varchar("base_location"),
+    preferredContactMethod: varchar("preferred_contact_method").default("whatsapp"),
+    paymentTerms: text("payment_terms"),
+    publicNotes: text("public_notes"),
+    internalNotes: text("internal_notes"),
+    defaultCurrency: varchar("default_currency").default("MWK"),
+    pricingNotes: text("pricing_notes"),
+    serviceAreas: text("service_areas").array().default(sql`ARRAY[]::text[]`),
+    status: varchar("status").default("active"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("IDX_transport_partners_user").on(table.userId),
+    index("IDX_transport_partners_email").on(table.email),
+  ]
+);
+
+export const transportRequests = pgTable(
+  "transport_requests",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    bookingId: varchar("booking_id").references(() => bookings.id),
+    partnerId: varchar("partner_id").references(() => transportPartners.id),
+    visitorName: varchar("visitor_name").notNull(),
+    visitorEmail: varchar("visitor_email").notNull(),
+    visitorPhone: varchar("visitor_phone"),
+    visitDate: date("visit_date"),
+    visitTime: time("visit_time"),
+    route: varchar("route").notNull(),
+    pickupLocation: text("pickup_location"),
+    notes: text("notes"),
+    status: transportRequestStatusEnum("status").default("pending"),
+    quotedAmount: integer("quoted_amount"),
+    currency: varchar("currency").default("MWK"),
+    quoteApprovalToken: varchar("quote_approval_token"),
+    quoteSentAt: timestamp("quote_sent_at"),
+    quoteDecision: varchar("quote_decision"),
+    quoteDecisionAt: timestamp("quote_decision_at"),
+    quoteDecisionNotes: text("quote_decision_notes"),
+    estimatedPickupTime: time("estimated_pickup_time"),
+    requestedPickupTime: time("requested_pickup_time"),
+    requestedVisitDate: date("requested_visit_date"),
+    rescheduleNotes: text("reschedule_notes"),
+    driverName: varchar("driver_name"),
+    driverPhone: varchar("driver_phone"),
+    driverId: varchar("driver_id"),
+    vehicleId: varchar("vehicle_id"),
+    vehicleDetails: text("vehicle_details"),
+    partnerNotes: text("partner_notes"),
+    adminNotes: text("admin_notes"),
+    cancellationReason: text("cancellation_reason"),
+    cancellationRequestedBy: varchar("cancellation_requested_by"),
+    cancelledAt: timestamp("cancelled_at"),
+    assignedByUserId: varchar("assigned_by_user_id").references(() => users.id),
+    assignedAt: timestamp("assigned_at"),
+    partnerRespondedAt: timestamp("partner_responded_at"),
+    createdByUserId: varchar("created_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("IDX_transport_requests_partner").on(table.partnerId),
+    index("IDX_transport_requests_booking").on(table.bookingId),
+    index("IDX_transport_requests_status").on(table.status),
+    index("IDX_transport_requests_quote_token").on(table.quoteApprovalToken),
+  ]
+);
+
+export const transportPartnerPricing = pgTable(
+  "transport_partner_pricing",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    partnerId: varchar("partner_id").notNull().references(() => transportPartners.id),
+    route: varchar("route").notNull(),
+    label: varchar("label").notNull(),
+    basePrice: integer("base_price").notNull(),
+    currency: varchar("currency").default("MWK"),
+    pricingType: varchar("pricing_type").default("per_trip"),
+    priceIncludes: text("price_includes"),
+    notes: text("notes"),
+    status: varchar("status").default("active"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("IDX_transport_partner_pricing_partner").on(table.partnerId),
+    index("IDX_transport_partner_pricing_route").on(table.route),
+    index("IDX_transport_partner_pricing_status").on(table.status),
+  ]
+);
+
+export const transportPartnerDrivers = pgTable(
+  "transport_partner_drivers",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    partnerId: varchar("partner_id").notNull().references(() => transportPartners.id),
+    name: varchar("name").notNull(),
+    phone: varchar("phone"),
+    email: varchar("email"),
+    licenseNumber: varchar("license_number"),
+    status: varchar("status").default("active"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("IDX_transport_partner_drivers_partner").on(table.partnerId),
+    index("IDX_transport_partner_drivers_status").on(table.status),
+  ]
+);
+
+export const transportPartnerVehicles = pgTable(
+  "transport_partner_vehicles",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    partnerId: varchar("partner_id").notNull().references(() => transportPartners.id),
+    label: varchar("label").notNull(),
+    vehicleType: varchar("vehicle_type"),
+    plateNumber: varchar("plate_number"),
+    capacity: integer("capacity"),
+    color: varchar("color"),
+    status: varchar("status").default("active"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("IDX_transport_partner_vehicles_partner").on(table.partnerId),
+    index("IDX_transport_partner_vehicles_status").on(table.status),
+  ]
+);
+
+export const transportPartnerBlackouts = pgTable(
+  "transport_partner_blackouts",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    partnerId: varchar("partner_id").notNull().references(() => transportPartners.id),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    reason: text("reason"),
+    status: varchar("status").default("active"),
+    createdByUserId: varchar("created_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("IDX_transport_partner_blackouts_partner").on(table.partnerId),
+    index("IDX_transport_partner_blackouts_dates").on(table.startDate, table.endDate),
+  ]
+);
+
+export const transportRequestActivity = pgTable(
+  "transport_request_activity",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    requestId: varchar("request_id").notNull().references(() => transportRequests.id),
+    actorUserId: varchar("actor_user_id").references(() => users.id),
+    actorRole: varchar("actor_role"),
+    action: varchar("action").notNull(),
+    oldStatus: varchar("old_status"),
+    newStatus: varchar("new_status"),
+    details: jsonb("details").default({}),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("IDX_transport_request_activity_request").on(table.requestId),
+    index("IDX_transport_request_activity_created").on(table.createdAt),
+  ]
+);
+
+export const partnerTourReferrals = pgTable(
+  "partner_tour_referrals",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    partnerId: varchar("partner_id").notNull().references(() => transportPartners.id),
+    bookingId: varchar("booking_id").references(() => bookings.id),
+    visitorName: varchar("visitor_name").notNull(),
+    visitorEmail: varchar("visitor_email").notNull(),
+    visitorPhone: varchar("visitor_phone"),
+    visitDate: date("visit_date").notNull(),
+    visitTime: time("visit_time").notNull(),
+    groupSize: groupSizeEnum("group_size").notNull(),
+    numberOfPeople: integer("number_of_people").default(1),
+    tourType: tourTypeEnum("tour_type").notNull(),
+    notes: text("notes"),
+    status: partnerReferralStatusEnum("status").default("submitted"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("IDX_partner_tour_referrals_partner").on(table.partnerId),
+    index("IDX_partner_tour_referrals_booking").on(table.bookingId),
+    index("IDX_partner_tour_referrals_status").on(table.status),
+  ]
+);
 
 // Tour Reviews table for verified post-visit feedback
 export const tourReviews = pgTable("tour_reviews", {
@@ -797,6 +1028,53 @@ export const insertBookingSchema = createInsertSchema(bookings).omit({
   updatedAt: true,
 });
 
+export const insertTransportPartnerSchema = createInsertSchema(transportPartners).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTransportRequestSchema = createInsertSchema(transportRequests).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTransportPartnerDriverSchema = createInsertSchema(transportPartnerDrivers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTransportPartnerVehicleSchema = createInsertSchema(transportPartnerVehicles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTransportPartnerBlackoutSchema = createInsertSchema(transportPartnerBlackouts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTransportPartnerPricingSchema = createInsertSchema(transportPartnerPricing).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTransportRequestActivitySchema = createInsertSchema(transportRequestActivity).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPartnerTourReferralSchema = createInsertSchema(partnerTourReferrals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertTourReviewSchema = createInsertSchema(tourReviews).omit({
   id: true,
   createdAt: true,
@@ -914,6 +1192,30 @@ export type SpecialOffer = typeof specialOffers.$inferSelect;
 export type InsertBooking = z.infer<typeof insertBookingSchema>;
 export type Booking = typeof bookings.$inferSelect;
 
+export type InsertTransportPartner = z.infer<typeof insertTransportPartnerSchema>;
+export type TransportPartner = typeof transportPartners.$inferSelect;
+
+export type InsertTransportRequest = z.infer<typeof insertTransportRequestSchema>;
+export type TransportRequest = typeof transportRequests.$inferSelect;
+
+export type InsertTransportPartnerDriver = z.infer<typeof insertTransportPartnerDriverSchema>;
+export type TransportPartnerDriver = typeof transportPartnerDrivers.$inferSelect;
+
+export type InsertTransportPartnerVehicle = z.infer<typeof insertTransportPartnerVehicleSchema>;
+export type TransportPartnerVehicle = typeof transportPartnerVehicles.$inferSelect;
+
+export type InsertTransportPartnerBlackout = z.infer<typeof insertTransportPartnerBlackoutSchema>;
+export type TransportPartnerBlackout = typeof transportPartnerBlackouts.$inferSelect;
+
+export type InsertTransportPartnerPricing = z.infer<typeof insertTransportPartnerPricingSchema>;
+export type TransportPartnerPricing = typeof transportPartnerPricing.$inferSelect;
+
+export type InsertTransportRequestActivity = z.infer<typeof insertTransportRequestActivitySchema>;
+export type TransportRequestActivity = typeof transportRequestActivity.$inferSelect;
+
+export type InsertPartnerTourReferral = z.infer<typeof insertPartnerTourReferralSchema>;
+export type PartnerTourReferral = typeof partnerTourReferrals.$inferSelect;
+
 export type InsertTourReview = z.infer<typeof insertTourReviewSchema>;
 export type TourReview = typeof tourReviews.$inferSelect;
 
@@ -958,7 +1260,19 @@ export type GroupSize = "individual" | "small_group" | "large_group" | "custom";
 export type TourType = "standard" | "extended" | "custom";
 export type PaymentMethod = "airtel_money" | "tnm_mpamba" | "cash";
 export type PaymentStatus = "pending" | "paid" | "refunded";
-export type UserRole = "admin" | "coordinator" | "guide" | "security" | "visitor";
+export type UserRole = "admin" | "coordinator" | "guide" | "security" | "visitor" | "transport_partner";
+export type TransportRequestStatus =
+  | "pending"
+  | "sent_to_partner"
+  | "quote_sent"
+  | "accepted"
+  | "visitor_approved"
+  | "visitor_declined"
+  | "confirmed"
+  | "reschedule_requested"
+  | "completed"
+  | "cancelled";
+export type PartnerReferralStatus = "submitted" | "contacted" | "booked" | "completed" | "cancelled";
 export type IncidentSeverity = "low" | "medium" | "high" | "critical";
 export type IncidentStatus = "reported" | "investigating" | "resolved" | "closed";
 export type AuditAction = "create" | "update" | "delete" | "login" | "logout" | "check_in" | "check_out" | "verify";

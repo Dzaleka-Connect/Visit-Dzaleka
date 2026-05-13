@@ -5,7 +5,7 @@ import { Redirect, Route } from "wouter";
 type ProtectedRouteProps = {
     path: string;
     component: React.ComponentType<any>;
-    allowedRoles?: ("admin" | "coordinator" | "guide" | "security" | "visitor")[];
+    allowedRoles?: ("admin" | "coordinator" | "guide" | "security" | "visitor" | "transport_partner")[];
 };
 
 export function ProtectedRoute({

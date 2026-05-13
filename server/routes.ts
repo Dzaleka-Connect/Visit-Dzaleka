@@ -25,6 +25,10 @@ import {
   type SupportTicket,
   type User,
   type Incident,
+  type Notification as AppNotification,
+  type TransportRequestStatus,
+  type PartnerReferralStatus,
+  type PartnerTourReferral,
 } from "@shared/schema";
 import { generateIcalFeed, parseIcalFeed } from "./lib/ical";
 import { z } from "zod";
@@ -37,6 +41,8 @@ import {
   sendCheckInNotificationDetailed,
   sendPasswordResetDetailed,
   sendInvitationEmailDetailed,
+  sendPartnerReferralBookingEmailDetailed,
+  sendTransportDriverDetailsEmailDetailed,
   sendItineraryEmailDetailed,
   sendBookingReminderEmailDetailed
 } from "./email";
@@ -65,6 +71,116 @@ const PUBLIC_APP_URL = (process.env.APP_URL || "https://visit.dzaleka.com").repl
 
 const buildFeedbackLink = (bookingReference: string) =>
   `${PUBLIC_APP_URL}/visit/feedback?booking=${encodeURIComponent(bookingReference)}`;
+
+const INTERNAL_NOTIFICATION_LINK_PREFIXES = [
+  "/admin",
+  "/analytics",
+  "/audit-logs",
+  "/bookings",
+  "/calendar",
+  "/cms",
+  "/dashboard",
+  "/developer-settings",
+  "/email-history",
+  "/email-settings",
+  "/getyourguide",
+  "/guide-certificates",
+  "/guide-performance",
+  "/guides",
+  "/help-admin",
+  "/live-ops",
+  "/operations-manual",
+  "/payments",
+  "/recurring-bookings",
+  "/reports",
+  "/revenue",
+  "/security",
+  "/security-admin",
+  "/settings",
+  "/task-admin",
+  "/training-admin",
+  "/users",
+  "/zones",
+];
+
+const GUIDE_NOTIFICATION_LINK_PREFIXES = [
+  "/calendar",
+  "/guide-training",
+  "/my-availability",
+  "/my-earnings",
+  "/my-tours",
+  "/support",
+  "/tasks",
+];
+
+const SECURITY_NOTIFICATION_LINK_PREFIXES = [
+  "/security",
+  "/security-admin",
+  "/live-ops",
+  "/support",
+];
+
+const INTERNAL_NOTIFICATION_TYPES = new Set([
+  "booking_created",
+  "check_in",
+  "check_out",
+  "incident_reported",
+  "payment_received",
+]);
+
+const GUIDE_NOTIFICATION_TYPES = new Set([
+  "booking_cancelled",
+  "booking_completed",
+  "guide_assigned",
+  "system",
+]);
+
+const VISITOR_NOTIFICATION_TYPES = new Set([
+  "booking_cancelled",
+  "booking_completed",
+  "booking_confirmed",
+  "payment_verified",
+  "system",
+]);
+
+function notificationPath(link: string | null | undefined): string {
+  if (!link) return "";
+
+  try {
+    return new URL(link, PUBLIC_APP_URL).pathname;
+  } catch {
+    return link.split("?")[0].split("#")[0];
+  }
+}
+
+function matchesPathPrefix(path: string, prefixes: string[]): boolean {
+  return prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
+
+function isNotificationVisibleToRole(notification: AppNotification, role: UserRole | null | undefined): boolean {
+  const notificationType = notification.type;
+  const path = notificationPath(notification.link);
+
+  if (role === "admin" || role === "coordinator") {
+    return true;
+  }
+
+  if (role === "security") {
+    if (matchesPathPrefix(path, SECURITY_NOTIFICATION_LINK_PREFIXES)) return true;
+    return notificationType === "incident_reported" || notificationType === "system";
+  }
+
+  if (role === "guide") {
+    if (!GUIDE_NOTIFICATION_TYPES.has(notificationType)) return false;
+    if (!path) return true;
+    return !matchesPathPrefix(path, INTERNAL_NOTIFICATION_LINK_PREFIXES) ||
+      matchesPathPrefix(path, GUIDE_NOTIFICATION_LINK_PREFIXES);
+  }
+
+  if (!VISITOR_NOTIFICATION_TYPES.has(notificationType)) return false;
+  if (INTERNAL_NOTIFICATION_TYPES.has(notificationType)) return false;
+  return !matchesPathPrefix(path, INTERNAL_NOTIFICATION_LINK_PREFIXES);
+}
 
 const publicReviewSchema = z.object({
   bookingReference: z.string().min(1),
@@ -1043,6 +1159,159 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+const VALID_USER_ROLES: UserRole[] = ["admin", "coordinator", "guide", "security", "visitor", "transport_partner"];
+
+const transportRequestPayloadSchema = z.object({
+  transportRequested: z.boolean().optional(),
+  transportRoute: z.string().trim().max(120).optional(),
+  transportPartnerId: z.string().trim().max(120).optional(),
+  transportPickup: z.string().trim().max(1000).optional(),
+  transportNotes: z.string().trim().max(3000).optional(),
+});
+
+const transportPartnerPayloadSchema = z.object({
+  companyName: z.string().trim().min(2, "Company name is required").max(180),
+  contactName: z.string().trim().max(160).optional().nullable(),
+  email: z.string().trim().email("Valid email is required"),
+  phone: z.string().trim().max(80).optional().nullable(),
+  whatsapp: z.string().trim().max(80).optional().nullable(),
+  baseLocation: z.string().trim().max(160).optional().nullable(),
+  preferredContactMethod: z.enum(["email", "phone", "whatsapp"]).default("whatsapp"),
+  serviceAreas: z.array(z.string().trim().min(1).max(80)).default([]),
+  paymentTerms: z.string().trim().max(3000).optional().nullable(),
+  publicNotes: z.string().trim().max(3000).optional().nullable(),
+  internalNotes: z.string().trim().max(3000).optional().nullable(),
+  defaultCurrency: z.string().trim().max(8).default("MWK"),
+  pricingNotes: z.string().trim().max(3000).optional().nullable(),
+  status: z.enum(["active", "paused", "inactive"]).default("active"),
+  notes: z.string().trim().max(3000).optional().nullable(),
+});
+
+const transportPartnerSelfUpdateSchema = transportPartnerPayloadSchema
+  .pick({
+    companyName: true,
+    contactName: true,
+    phone: true,
+    whatsapp: true,
+    baseLocation: true,
+    preferredContactMethod: true,
+    serviceAreas: true,
+    publicNotes: true,
+    notes: true,
+  })
+  .partial();
+
+const transportRequestUpdateSchema = z.object({
+  partnerId: z.string().trim().max(120).nullable().optional(),
+  route: z.string().trim().max(120).optional(),
+  pickupLocation: z.string().trim().max(1000).nullable().optional(),
+  notes: z.string().trim().max(3000).nullable().optional(),
+  status: z.enum(["pending", "sent_to_partner", "quote_sent", "accepted", "visitor_approved", "visitor_declined", "confirmed", "reschedule_requested", "completed", "cancelled"]).optional(),
+  quotedAmount: z.coerce.number().int().min(0).max(100000000).nullable().optional(),
+  currency: z.string().trim().max(8).optional(),
+  estimatedPickupTime: z.string().regex(/^\d{2}:\d{2}$/, "Pickup time must use HH:mm").nullable().optional(),
+  requestedPickupTime: z.string().regex(/^\d{2}:\d{2}$/, "Pickup time must use HH:mm").nullable().optional(),
+  requestedVisitDate: z.string().nullable().optional(),
+  rescheduleNotes: z.string().trim().max(3000).nullable().optional(),
+  driverId: z.string().trim().max(120).nullable().optional(),
+  vehicleId: z.string().trim().max(120).nullable().optional(),
+  driverName: z.string().trim().max(160).nullable().optional(),
+  driverPhone: z.string().trim().max(80).nullable().optional(),
+  vehicleDetails: z.string().trim().max(1000).nullable().optional(),
+  partnerNotes: z.string().trim().max(3000).nullable().optional(),
+  adminNotes: z.string().trim().max(3000).nullable().optional(),
+  cancellationReason: z.string().trim().max(3000).nullable().optional(),
+});
+
+const transportPartnerPricingSchema = z.object({
+  partnerId: z.string().trim().max(120).optional(),
+  route: z.string().trim().min(1, "Route is required").max(120),
+  label: z.string().trim().min(1, "Label is required").max(160),
+  basePrice: z.coerce.number().int().min(0).max(100000000),
+  currency: z.string().trim().max(8).default("MWK"),
+  pricingType: z.enum(["per_trip", "per_person", "per_day", "custom"]).default("per_trip"),
+  priceIncludes: z.string().trim().max(2000).optional().nullable(),
+  notes: z.string().trim().max(2000).optional().nullable(),
+  status: z.enum(["active", "inactive"]).default("active"),
+});
+
+const legacyTransportRouteIds: Record<string, string> = {
+  lilongwe_dzaleka: "lilongwe-dzaleka",
+  airport_dzaleka: "airport-dzaleka",
+  lilongwe_dzaleka_lake_malawi: "lilongwe-dzaleka-lake-malawi",
+  custom: "custom-route",
+  custom_route: "custom-route",
+};
+
+function normalizeTransportRouteId(route: string | null | undefined) {
+  const routeId = (route || "").trim();
+  return legacyTransportRouteIds[routeId] || routeId;
+}
+
+const transportRosterDriverSchema = z.object({
+  partnerId: z.string().trim().max(120).optional(),
+  name: z.string().trim().min(1, "Driver name is required").max(160),
+  phone: z.string().trim().max(80).optional().nullable(),
+  email: z.string().trim().email().optional().nullable().or(z.literal("")),
+  licenseNumber: z.string().trim().max(120).optional().nullable(),
+  status: z.enum(["active", "inactive"]).default("active"),
+  notes: z.string().trim().max(2000).optional().nullable(),
+});
+
+const transportRosterVehicleSchema = z.object({
+  partnerId: z.string().trim().max(120).optional(),
+  label: z.string().trim().min(1, "Vehicle label is required").max(160),
+  vehicleType: z.string().trim().max(120).optional().nullable(),
+  plateNumber: z.string().trim().max(80).optional().nullable(),
+  capacity: z.coerce.number().int().min(1).max(100).optional().nullable(),
+  color: z.string().trim().max(80).optional().nullable(),
+  status: z.enum(["active", "inactive"]).default("active"),
+  notes: z.string().trim().max(2000).optional().nullable(),
+});
+
+const transportBlackoutBaseSchema = z.object({
+  partnerId: z.string().trim().max(120).optional(),
+  startDate: z.string().min(1, "Start date is required"),
+  endDate: z.string().min(1, "End date is required"),
+  reason: z.string().trim().max(2000).optional().nullable(),
+  status: z.enum(["active", "cancelled"]).default("active"),
+});
+
+const transportBlackoutSchema = transportBlackoutBaseSchema.superRefine((data, ctx) => {
+  if (new Date(data.endDate) < new Date(data.startDate)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["endDate"],
+      message: "End date must be on or after start date",
+    });
+  }
+});
+
+const quoteDecisionSchema = z.object({
+  decision: z.enum(["approved", "declined"]),
+  notes: z.string().trim().max(2000).optional().nullable(),
+});
+
+const partnerReferralSchema = z.object({
+  visitorName: z.string().trim().min(1, "Visitor name is required").max(160),
+  visitorEmail: z.string().trim().email("Valid email is required"),
+  visitorPhone: z.string().trim().max(80).optional().default(""),
+  visitDate: z.string().min(1, "Visit date is required"),
+  visitTime: z.string().regex(/^\d{2}:\d{2}$/, "Visit time must use HH:mm"),
+  groupSize: z.enum(["individual", "small_group", "large_group", "custom"]).default("individual"),
+  numberOfPeople: z.coerce.number().int().min(1).max(500).default(1),
+  tourType: z.enum(["standard", "extended", "custom"]).default("standard"),
+  notes: z.string().trim().max(3000).optional().default(""),
+});
+
+const partnerReferralStatusSchema = z.object({
+  status: z.enum(["submitted", "contacted", "booked", "completed", "cancelled"]),
+});
+
+const partnerReferralUpdateSchema = z.object({
+  status: z.enum(["submitted", "contacted", "booked", "completed", "cancelled"]).optional(),
+});
+
 // Session-based authentication middleware
 function isAuthenticated(req: Request, res: Response, next: NextFunction) {
   if (req.session?.userId) {
@@ -1249,6 +1518,67 @@ async function userCanAccessBooking(userId: string, booking: Booking): Promise<b
   }
 
   return false;
+}
+
+async function getCurrentTransportPartner(user: User) {
+  let partner = await storage.getTransportPartnerByUserId(user.id);
+  if (partner) return partner;
+
+  partner = await storage.getTransportPartnerByEmail(user.email);
+  if (partner) {
+    return (await storage.updateTransportPartner(partner.id, { userId: user.id })) || partner;
+  }
+
+  return storage.createTransportPartner({
+    userId: user.id,
+    companyName: `${user.firstName || "Transport"} ${user.lastName || "Partner"}`.trim(),
+    contactName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email,
+    email: user.email,
+    phone: user.phone || null,
+    whatsapp: user.phone || null,
+    serviceAreas: [],
+    status: "active",
+    notes: "Created automatically from transport partner login.",
+  });
+}
+
+async function resolveTransportPartnerScope(user: User, requestedPartnerId?: string | null) {
+  if (user.role === "transport_partner") {
+    return getCurrentTransportPartner(user);
+  }
+
+  if (requestedPartnerId) {
+    return storage.getTransportPartner(requestedPartnerId);
+  }
+
+  return null;
+}
+
+async function ensureVisitorInvite(email: string, invitedBy?: string | null) {
+  const existingInvite = await storage.getInviteByEmail(email);
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  if (existingInvite) {
+    const isExpired = new Date(existingInvite.expiresAt) <= new Date();
+    if (!isExpired) {
+      return { invite: existingInvite, mode: "existing_invite" as const };
+    }
+
+    await storage.deleteInvite(existingInvite.id);
+  }
+
+  const invite = await storage.createInvite({
+    email,
+    role: "visitor",
+    inviteToken: crypto.randomBytes(32).toString("hex"),
+    invitedBy: invitedBy || undefined,
+    expiresAt,
+  });
+
+  return {
+    invite,
+    mode: existingInvite ? "renewed_invite" as const : "new_invite" as const,
+  };
 }
 
 type GygPricingMode = "individual" | "group";
@@ -2070,7 +2400,161 @@ async function getChatRoomForParticipant(roomId: string, userId: string) {
     return { status: 403 as const, message: "You are not a participant of this chat" };
   }
 
+  const canAccessRoom = await canUserAccessChatParticipants(userId, participants);
+  if (!canAccessRoom) {
+    return { status: 403 as const, message: "You do not have access to this chat" };
+  }
+
   return { status: 200 as const, room, participants };
+}
+
+function normalizedEmail(email?: string | null): string {
+  return (email || "").trim().toLowerCase();
+}
+
+async function getTransportPartnerForUser(user: User) {
+  const byUserId = await storage.getTransportPartnerByUserId(user.id);
+  if (byUserId) return byUserId;
+  const email = normalizedEmail(user.email);
+  return email ? await storage.getTransportPartnerByEmail(email) : undefined;
+}
+
+async function getTransportPartnerLinkedVisitorEmails(partnerId: string): Promise<Set<string>> {
+  const [requests, referrals, bookings] = await Promise.all([
+    storage.getTransportRequests(partnerId),
+    storage.getPartnerTourReferrals(partnerId),
+    storage.getBookings(),
+  ]);
+
+  const emails = new Set<string>();
+  for (const request of requests) {
+    const email = normalizedEmail(request.visitorEmail);
+    if (email) emails.add(email);
+  }
+  for (const referral of referrals) {
+    const email = normalizedEmail(referral.visitorEmail);
+    if (email) emails.add(email);
+  }
+  for (const booking of bookings) {
+    if (booking.referralSource === partnerId) {
+      const email = normalizedEmail(booking.visitorEmail);
+      if (email) emails.add(email);
+    }
+  }
+  return emails;
+}
+
+async function isVisitorLinkedToTransportPartner(visitor: User, partnerId: string): Promise<boolean> {
+  const visitorEmail = normalizedEmail(visitor.email);
+  if (!visitorEmail) return false;
+  const linkedEmails = await getTransportPartnerLinkedVisitorEmails(partnerId);
+  return linkedEmails.has(visitorEmail);
+}
+
+async function getVisitorAssignedGuideUserIds(visitor: User): Promise<Set<string>> {
+  const visitorEmail = normalizedEmail(visitor.email);
+  const allBookings = await storage.getBookings();
+  const guideProfileIds = Array.from(new Set(
+    allBookings
+      .filter((booking) => booking.visitorUserId === visitor.id || normalizedEmail(booking.visitorEmail) === visitorEmail)
+      .map((booking) => booking.assignedGuideId)
+      .filter(Boolean) as string[]
+  ));
+
+  const guides = await Promise.all(guideProfileIds.map((guideId) => storage.getGuide(guideId)));
+  return new Set(
+    guides
+      .map((guide) => guide?.userId)
+      .filter(Boolean) as string[]
+  );
+}
+
+async function canUsersStartDirectChat(currentUser: User, otherUser: User): Promise<boolean> {
+  if (currentUser.id === otherUser.id) return false;
+
+  if (currentUser.role === "admin" || currentUser.role === "coordinator") {
+    return true;
+  }
+
+  if (currentUser.role === "transport_partner") {
+    if (otherUser.role === "admin" || otherUser.role === "coordinator") {
+      return true;
+    }
+    if (otherUser.role !== "visitor") {
+      return false;
+    }
+    const partner = await getTransportPartnerForUser(currentUser);
+    return partner ? await isVisitorLinkedToTransportPartner(otherUser, partner.id) : false;
+  }
+
+  if (currentUser.role === "visitor") {
+    if (otherUser.role === "admin" || otherUser.role === "coordinator") {
+      return true;
+    }
+    if (otherUser.role === "guide") {
+      const assignedGuideUserIds = await getVisitorAssignedGuideUserIds(currentUser);
+      return assignedGuideUserIds.has(otherUser.id);
+    }
+    if (otherUser.role === "transport_partner") {
+      const partner = await getTransportPartnerForUser(otherUser);
+      return partner ? await isVisitorLinkedToTransportPartner(currentUser, partner.id) : false;
+    }
+    return false;
+  }
+
+  return true;
+}
+
+async function canUserAccessChatParticipants(userId: string, participants: Array<{ userId?: string | null; user_id?: string | null }>): Promise<boolean> {
+  const currentUser = await storage.getUser(userId);
+  if (!currentUser) return false;
+
+  const otherParticipantIds = participants
+    .map((participant) => participant.userId || participant.user_id)
+    .filter((participantUserId): participantUserId is string => Boolean(participantUserId && participantUserId !== userId));
+
+  for (const participantUserId of otherParticipantIds) {
+    const otherUser = await storage.getUser(participantUserId);
+    if (!otherUser || !(await canUsersStartDirectChat(currentUser, otherUser))) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+async function filterChatRoomsForUser(userId: string, rooms: any[]) {
+  const allowedRooms = [];
+  for (const room of rooms) {
+    const participants = room.chatParticipants || room.chat_participants || await storage.getChatParticipants(room.id);
+    if (await canUserAccessChatParticipants(userId, participants)) {
+      allowedRooms.push(room);
+    }
+  }
+  return allowedRooms;
+}
+
+async function logTransportRequestActivity(
+  requestId: string,
+  action: string,
+  actor: User | null,
+  details: Record<string, any> = {},
+  oldStatus?: string | null,
+  newStatus?: string | null
+) {
+  try {
+    await storage.createTransportRequestActivity({
+      requestId,
+      action,
+      actorUserId: actor?.id || null,
+      actorRole: actor?.role || null,
+      oldStatus: oldStatus || null,
+      newStatus: newStatus || null,
+      details,
+    });
+  } catch (error) {
+    logError("Failed to create transport request activity", error);
+  }
 }
 
 export async function registerRoutes(
@@ -2483,7 +2967,7 @@ export async function registerRoutes(
 
       // Hash password and create user
       const hashedPassword = await hashPassword(password);
-      const validRole = ["admin", "coordinator", "guide", "security", "visitor"].includes(role) ? role : "visitor";
+      const validRole = VALID_USER_ROLES.includes(role) ? role : "visitor";
       const user = await storage.createUser(email, hashedPassword, firstName, lastName, validRole);
 
       // Audit log
@@ -3797,6 +4281,7 @@ export async function registerRoutes(
 
   app.post("/api/bookings", async (req, res) => {
     try {
+      const transportPayload = transportRequestPayloadSchema.parse(req.body);
       const bookingData = insertBookingSchema.parse(req.body);
       const baseTotalAmount = await calculateTotalAmount(
         bookingData.groupSize,
@@ -3830,6 +4315,29 @@ export async function registerRoutes(
 
       if (specialOffer) {
         await storage.incrementSpecialOfferUsage(specialOffer.id, bookingData.numberOfPeople || 1);
+      }
+
+      if (transportPayload.transportRequested) {
+        let partnerId: string | null = null;
+        if (transportPayload.transportPartnerId) {
+          const partner = await storage.getTransportPartner(transportPayload.transportPartnerId);
+          partnerId = partner?.id || null;
+        }
+
+        await storage.createTransportRequest({
+          bookingId: booking.id,
+          partnerId,
+          visitorName: booking.visitorName,
+          visitorEmail: booking.visitorEmail,
+          visitorPhone: booking.visitorPhone,
+          visitDate: booking.visitDate,
+          visitTime: booking.visitTime,
+          route: transportPayload.transportRoute || "lilongwe-dzaleka",
+          pickupLocation: transportPayload.transportPickup || null,
+          notes: transportPayload.transportNotes || null,
+          status: partnerId ? "sent_to_partner" : "pending",
+          createdByUserId: req.session?.userId || null,
+        });
       }
 
       // Send confirmation email
@@ -3888,6 +4396,983 @@ export async function registerRoutes(
         logError("Error creating booking", error, req.requestId);
         res.status(500).json({ message: "Failed to create booking" });
       }
+    }
+  });
+
+  app.get("/api/transport-partner/me", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      if (user.role === "admin" || user.role === "coordinator") {
+        const partners = await storage.getTransportPartners();
+        return res.json({ user, partner: null, partners });
+      }
+
+      const partner = await getCurrentTransportPartner(user);
+      res.json({ user, partner });
+    } catch (error) {
+      logError("Error fetching transport partner profile", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch transport partner profile" });
+    }
+  });
+
+  app.get("/api/public/transport-partners", async (_req, res) => {
+    try {
+      const partners = await storage.getTransportPartners();
+      res.json(partners
+        .filter((partner) => partner.status === "active")
+        .map((partner) => ({
+          id: partner.id,
+          companyName: partner.companyName,
+          contactName: partner.contactName,
+          serviceAreas: partner.serviceAreas || [],
+          publicNotes: partner.publicNotes || partner.notes || null,
+          baseLocation: partner.baseLocation || null,
+        })));
+    } catch (error) {
+      logError("Error fetching public transport partners", error);
+      res.status(500).json({ message: "Failed to fetch transport partners" });
+    }
+  });
+
+  app.get("/api/public/transport-quotes/:token", async (req, res) => {
+    try {
+      const request = await storage.getTransportRequestByQuoteToken(req.params.token);
+      if (!request) {
+        return res.status(404).json({ message: "Transport quote not found" });
+      }
+      const partner = request.partnerId ? await storage.getTransportPartner(request.partnerId) : undefined;
+      const booking = request.bookingId ? await storage.getBooking(request.bookingId) : undefined;
+
+      res.json({
+        id: request.id,
+        visitorName: request.visitorName,
+        visitorEmail: request.visitorEmail,
+        bookingReference: booking?.bookingReference || null,
+        partnerName: partner?.companyName || "Transport partner",
+        partnerPhone: partner?.phone || null,
+        partnerWhatsapp: partner?.whatsapp || null,
+        route: request.route,
+        pickupLocation: request.pickupLocation,
+        visitDate: request.visitDate,
+        visitTime: request.visitTime,
+        quotedAmount: request.quotedAmount,
+        currency: request.currency,
+        estimatedPickupTime: request.estimatedPickupTime,
+        driverName: request.driverName,
+        driverPhone: request.driverPhone,
+        vehicleDetails: request.vehicleDetails,
+        partnerNotes: request.partnerNotes,
+        status: request.status,
+        quoteDecision: request.quoteDecision,
+        quoteDecisionAt: request.quoteDecisionAt,
+      });
+    } catch (error) {
+      logError("Error fetching public transport quote", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch transport quote" });
+    }
+  });
+
+  app.post("/api/public/transport-quotes/:token/decision", async (req, res) => {
+    try {
+      const payload = quoteDecisionSchema.parse(req.body);
+      const request = await storage.getTransportRequestByQuoteToken(req.params.token);
+      if (!request) {
+        return res.status(404).json({ message: "Transport quote not found" });
+      }
+      if (request.status === "cancelled" || request.status === "completed") {
+        return res.status(409).json({ message: "This transport quote can no longer be changed" });
+      }
+
+      const newStatus = payload.decision === "approved" ? "visitor_approved" : "visitor_declined";
+      const updated = await storage.updateTransportRequest(request.id, {
+        status: newStatus as TransportRequestStatus,
+        quoteDecision: payload.decision,
+        quoteDecisionAt: new Date() as any,
+        quoteDecisionNotes: payload.notes || null,
+      });
+
+      await logTransportRequestActivity(
+        request.id,
+        payload.decision === "approved" ? "visitor_approved_quote" : "visitor_declined_quote",
+        null,
+        { notes: payload.notes || null },
+        request.status,
+        newStatus
+      );
+
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid quote decision", errors: error.errors });
+      }
+      logError("Error saving transport quote decision", error, req.requestId);
+      res.status(500).json({ message: "Failed to save quote decision" });
+    }
+  });
+
+  app.post("/api/transport-partners", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
+    try {
+      const payload = transportPartnerPayloadSchema.parse(req.body);
+      const partner = await storage.createTransportPartner({
+        ...payload,
+        email: payload.email.toLowerCase(),
+      });
+      await createAuditLog(req.session.userId, "create", "transport_partner", partner.id, null, payload, req);
+      res.status(201).json(partner);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid transport partner", errors: error.errors });
+      }
+      logError("Error creating transport partner", error, req.requestId);
+      res.status(500).json({ message: "Failed to create transport partner" });
+    }
+  });
+
+  app.patch("/api/transport-partners/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
+    try {
+      const payload = transportPartnerPayloadSchema.partial().parse(req.body);
+      const existing = await storage.getTransportPartner(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Transport partner not found" });
+      }
+
+      const partner = await storage.updateTransportPartner(req.params.id, {
+        ...payload,
+        ...(payload.email ? { email: payload.email.toLowerCase() } : {}),
+      });
+      await createAuditLog(req.session.userId, "update", "transport_partner", req.params.id, existing, payload, req);
+      res.json(partner);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid transport partner update", errors: error.errors });
+      }
+      logError("Error updating transport partner", error, req.requestId);
+      res.status(500).json({ message: "Failed to update transport partner" });
+    }
+  });
+
+  app.patch("/api/transport-partners/:id/link-user", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
+    try {
+      const payload = z.object({
+        userId: z.string().trim().min(1).nullable().optional(),
+      }).parse(req.body);
+      const existing = await storage.getTransportPartner(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Transport partner not found" });
+      }
+
+      const partner = await storage.updateTransportPartner(req.params.id, {
+        userId: payload.userId || null,
+      });
+      await createAuditLog(req.session.userId, "update", "transport_partner", req.params.id, existing, { userId: payload.userId || null }, req);
+      res.json(partner);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid linked user update", errors: error.errors });
+      }
+      logError("Error updating transport partner linked user", error, req.requestId);
+      res.status(500).json({ message: "Failed to update linked user" });
+    }
+  });
+
+  app.patch("/api/transport-partner/me", isAuthenticated, requireRole("transport_partner"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const payload = transportPartnerSelfUpdateSchema.parse(req.body);
+      const partner = await getCurrentTransportPartner(user);
+      const updated = await storage.updateTransportPartner(partner.id, payload);
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid profile update", errors: error.errors });
+      }
+      logError("Error updating transport partner profile", error, req.requestId);
+      res.status(500).json({ message: "Failed to update transport partner profile" });
+    }
+  });
+
+  app.get("/api/transport-partner/requests", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const partner = user.role === "transport_partner" ? await getCurrentTransportPartner(user) : null;
+      const requests = await storage.getTransportRequests(partner?.id);
+      res.json(requests);
+    } catch (error) {
+      logError("Error fetching transport requests", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch transport requests" });
+    }
+  });
+
+  app.get("/api/transport-partner/requests/:id/activity", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const request = await storage.getTransportRequest(req.params.id);
+      if (!request) {
+        return res.status(404).json({ message: "Transport request not found" });
+      }
+      if (user.role === "transport_partner") {
+        const partner = await getCurrentTransportPartner(user);
+        if (request.partnerId !== partner.id) {
+          return res.status(403).json({ message: "You can only view activity for your assigned requests" });
+        }
+      }
+      const activity = await storage.getTransportRequestActivity(req.params.id);
+      res.json(activity);
+    } catch (error) {
+      logError("Error fetching transport request activity", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch transport activity" });
+    }
+  });
+
+  app.get("/api/transport-partner/drivers", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const partner = await resolveTransportPartnerScope(user, req.query.partnerId as string | undefined);
+      const drivers = await storage.getTransportPartnerDrivers(partner?.id);
+      res.json(drivers);
+    } catch (error) {
+      logError("Error fetching transport drivers", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch drivers" });
+    }
+  });
+
+  app.post("/api/transport-partner/drivers", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const payload = transportRosterDriverSchema.parse(req.body);
+      const partner = await resolveTransportPartnerScope(user, payload.partnerId);
+      if (!partner) {
+        return res.status(400).json({ message: "Choose a transport partner" });
+      }
+      const driver = await storage.createTransportPartnerDriver({
+        partnerId: partner.id,
+        name: payload.name,
+        phone: payload.phone || null,
+        email: payload.email || null,
+        licenseNumber: payload.licenseNumber || null,
+        status: payload.status,
+        notes: payload.notes || null,
+      });
+      res.status(201).json(driver);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid driver", errors: error.errors });
+      }
+      logError("Error creating transport driver", error, req.requestId);
+      res.status(500).json({ message: "Failed to create driver" });
+    }
+  });
+
+  app.patch("/api/transport-partner/drivers/:id", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const existing = await storage.getTransportPartnerDriver(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Driver not found" });
+      }
+      if (user.role === "transport_partner") {
+        const partner = await getCurrentTransportPartner(user);
+        if (existing.partnerId !== partner.id) {
+          return res.status(403).json({ message: "You can only update your own drivers" });
+        }
+      }
+      const payload = transportRosterDriverSchema.partial().parse(req.body);
+      const driver = await storage.updateTransportPartnerDriver(req.params.id, {
+        ...payload,
+        email: payload.email || null,
+      });
+      res.json(driver);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid driver", errors: error.errors });
+      }
+      logError("Error updating transport driver", error, req.requestId);
+      res.status(500).json({ message: "Failed to update driver" });
+    }
+  });
+
+  app.delete("/api/transport-partner/drivers/:id", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const existing = await storage.getTransportPartnerDriver(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Driver not found" });
+      }
+      if (user.role === "transport_partner") {
+        const partner = await getCurrentTransportPartner(user);
+        if (existing.partnerId !== partner.id) {
+          return res.status(403).json({ message: "You can only delete your own drivers" });
+        }
+      }
+      await storage.deleteTransportPartnerDriver(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      logError("Error deleting transport driver", error, req.requestId);
+      res.status(500).json({ message: "Failed to delete driver" });
+    }
+  });
+
+  app.get("/api/transport-partner/vehicles", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const partner = await resolveTransportPartnerScope(user, req.query.partnerId as string | undefined);
+      const vehicles = await storage.getTransportPartnerVehicles(partner?.id);
+      res.json(vehicles);
+    } catch (error) {
+      logError("Error fetching transport vehicles", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch vehicles" });
+    }
+  });
+
+  app.post("/api/transport-partner/vehicles", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const payload = transportRosterVehicleSchema.parse(req.body);
+      const partner = await resolveTransportPartnerScope(user, payload.partnerId);
+      if (!partner) {
+        return res.status(400).json({ message: "Choose a transport partner" });
+      }
+      const vehicle = await storage.createTransportPartnerVehicle({
+        partnerId: partner.id,
+        label: payload.label,
+        vehicleType: payload.vehicleType || null,
+        plateNumber: payload.plateNumber || null,
+        capacity: payload.capacity || null,
+        color: payload.color || null,
+        status: payload.status,
+        notes: payload.notes || null,
+      });
+      res.status(201).json(vehicle);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid vehicle", errors: error.errors });
+      }
+      logError("Error creating transport vehicle", error, req.requestId);
+      res.status(500).json({ message: "Failed to create vehicle" });
+    }
+  });
+
+  app.patch("/api/transport-partner/vehicles/:id", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const existing = await storage.getTransportPartnerVehicle(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Vehicle not found" });
+      }
+      if (user.role === "transport_partner") {
+        const partner = await getCurrentTransportPartner(user);
+        if (existing.partnerId !== partner.id) {
+          return res.status(403).json({ message: "You can only update your own vehicles" });
+        }
+      }
+      const payload = transportRosterVehicleSchema.partial().parse(req.body);
+      const vehicle = await storage.updateTransportPartnerVehicle(req.params.id, payload);
+      res.json(vehicle);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid vehicle", errors: error.errors });
+      }
+      logError("Error updating transport vehicle", error, req.requestId);
+      res.status(500).json({ message: "Failed to update vehicle" });
+    }
+  });
+
+  app.delete("/api/transport-partner/vehicles/:id", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const existing = await storage.getTransportPartnerVehicle(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Vehicle not found" });
+      }
+      if (user.role === "transport_partner") {
+        const partner = await getCurrentTransportPartner(user);
+        if (existing.partnerId !== partner.id) {
+          return res.status(403).json({ message: "You can only delete your own vehicles" });
+        }
+      }
+      await storage.deleteTransportPartnerVehicle(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      logError("Error deleting transport vehicle", error, req.requestId);
+      res.status(500).json({ message: "Failed to delete vehicle" });
+    }
+  });
+
+  app.get("/api/transport-partner/blackouts", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const partner = await resolveTransportPartnerScope(user, req.query.partnerId as string | undefined);
+      const blackouts = await storage.getTransportPartnerBlackouts(partner?.id);
+      res.json(blackouts);
+    } catch (error) {
+      logError("Error fetching transport blackouts", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch availability" });
+    }
+  });
+
+  app.post("/api/transport-partner/blackouts", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const payload = transportBlackoutSchema.parse(req.body);
+      const partner = await resolveTransportPartnerScope(user, payload.partnerId);
+      if (!partner) {
+        return res.status(400).json({ message: "Choose a transport partner" });
+      }
+      const blackout = await storage.createTransportPartnerBlackout({
+        partnerId: partner.id,
+        startDate: payload.startDate,
+        endDate: payload.endDate,
+        reason: payload.reason || null,
+        status: payload.status,
+        createdByUserId: user.id,
+      });
+      res.status(201).json(blackout);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid availability block", errors: error.errors });
+      }
+      logError("Error creating transport blackout", error, req.requestId);
+      res.status(500).json({ message: "Failed to save availability" });
+    }
+  });
+
+  app.patch("/api/transport-partner/blackouts/:id", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const existing = await storage.getTransportPartnerBlackout(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Availability block not found" });
+      }
+      if (user.role === "transport_partner") {
+        const partner = await getCurrentTransportPartner(user);
+        if (existing.partnerId !== partner.id) {
+          return res.status(403).json({ message: "You can only update your own availability" });
+        }
+      }
+      const payload = transportBlackoutBaseSchema.partial().parse(req.body);
+      const blackout = await storage.updateTransportPartnerBlackout(req.params.id, payload);
+      res.json(blackout);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid availability block", errors: error.errors });
+      }
+      logError("Error updating transport blackout", error, req.requestId);
+      res.status(500).json({ message: "Failed to update availability" });
+    }
+  });
+
+  app.delete("/api/transport-partner/blackouts/:id", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const existing = await storage.getTransportPartnerBlackout(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Availability block not found" });
+      }
+      if (user.role === "transport_partner") {
+        const partner = await getCurrentTransportPartner(user);
+        if (existing.partnerId !== partner.id) {
+          return res.status(403).json({ message: "You can only delete your own availability" });
+        }
+      }
+      await storage.deleteTransportPartnerBlackout(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      logError("Error deleting transport blackout", error, req.requestId);
+      res.status(500).json({ message: "Failed to delete availability" });
+    }
+  });
+
+  app.get("/api/transport-partner/pricing", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const partner = await resolveTransportPartnerScope(user, req.query.partnerId as string | undefined);
+      const pricing = await storage.getTransportPartnerPricing(partner?.id);
+      res.json(pricing);
+    } catch (error) {
+      logError("Error fetching transport partner pricing", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch partner pricing" });
+    }
+  });
+
+  app.post("/api/transport-partner/pricing", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const payload = transportPartnerPricingSchema.parse(req.body);
+      const partner = await resolveTransportPartnerScope(user, payload.partnerId);
+      if (!partner) {
+        return res.status(400).json({ message: "Choose a transport partner" });
+      }
+      const pricing = await storage.createTransportPartnerPricing({
+        partnerId: partner.id,
+        route: normalizeTransportRouteId(payload.route),
+        label: payload.label,
+        basePrice: payload.basePrice,
+        currency: payload.currency.toUpperCase(),
+        pricingType: payload.pricingType,
+        priceIncludes: payload.priceIncludes || null,
+        notes: payload.notes || null,
+        status: payload.status,
+      });
+      res.status(201).json(pricing);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid partner pricing", errors: error.errors });
+      }
+      logError("Error creating transport partner pricing", error, req.requestId);
+      res.status(500).json({ message: "Failed to save partner pricing" });
+    }
+  });
+
+  app.patch("/api/transport-partner/pricing/:id", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const existing = await storage.getTransportPartnerPricingItem(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Pricing item not found" });
+      }
+      if (user.role === "transport_partner") {
+        const partner = await getCurrentTransportPartner(user);
+        if (existing.partnerId !== partner.id) {
+          return res.status(403).json({ message: "You can only update your own pricing" });
+        }
+      }
+      const payload = transportPartnerPricingSchema.partial().parse(req.body);
+      const pricing = await storage.updateTransportPartnerPricing(req.params.id, {
+        ...payload,
+        route: payload.route ? normalizeTransportRouteId(payload.route) : undefined,
+        currency: payload.currency?.toUpperCase(),
+      });
+      res.json(pricing);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid partner pricing", errors: error.errors });
+      }
+      logError("Error updating transport partner pricing", error, req.requestId);
+      res.status(500).json({ message: "Failed to update partner pricing" });
+    }
+  });
+
+  app.delete("/api/transport-partner/pricing/:id", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const existing = await storage.getTransportPartnerPricingItem(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Pricing item not found" });
+      }
+      if (user.role === "transport_partner") {
+        const partner = await getCurrentTransportPartner(user);
+        if (existing.partnerId !== partner.id) {
+          return res.status(403).json({ message: "You can only delete your own pricing" });
+        }
+      }
+      await storage.deleteTransportPartnerPricing(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      logError("Error deleting transport partner pricing", error, req.requestId);
+      res.status(500).json({ message: "Failed to delete partner pricing" });
+    }
+  });
+
+  app.patch("/api/transport-partner/requests/:id", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const payload = transportRequestUpdateSchema.parse(req.body);
+      const request = await storage.getTransportRequest(req.params.id);
+
+      if (!request) {
+        return res.status(404).json({ message: "Transport request not found" });
+      }
+
+      const isAdminOrCoordinator = user.role === "admin" || user.role === "coordinator";
+      let updatePayload: Partial<typeof request> = {};
+      const targetPartnerId = payload.partnerId === undefined ? request.partnerId : payload.partnerId;
+      const selectedDriver = payload.driverId ? await storage.getTransportPartnerDriver(payload.driverId) : undefined;
+      const selectedVehicle = payload.vehicleId ? await storage.getTransportPartnerVehicle(payload.vehicleId) : undefined;
+
+      if (selectedDriver && targetPartnerId && selectedDriver.partnerId !== targetPartnerId) {
+        return res.status(400).json({ message: "Selected driver does not belong to the assigned partner" });
+      }
+      if (selectedVehicle && targetPartnerId && selectedVehicle.partnerId !== targetPartnerId) {
+        return res.status(400).json({ message: "Selected vehicle does not belong to the assigned partner" });
+      }
+
+      if (user.role === "transport_partner") {
+        const partner = await getCurrentTransportPartner(user);
+        if (request.partnerId !== partner.id) {
+          return res.status(403).json({ message: "You can only update requests assigned to your account" });
+        }
+
+        updatePayload = {
+          status: payload.status as TransportRequestStatus | undefined,
+          quotedAmount: payload.quotedAmount ?? undefined,
+          currency: payload.currency || undefined,
+          estimatedPickupTime: payload.estimatedPickupTime ?? undefined,
+          requestedPickupTime: payload.requestedPickupTime ?? undefined,
+          requestedVisitDate: payload.requestedVisitDate ?? undefined,
+          rescheduleNotes: payload.rescheduleNotes ?? undefined,
+          driverId: payload.driverId === undefined ? undefined : payload.driverId,
+          vehicleId: payload.vehicleId === undefined ? undefined : payload.vehicleId,
+          driverName: selectedDriver?.name ?? payload.driverName ?? undefined,
+          driverPhone: selectedDriver?.phone ?? payload.driverPhone ?? undefined,
+          vehicleDetails: selectedVehicle
+            ? [selectedVehicle.label, selectedVehicle.vehicleType, selectedVehicle.plateNumber, selectedVehicle.color]
+                .filter(Boolean)
+                .join(" | ")
+            : payload.vehicleDetails ?? undefined,
+          partnerNotes: payload.partnerNotes ?? undefined,
+          cancellationReason: payload.cancellationReason ?? undefined,
+          partnerRespondedAt: new Date() as any,
+        };
+      } else if (isAdminOrCoordinator) {
+        updatePayload = {
+          partnerId: payload.partnerId === undefined ? undefined : payload.partnerId,
+          route: payload.route,
+          pickupLocation: payload.pickupLocation ?? undefined,
+          notes: payload.notes ?? undefined,
+          status: payload.status as TransportRequestStatus | undefined,
+          quotedAmount: payload.quotedAmount ?? undefined,
+          currency: payload.currency || undefined,
+          estimatedPickupTime: payload.estimatedPickupTime ?? undefined,
+          requestedPickupTime: payload.requestedPickupTime ?? undefined,
+          requestedVisitDate: payload.requestedVisitDate ?? undefined,
+          rescheduleNotes: payload.rescheduleNotes ?? undefined,
+          driverId: payload.driverId === undefined ? undefined : payload.driverId,
+          vehicleId: payload.vehicleId === undefined ? undefined : payload.vehicleId,
+          driverName: selectedDriver?.name ?? payload.driverName ?? undefined,
+          driverPhone: selectedDriver?.phone ?? payload.driverPhone ?? undefined,
+          vehicleDetails: selectedVehicle
+            ? [selectedVehicle.label, selectedVehicle.vehicleType, selectedVehicle.plateNumber, selectedVehicle.color]
+                .filter(Boolean)
+                .join(" | ")
+            : payload.vehicleDetails ?? undefined,
+          partnerNotes: payload.partnerNotes ?? undefined,
+          adminNotes: payload.adminNotes ?? undefined,
+          cancellationReason: payload.cancellationReason ?? undefined,
+          ...(payload.partnerId !== undefined && payload.partnerId !== request.partnerId
+            ? {
+                assignedByUserId: user.id,
+                assignedAt: new Date() as any,
+                status: payload.status || (payload.partnerId ? "sent_to_partner" : "pending"),
+              }
+            : {}),
+        };
+      }
+
+      const nextStatus = (updatePayload.status as string | undefined) || request.status || "pending";
+      if (["accepted", "quote_sent"].includes(nextStatus) && !request.quoteApprovalToken) {
+        updatePayload.quoteApprovalToken = crypto.randomBytes(24).toString("hex");
+        updatePayload.quoteSentAt = new Date() as any;
+      }
+      if (nextStatus === "cancelled" && request.status !== "cancelled") {
+        updatePayload.cancelledAt = new Date() as any;
+        updatePayload.cancellationRequestedBy = user.id;
+      }
+      Object.keys(updatePayload).forEach((key) => (updatePayload as any)[key] === undefined && delete (updatePayload as any)[key]);
+
+      const updated = await storage.updateTransportRequest(req.params.id, updatePayload);
+      if (!updated) {
+        return res.status(404).json({ message: "Transport request not found" });
+      }
+
+      let driverDetailsEmail: {
+        sent: boolean;
+        error?: string;
+        messageId?: string;
+        accountEmailMode?: "existing_account" | "existing_invite" | "new_invite" | "renewed_invite";
+        inviteId?: string;
+      } | null = null;
+
+      const acceptedTransportStatuses = new Set(["accepted", "quote_sent"]);
+      const previousStatus = request.status || "pending";
+      const updatedStatus = updated.status || previousStatus;
+      const shouldNotifyVisitor =
+        acceptedTransportStatuses.has(updatedStatus) &&
+        !acceptedTransportStatuses.has(previousStatus);
+
+      if (shouldNotifyVisitor) {
+        try {
+          const [partner, booking] = await Promise.all([
+            updated.partnerId ? storage.getTransportPartner(updated.partnerId) : Promise.resolve(undefined),
+            updated.bookingId ? storage.getBooking(updated.bookingId) : Promise.resolve(undefined),
+          ]);
+          const visitorEmail = updated.visitorEmail.toLowerCase();
+          const existingVisitor = await storage.getUserByEmail(visitorEmail);
+          const inviteResult = existingVisitor ? null : await ensureVisitorInvite(visitorEmail, user.id);
+          const quoteReviewUrl = updated.quoteApprovalToken
+            ? `${PUBLIC_APP_URL}/transport-quote/${updated.quoteApprovalToken}`
+            : null;
+          const manageBookingUrl = existingVisitor
+            ? `${PUBLIC_APP_URL}/my-bookings`
+            : `${PUBLIC_APP_URL}/accept-invite?token=${inviteResult!.invite.inviteToken}`;
+          const emailResult = await sendTransportDriverDetailsEmailDetailed({
+            visitorName: updated.visitorName,
+            visitorEmail,
+            bookingReference: booking?.bookingReference || updated.bookingId || null,
+            partnerName: partner?.companyName || null,
+            partnerEmail: partner?.email || null,
+            partnerPhone: partner?.phone || null,
+            partnerWhatsapp: partner?.whatsapp || null,
+            route: updated.route,
+            pickupLocation: updated.pickupLocation,
+            visitDate: updated.visitDate,
+            visitTime: updated.visitTime,
+            quotedAmount: updated.quotedAmount,
+            currency: updated.currency,
+            estimatedPickupTime: updated.estimatedPickupTime,
+            driverName: updated.driverName,
+            driverPhone: updated.driverPhone,
+            vehicleDetails: updated.vehicleDetails,
+            partnerNotes: updated.partnerNotes,
+            manageBookingUrl: quoteReviewUrl || manageBookingUrl,
+            accountActionLabel: quoteReviewUrl ? "Review Transport Quote" : existingVisitor ? "Manage Booking" : "Create Account and Manage Booking",
+            accountActionText: existingVisitor
+              ? "Review the transport quote, approve it, or decline it before final confirmation."
+              : "Review the transport quote, approve it, or decline it before final confirmation. You can also create your visitor account to manage this and future bookings.",
+          });
+
+          driverDetailsEmail = {
+            sent: emailResult.success,
+            error: emailResult.error,
+            messageId: emailResult.messageId,
+            accountEmailMode: existingVisitor ? "existing_account" : inviteResult!.mode,
+            inviteId: inviteResult?.invite.id,
+          };
+
+          await storage.createEmailLog({
+            sentBy: user.id,
+            recipientName: updated.visitorName,
+            recipientEmail: visitorEmail,
+            subject: booking?.bookingReference
+              ? `Your transport details - ${booking.bookingReference}`
+              : "Your Visit Dzaleka transport details",
+            message: existingVisitor
+              ? "Transport partner accepted the request and driver details were sent to the visitor."
+              : "Transport partner accepted the request and driver details were sent with a visitor account invitation link.",
+            templateType: "transport_driver_details",
+            status: emailResult.success ? "sent" : "failed",
+            errorMessage: emailResult.error,
+            providerMessageId: emailResult.messageId,
+            relatedEntityType: "transport_request",
+            relatedEntityId: updated.id,
+            metadata: {
+              partnerId: updated.partnerId,
+              partnerName: partner?.companyName,
+              bookingId: updated.bookingId,
+              bookingReference: booking?.bookingReference,
+              transportStatus: updatedStatus,
+              accountEmailMode: existingVisitor ? "existing_account" : inviteResult!.mode,
+              inviteId: inviteResult?.invite.id,
+              quoteReviewUrl,
+            },
+          });
+        } catch (emailError: any) {
+          driverDetailsEmail = {
+            sent: false,
+            error: emailError?.message || "Failed to send transport driver details email",
+          };
+          logError("Failed to send transport driver details email", emailError, req.requestId);
+        }
+      }
+
+      await logTransportRequestActivity(
+        updated.id,
+        "transport_request_updated",
+        user,
+        { changedFields: Object.keys(updatePayload), driverDetailsEmail },
+        request.status,
+        updated.status
+      );
+
+      res.json(driverDetailsEmail ? { ...updated, driverDetailsEmail } : updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid transport request update", errors: error.errors });
+      }
+      logError("Error updating transport request", error, req.requestId);
+      res.status(500).json({ message: "Failed to update transport request" });
+    }
+  });
+
+  app.get("/api/transport-partner/referrals", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const partner = user.role === "transport_partner" ? await getCurrentTransportPartner(user) : null;
+      const referrals = await storage.getPartnerTourReferrals(partner?.id);
+      res.json(referrals);
+    } catch (error) {
+      logError("Error fetching partner tour referrals", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch partner referrals" });
+    }
+  });
+
+  app.post("/api/transport-partner/referrals", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+    try {
+      const user = (req as any).currentUser as User;
+      const payload = partnerReferralSchema.parse(req.body);
+      const visitorEmail = payload.visitorEmail.toLowerCase();
+      const existingVisitor = await storage.getUserByEmail(visitorEmail);
+      const partner = user.role === "transport_partner"
+        ? await getCurrentTransportPartner(user)
+        : req.body.partnerId
+          ? await storage.getTransportPartner(String(req.body.partnerId))
+          : null;
+
+      if (!partner) {
+        return res.status(400).json({ message: "Choose a transport partner before submitting this referral" });
+      }
+
+      const totalAmount = await calculateTotalAmount(payload.groupSize, payload.tourType, undefined);
+      const referralNotes = [
+        "[Transport partner referral]",
+        `Partner: ${partner.companyName}`,
+        payload.notes ? `Partner notes: ${payload.notes}` : null,
+      ].filter(Boolean).join("\n");
+
+      const booking = await storage.createBooking({
+        visitorName: payload.visitorName,
+        visitorEmail,
+        visitorPhone: payload.visitorPhone || "",
+        visitorUserId: existingVisitor?.id || null,
+        visitDate: payload.visitDate,
+        visitTime: payload.visitTime,
+        groupSize: payload.groupSize,
+        numberOfPeople: payload.numberOfPeople,
+        tourType: payload.tourType,
+        paymentMethod: "cash",
+        selectedZones: [],
+        selectedInterests: [],
+        source: "transport_partner",
+        referralSource: partner.id,
+        specialRequests: referralNotes,
+        totalAmount,
+      });
+
+      const referral = await storage.createPartnerTourReferral({
+        partnerId: partner.id,
+        bookingId: booking.id,
+        visitorName: payload.visitorName,
+        visitorEmail,
+        visitorPhone: payload.visitorPhone || null,
+        visitDate: payload.visitDate,
+        visitTime: payload.visitTime,
+        groupSize: payload.groupSize,
+        numberOfPeople: payload.numberOfPeople,
+        tourType: payload.tourType,
+        notes: payload.notes || null,
+        status: "submitted",
+      });
+
+      let accountEmail: {
+        mode: "existing_account" | "existing_invite" | "new_invite" | "renewed_invite";
+        sent: boolean;
+        error?: string;
+        inviteId?: string;
+      } | null = null;
+
+      try {
+        const inviteResult = existingVisitor ? null : await ensureVisitorInvite(visitorEmail, user.id);
+        const accountUrl = existingVisitor
+          ? `${PUBLIC_APP_URL}/my-bookings`
+          : `${PUBLIC_APP_URL}/accept-invite?token=${inviteResult!.invite.inviteToken}`;
+        const emailResult = await sendPartnerReferralBookingEmailDetailed({
+          visitorName: booking.visitorName,
+          visitorEmail: booking.visitorEmail,
+          partnerName: partner.companyName,
+          bookingReference: booking.bookingReference!,
+          visitDate: booking.visitDate,
+          visitTime: booking.visitTime,
+          tourType: booking.tourType,
+          numberOfPeople: booking.numberOfPeople || 1,
+          totalAmount: booking.totalAmount || 0,
+          accountUrl,
+          accountActionLabel: existingVisitor ? "Sign in to manage booking" : "Create account and manage booking",
+          accountActionText: existingVisitor
+            ? "You already have a Visit Dzaleka account. Sign in to view updates, reschedule, cancel, or manage future bookings."
+            : "Create your visitor account to view updates, reschedule, cancel, or manage future Visit Dzaleka bookings. This secure invitation link is valid for 7 days.",
+        });
+
+        accountEmail = {
+          mode: existingVisitor ? "existing_account" : inviteResult!.mode,
+          sent: emailResult.success,
+          error: emailResult.error,
+          inviteId: inviteResult?.invite.id,
+        };
+
+        await storage.createEmailLog({
+          sentBy: user.id,
+          recipientName: booking.visitorName,
+          recipientEmail: booking.visitorEmail,
+          subject: `Your Visit Dzaleka tour referral - ${booking.bookingReference}`,
+          message: existingVisitor
+            ? "Partner referral booking email sent with manage-booking sign-in link."
+            : "Partner referral booking email sent with visitor account invitation link.",
+          templateType: "partner_referral_booking",
+          status: emailResult.success ? "accepted" : "failed",
+          errorMessage: emailResult.error,
+          providerMessageId: emailResult.messageId,
+          relatedEntityType: "booking",
+          relatedEntityId: booking.id,
+          metadata: {
+            referralId: referral.id,
+            partnerId: partner.id,
+            partnerName: partner.companyName,
+            accountEmailMode: existingVisitor ? "existing_account" : inviteResult!.mode,
+            inviteId: inviteResult?.invite.id,
+          },
+        });
+      } catch (emailError: any) {
+        accountEmail = {
+          mode: existingVisitor ? "existing_account" : "new_invite",
+          sent: false,
+          error: emailError?.message || "Failed to send referral email",
+        };
+        logError("Failed to send partner referral visitor email", emailError, req.requestId);
+      }
+
+      await notifyBookingCreated(booking.id, booking.visitorName, booking.visitDate);
+
+      res.status(201).json({ booking, referral, accountEmail });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid referral data", errors: error.errors });
+      }
+      logError("Error creating partner referral", error, req.requestId);
+      res.status(500).json({ message: "Failed to create partner referral" });
+    }
+  });
+
+  app.patch("/api/transport-partner/referrals/:id/status", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
+    try {
+      const payload = partnerReferralStatusSchema.parse(req.body);
+      const referral = await storage.updatePartnerTourReferralStatus(
+        req.params.id,
+        payload.status as PartnerReferralStatus
+      );
+      res.json(referral);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid referral status", errors: error.errors });
+      }
+      logError("Error updating partner referral status", error, req.requestId);
+      res.status(500).json({ message: "Failed to update partner referral status" });
+    }
+  });
+
+  app.patch("/api/transport-partner/referrals/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
+    try {
+      const payload = partnerReferralUpdateSchema.parse(req.body);
+      const updatePayload: Partial<PartnerTourReferral> = {
+        status: payload.status as PartnerReferralStatus | undefined,
+      };
+      Object.keys(updatePayload).forEach((key) => (updatePayload as any)[key] === undefined && delete (updatePayload as any)[key]);
+      const referral = await storage.updatePartnerTourReferral(req.params.id, updatePayload);
+      res.json(referral);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid referral update", errors: error.errors });
+      }
+      logError("Error updating partner referral", error, req.requestId);
+      res.status(500).json({ message: "Failed to update partner referral" });
     }
   });
 
@@ -7665,8 +9150,9 @@ export async function registerRoutes(
     try {
       const userId = req.session.userId!;
       const limit = parseInt(req.query.limit as string) || 50;
+      const user = await storage.getUser(userId);
       const notifications = await storage.getNotifications(userId, limit);
-      res.json(notifications);
+      res.json(notifications.filter((notification) => isNotificationVisibleToRole(notification, user?.role)));
     } catch (error) {
       logError("Error fetching notifications", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch notifications" });
@@ -7677,7 +9163,11 @@ export async function registerRoutes(
   app.get("/api/notifications/unread-count", isAuthenticated, async (req, res) => {
     try {
       const userId = req.session.userId!;
-      const count = await storage.getUnreadNotificationCount(userId);
+      const user = await storage.getUser(userId);
+      const notifications = await storage.getNotifications(userId, 500);
+      const count = notifications.filter((notification) =>
+        !notification.isRead && isNotificationVisibleToRole(notification, user?.role)
+      ).length;
       res.json({ count });
     } catch (error) {
       logError("Error fetching unread count", error, req.requestId);
@@ -7689,8 +9179,10 @@ export async function registerRoutes(
   app.patch("/api/notifications/:id/read", isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
-      const notification = await storage.markNotificationAsRead(id);
-      if (!notification) {
+      const userId = req.session.userId!;
+      const user = await storage.getUser(userId);
+      const notification = await storage.markNotificationAsReadForUser(id, userId);
+      if (!notification || !isNotificationVisibleToRole(notification, user?.role)) {
         return res.status(404).json({ message: "Notification not found" });
       }
       res.json(notification);
@@ -7716,7 +9208,10 @@ export async function registerRoutes(
   app.delete("/api/notifications/:id", isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
-      await storage.deleteNotification(id);
+      const deleted = await storage.deleteNotificationForUser(id, req.session.userId!);
+      if (!deleted) {
+        return res.status(404).json({ message: "Notification not found" });
+      }
       res.json({ success: true });
     } catch (error) {
       logError("Error deleting notification", error, req.requestId);
@@ -8007,6 +9502,10 @@ export async function registerRoutes(
         return res.status(400).json({ message: "All fields are required" });
       }
 
+      if (!VALID_USER_ROLES.includes(role)) {
+        return res.status(400).json({ message: "Invalid user role" });
+      }
+
       // Check if user exists
       const existingUser = await storage.getUserByEmail(email);
       if (existingUser) {
@@ -8149,6 +9648,7 @@ export async function registerRoutes(
   app.post("/api/invites", isAuthenticated, requireRole("admin"), async (req: any, res) => {
     try {
       const { email, role } = req.body;
+      const inviteRole = VALID_USER_ROLES.includes(role) ? role : "visitor";
 
       if (!email) {
         return res.status(400).json({ message: "Email is required" });
@@ -8173,7 +9673,7 @@ export async function registerRoutes(
       // Create invite
       const invite = await storage.createInvite({
         email,
-        role: role || "visitor",
+        role: inviteRole,
         inviteToken,
         invitedBy: req.session.userId,
         expiresAt
@@ -8187,7 +9687,7 @@ export async function registerRoutes(
       try {
         const invitationResult = await sendInvitationEmailDetailed({
           email,
-          role: role || "visitor",
+          role: inviteRole,
           inviteUrl,
           inviterName
         });
@@ -8195,21 +9695,21 @@ export async function registerRoutes(
           sentBy: req.session.userId,
           recipientEmail: email,
           subject: "You have been invited to Visit Dzaleka",
-          message: `Invitation sent for ${role || "visitor"}.`,
+          message: `Invitation sent for ${inviteRole}.`,
           templateType: "invitation",
           status: invitationResult.success ? "accepted" : "failed",
           errorMessage: invitationResult.error,
           providerMessageId: invitationResult.messageId,
           relatedEntityType: "user_invite",
           relatedEntityId: invite.id,
-          metadata: { role: role || "visitor" },
+          metadata: { role: inviteRole },
         });
       } catch (emailError) {
         logError("Failed to send invitation email", emailError, req.requestId);
         // Don't fail the request if email fails
       }
 
-      await createAuditLog(req.session.userId, "create", "user_invite", invite.id, null, { email, role }, req);
+      await createAuditLog(req.session.userId, "create", "user_invite", invite.id, null, { email, role: inviteRole }, req);
 
       res.json({ success: true, invite });
     } catch (error) {
@@ -8813,7 +10313,8 @@ export async function registerRoutes(
     try {
       const userId = req.session.userId!;
       const rooms = await storage.getChatRooms(userId);
-      res.json(rooms);
+      const allowedRooms = await filterChatRoomsForUser(userId, rooms);
+      res.json(allowedRooms);
     } catch (error) {
       logError("Error fetching chat rooms", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch chat rooms" });
@@ -8863,6 +10364,15 @@ export async function registerRoutes(
 
       if (currentUserId === otherUserId) {
         return res.status(400).json({ message: "Cannot chat with yourself" });
+      }
+
+      const currentUser = await storage.getUser(currentUserId);
+      const otherUser = await storage.getUser(otherUserId);
+      if (!currentUser || !otherUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      if (!(await canUsersStartDirectChat(currentUser, otherUser))) {
+        return res.status(403).json({ message: "You do not have permission to message this user" });
       }
 
       const room = await storage.getOrCreateDirectRoom(currentUserId, otherUserId);
@@ -8982,21 +10492,36 @@ export async function registerRoutes(
         // Visitors can only chat with:
         // 1. Admins (for general inquiries)
         // 2. Guides assigned to their bookings
-        const allBookings = await storage.getBookings();
-        const myBookings = allBookings.filter(b =>
-          b.visitorUserId === userId || b.visitorEmail === currentUser.email
-        );
-        const assignedGuideIds = new Set(
-          myBookings
-            .filter(b => b.assignedGuideId)
-            .map(b => b.assignedGuideId)
-        );
+        const assignedGuideUserIds = await getVisitorAssignedGuideUserIds(currentUser);
+        const linkedTransportPartnerUserIds = new Set<string>();
+        const transportPartnerUsers = filteredUsers.filter((u) => u.role === "transport_partner");
+        for (const transportPartnerUser of transportPartnerUsers) {
+          const partner = await getTransportPartnerForUser(transportPartnerUser);
+          if (partner && await isVisitorLinkedToTransportPartner(currentUser, partner.id)) {
+            linkedTransportPartnerUserIds.add(transportPartnerUser.id);
+          }
+        }
 
         filteredUsers = filteredUsers.filter(u =>
-          u.role === 'admin' || assignedGuideIds.has(u.id)
+          u.role === 'admin' ||
+          u.role === 'coordinator' ||
+          assignedGuideUserIds.has(u.id) ||
+          linkedTransportPartnerUserIds.has(u.id)
         );
       }
-      // Staff (admin, coordinator, guide, security) can see all users
+      if (currentUser?.role === 'transport_partner') {
+        const partner = await getTransportPartnerForUser(currentUser);
+        const linkedVisitorEmails = partner
+          ? await getTransportPartnerLinkedVisitorEmails(partner.id)
+          : new Set<string>();
+
+        filteredUsers = filteredUsers.filter(u =>
+          u.role === 'admin' ||
+          u.role === 'coordinator' ||
+          (u.role === 'visitor' && linkedVisitorEmails.has(normalizedEmail(u.email)))
+        );
+      }
+      // Admins/coordinators and existing staff roles keep broader operational visibility.
 
       const chatUsers = filteredUsers.map(u => ({
         id: u.id,
@@ -9020,9 +10545,10 @@ export async function registerRoutes(
       // We can reuse getChatRooms as it already fetches the necessary data with joins
       // A dedicated count query would be more performant in a large scale app
       const rooms = await storage.getChatRooms(userId) as any[];
+      const allowedRooms = await filterChatRoomsForUser(userId, rooms);
 
       let unreadCount = 0;
-      for (const room of rooms) {
+      for (const room of allowedRooms) {
         // Use camelCase to match the transformed response
         const participants = room.chatParticipants || room.chat_participants || [];
         const participant = participants.find((p: any) =>

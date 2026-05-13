@@ -13,6 +13,8 @@ import { apiRequest } from "@/lib/queryClient";
 import { Calendar, Users, CheckCircle } from "lucide-react";
 import { SEO } from "@/components/seo";
 import { GROUP_SIZES } from "@/lib/constants";
+import { TransportRequestFields } from "@/components/transport-request-fields";
+import { buildTransportSpecialRequests, createTransportRequestFromSearch } from "@/lib/transport";
 
 interface MeetingPoint {
     id: string;
@@ -42,6 +44,7 @@ export default function EmbedBooking() {
     const primaryColor = params.get("primaryColor") || "#f97316";
     const defaultTourType = params.get("defaultTourType") || "individual";
     const showBranding = params.get("showBranding") !== "false";
+    const initialTransportRequest = createTransportRequestFromSearch(window.location.search);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -58,6 +61,11 @@ export default function EmbedBooking() {
         specialRequests: "",
         selectedZones: [] as string[],
         selectedInterests: [] as string[],
+        transportRequested: initialTransportRequest.transportRequested || false,
+        transportRoute: initialTransportRequest.transportRoute,
+        transportPartnerId: initialTransportRequest.transportPartnerId,
+        transportPickup: initialTransportRequest.transportPickup || "",
+        transportNotes: initialTransportRequest.transportNotes || "",
     });
     const [submitted, setSubmitted] = useState(false);
 
@@ -77,8 +85,23 @@ export default function EmbedBooking() {
 
     const bookingMutation = useMutation({
         mutationFn: async (data: typeof formData) => {
+            const {
+                transportRequested,
+                transportRoute,
+                transportPartnerId,
+                transportPickup,
+                transportNotes,
+                ...bookingFields
+            } = data;
             const res = await apiRequest("POST", "/api/bookings", {
-                ...data,
+                ...bookingFields,
+                specialRequests: buildTransportSpecialRequests(data.specialRequests, {
+                    transportRequested,
+                    transportRoute,
+                    transportPartnerId,
+                    transportPickup,
+                    transportNotes,
+                }),
                 tourType: "standard",
                 source: "embed_widget",
             });
@@ -366,6 +389,19 @@ export default function EmbedBooking() {
                                 className={inputClass}
                             />
                         </div>
+
+                        <TransportRequestFields
+                            idPrefix="embed"
+                            transportRequested={formData.transportRequested}
+                            transportRoute={formData.transportRoute}
+                            transportPartnerId={formData.transportPartnerId}
+                            transportPickup={formData.transportPickup}
+                            transportNotes={formData.transportNotes}
+                            inputClassName={inputClass}
+                            textClassName={isDark ? "text-gray-200" : undefined}
+                            descriptionClassName={isDark ? "text-gray-400" : undefined}
+                            onChange={(updates) => setFormData({ ...formData, ...updates })}
+                        />
 
                         <Button
                             type="submit"

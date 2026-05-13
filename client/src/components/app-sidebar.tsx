@@ -37,6 +37,7 @@ import {
   BadgePercent,
   Star,
   Award,
+  Car,
 } from "lucide-react";
 import {
   Sidebar,
@@ -57,7 +58,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { AccountSwitcher } from "@/components/account-switcher";
 import type { LucideIcon } from "lucide-react";
 
-type UserRole = "admin" | "coordinator" | "guide" | "security" | "visitor";
+type UserRole = "admin" | "coordinator" | "guide" | "security" | "visitor" | "transport_partner";
 
 interface NavItem {
   title: string;
@@ -71,7 +72,19 @@ const mainNavigationItems: NavItem[] = [
     title: "Dashboard",
     url: "/",
     icon: LayoutDashboard,
-    roles: ["admin", "coordinator", "guide", "security", "visitor"],
+    roles: ["admin", "coordinator", "guide", "security", "visitor", "transport_partner"],
+  },
+  {
+    title: "Partner Portal",
+    url: "/transport-partner",
+    icon: Car,
+    roles: ["transport_partner"],
+  },
+  {
+    title: "Transport Ops",
+    url: "/transport-partner",
+    icon: Car,
+    roles: ["admin", "coordinator"],
   },
   {
     title: "Bookings",
@@ -209,7 +222,7 @@ const mainNavigationItems: NavItem[] = [
     title: "Messages",
     url: "/messages",
     icon: MessageCircle,
-    roles: ["admin", "coordinator", "guide", "security", "visitor"],
+    roles: ["admin", "coordinator", "guide", "security", "visitor", "transport_partner"],
   },
   {
     title: "Help Center",
@@ -221,7 +234,7 @@ const mainNavigationItems: NavItem[] = [
     title: "Community Hub",
     url: "/community",
     icon: Globe,
-    roles: ["admin", "coordinator", "guide", "security", "visitor"],
+    roles: ["admin", "coordinator", "guide", "security", "visitor", "transport_partner"],
   },
 ];
 
@@ -420,6 +433,7 @@ export function AppSidebar() {
     guide: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
     security: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
     visitor: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
+    transport_partner: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
   };
 
   return (

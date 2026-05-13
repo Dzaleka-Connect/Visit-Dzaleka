@@ -43,6 +43,7 @@ const navItems: NavItem[] = [
     children: [
       { label: "Trip Planner", href: "/plan-your-trip", description: "Plan your visit step by step" },
       { label: "Visitor Essentials", href: "/plan-your-trip/visitor-essentials", description: "What to know before you go" },
+      { label: "Trusted Transport", href: "/plan-your-trip/transport", description: "Taxi partners and day-trip routes" },
       { label: "Public Holidays", href: "/plan-your-trip/public-holidays", description: "Malawi public holidays" },
       { label: "Accommodation", href: "/accommodation", description: "Where to stay" },
       { label: "Safe Travel", href: "/plan-your-trip/safe-travel", description: "Safety guidelines" },
@@ -162,6 +163,9 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
                   <ListItem href="/plan-your-trip/visitor-essentials" title="Visitor Essentials">
                     What to know before you go
                   </ListItem>
+                  <ListItem href="/plan-your-trip/transport" title="Trusted Transport">
+                    Taxi partners and day-trip routes
+                  </ListItem>
                   <ListItem href="/plan-your-trip/public-holidays" title="Public Holidays">
                     Malawi public holidays
                   </ListItem>
@@ -266,6 +270,9 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
             </MobileNavLink>
             <MobileNavLink href="/plan-your-trip/visitor-essentials" onClick={() => setMobileMenuOpen(false)} active={isActive("/plan-your-trip/visitor-essentials")}>
               Visitor Essentials
+            </MobileNavLink>
+            <MobileNavLink href="/plan-your-trip/transport" onClick={() => setMobileMenuOpen(false)} active={isActive("/plan-your-trip/transport")}>
+              Trusted Transport
             </MobileNavLink>
             <MobileNavLink href="/accommodation" onClick={() => setMobileMenuOpen(false)} active={isActive("/accommodation")}>
               Accommodation

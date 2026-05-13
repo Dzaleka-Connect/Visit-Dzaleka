@@ -15,6 +15,7 @@ import {
   Key,
   Mail,
   CheckCircle,
+  Car,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -93,6 +94,11 @@ const roleColors: Record<string, { bg: string; text: string; icon: any }> = {
     text: "text-gray-800 dark:text-gray-400",
     icon: Eye,
   },
+  transport_partner: {
+    bg: "bg-emerald-100 dark:bg-emerald-900/30",
+    text: "text-emerald-800 dark:text-emerald-400",
+    icon: Car,
+  },
 };
 
 const roleDescriptions: Record<string, string> = {
@@ -101,7 +107,10 @@ const roleDescriptions: Record<string, string> = {
   guide: "View assigned tours, update tour status",
   security: "Check-in/out, incident reporting, visitor verification",
   visitor: "View own bookings, submit booking requests",
+  transport_partner: "Manage assigned transport requests and submit tour referrals",
 };
+
+const USER_ROLES: UserRole[] = ["admin", "coordinator", "guide", "security", "visitor", "transport_partner"];
 
 function RoleBadge({ role }: { role: string }) {
   const config = roleColors[role] || roleColors.visitor;
@@ -109,7 +118,7 @@ function RoleBadge({ role }: { role: string }) {
   return (
     <Badge className={`${config.bg} ${config.text}`}>
       <Icon className="mr-1 h-3 w-3" />
-      {role.charAt(0).toUpperCase() + role.slice(1)}
+      {role === "transport_partner" ? "Transport Partner" : role.charAt(0).toUpperCase() + role.slice(1)}
     </Badge>
   );
 }
@@ -453,11 +462,11 @@ export default function UsersPage() {
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="coordinator">Coordinator</SelectItem>
-                    <SelectItem value="guide">Guide</SelectItem>
-                    <SelectItem value="security">Security</SelectItem>
-                    <SelectItem value="visitor">Visitor</SelectItem>
+                    {USER_ROLES.map((role) => (
+                      <SelectItem key={role} value={role}>
+                        {role === "transport_partner" ? "Transport Partner" : role.charAt(0).toUpperCase() + role.slice(1)}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
@@ -495,8 +504,8 @@ export default function UsersPage() {
         </Dialog>
       </PageHeader>
 
-      <div className="grid gap-4 md:grid-cols-5">
-        {(["admin", "coordinator", "guide", "security", "visitor"] as const).map(
+      <div className="grid gap-4 md:grid-cols-6">
+        {USER_ROLES.map(
           (role) => {
             const config = roleColors[role];
             const Icon = config.icon;
@@ -516,7 +525,7 @@ export default function UsersPage() {
                   <div>
                     <p className="text-2xl font-bold">{roleCounts[role] || 0}</p>
                     <p className="text-xs text-muted-foreground capitalize">
-                      {role}s
+                      {role === "transport_partner" ? "transport partners" : `${role}s`}
                     </p>
                   </div>
                 </CardContent>
@@ -547,11 +556,11 @@ export default function UsersPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Roles</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="coordinator">Coordinator</SelectItem>
-                  <SelectItem value="guide">Guide</SelectItem>
-                  <SelectItem value="security">Security</SelectItem>
-                  <SelectItem value="visitor">Visitor</SelectItem>
+                  {USER_ROLES.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {role === "transport_partner" ? "Transport Partner" : role.charAt(0).toUpperCase() + role.slice(1)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -637,15 +646,7 @@ export default function UsersPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Change Role</DropdownMenuLabel>
-                            {(
-                              [
-                                "admin",
-                                "coordinator",
-                                "guide",
-                                "security",
-                                "visitor",
-                              ] as const
-                            ).map((role) => (
+                            {USER_ROLES.map((role) => (
                               <DropdownMenuItem
                                 key={role}
                                 onClick={() =>

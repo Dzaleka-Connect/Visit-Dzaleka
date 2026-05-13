@@ -60,7 +60,7 @@ import ArtsCulture from "@/pages/arts-culture";
 import ShoppingMarkets from "@/pages/shopping";
 import SportsRecreation from "@/pages/sports-recreation";
 import HostCommunity from "@/pages/host-community";
-import WhatsOn from "@/pages/whats-on";
+import WhatsOn, { WhatsOnEventDetail } from "@/pages/whats-on";
 import PlanYourTrip from "@/pages/plan-your-trip";
 import VisitorEssentials from "@/pages/visitor-essentials";
 import LifeInDzaleka from "@/pages/life-in-dzaleka";
@@ -107,6 +107,8 @@ import PartnerWithUs from "@/pages/partner-with-us";
 import FAQPage from "@/pages/faq";
 import SupportOurWork from "@/pages/support-our-work";
 import PaymentsPage from "@/pages/payments";
+import TransportPartnerPortal from "@/pages/transport-partner-portal";
+import TransportQuote from "@/pages/transport-quote";
 
 import Destinations from "@/pages/destinations";
 import NatureOutdoors from "@/pages/nature-outdoors";
@@ -115,6 +117,7 @@ import PublicHolidays from "@/pages/public-holidays";
 import DzalekaMap from "@/pages/dzaleka-map";
 import Newsletter from "@/pages/newsletter";
 import SafeTravel from "@/pages/safe-travel";
+import TransportPartners from "@/pages/transport-partners";
 import { usePageTracker } from "@/hooks/usePageTracker";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { ScrollToTop } from "@/components/scroll-to-top";
@@ -164,6 +167,7 @@ const PUBLIC_ROUTES = [
   "/support-our-work",
   "/newsletter",
   "/visit/feedback",
+  "/transport-quote",
   "/friends-of-dzaleka",
   "/about-dzaleka",
   "/about-us",
@@ -202,12 +206,14 @@ function Router() {
         <Route path="/things-to-do/dining-nightlife" component={DiningNightlife} />
         <Route path="/things-to-do/sports-recreation" component={SportsRecreation} />
         <Route path="/things-to-do/host-community" component={HostCommunity} />
+        <Route path="/whats-on/:eventId" component={WhatsOnEventDetail} />
         <Route path="/whats-on" component={WhatsOn} />
         <Route path="/plan-your-trip" component={PlanYourTrip} />
         <Route path="/plan-your-trip/visitor-essentials" component={VisitorEssentials} />
         <Route path="/plan-your-trip/public-holidays" component={PublicHolidays} />
         <Route path="/plan-your-trip/dzaleka-map" component={DzalekaMap} />
         <Route path="/plan-your-trip/safe-travel" component={SafeTravel} />
+        <Route path="/plan-your-trip/transport" component={TransportPartners} />
         <Route path="/life-in-dzaleka" component={LifeInDzaleka} />
         <Route path="/about-dzaleka" component={AboutDzaleka} />
         <Route path="/about-us" component={AboutUs} />
@@ -227,6 +233,7 @@ function Router() {
         <Route path="/contact" component={ContactUs} />
         <Route path="/newsletter" component={Newsletter} />
         <Route path="/visit/feedback" component={VisitFeedback} />
+        <Route path="/transport-quote/:token" component={TransportQuote} />
       </Switch>
     );
   }
@@ -254,9 +261,11 @@ function Router() {
         <Route path="/embed/booking" component={EmbedBooking} />
         <Route path="/things-to-do/dzaleka-refugee-camp-guided-walking-tour" component={DzalekaGuidedWalkingTour} />
         <Route path="/things-to-do" component={ThingsToDo} />
+        <Route path="/whats-on/:eventId" component={WhatsOnEventDetail} />
         <Route path="/whats-on" component={WhatsOn} />
         <Route path="/plan-your-trip" component={PlanYourTrip} />
         <Route path="/plan-your-trip/visitor-essentials" component={VisitorEssentials} />
+        <Route path="/plan-your-trip/transport" component={TransportPartners} />
         <Route path="/life-in-dzaleka" component={LifeInDzaleka} />
         <Route path="/about-dzaleka" component={AboutDzaleka} />
         <Route path="/about-us" component={AboutUs} />
@@ -273,6 +282,7 @@ function Router() {
         <Route path="/support-our-work" component={SupportOurWork} />
         <Route path="/contact" component={ContactUs} />
         <Route path="/visit/feedback" component={VisitFeedback} />
+        <Route path="/transport-quote/:token" component={TransportQuote} />
         <Route component={Landing} />
       </Switch>
     );
@@ -320,6 +330,7 @@ function Router() {
         <ProtectedRoute path="/email-settings" component={EmailSettings} allowedRoles={["admin"]} />
         <ProtectedRoute path="/revenue" component={Revenue} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/payments" component={PaymentsPage} allowedRoles={["admin"]} />
+        <ProtectedRoute path="/transport-partner" component={TransportPartnerPortal} allowedRoles={["admin", "coordinator", "transport_partner"]} />
         <ProtectedRoute path="/audit-logs" component={AuditLogs} allowedRoles={["admin"]} />
         <ProtectedRoute path="/analytics" component={Analytics} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/reports" component={Reports} allowedRoles={["admin", "coordinator"]} />
@@ -327,6 +338,7 @@ function Router() {
         <ProtectedRoute path="/cms" component={CMSPage} allowedRoles={["admin"]} />
         <ProtectedRoute path="/security-admin" component={SecurityAdmin} allowedRoles={["admin"]} />
         <ProtectedRoute path="/resources" component={VisitorResources} allowedRoles={["visitor"]} />
+        <ProtectedRoute path="/visitor-resources" component={VisitorResources} allowedRoles={["visitor"]} />
         <ProtectedRoute path="/tasks" component={Tasks} allowedRoles={["admin", "coordinator", "guide", "security"]} />
         <ProtectedRoute path="/task-admin" component={TaskAdmin} allowedRoles={["admin", "coordinator"]} />
         <Route path="/messages" component={Messages} />

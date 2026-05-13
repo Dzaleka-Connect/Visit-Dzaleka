@@ -51,6 +51,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatDate, formatTime, formatCurrency, GROUP_SIZES } from "@/lib/constants";
+import { TransportRequestFields } from "@/components/transport-request-fields";
+import { buildTransportSpecialRequests, createTransportRequestFromSearch } from "@/lib/transport";
 import type { Booking, MeetingPoint, Zone, PointOfInterest, Guide } from "@shared/schema";
 import { SEO } from "@/components/seo";
 
@@ -275,6 +277,7 @@ export default function MyBookings() {
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const initialTransportRequest = createTransportRequestFromSearch(window.location.search);
 
   const [newBooking, setNewBooking] = useState({
     visitorName: "",
@@ -291,6 +294,11 @@ export default function MyBookings() {
     selectedZones: [] as string[],
     selectedInterests: [] as string[],
     referralSource: "",
+    transportRequested: initialTransportRequest.transportRequested || false,
+    transportRoute: initialTransportRequest.transportRoute,
+    transportPartnerId: initialTransportRequest.transportPartnerId,
+    transportPickup: initialTransportRequest.transportPickup || "",
+    transportNotes: initialTransportRequest.transportNotes || "",
   });
 
   // Auto-populate form with logged-in user's data
@@ -337,7 +345,25 @@ export default function MyBookings() {
 
   const createBookingMutation = useMutation({
     mutationFn: async (data: typeof newBooking) => {
-      await apiRequest("POST", "/api/bookings", data);
+      const {
+        transportRequested,
+        transportRoute,
+        transportPartnerId,
+        transportPickup,
+        transportNotes,
+        ...bookingFields
+      } = data;
+
+      await apiRequest("POST", "/api/bookings", {
+        ...bookingFields,
+        specialRequests: buildTransportSpecialRequests(data.specialRequests, {
+          transportRequested,
+          transportRoute,
+          transportPartnerId,
+          transportPickup,
+          transportNotes,
+        }),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bookings/my-bookings"] });
@@ -357,6 +383,11 @@ export default function MyBookings() {
         selectedZones: [],
         selectedInterests: [],
         referralSource: "",
+        transportRequested: false,
+        transportRoute: initialTransportRequest.transportRoute,
+        transportPartnerId: initialTransportRequest.transportPartnerId,
+        transportPickup: "",
+        transportNotes: "",
       });
       toast({
         title: "Booking submitted",
@@ -1248,6 +1279,16 @@ export default function MyBookings() {
                     data-testid="textarea-special-requests"
                   />
                 </div>
+
+                <TransportRequestFields
+                  idPrefix="visitor-booking"
+                  transportRequested={newBooking.transportRequested}
+                  transportRoute={newBooking.transportRoute}
+                  transportPartnerId={newBooking.transportPartnerId}
+                  transportPickup={newBooking.transportPickup}
+                  transportNotes={newBooking.transportNotes}
+                  onChange={(updates) => setNewBooking({ ...newBooking, ...updates })}
+                />
 
                 <div className="space-y-2 text-xs text-muted-foreground bg-muted/30 p-3 rounded-md border">
                   <h4 className="font-semibold mb-1">Privacy & Data Protection</h4>

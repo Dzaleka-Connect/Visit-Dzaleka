@@ -36,6 +36,7 @@ import {
   Play,
   ScanLine,
   UserX,
+  Car,
 } from "lucide-react";
 import {
   Card,
@@ -255,6 +256,12 @@ function AdminDashboard() {
               <Button variant="secondary" size="sm" className={quickActionButtonClass}>
                 <DollarSign className={quickActionIconClass} />
                 <span>Revenue</span>
+              </Button>
+            </Link>
+            <Link href="/transport-partner?tab=requests">
+              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+                <Car className={quickActionIconClass} />
+                <span>Transport ops</span>
               </Button>
             </Link>
           </>
@@ -516,6 +523,15 @@ function AdminDashboard() {
                   <div className="min-w-0">
                     <div className="font-medium">User management</div>
                     <div className="text-xs text-muted-foreground">Manage user accounts</div>
+                  </div>
+                </Link>
+              </Button>
+              <Button variant="outline" className={dashboardActionCardClass} asChild>
+                <Link href="/transport-partner?tab=requests" data-testid="action-transport-ops">
+                  <Car className="h-5 w-5 text-primary" />
+                  <div className="min-w-0">
+                    <div className="font-medium">Transport ops</div>
+                    <div className="text-xs text-muted-foreground">Quotes, drivers, pickups</div>
                   </div>
                 </Link>
               </Button>
@@ -1757,7 +1773,7 @@ function VisitorDashboard() {
                   </Link>
                 </Button>
                 <Button variant="outline" className="w-full justify-start" asChild>
-                  <Link href="/visitor-resources">
+                  <Link href="/resources">
                     <BookOpen className="mr-2 h-4 w-4" />
                     Visitor resources
                   </Link>

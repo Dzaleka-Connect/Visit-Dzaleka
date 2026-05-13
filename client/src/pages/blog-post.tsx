@@ -15,6 +15,28 @@ import { SiteFooter } from "@/components/site-footer";
 import { FaFacebook, FaTwitter, FaWhatsapp, FaLinkedin } from "react-icons/fa";
 import { IoCopyOutline, IoCheckmark } from "react-icons/io5";
 
+const SITE_URL = "https://visit.dzaleka.com";
+const DEFAULT_SOCIAL_IMAGE = "https://services.dzaleka.com/images/Visit_Dzaleka.png";
+
+function absoluteUrl(url?: string | null) {
+    if (!url) return DEFAULT_SOCIAL_IMAGE;
+    try {
+        return new URL(url, SITE_URL).href;
+    } catch {
+        return DEFAULT_SOCIAL_IMAGE;
+    }
+}
+
+function plainText(value: string) {
+    return value
+        .replace(/```[\s\S]*?```/g, " ")
+        .replace(/!\[[^\]]*]\([^)]+\)/g, " ")
+        .replace(/\[[^\]]+]\([^)]+\)/g, (match) => match.replace(/\[|\]\([^)]+\)/g, ""))
+        .replace(/[#>*_`~\-]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
 export default function BlogPostPage() {
     const [, params] = useRoute("/blog/:slug");
     const slug = params?.slug;
@@ -66,15 +88,24 @@ export default function BlogPostPage() {
         )
     }
 
+    const postDescription = plainText(post.excerpt || post.content).slice(0, 180);
+    const postImage = absoluteUrl(post.coverImage);
+    const canonicalUrl = `${SITE_URL}/blog/${post.slug}`;
+
     return (
         <div className="min-h-screen bg-background flex flex-col">
             <SEO
                 title={post.title}
-                description={post.excerpt || post.content.substring(0, 160)}
+                description={postDescription}
                 keywords={`Dzaleka, blog, ${post.title.toLowerCase()}`}
-                canonical={`https://visit.dzaleka.com/blog/${post.slug}`}
-                ogImage={post.coverImage || "https://services.dzaleka.com/images/dzaleka-digital-heritage.png"}
+                canonical={canonicalUrl}
+                ogImage={postImage}
+                imageAlt={post.title}
                 type="article"
+                publishedTime={post.publishedAt}
+                modifiedTime={post.updatedAt}
+                section="Dzaleka Stories"
+                tags={["Dzaleka", "Visit Dzaleka", "Malawi", "Refugee-led tourism"]}
             />
             {/* Structured Data for Google "Top Stories" - BlogPosting */}
             <script
@@ -85,10 +116,10 @@ export default function BlogPostPage() {
                         "@type": "BlogPosting",
                         "headline": post.title,
                         "image": [
-                            post.coverImage || "https://services.dzaleka.com/images/dzaleka-digital-heritage.png"
+                            postImage
                         ],
                         "datePublished": post.publishedAt || new Date().toISOString(),
-                        "dateModified": post.publishedAt || new Date().toISOString(),
+                        "dateModified": post.updatedAt || post.publishedAt || new Date().toISOString(),
                         "author": {
                             "@type": "Person",
                             "name": "Visit Dzaleka Team"
@@ -101,7 +132,8 @@ export default function BlogPostPage() {
                                 "url": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png"
                             }
                         },
-                        "description": post.excerpt || post.content.substring(0, 160)
+                        "mainEntityOfPage": canonicalUrl,
+                        "description": postDescription
                     })
                 }}
             />

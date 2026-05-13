@@ -541,6 +541,9 @@ export default function DzalekaGuidedWalkingTour() {
                   <Link href="/login">Check availability</Link>
                 </Button>
                 <Button asChild className="w-full" variant="outline">
+                  <Link href="/plan-your-trip/transport">Add trusted transport</Link>
+                </Button>
+                <Button asChild className="w-full" variant="outline">
                   <Link href="/help?support=true">Ask a question</Link>
                 </Button>
               </CardContent>

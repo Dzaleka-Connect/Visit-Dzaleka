@@ -6,10 +6,32 @@ interface SEOProps {
   name?: string;
   type?: string;
   ogImage?: string;
+  imageAlt?: string;
   keywords?: string;
   canonical?: string;
   structuredData?: object;
   robots?: string;
+  publishedTime?: string | Date | null;
+  modifiedTime?: string | Date | null;
+  section?: string;
+  tags?: string[];
+}
+
+const SITE_URL = "https://visit.dzaleka.com";
+
+function absoluteUrl(url?: string | null) {
+  if (!url) return "";
+  try {
+    return new URL(url, SITE_URL).href;
+  } catch {
+    return url;
+  }
+}
+
+function toIsoDate(value?: string | Date | null) {
+  if (!value) return undefined;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
 export function SEO({
@@ -18,15 +40,25 @@ export function SEO({
   name = "Visit Dzaleka",
   type = "website",
   ogImage,
+  imageAlt,
   keywords,
   canonical,
   structuredData,
-  robots
+  robots,
+  publishedTime,
+  modifiedTime,
+  section,
+  tags = [],
 }: SEOProps) {
   const defaultDescription = "Book a guided visit to Dzaleka Refugee Camp in Malawi. Meet local guides, artists, entrepreneurs, and community groups while supporting refugee-led work.";
   const defaultOgImage = "https://services.dzaleka.com/images/Visit_Dzaleka.png";
   const fullDescription = description || defaultDescription;
-  const fullOgImage = ogImage || defaultOgImage;
+  const fullOgImage = absoluteUrl(ogImage || defaultOgImage);
+  const fullCanonical = absoluteUrl(canonical || SITE_URL);
+  const fullTitle = title === name || title.endsWith(`| ${name}`) ? title : `${title} | ${name}`;
+  const fullImageAlt = imageAlt || `${title} | ${name}`;
+  const publishedIso = toIsoDate(publishedTime);
+  const modifiedIso = toIsoDate(modifiedTime);
   const defaultKeywords = "Dzaleka tours, refugee camp visit Malawi, cultural tourism Africa, book Dzaleka tour, Tumaini Festival, refugee camp tours, Malawi tourism, cultural exchange, guided tours Malawi, visit Dzaleka, book tour refugee camp, African cultural experience, responsible tourism Malawi";
 
   // Default structured data for tour service
@@ -281,14 +313,19 @@ export function SEO({
   return (
     <Helmet>
       {/* Standard metadata tags */}
-      <title>{title} | {name}</title>
+      <title>{fullTitle}</title>
       <meta name="description" content={fullDescription} />
       <meta name="keywords" content={keywords || defaultKeywords} />
       <meta name="robots" content={robots || "index, follow, max-image-preview:large"} />
       <meta name="author" content="Visit Dzaleka" />
+      <meta itemProp="name" content={fullTitle} />
+      <meta itemProp="description" content={fullDescription} />
+      <meta itemProp="image" content={fullOgImage} />
+      <meta name="thumbnail" content={fullOgImage} />
 
       {/* Canonical URL */}
-      {canonical && <link rel="canonical" href={canonical} />}
+      <link rel="canonical" href={fullCanonical} />
+      <link rel="image_src" href={fullOgImage} />
 
       {/* Geo tags for local SEO */}
       <meta name="geo.region" content="MW" />
@@ -303,21 +340,33 @@ export function SEO({
       {/* Open Graph tags */}
       <meta property="og:type" content={type} />
       <meta property="og:site_name" content="Visit Dzaleka" />
-      <meta property="og:title" content={title} />
+      <meta property="og:title" content={fullTitle} />
       <meta property="og:description" content={fullDescription} />
-      <meta property="og:url" content={canonical || "https://visit.dzaleka.com/"} />
+      <meta property="og:url" content={fullCanonical} />
       <meta property="og:locale" content="en_US" />
       <meta property="og:image" content={fullOgImage} />
-      <meta property="og:image:alt" content={`${title} | Visit Dzaleka`} />
+      <meta property="og:image:secure_url" content={fullOgImage} />
+      <meta property="og:image:alt" content={fullImageAlt} />
       <meta property="og:image:width" content="1200" />
       <meta property="og:image:height" content="630" />
+      <meta property="og:image:type" content={fullOgImage.endsWith(".png") ? "image/png" : "image/jpeg"} />
+
+      {type === "article" && publishedIso && <meta property="article:published_time" content={publishedIso} />}
+      {type === "article" && modifiedIso && <meta property="article:modified_time" content={modifiedIso} />}
+      {type === "article" && section && <meta property="article:section" content={section} />}
+      {type === "article" && tags.map((tag) => (
+        <meta key={tag} property="article:tag" content={tag} />
+      ))}
 
       {/* Twitter Card tags */}
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:site" content="@Dzalekaconnect" />
-      <meta name="twitter:title" content={title} />
+      <meta name="twitter:domain" content="visit.dzaleka.com" />
+      <meta name="twitter:url" content={fullCanonical} />
+      <meta name="twitter:title" content={fullTitle} />
       <meta name="twitter:description" content={fullDescription} />
       <meta name="twitter:image" content={fullOgImage} />
+      <meta name="twitter:image:alt" content={fullImageAlt} />
 
       {/* Structured Data / JSON-LD */}
       <script type="application/ld+json">

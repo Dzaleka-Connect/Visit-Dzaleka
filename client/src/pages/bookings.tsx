@@ -79,6 +79,8 @@ import { TableSkeleton } from "@/components/loading-skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { TransportRequestFields } from "@/components/transport-request-fields";
+import { buildTransportSpecialRequests, DEFAULT_TRANSPORT_ROUTE_ID } from "@/lib/transport";
 import {
   formatDate,
   formatTime,
@@ -744,11 +746,34 @@ export default function Bookings() {
     selectedZones: [] as string[],
     selectedInterests: [] as string[],
     referralSource: "",
+    transportRequested: false,
+    transportRoute: DEFAULT_TRANSPORT_ROUTE_ID,
+    transportPartnerId: "",
+    transportPickup: "",
+    transportNotes: "",
   });
 
   const createBookingMutation = useMutation({
     mutationFn: async (data: typeof newBooking) => {
-      await apiRequest("POST", "/api/bookings", data);
+      const {
+        transportRequested,
+        transportRoute,
+        transportPartnerId,
+        transportPickup,
+        transportNotes,
+        ...bookingFields
+      } = data;
+
+      await apiRequest("POST", "/api/bookings", {
+        ...bookingFields,
+        specialRequests: buildTransportSpecialRequests(data.specialRequests, {
+          transportRequested,
+          transportRoute,
+          transportPartnerId,
+          transportPickup,
+          transportNotes,
+        }),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
@@ -769,6 +794,11 @@ export default function Bookings() {
         selectedZones: [],
         selectedInterests: [],
         referralSource: "",
+        transportRequested: false,
+        transportRoute: DEFAULT_TRANSPORT_ROUTE_ID,
+        transportPartnerId: "",
+        transportPickup: "",
+        transportNotes: "",
       });
 
       toast({
@@ -2143,6 +2173,15 @@ export default function Bookings() {
                 data-testid="textarea-new-special-requests"
               />
             </div>
+            <TransportRequestFields
+              idPrefix="admin-booking"
+              transportRequested={newBooking.transportRequested}
+              transportRoute={newBooking.transportRoute}
+              transportPartnerId={newBooking.transportPartnerId}
+              transportPickup={newBooking.transportPickup}
+              transportNotes={newBooking.transportNotes}
+              onChange={(updates) => setNewBooking({ ...newBooking, ...updates })}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateBookingOpen(false)}>

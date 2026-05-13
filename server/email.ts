@@ -26,6 +26,7 @@ interface EmailOptions {
   to: string;
   subject: string;
   html: string;
+  text?: string;
   replyTo?: string[];
 }
 
@@ -159,6 +160,54 @@ interface InvitationData {
   inviterName?: string;
 }
 
+interface PartnerReferralBookingEmailData {
+  visitorName: string;
+  visitorEmail: string;
+  partnerName: string;
+  bookingReference: string;
+  visitDate: string;
+  visitTime: string;
+  tourType: string;
+  numberOfPeople: number;
+  totalAmount: number;
+  accountUrl: string;
+  accountActionLabel: string;
+  accountActionText: string;
+}
+
+interface TransportDriverDetailsEmailData {
+  visitorName: string;
+  visitorEmail: string;
+  bookingReference?: string | null;
+  partnerName?: string | null;
+  partnerEmail?: string | null;
+  partnerPhone?: string | null;
+  partnerWhatsapp?: string | null;
+  route: string;
+  pickupLocation?: string | null;
+  visitDate?: string | null;
+  visitTime?: string | null;
+  quotedAmount?: number | null;
+  currency?: string | null;
+  estimatedPickupTime?: string | null;
+  driverName?: string | null;
+  driverPhone?: string | null;
+  vehicleDetails?: string | null;
+  partnerNotes?: string | null;
+  manageBookingUrl?: string | null;
+  accountActionLabel?: string | null;
+  accountActionText?: string | null;
+}
+
+function escapeHtml(value: string | number | null | undefined): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 // Send user invitation email
 export async function sendInvitationEmailDetailed(data: InvitationData): Promise<EmailSendResult> {
   const resendClient = getResendClient();
@@ -228,6 +277,20 @@ function formatCurrency(amount: number): string {
     currency: 'MWK',
     minimumFractionDigits: 0,
   }).format(amount);
+}
+
+function formatMoneyAmount(amount: number | null | undefined, currency?: string | null): string | null {
+  if (amount === null || amount === undefined || Number.isNaN(Number(amount))) return null;
+  const currencyCode = (currency || 'MWK').toUpperCase();
+  try {
+    return new Intl.NumberFormat(currencyCode === 'MWK' ? 'en-MW' : 'en-US', {
+      style: 'currency',
+      currency: currencyCode,
+      minimumFractionDigits: currencyCode === 'MWK' ? 0 : 2,
+    }).format(Number(amount));
+  } catch {
+    return `${currencyCode} ${Number(amount).toLocaleString()}`;
+  }
 }
 
 // Send booking request received email
@@ -324,6 +387,249 @@ export async function sendBookingConfirmationDetailed(data: BookingConfirmationD
 export async function sendBookingConfirmation(data: BookingConfirmationData): Promise<boolean> {
   const result = await sendBookingConfirmationDetailed(data);
   return result.success;
+}
+
+export async function sendPartnerReferralBookingEmailDetailed(data: PartnerReferralBookingEmailData): Promise<EmailSendResult> {
+  const resendClient = getResendClient();
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
+
+  const safeVisitorName = escapeHtml(data.visitorName);
+  const safePartnerName = escapeHtml(data.partnerName);
+  const safeBookingReference = escapeHtml(data.bookingReference);
+  const safeVisitDate = escapeHtml(data.visitDate);
+  const safeVisitTime = escapeHtml(data.visitTime);
+  const safeTourType = escapeHtml(formatTourType(data.tourType));
+  const safeAccountUrl = escapeHtml(data.accountUrl);
+  const safeAccountActionLabel = escapeHtml(data.accountActionLabel);
+  const safeAccountActionText = escapeHtml(data.accountActionText);
+  const totalAmount = formatCurrency(data.totalAmount);
+
+  const text = [
+    `Hello ${data.visitorName},`,
+    '',
+    `${data.partnerName} has referred you to Visit Dzaleka for a guided Dzaleka tour.`,
+    `Booking reference: ${data.bookingReference}`,
+    `Date: ${data.visitDate}`,
+    `Time: ${data.visitTime}`,
+    `Tour type: ${formatTourType(data.tourType)}`,
+    `Group size: ${data.numberOfPeople} ${data.numberOfPeople === 1 ? 'person' : 'people'}`,
+    `Guiding fee: ${totalAmount}`,
+    '',
+    data.accountActionText,
+    data.accountUrl,
+    '',
+    `If you have any questions, contact us at ${SUPPORT_EMAIL}.`,
+  ].join('\n');
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Your Visit Dzaleka Tour Referral</title>
+      </head>
+      <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #0284C7 0%, #0369a1 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Tour Referral Received</p>
+        </div>
+
+        <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+          <p style="margin: 0 0 20px 0;">Hello ${safeVisitorName},</p>
+
+          <p><strong>${safePartnerName}</strong> has referred you to Visit Dzaleka for a guided Dzaleka tour. We have received the request and our team will review guide availability.</p>
+
+          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h2 style="color: #0284C7; margin: 0 0 15px 0; font-size: 18px;">Booking Details</h2>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Reference:</td>
+                <td style="padding: 8px 0; font-weight: 600;">${safeBookingReference}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Date:</td>
+                <td style="padding: 8px 0;">${safeVisitDate}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Time:</td>
+                <td style="padding: 8px 0;">${safeVisitTime}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Tour Type:</td>
+                <td style="padding: 8px 0; text-transform: capitalize;">${safeTourType}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Group Size:</td>
+                <td style="padding: 8px 0;">${data.numberOfPeople} ${data.numberOfPeople === 1 ? 'person' : 'people'}</td>
+              </tr>
+              <tr style="border-top: 1px solid #e5e7eb;">
+                <td style="padding: 15px 0 8px 0; color: #6b7280;">Visit Dzaleka Guiding Fee:</td>
+                <td style="padding: 15px 0 8px 0; font-weight: 700; font-size: 18px; color: #0284C7;">${totalAmount}</td>
+              </tr>
+            </table>
+          </div>
+
+          <div style="background: #ecfeff; border: 1px solid #06b6d4; border-radius: 8px; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; color: #155e75; font-size: 14px;">
+              <strong>Manage your booking:</strong> ${safeAccountActionText}
+            </p>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${safeAccountUrl}" style="display: inline-block; background: #0284C7; color: white; padding: 15px 32px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+              ${safeAccountActionLabel}
+            </a>
+          </div>
+
+          <p style="margin: 20px 0 0 0; font-size: 14px; color: #6b7280;">
+            Transport arrangements remain separate from the Visit Dzaleka guiding fee. If you have any questions, please contact us at ${SUPPORT_EMAIL}.
+          </p>
+        </div>
+
+        <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
+          <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">
+            ${emailFooterText()}
+          </p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return await sendEmailWithRetry({
+    from: resendClient.fromEmail,
+    replyTo: resendClient.replyTo,
+    to: data.visitorEmail,
+    subject: `Your Visit Dzaleka tour referral - ${data.bookingReference}`,
+    html,
+    text,
+  });
+}
+
+export async function sendTransportDriverDetailsEmailDetailed(data: TransportDriverDetailsEmailData): Promise<EmailSendResult> {
+  const resendClient = getResendClient();
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
+
+  const quote = formatMoneyAmount(data.quotedAmount, data.currency);
+  const safeVisitorName = escapeHtml(data.visitorName);
+  const safePartnerName = escapeHtml(data.partnerName || 'your transport partner');
+  const safeReference = escapeHtml(data.bookingReference || 'Transport request');
+  const safeRoute = escapeHtml(data.route);
+  const safePickup = escapeHtml(data.pickupLocation || 'To be confirmed');
+  const safeDate = escapeHtml(data.visitDate || 'To be confirmed');
+  const safeTime = escapeHtml(data.visitTime || 'To be confirmed');
+  const safePickupTime = escapeHtml(data.estimatedPickupTime || 'To be confirmed');
+  const safeDriverName = escapeHtml(data.driverName || 'To be confirmed');
+  const safeDriverPhone = escapeHtml(data.driverPhone || data.partnerPhone || data.partnerWhatsapp || SUPPORT_PHONE);
+  const safeVehicle = escapeHtml(data.vehicleDetails || 'To be confirmed');
+  const safeQuote = escapeHtml(quote || 'To be confirmed');
+  const safePartnerNotes = escapeHtml(data.partnerNotes || '');
+  const safeManageBookingUrl = escapeHtml(data.manageBookingUrl || publicAppUrl('/my-bookings'));
+  const safeActionLabel = escapeHtml(data.accountActionLabel || 'Manage Booking');
+  const safeActionText = escapeHtml(data.accountActionText || 'Use your Visit Dzaleka account to view transport updates and manage your booking.');
+
+  const contactLine = [
+    data.driverPhone ? `Driver: ${data.driverPhone}` : null,
+    data.partnerWhatsapp ? `WhatsApp: ${data.partnerWhatsapp}` : null,
+    data.partnerPhone ? `Partner phone: ${data.partnerPhone}` : null,
+    data.partnerEmail ? `Partner email: ${data.partnerEmail}` : null,
+  ].filter(Boolean).join(' | ');
+
+  const text = [
+    `Hello ${data.visitorName},`,
+    '',
+    `${data.partnerName || 'Your transport partner'} has accepted your transport request for Visit Dzaleka.`,
+    data.bookingReference ? `Booking reference: ${data.bookingReference}` : '',
+    `Route: ${data.route}`,
+    `Pickup location: ${data.pickupLocation || 'To be confirmed'}`,
+    `Visit date: ${data.visitDate || 'To be confirmed'}`,
+    `Visit time: ${data.visitTime || 'To be confirmed'}`,
+    `Estimated pickup time: ${data.estimatedPickupTime || 'To be confirmed'}`,
+    quote ? `Quote: ${quote}` : 'Quote: To be confirmed',
+    `Driver: ${data.driverName || 'To be confirmed'}`,
+    `Driver phone: ${data.driverPhone || data.partnerPhone || data.partnerWhatsapp || SUPPORT_PHONE}`,
+    `Vehicle: ${data.vehicleDetails || 'To be confirmed'}`,
+    data.partnerNotes ? `Partner notes: ${data.partnerNotes}` : '',
+    '',
+    contactLine || `Contact Visit Dzaleka at ${SUPPORT_EMAIL} if you need help.`,
+    data.accountActionText || 'Use your Visit Dzaleka account to view transport updates and manage your booking.',
+    `${data.accountActionLabel || 'Manage booking'}: ${data.manageBookingUrl || publicAppUrl('/my-bookings')}`,
+  ].filter(Boolean).join('\n');
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Your Transport Details</title>
+      </head>
+      <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #0284C7 0%, #0369a1 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Transport Request Accepted</p>
+        </div>
+
+        <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+          <p style="margin: 0 0 20px 0;">Hello ${safeVisitorName},</p>
+          <p><strong>${safePartnerName}</strong> has accepted your transport request. You can now contact the driver or transport partner directly if you need to coordinate pickup details.</p>
+
+          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h2 style="color: #0284C7; margin: 0 0 15px 0; font-size: 18px;">Transport Details</h2>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr><td style="padding: 8px 0; color: #6b7280;">Reference:</td><td style="padding: 8px 0; font-weight: 600;">${safeReference}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Route:</td><td style="padding: 8px 0;">${safeRoute}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Pickup location:</td><td style="padding: 8px 0;">${safePickup}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Visit date:</td><td style="padding: 8px 0;">${safeDate}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Visit time:</td><td style="padding: 8px 0;">${safeTime}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Pickup time:</td><td style="padding: 8px 0;">${safePickupTime}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Quote:</td><td style="padding: 8px 0; font-weight: 700; color: #0284C7;">${safeQuote}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Driver:</td><td style="padding: 8px 0;">${safeDriverName}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Driver phone:</td><td style="padding: 8px 0; font-weight: 600;">${safeDriverPhone}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Vehicle:</td><td style="padding: 8px 0;">${safeVehicle}</td></tr>
+            </table>
+          </div>
+
+          ${safePartnerNotes ? `
+          <div style="background: #ecfeff; border: 1px solid #06b6d4; border-radius: 8px; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; color: #155e75; font-size: 14px;"><strong>Partner notes:</strong> ${safePartnerNotes}</p>
+          </div>
+          ` : ''}
+
+          <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; color: #1e40af; font-size: 14px;"><strong>Booking access:</strong> ${safeActionText}</p>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${safeManageBookingUrl}" style="display: inline-block; background: #0284C7; color: white; padding: 15px 32px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+              ${safeActionLabel}
+            </a>
+          </div>
+
+          <p style="margin: 20px 0 0 0; font-size: 14px; color: #6b7280;">
+            Transport is managed by the transport partner. Visit Dzaleka can still help if you have questions about your tour at ${SUPPORT_EMAIL}.
+          </p>
+        </div>
+
+        <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
+          <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">
+            ${emailFooterText()}
+          </p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return await sendEmailWithRetry({
+    from: resendClient.fromEmail,
+    replyTo: resendClient.replyTo,
+    to: data.visitorEmail,
+    subject: data.bookingReference
+      ? `Your transport details - ${data.bookingReference}`
+      : 'Your Visit Dzaleka transport details',
+    html,
+    text,
+  });
 }
 
 // Send status update email

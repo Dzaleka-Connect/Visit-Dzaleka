@@ -25,6 +25,16 @@
   status = 200
 
 [[redirects]]
+  from = "/blog/:slug"
+  to = "/blog/:slug/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/whats-on/:eventId"
+  to = "/whats-on/:eventId/index.html"
+  status = 200
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200

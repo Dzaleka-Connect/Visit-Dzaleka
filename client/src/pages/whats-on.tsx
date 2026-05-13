@@ -1,13 +1,14 @@
-import { useState, useEffect, useMemo } from "react";
-import { Link } from "wouter";
+import { useState, useMemo } from "react";
+import { Link, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Calendar, MapPin, Menu, X, ExternalLink, Clock, Tag, ChevronLeft, ChevronRight, Lightbulb } from "lucide-react";
+import { ArrowRight, Calendar, MapPin, Menu, X, ExternalLink, Clock, Tag, ChevronLeft, ChevronRight, Lightbulb } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
+import { PublicHeader } from "@/components/public-header";
 
 interface Event {
     id: string;
@@ -43,20 +44,42 @@ interface EventsResponse {
 }
 
 const ITEMS_PER_PAGE = 6;
+const SITE_URL = "https://visit.dzaleka.com";
+const EVENTS_QUERY_KEY = ["/api/community/events"];
+const DEFAULT_EVENT_IMAGE = "https://tumainiletu.org/wp-content/uploads/2024/10/9L1A6757-1.jpg";
+
+async function fetchEvents() {
+    const res = await fetch("/api/community/events");
+    if (!res.ok) {
+        throw new Error("Failed to fetch events");
+    }
+    return res.json() as Promise<EventsResponse>;
+}
+
+function eventImageUrl(event?: Pick<Event, "image"> | null) {
+    if (!event?.image) return DEFAULT_EVENT_IMAGE;
+    try {
+        return new URL(event.image, event.image.startsWith("/") ? "https://services.dzaleka.com" : SITE_URL).href;
+    } catch {
+        return DEFAULT_EVENT_IMAGE;
+    }
+}
+
+function eventDetailHref(event: Pick<Event, "id">) {
+    return `/whats-on/${encodeURIComponent(event.id)}`;
+}
+
+function eventDescription(event: Pick<Event, "description">) {
+    return event.description.replace(/\s+/g, " ").trim().slice(0, 180);
+}
 
 export default function WhatsOn() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
 
     const { data, isLoading, error } = useQuery<EventsResponse>({
-        queryKey: ["events"],
-        queryFn: async () => {
-            const res = await fetch("https://services.dzaleka.com/api/events");
-            if (!res.ok) {
-                throw new Error("Failed to fetch events");
-            }
-            return res.json();
-        },
+        queryKey: EVENTS_QUERY_KEY,
+        queryFn: fetchEvents,
     });
 
     const events = data?.data?.events || [];
@@ -391,32 +414,236 @@ export default function WhatsOn() {
     );
 }
 
-function EventCard({ event }: { event: Event }) {
+export function WhatsOnEventDetail() {
+    const [, params] = useRoute("/whats-on/:eventId");
+    const eventId = params?.eventId ? decodeURIComponent(params.eventId) : "";
+
+    const { data, isLoading, error } = useQuery<EventsResponse>({
+        queryKey: EVENTS_QUERY_KEY,
+        queryFn: fetchEvents,
+    });
+
+    const event = data?.data?.events?.find((item) => item.id === eventId);
+    const imageUrl = eventImageUrl(event);
+    const canonical = `${SITE_URL}/whats-on/${encodeURIComponent(eventId)}`;
+
+    const structuredData = event ? {
+        "@context": "https://schema.org",
+        "@type": "Event",
+        "@id": `${canonical}#event`,
+        "name": event.title,
+        "description": eventDescription(event),
+        "image": imageUrl,
+        "url": canonical,
+        "startDate": event.date,
+        ...(event.endDate && { "endDate": event.endDate }),
+        "eventStatus": event.status === "upcoming"
+            ? "https://schema.org/EventScheduled"
+            : "https://schema.org/EventCompleted",
+        "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+        "location": {
+            "@type": "Place",
+            "name": event.location,
+            "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "Dowa",
+                "addressRegion": "Central Region",
+                "addressCountry": "MW",
+            },
+        },
+        "organizer": {
+            "@type": "Organization",
+            "name": event.organizer || "Dzaleka Online Services",
+            "url": SITE_URL,
+        },
+        ...(event.registration?.url && {
+            "offers": {
+                "@type": "Offer",
+                "url": event.registration.url,
+                "availability": event.status === "upcoming"
+                    ? "https://schema.org/InStock"
+                    : "https://schema.org/SoldOut",
+            },
+        }),
+    } : null;
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-background">
+                <SEO
+                    title="Event Details"
+                    description="Event details from Dzaleka Refugee Camp."
+                    canonical={canonical}
+                    ogImage={DEFAULT_EVENT_IMAGE}
+                />
+                <PublicHeader />
+                <main className="container mx-auto px-4 py-16">
+                    <div className="mx-auto max-w-4xl space-y-4">
+                        <div className="h-8 w-48 animate-pulse rounded bg-muted" />
+                        <div className="aspect-video animate-pulse rounded-xl bg-muted" />
+                        <div className="h-24 animate-pulse rounded bg-muted" />
+                    </div>
+                </main>
+                <SiteFooter />
+            </div>
+        );
+    }
+
+    if (error || !event) {
+        return (
+            <div className="min-h-screen bg-background">
+                <SEO
+                    title="Event Not Found"
+                    description="The event you are looking for could not be found."
+                    canonical={canonical}
+                    robots="noindex"
+                />
+                <PublicHeader />
+                <main className="container mx-auto px-4 py-20 text-center">
+                    <h1 className="text-3xl font-bold">Event not found</h1>
+                    <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
+                        This event may have been removed or the link may be incorrect.
+                    </p>
+                    <Button asChild className="mt-6">
+                        <Link href="/whats-on">Back to What's On</Link>
+                    </Button>
+                </main>
+                <SiteFooter />
+            </div>
+        );
+    }
+
     const isPast = event.status === "past";
 
     return (
+        <div className="min-h-screen bg-background flex flex-col">
+            <SEO
+                title={`${event.title} | What's On`}
+                description={eventDescription(event)}
+                keywords={[event.title, event.category, ...(event.tags || []), "Dzaleka events", "Malawi events"].join(", ")}
+                canonical={canonical}
+                ogImage={imageUrl}
+                imageAlt={event.title}
+                type="article"
+                publishedTime={event.date}
+                section="Events"
+                tags={event.tags || []}
+                structuredData={structuredData || undefined}
+            />
+
+            <PublicHeader />
+
+            <main className="flex-1">
+                <section className="border-b bg-muted/30">
+                    <div className="container mx-auto max-w-5xl px-4 py-10 md:py-14">
+                        <Button asChild variant="ghost" size="sm" className="-ml-3 mb-6">
+                            <Link href="/whats-on">
+                                <ChevronLeft className="mr-1 h-4 w-4" />
+                                Back to What's On
+                            </Link>
+                        </Button>
+
+                        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+                            <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <Badge variant={isPast ? "secondary" : "default"}>{isPast ? "Past event" : "Upcoming"}</Badge>
+                                    <Badge variant="outline">{event.category}</Badge>
+                                </div>
+                                <h1 className="mt-4 break-words text-4xl font-extrabold tracking-tight md:text-5xl">
+                                    {event.title}
+                                </h1>
+                                <p className="mt-4 max-w-3xl text-lg leading-relaxed text-muted-foreground">
+                                    {event.description}
+                                </p>
+                            </div>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-lg">Event details</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4 text-sm">
+                                    <div className="flex gap-3">
+                                        <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                                        <div>
+                                            <p className="font-medium">{format(new Date(event.date), "EEEE, MMMM d, yyyy")}</p>
+                                            <p className="text-muted-foreground">{format(new Date(event.date), "h:mm a")}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                                        <p className="break-words">{event.location}</p>
+                                    </div>
+                                    {event.organizer && (
+                                        <div className="flex gap-3">
+                                            <Tag className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                                            <p className="break-words">{event.organizer}</p>
+                                        </div>
+                                    )}
+                                    {event.registration?.url && !isPast && (
+                                        <Button asChild className="w-full">
+                                            <a href={event.registration.url} target="_blank" rel="noopener noreferrer">
+                                                Register
+                                                <ExternalLink className="h-4 w-4" />
+                                            </a>
+                                        </Button>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </div>
+                </section>
+
+                <section className="container mx-auto max-w-5xl px-4 py-10">
+                    <div className="overflow-hidden rounded-xl border bg-muted">
+                        <img
+                            src={imageUrl}
+                            alt={event.title}
+                            className="aspect-video w-full object-cover"
+                            onError={(e) => {
+                                (e.target as HTMLImageElement).src = DEFAULT_EVENT_IMAGE;
+                            }}
+                        />
+                    </div>
+
+                    {event.tags?.length > 0 && (
+                        <div className="mt-6 flex flex-wrap gap-2">
+                            {event.tags.map((tag) => (
+                                <Badge key={tag} variant="outline">{tag}</Badge>
+                            ))}
+                        </div>
+                    )}
+                </section>
+            </main>
+
+            <SiteFooter />
+        </div>
+    );
+}
+
+function EventCard({ event }: { event: Event }) {
+    const isPast = event.status === "past";
+    const imageUrl = eventImageUrl(event);
+    const detailHref = eventDetailHref(event);
+
+    return (
         <Card className="flex flex-col overflow-hidden h-full hover:shadow-lg transition-all duration-300 group">
-            <div className="relative aspect-video overflow-hidden bg-muted">
-                {event.image ? (
+            <Link href={detailHref} aria-label={`View details for ${event.title}`} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <div className="relative aspect-video overflow-hidden bg-muted">
                     <img
-                        src={event.image.startsWith('/') ? `https://services.dzaleka.com${event.image}` : event.image}
+                        src={imageUrl}
                         alt={event.title}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         onError={(e) => {
-                            (e.target as HTMLImageElement).src = "https://services.dzaleka.com/images/dzaleka-digital-heritage.png";
+                            (e.target as HTMLImageElement).src = DEFAULT_EVENT_IMAGE;
                         }}
                     />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-primary/5 text-primary/20">
-                        <Calendar className="h-12 w-12" />
+                    <div className="absolute top-4 left-4">
+                        <Badge variant={isPast ? "secondary" : "default"} className="uppercase text-[10px] font-bold tracking-wider">
+                            {event.category}
+                        </Badge>
                     </div>
-                )}
-                <div className="absolute top-4 left-4">
-                    <Badge variant={isPast ? "secondary" : "default"} className="uppercase text-[10px] font-bold tracking-wider">
-                        {event.category}
-                    </Badge>
                 </div>
-            </div>
+            </Link>
 
             <CardHeader className="pb-2">
                 <div className="flex items-center text-xs text-muted-foreground mb-2 gap-2">
@@ -426,7 +653,7 @@ function EventCard({ event }: { event: Event }) {
                     </span>
                 </div>
                 <CardTitle className="line-clamp-2 leading-tight group-hover:text-primary transition-colors">
-                    {event.title}
+                    <Link href={detailHref}>{event.title}</Link>
                 </CardTitle>
                 <div className="flex items-center text-xs text-muted-foreground mt-2 gap-2">
                     <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -452,18 +679,12 @@ function EventCard({ event }: { event: Event }) {
             </CardContent>
 
             <CardFooter className="pt-0">
-                {event.registration?.url ? (
-                    <Button asChild className="w-full gap-2" variant={isPast ? "outline" : "default"} disabled={isPast}>
-                        <a href={event.registration.url} target="_blank" rel="noopener noreferrer">
-                            {isPast ? "Event Ended" : "Register / Details"}
-                            <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                    </Button>
-                ) : (
-                    <Button className="w-full" variant="outline" disabled>
-                        {isPast ? "Event Ended" : "No Registration Required"}
-                    </Button>
-                )}
+                <Button asChild className="w-full gap-2" variant={isPast ? "outline" : "default"}>
+                    <Link href={detailHref}>
+                        {isPast ? "View Past Event" : "View Details"}
+                        <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                </Button>
             </CardFooter>
         </Card>
     );

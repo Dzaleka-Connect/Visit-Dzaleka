@@ -59,6 +59,7 @@ export function SiteFooter() {
                             <li><Link href="/accommodation" className="hover:text-primary">Accommodation</Link></li>
                             <li><Link href="/whats-on" className="hover:text-primary">What's On</Link></li>
                             <li><Link href="/plan-your-trip" className="hover:text-primary">Plan Your Trip</Link></li>
+                            <li><Link href="/plan-your-trip/transport" className="hover:text-primary">Trusted Transport</Link></li>
                             <li><Link href="/blog" className="hover:text-primary">Blog</Link></li>
                             <li><Link href="/faq" className="hover:text-primary">FAQ</Link></li>
                             <li><Link href="/impact-report" className="hover:text-primary">Impact Report</Link></li>

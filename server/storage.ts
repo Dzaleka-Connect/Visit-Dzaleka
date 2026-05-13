@@ -15,6 +15,24 @@ import {
   type InsertSpecialOffer,
   type Booking,
   type InsertBooking,
+  type TransportPartner,
+  type InsertTransportPartner,
+  type TransportRequest,
+  type InsertTransportRequest,
+  type TransportRequestStatus,
+  type TransportPartnerDriver,
+  type InsertTransportPartnerDriver,
+  type TransportPartnerVehicle,
+  type InsertTransportPartnerVehicle,
+  type TransportPartnerBlackout,
+  type InsertTransportPartnerBlackout,
+  type TransportPartnerPricing,
+  type InsertTransportPartnerPricing,
+  type TransportRequestActivity,
+  type InsertTransportRequestActivity,
+  type PartnerTourReferral,
+  type InsertPartnerTourReferral,
+  type PartnerReferralStatus,
   type TourReview,
   type InsertTourReview,
   type BookingStatus,
@@ -254,6 +272,46 @@ export interface IStorage {
   updateBookingRating(id: string, rating: number): Promise<Booking | undefined>;
   rescheduleBooking(id: string, visitDate: string, visitTime: string): Promise<Booking | undefined>;
 
+  // Transport partner operations
+  getTransportPartners(): Promise<TransportPartner[]>;
+  getTransportPartner(id: string): Promise<TransportPartner | undefined>;
+  getTransportPartnerByUserId(userId: string): Promise<TransportPartner | undefined>;
+  getTransportPartnerByEmail(email: string): Promise<TransportPartner | undefined>;
+  createTransportPartner(partner: InsertTransportPartner): Promise<TransportPartner>;
+  updateTransportPartner(id: string, partner: Partial<TransportPartner>): Promise<TransportPartner | undefined>;
+  getTransportRequests(partnerId?: string): Promise<TransportRequest[]>;
+  getTransportRequest(id: string): Promise<TransportRequest | undefined>;
+  getTransportRequestByQuoteToken(token: string): Promise<TransportRequest | undefined>;
+  createTransportRequest(request: InsertTransportRequest): Promise<TransportRequest>;
+  updateTransportRequest(id: string, request: Partial<TransportRequest>): Promise<TransportRequest | undefined>;
+  updateTransportRequestStatus(id: string, status: TransportRequestStatus, partnerNotes?: string | null): Promise<TransportRequest | undefined>;
+  getTransportPartnerDrivers(partnerId?: string): Promise<TransportPartnerDriver[]>;
+  getTransportPartnerDriver(id: string): Promise<TransportPartnerDriver | undefined>;
+  createTransportPartnerDriver(driver: InsertTransportPartnerDriver): Promise<TransportPartnerDriver>;
+  updateTransportPartnerDriver(id: string, driver: Partial<TransportPartnerDriver>): Promise<TransportPartnerDriver | undefined>;
+  deleteTransportPartnerDriver(id: string): Promise<void>;
+  getTransportPartnerVehicles(partnerId?: string): Promise<TransportPartnerVehicle[]>;
+  getTransportPartnerVehicle(id: string): Promise<TransportPartnerVehicle | undefined>;
+  createTransportPartnerVehicle(vehicle: InsertTransportPartnerVehicle): Promise<TransportPartnerVehicle>;
+  updateTransportPartnerVehicle(id: string, vehicle: Partial<TransportPartnerVehicle>): Promise<TransportPartnerVehicle | undefined>;
+  deleteTransportPartnerVehicle(id: string): Promise<void>;
+  getTransportPartnerBlackouts(partnerId?: string): Promise<TransportPartnerBlackout[]>;
+  getTransportPartnerBlackout(id: string): Promise<TransportPartnerBlackout | undefined>;
+  createTransportPartnerBlackout(blackout: InsertTransportPartnerBlackout): Promise<TransportPartnerBlackout>;
+  updateTransportPartnerBlackout(id: string, blackout: Partial<TransportPartnerBlackout>): Promise<TransportPartnerBlackout | undefined>;
+  deleteTransportPartnerBlackout(id: string): Promise<void>;
+  getTransportPartnerPricing(partnerId?: string): Promise<TransportPartnerPricing[]>;
+  getTransportPartnerPricingItem(id: string): Promise<TransportPartnerPricing | undefined>;
+  createTransportPartnerPricing(pricing: InsertTransportPartnerPricing): Promise<TransportPartnerPricing>;
+  updateTransportPartnerPricing(id: string, pricing: Partial<TransportPartnerPricing>): Promise<TransportPartnerPricing | undefined>;
+  deleteTransportPartnerPricing(id: string): Promise<void>;
+  getTransportRequestActivity(requestId: string): Promise<TransportRequestActivity[]>;
+  createTransportRequestActivity(activity: InsertTransportRequestActivity): Promise<TransportRequestActivity>;
+  getPartnerTourReferrals(partnerId?: string): Promise<PartnerTourReferral[]>;
+  createPartnerTourReferral(referral: InsertPartnerTourReferral): Promise<PartnerTourReferral>;
+  updatePartnerTourReferralStatus(id: string, status: PartnerReferralStatus): Promise<PartnerTourReferral | undefined>;
+  updatePartnerTourReferral(id: string, referral: Partial<PartnerTourReferral>): Promise<PartnerTourReferral | undefined>;
+
   // Tour Review operations
   getTourReviews(): Promise<TourReview[]>;
   getPublicTourReviews(limit?: number): Promise<TourReview[]>;
@@ -393,8 +451,10 @@ export interface IStorage {
   getUnreadNotificationCount(userId: string): Promise<number>;
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationAsRead(id: string): Promise<Notification | undefined>;
+  markNotificationAsReadForUser(id: string, userId: string): Promise<Notification | undefined>;
   markAllNotificationsAsRead(userId: string): Promise<void>;
   deleteNotification(id: string): Promise<void>;
+  deleteNotificationForUser(id: string, userId: string): Promise<boolean>;
 
   // Email Template operations
   getEmailTemplates(): Promise<EmailTemplate[]>;
@@ -1737,6 +1797,427 @@ export class SupabaseStorage implements IStorage {
     return this.handleResponse(data, error);
   }
 
+  async getTransportPartners(): Promise<TransportPartner[]> {
+    const { data, error } = await this.supabase
+      .from("transport_partners")
+      .select("*")
+      .order("created_at", { ascending: false });
+    return this.handleResponse(data, error);
+  }
+
+  async getTransportPartner(id: string): Promise<TransportPartner | undefined> {
+    const { data, error } = await this.supabase
+      .from("transport_partners")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async getTransportPartnerByUserId(userId: string): Promise<TransportPartner | undefined> {
+    const { data, error } = await this.supabase
+      .from("transport_partners")
+      .select("*")
+      .eq("user_id", userId)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async getTransportPartnerByEmail(email: string): Promise<TransportPartner | undefined> {
+    const { data, error } = await this.supabase
+      .from("transport_partners")
+      .select("*")
+      .eq("email", email)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createTransportPartner(partner: InsertTransportPartner): Promise<TransportPartner> {
+    const snakeData = transformToSnake(partner);
+    Object.keys(snakeData).forEach(key => snakeData[key] === undefined && delete snakeData[key]);
+
+    const { data, error } = await this.supabase
+      .from("transport_partners")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async updateTransportPartner(id: string, partner: Partial<TransportPartner>): Promise<TransportPartner | undefined> {
+    const snakeData = transformToSnake(partner);
+    Object.keys(snakeData).forEach(key => snakeData[key] === undefined && delete snakeData[key]);
+
+    const { data, error } = await this.supabase
+      .from("transport_partners")
+      .update({ ...snakeData, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async getTransportRequests(partnerId?: string): Promise<TransportRequest[]> {
+    let query = this.supabase
+      .from("transport_requests")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (partnerId) {
+      query = query.eq("partner_id", partnerId);
+    }
+
+    const { data, error } = await query;
+    return this.handleResponse(data, error);
+  }
+
+  async getTransportRequest(id: string): Promise<TransportRequest | undefined> {
+    const { data, error } = await this.supabase
+      .from("transport_requests")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async getTransportRequestByQuoteToken(token: string): Promise<TransportRequest | undefined> {
+    const { data, error } = await this.supabase
+      .from("transport_requests")
+      .select("*")
+      .eq("quote_approval_token", token)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createTransportRequest(request: InsertTransportRequest): Promise<TransportRequest> {
+    const snakeData = transformToSnake(request);
+    Object.keys(snakeData).forEach(key => snakeData[key] === undefined && delete snakeData[key]);
+
+    const { data, error } = await this.supabase
+      .from("transport_requests")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async updateTransportRequest(id: string, request: Partial<TransportRequest>): Promise<TransportRequest | undefined> {
+    const snakeData = transformToSnake(request);
+    Object.keys(snakeData).forEach(key => snakeData[key] === undefined && delete snakeData[key]);
+
+    const { data, error } = await this.supabase
+      .from("transport_requests")
+      .update({ ...snakeData, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async updateTransportRequestStatus(id: string, status: TransportRequestStatus, partnerNotes?: string | null): Promise<TransportRequest | undefined> {
+    return this.updateTransportRequest(id, {
+      status,
+      ...(partnerNotes !== undefined ? { partnerNotes } : {}),
+    });
+  }
+
+  async getTransportPartnerDrivers(partnerId?: string): Promise<TransportPartnerDriver[]> {
+    let query = this.supabase
+      .from("transport_partner_drivers")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (partnerId) {
+      query = query.eq("partner_id", partnerId);
+    }
+
+    const { data, error } = await query;
+    return this.handleResponse(data, error);
+  }
+
+  async getTransportPartnerDriver(id: string): Promise<TransportPartnerDriver | undefined> {
+    const { data, error } = await this.supabase
+      .from("transport_partner_drivers")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createTransportPartnerDriver(driver: InsertTransportPartnerDriver): Promise<TransportPartnerDriver> {
+    const snakeData = transformToSnake(driver);
+    Object.keys(snakeData).forEach(key => snakeData[key] === undefined && delete snakeData[key]);
+
+    const { data, error } = await this.supabase
+      .from("transport_partner_drivers")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async updateTransportPartnerDriver(id: string, driver: Partial<TransportPartnerDriver>): Promise<TransportPartnerDriver | undefined> {
+    const snakeData = transformToSnake(driver);
+    Object.keys(snakeData).forEach(key => snakeData[key] === undefined && delete snakeData[key]);
+
+    const { data, error } = await this.supabase
+      .from("transport_partner_drivers")
+      .update({ ...snakeData, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async deleteTransportPartnerDriver(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("transport_partner_drivers")
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+  }
+
+  async getTransportPartnerVehicles(partnerId?: string): Promise<TransportPartnerVehicle[]> {
+    let query = this.supabase
+      .from("transport_partner_vehicles")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (partnerId) {
+      query = query.eq("partner_id", partnerId);
+    }
+
+    const { data, error } = await query;
+    return this.handleResponse(data, error);
+  }
+
+  async getTransportPartnerVehicle(id: string): Promise<TransportPartnerVehicle | undefined> {
+    const { data, error } = await this.supabase
+      .from("transport_partner_vehicles")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createTransportPartnerVehicle(vehicle: InsertTransportPartnerVehicle): Promise<TransportPartnerVehicle> {
+    const snakeData = transformToSnake(vehicle);
+    Object.keys(snakeData).forEach(key => snakeData[key] === undefined && delete snakeData[key]);
+
+    const { data, error } = await this.supabase
+      .from("transport_partner_vehicles")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async updateTransportPartnerVehicle(id: string, vehicle: Partial<TransportPartnerVehicle>): Promise<TransportPartnerVehicle | undefined> {
+    const snakeData = transformToSnake(vehicle);
+    Object.keys(snakeData).forEach(key => snakeData[key] === undefined && delete snakeData[key]);
+
+    const { data, error } = await this.supabase
+      .from("transport_partner_vehicles")
+      .update({ ...snakeData, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async deleteTransportPartnerVehicle(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("transport_partner_vehicles")
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+  }
+
+  async getTransportPartnerBlackouts(partnerId?: string): Promise<TransportPartnerBlackout[]> {
+    let query = this.supabase
+      .from("transport_partner_blackouts")
+      .select("*")
+      .order("start_date", { ascending: true });
+
+    if (partnerId) {
+      query = query.eq("partner_id", partnerId);
+    }
+
+    const { data, error } = await query;
+    return this.handleResponse(data, error);
+  }
+
+  async getTransportPartnerBlackout(id: string): Promise<TransportPartnerBlackout | undefined> {
+    const { data, error } = await this.supabase
+      .from("transport_partner_blackouts")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createTransportPartnerBlackout(blackout: InsertTransportPartnerBlackout): Promise<TransportPartnerBlackout> {
+    const snakeData = transformToSnake(blackout);
+    Object.keys(snakeData).forEach(key => snakeData[key] === undefined && delete snakeData[key]);
+
+    const { data, error } = await this.supabase
+      .from("transport_partner_blackouts")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async updateTransportPartnerBlackout(id: string, blackout: Partial<TransportPartnerBlackout>): Promise<TransportPartnerBlackout | undefined> {
+    const snakeData = transformToSnake(blackout);
+    Object.keys(snakeData).forEach(key => snakeData[key] === undefined && delete snakeData[key]);
+
+    const { data, error } = await this.supabase
+      .from("transport_partner_blackouts")
+      .update({ ...snakeData, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async deleteTransportPartnerBlackout(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("transport_partner_blackouts")
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+  }
+
+  async getTransportPartnerPricing(partnerId?: string): Promise<TransportPartnerPricing[]> {
+    let query = this.supabase
+      .from("transport_partner_pricing")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (partnerId) {
+      query = query.eq("partner_id", partnerId);
+    }
+
+    const { data, error } = await query;
+    return this.handleResponse(data, error);
+  }
+
+  async getTransportPartnerPricingItem(id: string): Promise<TransportPartnerPricing | undefined> {
+    const { data, error } = await this.supabase
+      .from("transport_partner_pricing")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createTransportPartnerPricing(pricing: InsertTransportPartnerPricing): Promise<TransportPartnerPricing> {
+    const snakeData = transformToSnake(pricing);
+    Object.keys(snakeData).forEach(key => snakeData[key] === undefined && delete snakeData[key]);
+
+    const { data, error } = await this.supabase
+      .from("transport_partner_pricing")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async updateTransportPartnerPricing(id: string, pricing: Partial<TransportPartnerPricing>): Promise<TransportPartnerPricing | undefined> {
+    const snakeData = transformToSnake(pricing);
+    Object.keys(snakeData).forEach(key => snakeData[key] === undefined && delete snakeData[key]);
+
+    const { data, error } = await this.supabase
+      .from("transport_partner_pricing")
+      .update({ ...snakeData, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async deleteTransportPartnerPricing(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("transport_partner_pricing")
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+  }
+
+  async getTransportRequestActivity(requestId: string): Promise<TransportRequestActivity[]> {
+    const { data, error } = await this.supabase
+      .from("transport_request_activity")
+      .select("*")
+      .eq("request_id", requestId)
+      .order("created_at", { ascending: false });
+    return this.handleResponse(data, error);
+  }
+
+  async createTransportRequestActivity(activity: InsertTransportRequestActivity): Promise<TransportRequestActivity> {
+    const snakeData = transformToSnake(activity);
+    Object.keys(snakeData).forEach(key => snakeData[key] === undefined && delete snakeData[key]);
+
+    const { data, error } = await this.supabase
+      .from("transport_request_activity")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async getPartnerTourReferrals(partnerId?: string): Promise<PartnerTourReferral[]> {
+    let query = this.supabase
+      .from("partner_tour_referrals")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (partnerId) {
+      query = query.eq("partner_id", partnerId);
+    }
+
+    const { data, error } = await query;
+    return this.handleResponse(data, error);
+  }
+
+  async createPartnerTourReferral(referral: InsertPartnerTourReferral): Promise<PartnerTourReferral> {
+    const snakeData = transformToSnake(referral);
+    Object.keys(snakeData).forEach(key => snakeData[key] === undefined && delete snakeData[key]);
+
+    const { data, error } = await this.supabase
+      .from("partner_tour_referrals")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async updatePartnerTourReferral(id: string, referral: Partial<PartnerTourReferral>): Promise<PartnerTourReferral | undefined> {
+    const snakeData = transformToSnake(referral);
+    Object.keys(snakeData).forEach(key => snakeData[key] === undefined && delete snakeData[key]);
+
+    const { data, error } = await this.supabase
+      .from("partner_tour_referrals")
+      .update({ ...snakeData, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async updatePartnerTourReferralStatus(id: string, status: PartnerReferralStatus): Promise<PartnerTourReferral | undefined> {
+    return this.updatePartnerTourReferral(id, { status } as Partial<PartnerTourReferral>);
+  }
+
   // Statistics
   async getStats(): Promise<{
     totalBookings: number;
@@ -2013,6 +2494,19 @@ export class SupabaseStorage implements IStorage {
     return data ? transformToCamel<Notification>(data) : undefined;
   }
 
+  async markNotificationAsReadForUser(id: string, userId: string): Promise<Notification | undefined> {
+    const { data, error } = await this.supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("id", id)
+      .eq("user_id", userId)
+      .select()
+      .maybeSingle();
+
+    if (error) throw error;
+    return data ? transformToCamel<Notification>(data) : undefined;
+  }
+
   async markAllNotificationsAsRead(userId: string): Promise<void> {
     const { error } = await this.supabase
       .from("notifications")
@@ -2030,6 +2524,18 @@ export class SupabaseStorage implements IStorage {
       .eq("id", id);
 
     if (error) throw error;
+  }
+
+  async deleteNotificationForUser(id: string, userId: string): Promise<boolean> {
+    const { data, error } = await this.supabase
+      .from("notifications")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", userId)
+      .select("id");
+
+    if (error) throw error;
+    return (data || []).length > 0;
   }
 
   // Email Template operations
