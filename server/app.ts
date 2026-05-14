@@ -24,6 +24,33 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
+const SENSITIVE_LOG_KEY_PATTERN = /password|token|secret|api[-_]?key|authorization|cookie|session/i;
+
+function sanitizeForLog(value: unknown, depth = 0): unknown {
+  if (depth > 4) return "[Truncated]";
+  if (value == null) return value;
+
+  if (Array.isArray(value)) {
+    return value.slice(0, 20).map((item) => sanitizeForLog(item, depth + 1));
+  }
+
+  if (typeof value === "object") {
+    const sanitized: Record<string, unknown> = {};
+    for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+      sanitized[key] = SENSITIVE_LOG_KEY_PATTERN.test(key)
+        ? "[REDACTED]"
+        : sanitizeForLog(nestedValue, depth + 1);
+    }
+    return sanitized;
+  }
+
+  if (typeof value === "string" && value.length > 500) {
+    return `${value.slice(0, 500)}…`;
+  }
+
+  return value;
+}
+
 export async function createApp() {
   const app = express();
   const httpServer = createServer(app);
@@ -52,7 +79,10 @@ export async function createApp() {
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
-      return callback(null, true); // Allow all for now to prevent issues, user can tighten later
+      if (process.env.NODE_ENV !== 'production' && /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
     },
     credentials: true,
   }));
@@ -125,18 +155,22 @@ export async function createApp() {
   app.use("/api/auth/forgot-password", authLimiter);
   app.use("/api", apiLimiter);
 
-  // cache for 5 minutes in browser, 1 hour in CDN (durable)
-  // cache for 5 minutes in browser, 1 hour in CDN (durable)
+  // Avoid caching authenticated/private API responses. Only explicitly public API
+  // surfaces can use CDN/browser caching.
   app.use("/api", (req, res, next) => {
     if (req.method === "GET") {
-      // Don't cache auth endpoints
-      if (req.path.startsWith("/auth/")) {
-        res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-        res.set("Pragma", "no-cache");
-        res.set("Expires", "0");
-      } else {
+      const isPublicCacheable =
+        req.path.startsWith("/public/") ||
+        req.path.startsWith("/embed/");
+
+      if (isPublicCacheable) {
         res.set("Cache-Control", "public, max-age=300");
         res.set("Netlify-CDN-Cache-Control", "public, max-age=3600, durable");
+      } else {
+        res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+        res.set("Netlify-CDN-Cache-Control", "no-store");
+        res.set("Pragma", "no-cache");
+        res.set("Expires", "0");
       }
     }
     next();
@@ -180,7 +214,7 @@ export async function createApp() {
       if (path.startsWith("/api")) {
         let logLine = `[${req.requestId || 'unknown'}] ${req.method} ${path} ${res.statusCode} in ${duration}ms`;
         if (capturedJsonResponse) {
-          logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+          logLine += ` :: ${JSON.stringify(sanitizeForLog(capturedJsonResponse))}`;
         }
 
         log(logLine);

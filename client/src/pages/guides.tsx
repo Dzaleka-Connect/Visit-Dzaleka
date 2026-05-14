@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, type ChangeEvent } from "react";
 import { Link, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
@@ -19,7 +19,9 @@ import {
   Clock,
   AlertCircle,
   CreditCard,
+  Camera,
   ExternalLink,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,6 +61,7 @@ import { CardGridSkeleton } from "@/components/loading-skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { supabase } from "@/lib/supabase";
 import { formatCurrency, LANGUAGES } from "@/lib/constants";
 import type { Guide, InsertGuide } from "@shared/schema";
 import { useForm } from "react-hook-form";
@@ -82,6 +85,7 @@ const guideFormSchema = z.object({
   lastName: z.string().min(1, "Last name is required"),
   email: z.string().email("Invalid email").optional().or(z.literal("")),
   phone: z.string().min(1, "Phone number is required"),
+  profileImageUrl: z.string().trim().url("Use a valid image URL").optional().or(z.literal("")),
   bio: z.string().optional(),
   languages: z.array(z.string()).default([]),
   specialties: z.array(z.string()).default([]),
@@ -129,6 +133,8 @@ export default function Guides() {
   const [editingGuide, setEditingGuide] = useState<Guide | null>(null);
   const [deleteGuide, setDeleteGuide] = useState<Guide | null>(null);
   const [expandedGuides, setExpandedGuides] = useState<Set<string>>(new Set());
+  const [isUploadingGuideImage, setIsUploadingGuideImage] = useState(false);
+  const guideImageInputRef = useRef<HTMLInputElement>(null);
 
   const { data: guides, isLoading } = useQuery<Guide[]>({
     queryKey: ["/api/guides"],
@@ -158,6 +164,7 @@ export default function Guides() {
       lastName: "",
       email: "",
       phone: "",
+      profileImageUrl: "",
       bio: "",
       languages: [],
       specialties: [],
@@ -170,6 +177,7 @@ export default function Guides() {
       isActive: true,
     },
   });
+  const watchedProfileImageUrl = form.watch("profileImageUrl");
 
   const createMutation = useMutation({
     mutationFn: async (data: InsertGuide) => {
@@ -286,6 +294,7 @@ export default function Guides() {
       lastName: guide.lastName,
       email: guide.email || "",
       phone: guide.phone,
+      profileImageUrl: guide.profileImageUrl || "",
       bio: guide.bio || "",
       languages: guide.languages || [],
       specialties: guide.specialties || [],
@@ -307,6 +316,7 @@ export default function Guides() {
       lastName: "",
       email: "",
       phone: "",
+      profileImageUrl: "",
       bio: "",
       languages: [],
       specialties: [],
@@ -325,6 +335,7 @@ export default function Guides() {
     const guideData = {
       ...data,
       email: data.email || null,
+      profileImageUrl: data.profileImageUrl || null,
       bio: data.bio || null,
     };
 
@@ -332,6 +343,70 @@ export default function Guides() {
       updateMutation.mutate({ id: editingGuide.id, data: guideData });
     } else {
       createMutation.mutate(guideData as InsertGuide);
+    }
+  };
+
+  const handleGuideImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Invalid file",
+        description: "Please upload an image file.",
+        variant: "destructive",
+      });
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload an image smaller than 5 MB.",
+        variant: "destructive",
+      });
+      event.target.value = "";
+      return;
+    }
+
+    setIsUploadingGuideImage(true);
+    try {
+      if (!supabase) {
+        throw new Error("Storage is not configured");
+      }
+
+      const fileExt = file.name.split(".").pop() || "jpg";
+      const guideKey = editingGuide?.id || `new-guide-${Date.now()}`;
+      const filePath = `guide-images/${guideKey}-${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+
+      form.setValue("profileImageUrl", publicUrl, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      });
+      toast({
+        title: "Guide photo uploaded",
+        description: "Save the guide profile to keep this photo.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Upload failed",
+        description: error?.message || "Paste an image URL instead, or try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingGuideImage(false);
+      event.target.value = "";
     }
   };
 
@@ -715,6 +790,72 @@ export default function Guides() {
                         data-testid="input-email"
                       />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="profileImageUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Profile Photo</FormLabel>
+                    <div className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center">
+                      <Avatar className="h-20 w-20 border">
+                        <AvatarImage src={watchedProfileImageUrl || undefined} className="object-cover" />
+                        <AvatarFallback className="text-lg">
+                          {(form.watch("firstName") || "G").charAt(0)}
+                          {(form.watch("lastName") || "").charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1 space-y-3">
+                        <FormControl>
+                          <Input
+                            type="url"
+                            inputMode="url"
+                            placeholder="https://example.com/guide-photo.jpg…"
+                            {...field}
+                            data-testid="input-guide-profile-image"
+                          />
+                        </FormControl>
+                        <div className="flex flex-wrap gap-2">
+                          <input
+                            ref={guideImageInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="sr-only"
+                            aria-label="Upload guide profile photo"
+                            onChange={handleGuideImageUpload}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => guideImageInputRef.current?.click()}
+                            disabled={isUploadingGuideImage}
+                          >
+                            {isUploadingGuideImage ? (
+                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                            ) : (
+                              <Camera className="h-4 w-4" aria-hidden="true" />
+                            )}
+                            {isUploadingGuideImage ? "Uploading…" : "Upload photo"}
+                          </Button>
+                          {watchedProfileImageUrl && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => form.setValue("profileImageUrl", "", { shouldDirty: true, shouldTouch: true })}
+                            >
+                              Remove photo
+                            </Button>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Visitors will see this photo on their booking and guide profile after a guide is assigned.
+                        </p>
+                      </div>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}

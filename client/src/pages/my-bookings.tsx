@@ -118,6 +118,9 @@ interface BookingWithGuide extends Booking {
   transportRequest?: VisitorTransportRequest | null;
 }
 
+const canPayOnline = (booking: Booking) =>
+  (booking.paymentStatus === "pending" || !booking.paymentStatus) && booking.paymentMethod === "card";
+
 
 import { generateQRCodeDataURL } from "@/lib/qrcode";
 
@@ -762,7 +765,7 @@ export default function MyBookings() {
     },
     onSuccess: (data) => {
       if (data.checkoutUrl) {
-        // Redirect to PayChangu checkout
+        // Redirect to Stripe Checkout.
         window.location.href = data.checkoutUrl;
       } else {
         toast({
@@ -772,10 +775,10 @@ export default function MyBookings() {
         });
       }
     },
-    onError: () => {
+    onError: (error) => {
       toast({
         title: "Payment Error",
-        description: "Failed to initiate payment. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to initiate payment. Please try again.",
         variant: "destructive",
       });
     },
@@ -1055,8 +1058,7 @@ export default function MyBookings() {
                       <div className="mt-1"><PaymentStatusBadge status={selectedBooking.paymentStatus || "pending"} /></div>
                     </div>
                   </div>
-                  {(selectedBooking.paymentStatus === 'pending' || !selectedBooking.paymentStatus) &&
-                    (selectedBooking.paymentMethod !== 'cash') && (
+                  {canPayOnline(selectedBooking) && (
                       <div className="pt-4 mt-4 border-t border-dashed">
                         <Button
                           className="w-full bg-emerald-600/80 hover:bg-emerald-600 text-white"
@@ -1076,7 +1078,7 @@ export default function MyBookings() {
                           )}
                         </Button>
                         <p className="text-xs text-center text-muted-foreground mt-2">
-                          You will be redirected to PayChangu to complete payment
+                          You will be redirected to Stripe Checkout for secure card payment.
                         </p>
                       </div>
                     )}
@@ -1259,23 +1261,7 @@ export default function MyBookings() {
                       View Full Details
                     </Button>
 
-                    {(booking.paymentStatus === 'pending' || !booking.paymentStatus) &&
-                      (booking.paymentMethod !== 'cash') && (
-                        <Button
-                          size="sm"
-                          className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            payOnlineMutation.mutate(booking.id);
-                          }}
-                          disabled={payOnlineMutation.isPending}
-                        >
-                          {payOnlineMutation.isPending ? "Processing…" : "Pay online"}
-                        </Button>
-                      )}
-
-                    {(booking.paymentStatus === 'pending' || !booking.paymentStatus) &&
-                      (booking.paymentMethod !== 'cash') && (
+                    {canPayOnline(booking) && (
                         <Button
                           size="sm"
                           className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white"

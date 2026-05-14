@@ -81,6 +81,7 @@ import { SEO } from "@/components/seo";
 import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
 import { QRScannerDialog } from "@/components/qr-scanner-dialog";
+import { getTransportRoute } from "@/lib/transport";
 
 interface DashboardStats {
   totalBookings: number;
@@ -91,8 +92,29 @@ interface DashboardStats {
   monthlyGrowth: number;
 }
 
+interface VisitorTransportPartnerProfile {
+  companyName?: string | null;
+  phone?: string | null;
+  whatsapp?: string | null;
+  email?: string | null;
+}
+
+interface VisitorTransportRequestSummary {
+  route?: string | null;
+  status?: string | null;
+  quotedAmount?: number | null;
+  currency?: string | null;
+  driverName?: string | null;
+  driverPhone?: string | null;
+  vehicleDetails?: string | null;
+  estimatedPickupTime?: string | null;
+  requestedPickupTime?: string | null;
+  partner?: VisitorTransportPartnerProfile | null;
+}
+
 interface RecentBooking extends Booking {
   guide?: Guide;
+  transportRequest?: VisitorTransportRequestSummary | null;
 }
 
 interface GuideAvailabilitySummary {
@@ -120,6 +142,29 @@ interface GuideEarningsSummary {
 const quickActionButtonClass = "h-10 min-h-10 rounded-full gap-2 px-4";
 const quickActionIconClass = "h-4 w-4";
 const dashboardActionCardClass = "relative h-full min-h-24 w-full justify-start flex-col items-start gap-2 p-4 text-left";
+
+const transportStatusLabels: Record<string, string> = {
+  pending: "Requested",
+  sent_to_partner: "Sent to partner",
+  quote_sent: "Quote sent",
+  accepted: "Accepted",
+  visitor_approved: "Approved",
+  visitor_declined: "Declined",
+  confirmed: "Confirmed",
+  reschedule_requested: "Reschedule requested",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
+function getTransportStatusLabel(status?: string | null) {
+  const key = status || "pending";
+  return transportStatusLabels[key] || key.replace(/_/g, " ");
+}
+
+function formatTransportQuote(request?: VisitorTransportRequestSummary | null) {
+  if (!request || request.quotedAmount == null) return null;
+  return formatCurrency(request.quotedAmount, request.currency || "MWK");
+}
 
 function formatTourType(type?: string | null) {
   if (!type) return "Tour";
@@ -1678,6 +1723,17 @@ function VisitorDashboard() {
     : nextVisit?.paymentReference
       ? "Payment verification pending"
       : "Payment not reported";
+  const nextVisitTransport = nextVisit?.transportRequest || null;
+  const nextVisitTransportRoute = nextVisitTransport ? getTransportRoute(nextVisitTransport.route) : null;
+  const nextVisitTransportQuote = formatTransportQuote(nextVisitTransport);
+  const nextVisitTransportPartner = nextVisitTransport?.partner?.companyName || null;
+  const nextVisitTransportDetail = nextVisitTransport
+    ? [
+        nextVisitTransportRoute?.shortLabel,
+        nextVisitTransportPartner,
+        nextVisitTransportQuote,
+      ].filter(Boolean).join(" • ")
+    : "Request transport from your booking form when needed.";
   const visitHubItems = [
     {
       label: "Next visit",
@@ -1688,6 +1744,11 @@ function VisitorDashboard() {
       label: "Payment",
       value: nextVisitPaymentLabel,
       detail: nextVisit?.totalAmount ? formatCurrency(nextVisit.totalAmount) : "No upcoming payment due",
+    },
+    {
+      label: "Transport",
+      value: nextVisitTransport ? getTransportStatusLabel(nextVisitTransport.status) : "Not requested",
+      detail: nextVisitTransportDetail,
     },
     {
       label: "Support",
@@ -1741,7 +1802,7 @@ function VisitorDashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {visitHubItems.map((item) => (
                 <div key={item.label} className="rounded-lg border p-4">
                   <p className="text-xs font-medium text-muted-foreground">{item.label}</p>
@@ -1759,7 +1820,37 @@ function VisitorDashboard() {
                     : "Confirm your meeting point before arrival."
                   : "Create a booking request to plan your visit."}
               </p>
+              {nextVisitTransport && (
+                <div className="mt-3 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm dark:border-sky-800 dark:bg-sky-950/30">
+                  <div className="flex gap-2">
+                    <Car className="mt-0.5 h-4 w-4 shrink-0 text-sky-700 dark:text-sky-300" aria-hidden="true" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-sky-900 dark:text-sky-100">
+                        Transport {getTransportStatusLabel(nextVisitTransport.status)}
+                      </p>
+                      <p className="mt-1 break-words text-xs text-sky-700 dark:text-sky-300">
+                        {nextVisitTransportDetail}
+                      </p>
+                      {(nextVisitTransport.driverName || nextVisitTransport.driverPhone || nextVisitTransport.vehicleDetails) && (
+                        <p className="mt-2 break-words text-xs text-sky-800 dark:text-sky-200">
+                          {[nextVisitTransport.driverName, nextVisitTransport.driverPhone, nextVisitTransport.vehicleDetails]
+                            .filter(Boolean)
+                            .join(" • ")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="mt-4 grid gap-2">
+                {nextVisitTransport && (
+                  <Button variant="outline" className="w-full justify-start" asChild>
+                    <Link href="/my-bookings">
+                      <Car className="mr-2 h-4 w-4" />
+                      View transport details
+                    </Link>
+                  </Button>
+                )}
                 {nextVisit && nextVisit.paymentStatus !== "paid" && (
                   <Button type="button" variant="outline" className="w-full justify-start" onClick={() => openPaymentReportDialog(nextVisit)}>
                     <DollarSign className="mr-2 h-4 w-4" />

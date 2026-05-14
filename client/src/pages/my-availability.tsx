@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -39,13 +39,12 @@ export default function MyAvailability() {
     const [localWorkingHours, setLocalWorkingHours] = useState({ start: "08:00", end: "17:00" });
     const [hasChanges, setHasChanges] = useState(false);
 
-    // Initialize local state when data loads
-    useState(() => {
-        if (data) {
-            setLocalAvailability(data.availability || {});
-            setLocalWorkingHours(data.workingHours || { start: "08:00", end: "17:00" });
-        }
-    });
+    useEffect(() => {
+        if (!data || hasChanges) return;
+
+        setLocalAvailability(data.availability || {});
+        setLocalWorkingHours(data.workingHours || { start: "08:00", end: "17:00" });
+    }, [data, hasChanges]);
 
     const saveMutation = useMutation({
         mutationFn: async () => {

@@ -7948,18 +7948,36 @@ export async function registerRoutes(
 
       const bookingId = req.params.id;
       const booking = await storage.getBooking(bookingId);
+      const user = await storage.getUser(req.session.userId);
 
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
       }
 
+      if (!user) {
+        return res.status(401).json({ message: "Session expired" });
+      }
+
       // Verify the user owns this booking
-      if (booking.visitorUserId !== req.session.userId && req.user.role !== "admin") {
+      const normalizedVisitorEmail = booking.visitorEmail.toLowerCase();
+      const normalizedUserEmail = user.email.toLowerCase();
+      const isOwner = booking.visitorUserId === user.id || normalizedVisitorEmail === normalizedUserEmail;
+      const canManagePayments = user.role === "admin" || user.role === "coordinator";
+
+      if (!isOwner && !canManagePayments) {
         return res.status(403).json({ message: "Unauthorized" });
       }
 
       if (booking.paymentStatus === "paid") {
         return res.status(400).json({ message: "Booking is already paid" });
+      }
+
+      if (booking.status === "cancelled" || booking.status === "no_show") {
+        return res.status(400).json({ message: "This booking can no longer be paid online" });
+      }
+
+      if (booking.paymentMethod !== "card") {
+        return res.status(400).json({ message: "Online card payment is only available when the booking payment method is card" });
       }
 
       const amount = booking.totalAmount || 0;
@@ -7971,14 +7989,18 @@ export async function registerRoutes(
       const session = await createCheckoutSession(
         bookingId,
         amount,
-        "mwk",
         `${PUBLIC_APP_URL}/my-bookings?payment_success=true&booking_id=${bookingId}`,
         `${PUBLIC_APP_URL}/my-bookings?payment_cancel=true`,
         booking.visitorEmail,
         `Booking: ${booking.bookingReference}`
       );
 
-      res.json({ checkoutUrl: session.url });
+      res.json({
+        checkoutUrl: session.url,
+        sessionId: session.sessionId,
+        currency: session.checkoutAmount.currency.toUpperCase(),
+        amount: session.checkoutAmount.amount,
+      });
     } catch (error: any) {
       logError("Error initiating Stripe payment", error, req.requestId);
       res.status(500).json({ message: error.message || "Failed to initiate payment" });
@@ -8003,7 +8025,7 @@ export async function registerRoutes(
           reference: b.paymentReference || b.bookingReference,
           bookingReference: b.bookingReference,
           paymentFees: b.paymentFees || 0,
-          netAmount: b.netAmount || 0,
+          netAmount: b.netAmount || b.totalAmount || 0,
           paymentDetails: b.paymentDetails as any,
         }))
         .sort((a, b) => new Date(b.date as Date).getTime() - new Date(a.date as Date).getTime());
@@ -8018,14 +8040,9 @@ export async function registerRoutes(
   // Payment Configuration Endpoint
   app.get("/api/admin/payment-config", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
-      const stripeKey = process.env.STRIPE_SECRET_KEY || '';
-      const isLiveMode = stripeKey.startsWith('sk_live_');
+      const { getStripePaymentConfig } = await import("./lib/stripe");
 
-      res.json({
-        isLiveMode,
-        provider: 'stripe',
-        currency: 'MWK'
-      });
+      res.json(getStripePaymentConfig());
     } catch (error) {
       logError("Error fetching payment config", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch payment configuration" });
@@ -8035,7 +8052,8 @@ export async function registerRoutes(
   // Stripe Balance Endpoint
   app.get("/api/admin/stripe/balance", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
-      const stripe = (await import("./lib/stripe")).default;
+      const { getStripeClient } = await import("./lib/stripe");
+      const stripe = getStripeClient();
       const balance = await stripe.balance.retrieve();
 
       // Transform balance data for frontend
@@ -8060,14 +8078,14 @@ export async function registerRoutes(
   // Stripe webhook handler
   app.post("/api/webhooks/stripe", async (req, res) => {
     try {
-      const { constructEvent } = await import("./lib/stripe");
+      const { amountFromMinorUnits, constructEvent, getStripeClient } = await import("./lib/stripe");
       const signature = req.headers['stripe-signature'];
 
       if (!signature) {
         return res.status(400).send('Webhook Error: Missing signature');
       }
 
-      const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || "whsec_test";
+      const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
       if (!endpointSecret) {
         logger.warn("STRIPE_WEBHOOK_SECRET not set, cannot verify webhook");
         return res.status(400).send('Webhook Configuration Error');
@@ -8082,23 +8100,109 @@ export async function registerRoutes(
       const event = constructEvent(rawBody, signature as string, endpointSecret);
 
       if (event.type === 'checkout.session.completed') {
-        const session = event.data.object as any;
-        const bookingId = session.client_reference_id;
+        const eventSession = event.data.object as any;
+        const stripe = getStripeClient();
+        const session = await stripe.checkout.sessions.retrieve(eventSession.id, {
+          expand: [
+            "payment_intent",
+            "payment_intent.payment_method",
+            "payment_intent.latest_charge",
+            "payment_intent.latest_charge.balance_transaction",
+          ],
+        });
+        const bookingId = session.client_reference_id || session.metadata?.bookingId;
 
         logger.info(`[Stripe Webhook] Payment successful for booking ${bookingId}`);
 
         if (bookingId) {
           const oldBooking = await storage.getBooking(bookingId);
-          await storage.updateBooking(bookingId, {
-            paymentStatus: "paid",
-            // Store Stripe Session ID as payment reference
-            paymentReference: session.id,
-            paymentVerifiedAt: new Date(),
-          });
 
-          const booking = await storage.getBooking(bookingId);
-          if (booking && oldBooking?.paymentStatus !== "paid") {
-            await sendPaymentReceiptEmail(booking, null);
+          if (!oldBooking) {
+            throw new Error(`Booking not found for Stripe session ${session.id}`);
+          }
+
+          if (session.payment_status !== "paid") {
+            logger.warn(`[Stripe Webhook] Ignoring checkout session ${session.id} with payment_status=${session.payment_status}`);
+          } else {
+            const expectedCurrency = (session.metadata?.checkoutCurrency || "").toLowerCase();
+            const sessionCurrency = (session.currency || "").toLowerCase();
+            const expectedAmountMinor = Number(session.metadata?.checkoutAmountMinor || NaN);
+
+            if (expectedCurrency && sessionCurrency !== expectedCurrency) {
+              throw new Error(`Stripe currency mismatch for booking ${bookingId}`);
+            }
+
+            if (Number.isFinite(expectedAmountMinor) && session.amount_total !== expectedAmountMinor) {
+              throw new Error(`Stripe amount mismatch for booking ${bookingId}`);
+            }
+
+            if (oldBooking.paymentStatus !== "paid") {
+              const paymentIntent = session.payment_intent as any;
+              const paymentMethod = paymentIntent?.payment_method as any;
+              const card = paymentMethod?.card || {};
+              const charge = paymentIntent?.latest_charge as any;
+              const balanceTransaction = charge?.balance_transaction as any;
+              const stripeCurrency = (session.currency || expectedCurrency || "").toUpperCase();
+              const checkoutAmount = typeof session.amount_total === "number" && sessionCurrency
+                ? amountFromMinorUnits(session.amount_total, sessionCurrency)
+                : null;
+              const balanceCurrency = typeof balanceTransaction?.currency === "string"
+                ? balanceTransaction.currency.toUpperCase()
+                : null;
+              const stripeFee = typeof balanceTransaction?.fee === "number" && balanceTransaction.currency
+                ? amountFromMinorUnits(balanceTransaction.fee, balanceTransaction.currency)
+                : null;
+              const stripeNet = typeof balanceTransaction?.net === "number" && balanceTransaction.currency
+                ? amountFromMinorUnits(balanceTransaction.net, balanceTransaction.currency)
+                : null;
+              const feeInMwk = balanceCurrency === "MWK" && stripeFee !== null ? Math.round(stripeFee) : 0;
+              const netInMwk = balanceCurrency === "MWK" && stripeNet !== null ? Math.round(stripeNet) : oldBooking.totalAmount || 0;
+              const existingDetails = (oldBooking.paymentDetails as Record<string, unknown> | null) || {};
+
+              await storage.updateBooking(bookingId, {
+                paymentMethod: "card",
+                paymentStatus: "paid",
+                paymentReference: session.id,
+                paymentFees: feeInMwk,
+                netAmount: netInMwk,
+                paymentVerifiedAt: new Date(),
+                paymentDetails: {
+                  ...existingDetails,
+                  provider: "stripe",
+                  checkoutSessionId: session.id,
+                  paymentIntentId: paymentIntent?.id || null,
+                  chargeId: charge?.id || null,
+                  checkoutCurrency: stripeCurrency,
+                  checkoutAmount,
+                  checkoutAmountMinor: session.amount_total,
+                  bookingAmountMwk: Number(session.metadata?.bookingAmountMwk || oldBooking.totalAmount || 0),
+                  conversionRate: session.metadata?.conversionRate ? Number(session.metadata.conversionRate) : null,
+                  conversionSource: session.metadata?.conversionSource || null,
+                  paymentStatus: session.payment_status,
+                  brand: card.brand || null,
+                  last4: card.last4 || null,
+                  country: card.country || null,
+                  funding: card.funding || null,
+                  receiptUrl: charge?.receipt_url || null,
+                  balanceCurrency,
+                  stripeFee,
+                  stripeFeeMinor: balanceTransaction?.fee ?? null,
+                  stripeNet,
+                  stripeNetMinor: balanceTransaction?.net ?? null,
+                },
+              });
+
+              const booking = await storage.getBooking(bookingId);
+              if (booking) {
+                await notifyPaymentReceived(
+                  booking.id,
+                  booking.visitorName,
+                  booking.totalAmount || 0,
+                  "card"
+                );
+                await sendPaymentReceiptEmail(booking, null);
+              }
+            }
           }
         }
       }

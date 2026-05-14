@@ -19,6 +19,7 @@ import {
   Mail,
   MapPin,
   Phone,
+  Pencil,
   Plus,
   Save,
   Send,
@@ -248,6 +249,51 @@ const initialPricingForm: PricingForm = {
   notes: "",
   status: "active",
 };
+
+function driverToForm(driver: TransportPartnerDriver): DriverForm {
+  return {
+    name: driver.name || "",
+    phone: driver.phone || "",
+    email: driver.email || "",
+    licenseNumber: driver.licenseNumber || "",
+    status: driver.status === "inactive" ? "inactive" : "active",
+    notes: driver.notes || "",
+  };
+}
+
+function vehicleToForm(vehicle: TransportPartnerVehicle): VehicleForm {
+  return {
+    label: vehicle.label || "",
+    vehicleType: vehicle.vehicleType || "",
+    plateNumber: vehicle.plateNumber || "",
+    capacity: vehicle.capacity != null ? String(vehicle.capacity) : "",
+    color: vehicle.color || "",
+    status: vehicle.status === "inactive" ? "inactive" : "active",
+    notes: vehicle.notes || "",
+  };
+}
+
+function blackoutToForm(blackout: TransportPartnerBlackout): BlackoutForm {
+  return {
+    startDate: blackout.startDate || "",
+    endDate: blackout.endDate || "",
+    reason: blackout.reason || "",
+    status: blackout.status === "cancelled" ? "cancelled" : "active",
+  };
+}
+
+function pricingToForm(price: TransportPartnerPricing): PricingForm {
+  return {
+    route: price.route || DEFAULT_TRANSPORT_ROUTE_ID,
+    label: price.label || "",
+    basePrice: price.basePrice != null ? String(price.basePrice) : "",
+    currency: price.currency || "MWK",
+    pricingType: (price.pricingType as PricingForm["pricingType"]) || "per_trip",
+    priceIncludes: price.priceIncludes || "",
+    notes: price.notes || "",
+    status: price.status === "inactive" ? "inactive" : "active",
+  };
+}
 
 type GroupSizeId = (typeof GROUP_SIZES)[number]["id"];
 
@@ -954,6 +1000,10 @@ export default function TransportPartnerPortal() {
   const [vehicleForm, setVehicleForm] = useState(initialVehicleForm);
   const [blackoutForm, setBlackoutForm] = useState(initialBlackoutForm);
   const [pricingForm, setPricingForm] = useState(initialPricingForm);
+  const [editingDriverId, setEditingDriverId] = useState<string | null>(null);
+  const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
+  const [editingBlackoutId, setEditingBlackoutId] = useState<string | null>(null);
+  const [editingPricingId, setEditingPricingId] = useState<string | null>(null);
   const [adminPartnerId, setAdminPartnerId] = useState<string>("new");
   const [adminPartnerForm, setAdminPartnerForm] = useState<PartnerForm>(initialPartnerForm);
   const [selfProfileForm, setSelfProfileForm] = useState<PartnerForm>(initialPartnerForm);
@@ -1094,6 +1144,50 @@ export default function TransportPartnerPortal() {
       activeBlackouts,
     };
   }, [transportRequests, referrals, partnerPricing, blackouts]);
+
+  const editDriver = (driver: TransportPartnerDriver) => {
+    if (isAdminView) setAdminPartnerId(driver.partnerId);
+    setEditingDriverId(driver.id);
+    setDriverForm(driverToForm(driver));
+  };
+
+  const cancelDriverEdit = () => {
+    setEditingDriverId(null);
+    setDriverForm(initialDriverForm);
+  };
+
+  const editVehicle = (vehicle: TransportPartnerVehicle) => {
+    if (isAdminView) setAdminPartnerId(vehicle.partnerId);
+    setEditingVehicleId(vehicle.id);
+    setVehicleForm(vehicleToForm(vehicle));
+  };
+
+  const cancelVehicleEdit = () => {
+    setEditingVehicleId(null);
+    setVehicleForm(initialVehicleForm);
+  };
+
+  const editBlackout = (blackout: TransportPartnerBlackout) => {
+    if (isAdminView) setAdminPartnerId(blackout.partnerId);
+    setEditingBlackoutId(blackout.id);
+    setBlackoutForm(blackoutToForm(blackout));
+  };
+
+  const cancelBlackoutEdit = () => {
+    setEditingBlackoutId(null);
+    setBlackoutForm(initialBlackoutForm);
+  };
+
+  const editPricing = (price: TransportPartnerPricing) => {
+    if (isAdminView) setAdminPartnerId(price.partnerId);
+    setEditingPricingId(price.id);
+    setPricingForm(pricingToForm(price));
+  };
+
+  const cancelPricingEdit = () => {
+    setEditingPricingId(null);
+    setPricingForm(initialPricingForm);
+  };
 
   const updateRequestMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: RequestDraft }) => {
@@ -1286,10 +1380,30 @@ export default function TransportPartnerPortal() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/drivers"] });
       setDriverForm(initialDriverForm);
+      setEditingDriverId(null);
       toast({ title: "Driver saved" });
     },
     onError: (error: Error) => {
       toast({ title: "Could not save driver", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateDriverMutation = useMutation({
+    mutationFn: async ({ id, form }: { id: string; form: DriverForm }) => {
+      const response = await apiRequest("PATCH", `/api/transport-partner/drivers/${id}`, {
+        ...form,
+        partnerId: rosterPartnerId || undefined,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/drivers"] });
+      setDriverForm(initialDriverForm);
+      setEditingDriverId(null);
+      toast({ title: "Driver updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Could not update driver", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1299,6 +1413,10 @@ export default function TransportPartnerPortal() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/drivers"] });
+      if (editingDriverId) {
+        setEditingDriverId(null);
+        setDriverForm(initialDriverForm);
+      }
       toast({ title: "Driver removed" });
     },
   });
@@ -1315,10 +1433,31 @@ export default function TransportPartnerPortal() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/vehicles"] });
       setVehicleForm(initialVehicleForm);
+      setEditingVehicleId(null);
       toast({ title: "Vehicle saved" });
     },
     onError: (error: Error) => {
       toast({ title: "Could not save vehicle", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateVehicleMutation = useMutation({
+    mutationFn: async ({ id, form }: { id: string; form: VehicleForm }) => {
+      const response = await apiRequest("PATCH", `/api/transport-partner/vehicles/${id}`, {
+        ...form,
+        partnerId: rosterPartnerId || undefined,
+        capacity: form.capacity ? Number(form.capacity) : null,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/vehicles"] });
+      setVehicleForm(initialVehicleForm);
+      setEditingVehicleId(null);
+      toast({ title: "Vehicle updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Could not update vehicle", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1328,6 +1467,10 @@ export default function TransportPartnerPortal() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/vehicles"] });
+      if (editingVehicleId) {
+        setEditingVehicleId(null);
+        setVehicleForm(initialVehicleForm);
+      }
       toast({ title: "Vehicle removed" });
     },
   });
@@ -1343,10 +1486,30 @@ export default function TransportPartnerPortal() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/blackouts"] });
       setBlackoutForm(initialBlackoutForm);
+      setEditingBlackoutId(null);
       toast({ title: "Availability block saved" });
     },
     onError: (error: Error) => {
       toast({ title: "Could not save availability", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateBlackoutMutation = useMutation({
+    mutationFn: async ({ id, form }: { id: string; form: BlackoutForm }) => {
+      const response = await apiRequest("PATCH", `/api/transport-partner/blackouts/${id}`, {
+        ...form,
+        partnerId: rosterPartnerId || undefined,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/blackouts"] });
+      setBlackoutForm(initialBlackoutForm);
+      setEditingBlackoutId(null);
+      toast({ title: "Availability block updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Could not update availability", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1356,6 +1519,10 @@ export default function TransportPartnerPortal() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/blackouts"] });
+      if (editingBlackoutId) {
+        setEditingBlackoutId(null);
+        setBlackoutForm(initialBlackoutForm);
+      }
       toast({ title: "Availability block removed" });
     },
   });
@@ -1373,10 +1540,32 @@ export default function TransportPartnerPortal() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/pricing"] });
       setPricingForm(initialPricingForm);
+      setEditingPricingId(null);
       toast({ title: "Transport price saved" });
     },
     onError: (error: Error) => {
       toast({ title: "Could not save pricing", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updatePricingMutation = useMutation({
+    mutationFn: async ({ id, form }: { id: string; form: PricingForm }) => {
+      const response = await apiRequest("PATCH", `/api/transport-partner/pricing/${id}`, {
+        ...form,
+        partnerId: rosterPartnerId || undefined,
+        basePrice: Number(form.basePrice) || 0,
+        currency: form.currency.toUpperCase(),
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/pricing"] });
+      setPricingForm(initialPricingForm);
+      setEditingPricingId(null);
+      toast({ title: "Transport price updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Could not update pricing", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1386,6 +1575,10 @@ export default function TransportPartnerPortal() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/pricing"] });
+      if (editingPricingId) {
+        setEditingPricingId(null);
+        setPricingForm(initialPricingForm);
+      }
       toast({ title: "Transport price removed" });
     },
   });
@@ -2420,7 +2613,11 @@ export default function TransportPartnerPortal() {
                   className="space-y-3"
                   onSubmit={(event) => {
                     event.preventDefault();
-                    createDriverMutation.mutate(driverForm);
+                    if (editingDriverId) {
+                      updateDriverMutation.mutate({ id: editingDriverId, form: driverForm });
+                    } else {
+                      createDriverMutation.mutate(driverForm);
+                    }
                   }}
                 >
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -2428,12 +2625,28 @@ export default function TransportPartnerPortal() {
                     <Input placeholder="+265…" inputMode="tel" value={driverForm.phone} onChange={(event) => setDriverForm({ ...driverForm, phone: event.target.value })} />
                     <Input placeholder="driver@example.com…" type="email" value={driverForm.email} onChange={(event) => setDriverForm({ ...driverForm, email: event.target.value })} />
                     <Input placeholder="License number…" value={driverForm.licenseNumber} onChange={(event) => setDriverForm({ ...driverForm, licenseNumber: event.target.value })} />
+                    <Select value={driverForm.status} onValueChange={(status: DriverForm["status"]) => setDriverForm({ ...driverForm, status })}>
+                      <SelectTrigger aria-label="Driver status">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <Textarea placeholder="Driver notes…" value={driverForm.notes} onChange={(event) => setDriverForm({ ...driverForm, notes: event.target.value })} />
-                  <Button type="submit" disabled={createDriverMutation.isPending || !rosterPartnerId}>
-                    {createDriverMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                    Save driver
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="submit" disabled={createDriverMutation.isPending || updateDriverMutation.isPending || !rosterPartnerId}>
+                      {createDriverMutation.isPending || updateDriverMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editingDriverId ? <Save className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                      {editingDriverId ? "Update driver" : "Save driver"}
+                    </Button>
+                    {editingDriverId && (
+                      <Button type="button" variant="outline" onClick={cancelDriverEdit}>
+                        Cancel edit
+                      </Button>
+                    )}
+                  </div>
                 </form>
                 <div className="space-y-2">
                   {drivers.filter((driver) => !rosterPartnerId || driver.partnerId === rosterPartnerId).map((driver) => (
@@ -2442,9 +2655,14 @@ export default function TransportPartnerPortal() {
                         <p className="truncate text-sm font-medium">{driver.name}</p>
                         <p className="truncate text-xs text-muted-foreground">{driver.phone || driver.email || "No contact saved"}</p>
                       </div>
-                      <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${driver.name}`} onClick={() => deleteDriverMutation.mutate(driver.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex shrink-0 gap-1">
+                        <Button type="button" variant="ghost" size="icon" aria-label={`Edit ${driver.name}`} onClick={() => editDriver(driver)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${driver.name}`} onClick={() => deleteDriverMutation.mutate(driver.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -2465,7 +2683,11 @@ export default function TransportPartnerPortal() {
                   className="space-y-3"
                   onSubmit={(event) => {
                     event.preventDefault();
-                    createVehicleMutation.mutate(vehicleForm);
+                    if (editingVehicleId) {
+                      updateVehicleMutation.mutate({ id: editingVehicleId, form: vehicleForm });
+                    } else {
+                      createVehicleMutation.mutate(vehicleForm);
+                    }
                   }}
                 >
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -2474,12 +2696,28 @@ export default function TransportPartnerPortal() {
                     <Input placeholder="Plate number…" value={vehicleForm.plateNumber} onChange={(event) => setVehicleForm({ ...vehicleForm, plateNumber: event.target.value })} />
                     <Input placeholder="Capacity…" type="number" min="1" inputMode="numeric" value={vehicleForm.capacity} onChange={(event) => setVehicleForm({ ...vehicleForm, capacity: event.target.value })} />
                     <Input placeholder="Color…" value={vehicleForm.color} onChange={(event) => setVehicleForm({ ...vehicleForm, color: event.target.value })} />
+                    <Select value={vehicleForm.status} onValueChange={(status: VehicleForm["status"]) => setVehicleForm({ ...vehicleForm, status })}>
+                      <SelectTrigger aria-label="Vehicle status">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <Textarea placeholder="Vehicle notes…" value={vehicleForm.notes} onChange={(event) => setVehicleForm({ ...vehicleForm, notes: event.target.value })} />
-                  <Button type="submit" disabled={createVehicleMutation.isPending || !rosterPartnerId}>
-                    {createVehicleMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                    Save vehicle
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="submit" disabled={createVehicleMutation.isPending || updateVehicleMutation.isPending || !rosterPartnerId}>
+                      {createVehicleMutation.isPending || updateVehicleMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editingVehicleId ? <Save className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                      {editingVehicleId ? "Update vehicle" : "Save vehicle"}
+                    </Button>
+                    {editingVehicleId && (
+                      <Button type="button" variant="outline" onClick={cancelVehicleEdit}>
+                        Cancel edit
+                      </Button>
+                    )}
+                  </div>
                 </form>
                 <div className="space-y-2">
                   {vehicles.filter((vehicle) => !rosterPartnerId || vehicle.partnerId === rosterPartnerId).map((vehicle) => (
@@ -2490,9 +2728,14 @@ export default function TransportPartnerPortal() {
                           {[vehicle.vehicleType, vehicle.plateNumber, vehicle.capacity ? `${vehicle.capacity} seats` : null].filter(Boolean).join(" · ") || "No vehicle details"}
                         </p>
                       </div>
-                      <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${vehicle.label}`} onClick={() => deleteVehicleMutation.mutate(vehicle.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex shrink-0 gap-1">
+                        <Button type="button" variant="ghost" size="icon" aria-label={`Edit ${vehicle.label}`} onClick={() => editVehicle(vehicle)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${vehicle.label}`} onClick={() => deleteVehicleMutation.mutate(vehicle.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -2513,20 +2756,38 @@ export default function TransportPartnerPortal() {
             </CardHeader>
             <CardContent className="space-y-4">
               <form
-                className="grid gap-3 lg:grid-cols-[1fr_1fr_2fr_auto]"
+                className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_2fr_auto]"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  createBlackoutMutation.mutate(blackoutForm);
+                  if (editingBlackoutId) {
+                    updateBlackoutMutation.mutate({ id: editingBlackoutId, form: blackoutForm });
+                  } else {
+                    createBlackoutMutation.mutate(blackoutForm);
+                  }
                 }}
               >
                 <Input type="date" value={blackoutForm.startDate} onChange={(event) => setBlackoutForm({ ...blackoutForm, startDate: event.target.value })} required />
                 <Input type="date" value={blackoutForm.endDate} onChange={(event) => setBlackoutForm({ ...blackoutForm, endDate: event.target.value })} required />
+                <Select value={blackoutForm.status} onValueChange={(status: BlackoutForm["status"]) => setBlackoutForm({ ...blackoutForm, status })}>
+                  <SelectTrigger aria-label="Availability block status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Input placeholder="Reason…" value={blackoutForm.reason} onChange={(event) => setBlackoutForm({ ...blackoutForm, reason: event.target.value })} />
-                <Button type="submit" disabled={createBlackoutMutation.isPending || !rosterPartnerId}>
-                  {createBlackoutMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarOff className="h-4 w-4" />}
-                  Block dates
+                <Button type="submit" disabled={createBlackoutMutation.isPending || updateBlackoutMutation.isPending || !rosterPartnerId}>
+                  {createBlackoutMutation.isPending || updateBlackoutMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editingBlackoutId ? <Save className="h-4 w-4" /> : <CalendarOff className="h-4 w-4" />}
+                  {editingBlackoutId ? "Update block" : "Block dates"}
                 </Button>
               </form>
+              {editingBlackoutId && (
+                <Button type="button" variant="outline" size="sm" onClick={cancelBlackoutEdit}>
+                  Cancel availability edit
+                </Button>
+              )}
               {blackouts.length === 0 ? (
                 <EmptyState icon={CalendarOff} title="No blackout dates" description="Blocked dates will appear here." />
               ) : (
@@ -2537,10 +2798,16 @@ export default function TransportPartnerPortal() {
                         <p className="text-sm font-medium">{formatDate(blackout.startDate)} to {formatDate(blackout.endDate)}</p>
                         <p className="text-xs text-muted-foreground">{blackout.reason || "No reason added"}</p>
                       </div>
-                      <Button type="button" variant="outline" size="sm" onClick={() => deleteBlackoutMutation.mutate(blackout.id)}>
-                        <Trash2 className="h-4 w-4" />
-                        Remove
-                      </Button>
+                      <div className="flex shrink-0 gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => editBlackout(blackout)}>
+                          <Pencil className="h-4 w-4" />
+                          Edit
+                        </Button>
+                        <Button type="button" variant="outline" size="sm" onClick={() => deleteBlackoutMutation.mutate(blackout.id)}>
+                          <Trash2 className="h-4 w-4" />
+                          Remove
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -2564,7 +2831,11 @@ export default function TransportPartnerPortal() {
                 className="grid gap-3 lg:grid-cols-4"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  createPricingMutation.mutate(pricingForm);
+                  if (editingPricingId) {
+                    updatePricingMutation.mutate({ id: editingPricingId, form: pricingForm });
+                  } else {
+                    createPricingMutation.mutate(pricingForm);
+                  }
                 }}
               >
                 <div className="space-y-2">
@@ -2637,6 +2908,21 @@ export default function TransportPartnerPortal() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pricing-status">Status</Label>
+                  <Select
+                    value={pricingForm.status}
+                    onValueChange={(status: PricingForm["status"]) => setPricingForm({ ...pricingForm, status })}
+                  >
+                    <SelectTrigger id="pricing-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2 lg:col-span-3">
                   <Label htmlFor="pricing-includes">Includes</Label>
                   <Input
@@ -2655,10 +2941,17 @@ export default function TransportPartnerPortal() {
                     placeholder="When this price applies, exclusions, seasonal notes…"
                   />
                 </div>
-                <Button type="submit" disabled={createPricingMutation.isPending || !rosterPartnerId} className="lg:col-span-4">
-                  {createPricingMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <DollarSign className="h-4 w-4" />}
-                  Save transport price
-                </Button>
+                <div className="flex flex-wrap gap-2 lg:col-span-4">
+                  <Button type="submit" disabled={createPricingMutation.isPending || updatePricingMutation.isPending || !rosterPartnerId}>
+                    {createPricingMutation.isPending || updatePricingMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editingPricingId ? <Save className="h-4 w-4" /> : <DollarSign className="h-4 w-4" />}
+                    {editingPricingId ? "Update transport price" : "Save transport price"}
+                  </Button>
+                  {editingPricingId && (
+                    <Button type="button" variant="outline" onClick={cancelPricingEdit}>
+                      Cancel edit
+                    </Button>
+                  )}
+                </div>
               </form>
               <div className="overflow-x-auto">
                 <Table>
@@ -2687,9 +2980,14 @@ export default function TransportPartnerPortal() {
                           <TableCell>{humanizeStatus(price.pricingType)}</TableCell>
                           <TableCell><StatusBadge status={price.status || "active"} /></TableCell>
                           <TableCell className="text-right">
-                            <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${displayLabel}`} onClick={() => deletePricingMutation.mutate(price.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <div className="flex justify-end gap-1">
+                              <Button type="button" variant="ghost" size="icon" aria-label={`Edit ${displayLabel}`} onClick={() => editPricing(price)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${displayLabel}`} onClick={() => deletePricingMutation.mutate(price.id)}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );

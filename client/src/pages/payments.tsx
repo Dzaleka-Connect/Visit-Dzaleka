@@ -9,9 +9,46 @@ import { Label } from "@/components/ui/label";
 import { Loader2, RefreshCw, Wallet, ArrowUpRight, ArrowDownLeft, CheckCircle2, XCircle, Clock, CreditCard, ExternalLink } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
-import { formatCurrency } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
 import { Redirect } from "wouter";
+
+const ZERO_DECIMAL_CURRENCIES = new Set([
+    "BIF",
+    "CLP",
+    "DJF",
+    "GNF",
+    "JPY",
+    "KMF",
+    "KRW",
+    "MGA",
+    "PYG",
+    "RWF",
+    "VND",
+    "VUV",
+    "XAF",
+    "XOF",
+    "XPF",
+]);
+
+function amountFromMinorUnits(amount: number, currency: string) {
+    return amount / (ZERO_DECIMAL_CURRENCIES.has(currency.toUpperCase()) ? 1 : 100);
+}
+
+function formatPaymentAmount(amount: number, currency: string) {
+    const normalizedCurrency = currency.toUpperCase();
+    const isZeroDecimal = ZERO_DECIMAL_CURRENCIES.has(normalizedCurrency) || normalizedCurrency === "MWK";
+
+    return new Intl.NumberFormat(normalizedCurrency === "MWK" ? "en-MW" : "en-US", {
+        style: "currency",
+        currency: normalizedCurrency,
+        minimumFractionDigits: isZeroDecimal ? 0 : 2,
+        maximumFractionDigits: isZeroDecimal ? 0 : 2,
+    }).format(amount || 0);
+}
+
+function formatMinorPaymentAmount(amount: number, currency: string) {
+    return formatPaymentAmount(amountFromMinorUnits(amount, currency), currency);
+}
 
 interface AmountProps {
     amount: number;
@@ -22,22 +59,19 @@ interface AmountProps {
 function Amount({ amount, currency, className }: AmountProps) {
     return (
         <span className={className}>
-            {currency} {amount.toLocaleString()}
+            {formatPaymentAmount(amount, currency)}
         </span>
     );
 }
 
-interface PayChanguBalance {
-    message: string;
-    status: "success" | "error";
-    data: {
-        wallet_currency: string;
-        wallet_balance: number;
-    } | null;
-    configured: boolean;
-    available: number;
-    pending: number;
+interface PaymentConfig {
+    isLiveMode: boolean;
+    provider: string;
     currency: string;
+    secretKeyConfigured: boolean;
+    webhookConfigured: boolean;
+    usdConversionConfigured: boolean;
+    usdConversionRate: number | null;
 }
 
 interface Transaction {
@@ -53,10 +87,19 @@ interface Transaction {
     paymentFees?: number;
     netAmount?: number;
     paymentDetails?: {
-        brand: string;
-        last4: string;
-        country: string;
+        brand?: string | null;
+        last4?: string | null;
+        country?: string | null;
         funding?: string;
+        checkoutCurrency?: string | null;
+        checkoutAmount?: number | null;
+        checkoutAmountMinor?: number | null;
+        balanceCurrency?: string | null;
+        stripeFee?: number | null;
+        stripeNet?: number | null;
+        receiptUrl?: string | null;
+        checkoutSessionId?: string | null;
+        paymentIntentId?: string | null;
     };
 }
 
@@ -75,7 +118,7 @@ export default function PaymentsPage() {
     });
 
     // Fetch Payment Config
-    const { data: config } = useQuery<{ isLiveMode: boolean, provider: string, currency: string }>({
+    const { data: config } = useQuery<PaymentConfig>({
         queryKey: ["/api/admin/payment-config"],
         staleTime: 0, // Always fetch fresh data
     });
@@ -172,9 +215,13 @@ export default function PaymentsPage() {
                         ) : (
                             <>
                                 <div className="text-xl sm:text-2xl font-bold text-blue-700 dark:text-blue-300">
-                                    {stripeBalance?.available?.[0]
-                                        ? formatCurrency(stripeBalance.available[0].amount / 100)
-                                        : formatCurrency(0)}
+                                    {stripeBalance?.available?.length
+                                        ? stripeBalance.available.map((balance) => (
+                                            <div key={`${balance.currency}-${balance.amount}`}>
+                                                {formatMinorPaymentAmount(balance.amount, balance.currency)}
+                                            </div>
+                                        ))
+                                        : <Amount amount={0} currency={config?.currency || "MWK"} />}
                                 </div>
                                 <p className="text-xs text-muted-foreground mt-1">
                                     Ready to payout
@@ -195,9 +242,13 @@ export default function PaymentsPage() {
                         ) : (
                             <>
                                 <div className="text-xl sm:text-2xl font-bold">
-                                    {stripeBalance?.pending?.[0]
-                                        ? formatCurrency(stripeBalance.pending[0].amount / 100)
-                                        : formatCurrency(0)}
+                                    {stripeBalance?.pending?.length
+                                        ? stripeBalance.pending.map((balance) => (
+                                            <div key={`${balance.currency}-${balance.amount}`}>
+                                                {formatMinorPaymentAmount(balance.amount, balance.currency)}
+                                            </div>
+                                        ))
+                                        : <Amount amount={0} currency={config?.currency || "MWK"} />}
                                 </div>
                                 <p className="text-xs text-muted-foreground mt-1">
                                     Awaiting clearance
@@ -252,7 +303,7 @@ export default function PaymentsPage() {
                                                             <td className="p-2 sm:p-3">
                                                                 <div className="flex flex-col">
                                                                     <span className="capitalize font-medium">
-                                                                        {tx.paymentDetails?.brand ? (
+                                                                        {tx.paymentDetails?.brand && tx.paymentDetails?.last4 ? (
                                                                             <span className="flex items-center gap-1">
                                                                                 {tx.paymentDetails.brand.toUpperCase()} <span className="text-muted-foreground text-xs">•••• {tx.paymentDetails.last4}</span>
                                                                             </span>
@@ -271,6 +322,22 @@ export default function PaymentsPage() {
                                                                 <div className="font-medium">
                                                                     <Amount amount={tx.amount} currency={tx.currency} />
                                                                 </div>
+                                                                {tx.paymentDetails?.checkoutCurrency && tx.paymentDetails.checkoutAmount != null && (
+                                                                    <div className="mt-1 text-xs text-muted-foreground">
+                                                                        Stripe charge: {formatPaymentAmount(tx.paymentDetails.checkoutAmount, tx.paymentDetails.checkoutCurrency)}
+                                                                    </div>
+                                                                )}
+                                                                {tx.paymentDetails?.receiptUrl && (
+                                                                    <a
+                                                                        href={tx.paymentDetails.receiptUrl}
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                        className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                                                    >
+                                                                        Receipt
+                                                                        <ExternalLink className="h-3 w-3" />
+                                                                    </a>
+                                                                )}
                                                             </td>
                                                             <td className="p-3">
                                                                 {tx.paymentFees ? (
@@ -280,6 +347,17 @@ export default function PaymentsPage() {
                                                                         </span>
                                                                         <span className="text-muted-foreground">
                                                                             Fee: <Amount amount={tx.paymentFees} currency={tx.currency} />
+                                                                        </span>
+                                                                    </div>
+                                                                ) : tx.paymentDetails?.stripeFee != null && tx.paymentDetails.balanceCurrency ? (
+                                                                    <div className="flex flex-col text-xs">
+                                                                        {tx.paymentDetails.stripeNet != null && (
+                                                                            <span className="text-emerald-600 font-medium">
+                                                                                Stripe net: {formatPaymentAmount(tx.paymentDetails.stripeNet, tx.paymentDetails.balanceCurrency)}
+                                                                            </span>
+                                                                        )}
+                                                                        <span className="text-muted-foreground">
+                                                                            Stripe fee: {formatPaymentAmount(tx.paymentDetails.stripeFee, tx.paymentDetails.balanceCurrency)}
                                                                         </span>
                                                                     </div>
                                                                 ) : (
@@ -342,8 +420,66 @@ export default function PaymentsPage() {
                                 <div className="space-y-2">
                                     <Label>Currency</Label>
                                     <div className="flex items-center space-x-2 border p-3 rounded-md bg-muted/20">
-                                        <span className="font-mono font-bold">MWK</span>
-                                        <span className="text-muted-foreground text-sm">(Malawian Kwacha)</span>
+                                        <span className="font-mono font-bold">{config?.currency || "MWK"}</span>
+                                        <span className="text-muted-foreground text-sm">
+                                            {config?.currency === "USD" ? "(Stripe card charge currency)" : "(Malawian Kwacha)"}
+                                        </span>
+                                    </div>
+                                    {config?.currency === "USD" && (
+                                        <p className="text-xs text-muted-foreground">
+                                            Booking prices remain tracked in MWK. Stripe checkout converts the charge to USD using your configured MWK per USD rate.
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="grid gap-3 md:grid-cols-3">
+                                <div className="rounded-md border p-3 bg-muted/20">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-sm font-medium">Stripe key</span>
+                                        {config?.secretKeyConfigured ? (
+                                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                                                <CheckCircle2 className="mr-1 h-3 w-3" />
+                                                Set
+                                            </Badge>
+                                        ) : (
+                                            <Badge variant="destructive">
+                                                <XCircle className="mr-1 h-3 w-3" />
+                                                Missing
+                                            </Badge>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="rounded-md border p-3 bg-muted/20">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-sm font-medium">Webhook</span>
+                                        {config?.webhookConfigured ? (
+                                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                                                <CheckCircle2 className="mr-1 h-3 w-3" />
+                                                Set
+                                            </Badge>
+                                        ) : (
+                                            <Badge variant="destructive">
+                                                <XCircle className="mr-1 h-3 w-3" />
+                                                Missing
+                                            </Badge>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="rounded-md border p-3 bg-muted/20">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-sm font-medium">USD conversion</span>
+                                        {config?.usdConversionConfigured ? (
+                                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                                                <CheckCircle2 className="mr-1 h-3 w-3" />
+                                                Ready
+                                            </Badge>
+                                        ) : (
+                                            <Badge variant="destructive">
+                                                <XCircle className="mr-1 h-3 w-3" />
+                                                Missing
+                                            </Badge>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -361,6 +497,11 @@ export default function PaymentsPage() {
                                         ? "Processing real payments. All transactions will be charged."
                                         : "Using Stripe Test Key (sk_test_...). No actual charges will be made."}
                                 </p>
+                                {!config?.webhookConfigured && (
+                                    <p className="text-xs text-destructive">
+                                        Payments will not be marked paid automatically until STRIPE_WEBHOOK_SECRET is set for the Stripe webhook endpoint.
+                                    </p>
+                                )}
                             </div>
 
                             <div className="pt-4 border-t">
