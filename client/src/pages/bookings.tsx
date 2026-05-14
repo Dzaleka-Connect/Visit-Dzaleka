@@ -766,6 +766,11 @@ export default function Bookings() {
 
       await apiRequest("POST", "/api/bookings", {
         ...bookingFields,
+        transportRequested,
+        transportRoute,
+        transportPartnerId,
+        transportPickup,
+        transportNotes,
         specialRequests: buildTransportSpecialRequests(data.specialRequests, {
           transportRequested,
           transportRoute,

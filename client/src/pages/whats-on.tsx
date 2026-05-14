@@ -12,6 +12,7 @@ import { PublicHeader } from "@/components/public-header";
 
 interface Event {
     id: string;
+    slug?: string;
     title: string;
     description: string;
     date: string;
@@ -32,6 +33,11 @@ interface Event {
         url?: string;
         deadline?: string;
     };
+    url?: string;
+    link?: string;
+    externalUrl?: string;
+    website?: string;
+    sourceUrl?: string;
     tags: string[];
 }
 
@@ -69,8 +75,101 @@ function eventDetailHref(event: Pick<Event, "id">) {
     return `/whats-on/${encodeURIComponent(event.id)}`;
 }
 
+function eventCanonicalUrl(event: Pick<Event, "id">) {
+    return `${SITE_URL}${eventDetailHref(event)}`;
+}
+
+function normalizeExternalUrl(url?: string | null) {
+    if (!url || url === "#") return "";
+    try {
+        return new URL(url, url.startsWith("/") ? "https://services.dzaleka.com" : SITE_URL).href;
+    } catch {
+        return "";
+    }
+}
+
+function eventRegistrationUrl(event: Pick<Event, "registration">) {
+    return normalizeExternalUrl(event.registration?.url);
+}
+
+function eventExternalUrl(event: Pick<Event, "id" | "slug" | "url" | "link" | "externalUrl" | "website" | "sourceUrl" | "registration">) {
+    const directUrl = normalizeExternalUrl(
+        event.externalUrl ||
+        event.sourceUrl ||
+        event.website ||
+        event.url ||
+        event.link
+    );
+
+    if (directUrl) return directUrl;
+
+    const registrationUrl = eventRegistrationUrl(event);
+    if (registrationUrl) return registrationUrl;
+
+    return `https://services.dzaleka.com/events/${encodeURIComponent(event.slug || event.id)}`;
+}
+
 function eventDescription(event: Pick<Event, "description">) {
-    return event.description.replace(/\s+/g, " ").trim().slice(0, 180);
+    return (event.description || "").replace(/\s+/g, " ").trim().slice(0, 180);
+}
+
+function eventStructuredData(event: Event) {
+    const canonical = eventCanonicalUrl(event);
+    const externalUrl = eventExternalUrl(event);
+    const registrationUrl = eventRegistrationUrl(event);
+    const offerUrl = registrationUrl || externalUrl || canonical;
+    const imageUrl = eventImageUrl(event);
+
+    return {
+        "@type": "Event",
+        "@id": `${canonical}#event`,
+        "name": event.title,
+        "description": eventDescription(event),
+        "image": [imageUrl],
+        "url": canonical,
+        "sameAs": externalUrl,
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": canonical,
+        },
+        "startDate": event.date,
+        ...(event.endDate && { "endDate": event.endDate }),
+        "eventStatus": "https://schema.org/EventScheduled",
+        "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+        "location": {
+            "@type": "Place",
+            "name": event.location || "Dzaleka Refugee Camp",
+            "address": {
+                "@type": "PostalAddress",
+                "streetAddress": event.location || "Dzaleka Refugee Camp",
+                "addressLocality": "Dowa",
+                "addressRegion": "Central Region",
+                "addressCountry": "MW",
+            },
+            "geo": {
+                "@type": "GeoCoordinates",
+                "latitude": -13.7833,
+                "longitude": 33.9833,
+            },
+        },
+        "organizer": {
+            "@type": "Organization",
+            "name": event.organizer || "Dzaleka Online Services",
+            "url": externalUrl || SITE_URL,
+        },
+        ...(offerUrl && {
+            "offers": {
+                "@type": "Offer",
+                "url": offerUrl,
+                "price": 0,
+                "priceCurrency": "MWK",
+                "availability": event.status === "upcoming"
+                    ? "https://schema.org/InStock"
+                    : "https://schema.org/SoldOut",
+            },
+        }),
+        ...(event.tags?.length && { "keywords": event.tags.join(", ") }),
+    };
 }
 
 export default function WhatsOn() {
@@ -113,53 +212,7 @@ export default function WhatsOn() {
     const structuredData = useMemo(() => {
         if (!events.length) return null;
 
-        const eventSchemas = events.map((event) => ({
-            "@type": "Event",
-            "@id": `https://visit.dzaleka.com/whats-on#event-${event.id}`,
-            "name": event.title,
-            "description": event.description,
-            "startDate": event.date,
-            ...(event.endDate && { "endDate": event.endDate }),
-            "eventStatus": event.status === "upcoming"
-                ? "https://schema.org/EventScheduled"
-                : "https://schema.org/EventPostponed",
-            "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
-            "location": {
-                "@type": "Place",
-                "name": event.location,
-                "address": {
-                    "@type": "PostalAddress",
-                    "addressLocality": "Dowa",
-                    "addressRegion": "Central Region",
-                    "addressCountry": "MW"
-                },
-                "geo": {
-                    "@type": "GeoCoordinates",
-                    "latitude": -13.7833,
-                    "longitude": 33.9833
-                }
-            },
-            ...(event.image && {
-                "image": event.image.startsWith('/')
-                    ? `https://services.dzaleka.com${event.image}`
-                    : event.image
-            }),
-            "organizer": {
-                "@type": "Organization",
-                "name": event.organizer || "Dzaleka Online Services",
-                "url": "https://visit.dzaleka.com"
-            },
-            ...(event.registration?.url && {
-                "offers": {
-                    "@type": "Offer",
-                    "url": event.registration.url,
-                    "availability": event.status === "upcoming"
-                        ? "https://schema.org/InStock"
-                        : "https://schema.org/SoldOut"
-                }
-            }),
-            ...(event.tags?.length && { "keywords": event.tags.join(", ") })
-        }));
+        const eventSchemas = events.map(eventStructuredData);
 
         return {
             "@context": "https://schema.org",
@@ -197,10 +250,11 @@ export default function WhatsOn() {
                     "itemListElement": upcomingEvents.map((event, index) => ({
                         "@type": "ListItem",
                         "position": index + 1,
-                        "item": {
-                            "@type": "Event",
-                            "@id": `https://visit.dzaleka.com/whats-on#event-${event.id}`,
+                            "item": {
+                                "@type": "Event",
+                            "@id": `${eventCanonicalUrl(event)}#event`,
                             "name": event.title,
+                            "url": eventCanonicalUrl(event),
                             "startDate": event.date,
                             "location": {
                                 "@type": "Place",
@@ -223,15 +277,8 @@ export default function WhatsOn() {
                 keywords="Dzaleka events, Tumaini Festival, Dzaleka culture, refugee camp events, Malawi events, cultural festival Dzaleka"
                 canonical="https://visit.dzaleka.com/whats-on"
                 ogImage="https://tumainiletu.org/wp-content/uploads/2024/10/9L1A6757-1.jpg"
+                structuredData={structuredData || undefined}
             />
-
-            {/* Schema.org Event Structured Data */}
-            {structuredData && (
-                <script
-                    type="application/ld+json"
-                    dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-                />
-            )}
             {/* Header */}
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
                 <div className="container mx-auto flex h-16 items-center justify-between px-4">
@@ -426,46 +473,7 @@ export function WhatsOnEventDetail() {
     const event = data?.data?.events?.find((item) => item.id === eventId);
     const imageUrl = eventImageUrl(event);
     const canonical = `${SITE_URL}/whats-on/${encodeURIComponent(eventId)}`;
-
-    const structuredData = event ? {
-        "@context": "https://schema.org",
-        "@type": "Event",
-        "@id": `${canonical}#event`,
-        "name": event.title,
-        "description": eventDescription(event),
-        "image": imageUrl,
-        "url": canonical,
-        "startDate": event.date,
-        ...(event.endDate && { "endDate": event.endDate }),
-        "eventStatus": event.status === "upcoming"
-            ? "https://schema.org/EventScheduled"
-            : "https://schema.org/EventCompleted",
-        "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
-        "location": {
-            "@type": "Place",
-            "name": event.location,
-            "address": {
-                "@type": "PostalAddress",
-                "addressLocality": "Dowa",
-                "addressRegion": "Central Region",
-                "addressCountry": "MW",
-            },
-        },
-        "organizer": {
-            "@type": "Organization",
-            "name": event.organizer || "Dzaleka Online Services",
-            "url": SITE_URL,
-        },
-        ...(event.registration?.url && {
-            "offers": {
-                "@type": "Offer",
-                "url": event.registration.url,
-                "availability": event.status === "upcoming"
-                    ? "https://schema.org/InStock"
-                    : "https://schema.org/SoldOut",
-            },
-        }),
-    } : null;
+    const structuredData = event ? { "@context": "https://schema.org", ...eventStructuredData(event) } : null;
 
     if (isLoading) {
         return (
@@ -514,6 +522,9 @@ export function WhatsOnEventDetail() {
     }
 
     const isPast = event.status === "past";
+    const externalUrl = eventExternalUrl(event);
+    const registrationUrl = eventRegistrationUrl(event);
+    const showExternalUrl = externalUrl && externalUrl !== registrationUrl;
 
     return (
         <div className="min-h-screen bg-background flex flex-col">
@@ -579,10 +590,18 @@ export function WhatsOnEventDetail() {
                                             <p className="break-words">{event.organizer}</p>
                                         </div>
                                     )}
-                                    {event.registration?.url && !isPast && (
+                                    {registrationUrl && !isPast && (
                                         <Button asChild className="w-full">
-                                            <a href={event.registration.url} target="_blank" rel="noopener noreferrer">
+                                            <a href={registrationUrl} target="_blank" rel="noopener noreferrer">
                                                 Register
+                                                <ExternalLink className="h-4 w-4" />
+                                            </a>
+                                        </Button>
+                                    )}
+                                    {showExternalUrl && (
+                                        <Button asChild variant="outline" className="w-full">
+                                            <a href={externalUrl} target="_blank" rel="noopener noreferrer">
+                                                Open event page
                                                 <ExternalLink className="h-4 w-4" />
                                             </a>
                                         </Button>
@@ -624,6 +643,7 @@ function EventCard({ event }: { event: Event }) {
     const isPast = event.status === "past";
     const imageUrl = eventImageUrl(event);
     const detailHref = eventDetailHref(event);
+    const externalUrl = eventExternalUrl(event);
 
     return (
         <Card className="flex flex-col overflow-hidden h-full hover:shadow-lg transition-all duration-300 group">
@@ -678,13 +698,21 @@ function EventCard({ event }: { event: Event }) {
                 )}
             </CardContent>
 
-            <CardFooter className="pt-0">
+            <CardFooter className="flex-col gap-2 pt-0">
                 <Button asChild className="w-full gap-2" variant={isPast ? "outline" : "default"}>
                     <Link href={detailHref}>
                         {isPast ? "View Past Event" : "View Details"}
                         <ArrowRight className="h-3.5 w-3.5" />
                     </Link>
                 </Button>
+                {externalUrl && (
+                    <Button asChild className="w-full gap-2" variant="outline">
+                        <a href={externalUrl} target="_blank" rel="noopener noreferrer">
+                            Open event page
+                            <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                    </Button>
+                )}
             </CardFooter>
         </Card>
     );

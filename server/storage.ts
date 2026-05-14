@@ -279,7 +279,9 @@ export interface IStorage {
   getTransportPartnerByEmail(email: string): Promise<TransportPartner | undefined>;
   createTransportPartner(partner: InsertTransportPartner): Promise<TransportPartner>;
   updateTransportPartner(id: string, partner: Partial<TransportPartner>): Promise<TransportPartner | undefined>;
+  deleteTransportPartner(id: string): Promise<void>;
   getTransportRequests(partnerId?: string): Promise<TransportRequest[]>;
+  getTransportRequestsByBookingIds(bookingIds: string[]): Promise<TransportRequest[]>;
   getTransportRequest(id: string): Promise<TransportRequest | undefined>;
   getTransportRequestByQuoteToken(token: string): Promise<TransportRequest | undefined>;
   createTransportRequest(request: InsertTransportRequest): Promise<TransportRequest>;
@@ -1860,6 +1862,41 @@ export class SupabaseStorage implements IStorage {
     return this.handleOptionalResponse(data, error);
   }
 
+  async deleteTransportPartner(id: string): Promise<void> {
+    const now = new Date().toISOString();
+
+    const { error: transportRequestError } = await this.supabase
+      .from("transport_requests")
+      .update({ partner_id: null, updated_at: now })
+      .eq("partner_id", id);
+    if (transportRequestError) throw transportRequestError;
+
+    const { error: referralError } = await this.supabase
+      .from("partner_tour_referrals")
+      .update({ partner_id: null, updated_at: now })
+      .eq("partner_id", id);
+    if (referralError) throw referralError;
+
+    for (const tableName of [
+      "transport_partner_pricing",
+      "transport_partner_blackouts",
+      "transport_partner_vehicles",
+      "transport_partner_drivers",
+    ]) {
+      const { error } = await this.supabase
+        .from(tableName)
+        .delete()
+        .eq("partner_id", id);
+      if (error) throw error;
+    }
+
+    const { error } = await this.supabase
+      .from("transport_partners")
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+  }
+
   async getTransportRequests(partnerId?: string): Promise<TransportRequest[]> {
     let query = this.supabase
       .from("transport_requests")
@@ -1871,6 +1908,18 @@ export class SupabaseStorage implements IStorage {
     }
 
     const { data, error } = await query;
+    return this.handleResponse(data, error);
+  }
+
+  async getTransportRequestsByBookingIds(bookingIds: string[]): Promise<TransportRequest[]> {
+    if (bookingIds.length === 0) return [];
+
+    const { data, error } = await this.supabase
+      .from("transport_requests")
+      .select("*")
+      .in("booking_id", bookingIds)
+      .order("created_at", { ascending: false });
+
     return this.handleResponse(data, error);
   }
 

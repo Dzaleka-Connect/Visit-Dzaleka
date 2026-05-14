@@ -102,9 +102,14 @@ export function buildTransportSpecialRequests(existingNotes: string | undefined,
   const partner = getTransportPartner(request.transportPartnerId);
   const pickup = (request.transportPickup || "").trim();
   const notes = (request.transportNotes || "").trim();
+  const partnerLine = partner
+    ? `Preferred partner: ${partner.name}`
+    : request.transportPartnerId
+      ? "Preferred partner: Selected transport partner"
+      : "Preferred partner: Assign in admin";
   const transportLines = [
     "[Transport request]",
-    partner ? `Preferred partner: ${partner.name}` : "Preferred partner: Assign in admin",
+    partnerLine,
     `Route: ${route.label}`,
     pickup ? `Pickup/drop-off: ${pickup}` : null,
     notes ? `Transport notes: ${notes}` : null,

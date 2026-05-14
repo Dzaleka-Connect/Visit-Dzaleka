@@ -36,6 +36,46 @@ const STATIC_ROUTES = [
     "/disclaimer",
 ];
 
+function sitemapEntry(route: string) {
+    const url = route === "/" ? "https://visit.dzaleka.com/" : `https://visit.dzaleka.com${route}`;
+    const today = new Date().toISOString().slice(0, 10);
+    const isDynamic = route.startsWith("/blog/") || route.startsWith("/whats-on/");
+    return `  <url>
+    <loc>${url}</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>${isDynamic ? "weekly" : "monthly"}</changefreq>
+    <priority>${route.startsWith("/whats-on/") ? "0.7" : "0.6"}</priority>
+  </url>`;
+}
+
+async function appendDynamicRoutesToSitemap(publicDir: string, routes: string[]) {
+    if (routes.length === 0) return;
+
+    const sitemapPath = join(publicDir, "sitemap.xml");
+    try {
+        const current = await fs.readFile(sitemapPath, "utf-8");
+        const existingUrls = new Set(
+            Array.from(current.matchAll(/<loc>(.*?)<\/loc>/g)).map((match) => match[1])
+        );
+        const entries = routes
+            .filter((route) => {
+                const url = route === "/" ? "https://visit.dzaleka.com/" : `https://visit.dzaleka.com${route}`;
+                return !existingUrls.has(url);
+            })
+            .map(sitemapEntry);
+
+        if (entries.length === 0) return;
+
+        await fs.writeFile(
+            sitemapPath,
+            current.replace("</urlset>", `${entries.join("\n")}\n</urlset>`)
+        );
+        console.log(`Added ${entries.length} dynamic route(s) to sitemap.xml`);
+    } catch (error) {
+        console.warn("Could not update sitemap with dynamic routes:", error);
+    }
+}
+
 async function prerender() {
     console.log("Starts pre-rendering...");
 
@@ -159,6 +199,8 @@ async function prerender() {
         console.error(`Pre-rendering failed for ${failedRoutes.length} route(s): ${failedRoutes.join(", ")}`);
         process.exit(1);
     }
+
+    await appendDynamicRoutesToSitemap(publicDir, dynamicRoutes);
 
     console.log("Pre-rendering complete.");
     process.exit(0);

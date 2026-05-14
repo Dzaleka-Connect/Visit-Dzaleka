@@ -107,7 +107,7 @@ import PartnerWithUs from "@/pages/partner-with-us";
 import FAQPage from "@/pages/faq";
 import SupportOurWork from "@/pages/support-our-work";
 import PaymentsPage from "@/pages/payments";
-import TransportPartnerPortal from "@/pages/transport-partner-portal";
+import TransportPartnerPortal, { TransportPartnerRecordPage } from "@/pages/transport-partner-portal";
 import TransportQuote from "@/pages/transport-quote";
 
 import Destinations from "@/pages/destinations";
@@ -330,6 +330,7 @@ function Router() {
         <ProtectedRoute path="/email-settings" component={EmailSettings} allowedRoles={["admin"]} />
         <ProtectedRoute path="/revenue" component={Revenue} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/payments" component={PaymentsPage} allowedRoles={["admin"]} />
+        <ProtectedRoute path="/transport-partner/partners/:partnerId" component={TransportPartnerRecordPage} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/transport-partner" component={TransportPartnerPortal} allowedRoles={["admin", "coordinator", "transport_partner"]} />
         <ProtectedRoute path="/audit-logs" component={AuditLogs} allowedRoles={["admin"]} />
         <ProtectedRoute path="/analytics" component={Analytics} allowedRoles={["admin", "coordinator"]} />

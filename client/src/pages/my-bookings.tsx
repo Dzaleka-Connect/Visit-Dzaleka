@@ -16,6 +16,10 @@ import {
   FileDown,
   Star,
   Phone,
+  Car,
+  Mail,
+  Wallet,
+  ShieldCheck,
   Languages,
   CalendarClock,
   MessageSquare,
@@ -52,9 +56,52 @@ import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatDate, formatTime, formatCurrency, GROUP_SIZES } from "@/lib/constants";
 import { TransportRequestFields } from "@/components/transport-request-fields";
-import { buildTransportSpecialRequests, createTransportRequestFromSearch } from "@/lib/transport";
+import { buildTransportSpecialRequests, createTransportRequestFromSearch, getTransportRoute } from "@/lib/transport";
 import type { Booking, MeetingPoint, Zone, PointOfInterest, Guide } from "@shared/schema";
 import { SEO } from "@/components/seo";
+
+interface VisitorTransportPartnerProfile {
+  id: string;
+  companyName: string;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  baseLocation: string | null;
+  preferredContactMethod: string | null;
+  serviceAreas: string[] | null;
+  publicNotes: string | null;
+}
+
+interface VisitorTransportRequest {
+  id: string;
+  bookingId: string | null;
+  partnerId: string | null;
+  route: string;
+  pickupLocation: string | null;
+  notes: string | null;
+  status: string | null;
+  quotedAmount: number | null;
+  currency: string | null;
+  quoteSentAt: string | Date | null;
+  quoteDecision: string | null;
+  quoteDecisionAt: string | Date | null;
+  quoteDecisionNotes: string | null;
+  estimatedPickupTime: string | null;
+  requestedPickupTime: string | null;
+  requestedVisitDate: string | null;
+  rescheduleNotes: string | null;
+  driverName: string | null;
+  driverPhone: string | null;
+  vehicleDetails: string | null;
+  partnerNotes: string | null;
+  cancellationReason: string | null;
+  cancelledAt: string | Date | null;
+  partnerRespondedAt: string | Date | null;
+  createdAt: string | Date | null;
+  updatedAt: string | Date | null;
+  partner: VisitorTransportPartnerProfile | null;
+}
 
 interface BookingWithGuide extends Booking {
   guide?: {
@@ -68,6 +115,7 @@ interface BookingWithGuide extends Booking {
     specialties: string[] | null;
     rating: number | null;
   } | null;
+  transportRequest?: VisitorTransportRequest | null;
 }
 
 
@@ -258,6 +306,231 @@ const generateBookingPDF = async (booking: Booking, meetingPointName: string) =>
   doc.save(`DzalekaVisit-${booking.bookingReference || booking.id}.pdf`);
 };
 
+const TRANSPORT_STATUS_LABELS: Record<string, string> = {
+  pending: "Requested",
+  sent_to_partner: "Sent to partner",
+  quote_sent: "Quote sent",
+  accepted: "Partner accepted",
+  visitor_approved: "Quote approved",
+  visitor_declined: "Quote declined",
+  confirmed: "Confirmed",
+  reschedule_requested: "Reschedule requested",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
+function getTransportStatusLabel(status?: string | null) {
+  if (!status) return "Requested";
+  return TRANSPORT_STATUS_LABELS[status] || status.replace(/_/g, " ");
+}
+
+function formatOptionalTime(time?: string | null) {
+  return time ? formatTime(time) : null;
+}
+
+function formatTransportAmount(request: VisitorTransportRequest) {
+  return request.quotedAmount != null
+    ? formatCurrency(request.quotedAmount, request.currency || "MWK")
+    : null;
+}
+
+function getWhatsappHref(value?: string | null) {
+  const digits = (value || "").replace(/[^\d]/g, "");
+  return digits ? `https://wa.me/${digits}` : null;
+}
+
+function TransportSummaryButton({
+  request,
+  onClick,
+}: {
+  request: VisitorTransportRequest;
+  onClick: () => void;
+}) {
+  const route = getTransportRoute(request.route);
+  const amount = formatTransportAmount(request);
+  const driverLine = [request.driverName, request.driverPhone].filter(Boolean).join(" • ");
+
+  return (
+    <button
+      type="button"
+      className="mt-2 w-full rounded-lg border border-sky-200 bg-sky-50 p-3 text-left text-sm transition-colors hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-sky-800 dark:bg-sky-950/30 dark:hover:bg-sky-950/50"
+      onClick={onClick}
+      aria-label={`View transport details for ${route.shortLabel}`}
+    >
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 gap-3">
+          <Car className="mt-0.5 h-4 w-4 shrink-0 text-sky-700 dark:text-sky-300" aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="font-medium text-sky-900 dark:text-sky-100">
+              Transport: {getTransportStatusLabel(request.status)}
+            </p>
+            <p className="truncate text-xs text-sky-700 dark:text-sky-300">
+              {route.shortLabel}{request.partner?.companyName ? ` • ${request.partner.companyName}` : ""}
+            </p>
+          </div>
+        </div>
+        {amount && (
+          <Badge variant="outline" className="shrink-0 border-sky-300 bg-background/80 text-sky-800 dark:border-sky-700 dark:text-sky-200">
+            {amount}
+          </Badge>
+        )}
+      </div>
+      {driverLine && (
+        <p className="mt-2 truncate text-xs text-sky-700 dark:text-sky-300">
+          Driver: {driverLine}
+        </p>
+      )}
+      <p className="mt-2 text-xs font-medium text-sky-800 dark:text-sky-200">
+        View transport details
+      </p>
+    </button>
+  );
+}
+
+function TransportDetailsCard({ request }: { request: VisitorTransportRequest }) {
+  const route = getTransportRoute(request.route);
+  const amount = formatTransportAmount(request);
+  const pickupTime = formatOptionalTime(request.estimatedPickupTime || request.requestedPickupTime);
+  const whatsappHref = getWhatsappHref(request.partner?.whatsapp || request.partner?.phone);
+  const partnerPhone = request.partner?.phone || request.partner?.whatsapp;
+  const transportPending = ["pending", "sent_to_partner"].includes(request.status || "pending");
+
+  return (
+    <Card className="border-sky-200 bg-sky-50/60 dark:border-sky-800 dark:bg-sky-950/20">
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Car className="h-5 w-5 text-sky-700 dark:text-sky-300" aria-hidden="true" />
+              Transport Details
+            </CardTitle>
+            <CardDescription className="mt-1 break-words">{route.label}</CardDescription>
+          </div>
+          <Badge variant={request.status === "cancelled" || request.status === "visitor_declined" ? "destructive" : "outline"}>
+            {getTransportStatusLabel(request.status)}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {transportPending && (
+          <div className="flex gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <p className="min-w-0 break-words">
+              This transport request is not guaranteed yet. We will update this section when a partner confirms availability.
+            </p>
+          </div>
+        )}
+
+        <div className="grid gap-3 text-sm sm:grid-cols-2">
+          {request.pickupLocation && (
+            <div className="min-w-0">
+              <Label className="text-xs text-muted-foreground">Pickup or drop-off</Label>
+              <p className="mt-1 break-words font-medium">{request.pickupLocation}</p>
+            </div>
+          )}
+          {pickupTime && (
+            <div className="min-w-0">
+              <Label className="text-xs text-muted-foreground">Pickup time</Label>
+              <p className="mt-1 font-medium">{pickupTime}</p>
+            </div>
+          )}
+          {amount && (
+            <div className="min-w-0">
+              <Label className="text-xs text-muted-foreground">Quoted amount</Label>
+              <p className="mt-1 flex items-center gap-2 font-medium">
+                <Wallet className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                {amount}
+              </p>
+            </div>
+          )}
+          {request.quoteDecision && (
+            <div className="min-w-0">
+              <Label className="text-xs text-muted-foreground">Quote decision</Label>
+              <p className="mt-1 font-medium capitalize">{request.quoteDecision.replace(/_/g, " ")}</p>
+            </div>
+          )}
+        </div>
+
+        {request.partner && (
+          <div className="rounded-md border bg-background/80 p-3">
+            <Label className="text-xs text-muted-foreground">Transport partner</Label>
+            <p className="mt-1 break-words font-medium">{request.partner.companyName}</p>
+            <div className="mt-3 grid gap-2 text-sm">
+              {partnerPhone && (
+                <a href={`tel:${partnerPhone}`} className="flex min-w-0 items-center gap-2 text-sky-700 hover:underline dark:text-sky-300">
+                  <Phone className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{partnerPhone}</span>
+                </a>
+              )}
+              {request.partner.email && (
+                <a href={`mailto:${request.partner.email}`} className="flex min-w-0 items-center gap-2 text-sky-700 hover:underline dark:text-sky-300">
+                  <Mail className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{request.partner.email}</span>
+                </a>
+              )}
+              {whatsappHref && (
+                <a href={whatsappHref} target="_blank" rel="noreferrer" className="text-sky-700 hover:underline dark:text-sky-300">
+                  Open WhatsApp chat
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
+        {(request.driverName || request.driverPhone || request.vehicleDetails) && (
+          <div className="rounded-md border bg-background/80 p-3">
+            <Label className="text-xs text-muted-foreground">Driver and vehicle</Label>
+            <div className="mt-2 grid gap-2 text-sm">
+              {request.driverName && <p className="break-words font-medium">{request.driverName}</p>}
+              {request.driverPhone && (
+                <a href={`tel:${request.driverPhone}`} className="flex min-w-0 items-center gap-2 text-sky-700 hover:underline dark:text-sky-300">
+                  <Phone className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{request.driverPhone}</span>
+                </a>
+              )}
+              {request.vehicleDetails && <p className="break-words text-muted-foreground">{request.vehicleDetails}</p>}
+            </div>
+          </div>
+        )}
+
+        {(request.notes || request.partnerNotes || request.quoteDecisionNotes || request.rescheduleNotes || request.cancellationReason) && (
+          <div className="space-y-3 text-sm">
+            {request.notes && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Your transport notes</Label>
+                <p className="mt-1 break-words">{request.notes}</p>
+              </div>
+            )}
+            {request.partnerNotes && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Partner message</Label>
+                <p className="mt-1 break-words">{request.partnerNotes}</p>
+              </div>
+            )}
+            {request.quoteDecisionNotes && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Quote response note</Label>
+                <p className="mt-1 break-words">{request.quoteDecisionNotes}</p>
+              </div>
+            )}
+            {request.rescheduleNotes && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Reschedule note</Label>
+                <p className="mt-1 break-words">{request.rescheduleNotes}</p>
+              </div>
+            )}
+            {request.cancellationReason && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Cancellation reason</Label>
+                <p className="mt-1 break-words">{request.cancellationReason}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 
 
@@ -356,6 +629,11 @@ export default function MyBookings() {
 
       await apiRequest("POST", "/api/bookings", {
         ...bookingFields,
+        transportRequested,
+        transportRoute,
+        transportPartnerId,
+        transportPickup,
+        transportNotes,
         specialRequests: buildTransportSpecialRequests(data.specialRequests, {
           transportRequested,
           transportRoute,
@@ -754,6 +1032,10 @@ export default function MyBookings() {
                 </Card>
               )}
 
+              {selectedBooking.transportRequest && (
+                <TransportDetailsCard request={selectedBooking.transportRequest} />
+              )}
+
               <Card>
                 <CardHeader>
                   <CardTitle>Payment Details</CardTitle>
@@ -925,6 +1207,16 @@ export default function MyBookings() {
                       <div className="text-xs text-muted-foreground mt-2 p-2 bg-muted rounded">
                         A guide will be assigned to you soon. You'll see their details here.
                       </div>
+                    )}
+
+                    {booking.transportRequest && (
+                      <TransportSummaryButton
+                        request={booking.transportRequest}
+                        onClick={() => {
+                          setSelectedBooking(booking);
+                          setIsDetailOpen(true);
+                        }}
+                      />
                     )}
 
                     {/* Show visitor's rating if they've rated this tour */}

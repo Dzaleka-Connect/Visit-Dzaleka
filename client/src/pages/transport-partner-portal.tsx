@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useSearch } from "wouter";
+import type { ReactNode } from "react";
+import { Link, useLocation, useRoute, useSearch } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   BookOpen,
   Calendar,
   CalendarOff,
   Car,
+  ChevronLeft,
   CheckCircle2,
   ClipboardList,
   Clock,
@@ -518,6 +520,267 @@ function StatusBadge({ status }: { status?: string | null }) {
   );
 }
 
+function displayValue(value?: string | number | null) {
+  if (value === null || value === undefined || String(value).trim() === "") return "Not recorded";
+  return String(value);
+}
+
+function formatOptionalDate(value?: string | Date | null) {
+  return value ? formatDate(value) : "Not recorded";
+}
+
+function InfoBlock({
+  label,
+  value,
+  children,
+}: {
+  label: string;
+  value?: string | number | null;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="min-w-0 rounded-md border bg-muted/20 p-3">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <div className="mt-1 min-w-0 break-words text-sm">{children || displayValue(value)}</div>
+    </div>
+  );
+}
+
+function SummaryPill({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-md border bg-background px-3 py-2">
+      <p className="text-lg font-semibold tabular-nums">{value}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+function partnerCompletion(partner: TransportPartner) {
+  const fields = [
+    ["Company name", partner.companyName],
+    ["Contact person", partner.contactName],
+    ["Email", partner.email],
+    ["Phone", partner.phone],
+    ["WhatsApp", partner.whatsapp],
+    ["Base location", partner.baseLocation],
+    ["Service areas", partner.serviceAreas?.length ? partner.serviceAreas.join(", ") : ""],
+    ["Preferred contact", partner.preferredContactMethod],
+    ["Default currency", partner.defaultCurrency],
+    ["Pricing notes", partner.pricingNotes],
+    ["Payment terms", partner.paymentTerms],
+    ["Public service notes", partner.publicNotes],
+    ["Internal notes", partner.internalNotes],
+  ];
+  const completed = fields.filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== "").length;
+  const missing = fields
+    .filter(([, value]) => value === null || value === undefined || String(value).trim() === "")
+    .map(([label]) => label);
+
+  return {
+    completed,
+    total: fields.length,
+    percent: Math.round((completed / fields.length) * 100),
+    missing,
+  };
+}
+
+function PartnerRecordOverview({
+  partner,
+  requests,
+  referrals,
+  drivers,
+  vehicles,
+  blackouts,
+  pricing,
+}: {
+  partner: TransportPartner;
+  requests: TransportRequest[];
+  referrals: PartnerTourReferral[];
+  drivers: TransportPartnerDriver[];
+  vehicles: TransportPartnerVehicle[];
+  blackouts: TransportPartnerBlackout[];
+  pricing: TransportPartnerPricing[];
+}) {
+  const completion = partnerCompletion(partner);
+  const closedStatuses = ["completed", "cancelled"];
+  const partnerRequests = requests.filter((request) => request.partnerId === partner.id);
+  const partnerReferrals = referrals.filter((referral) => referral.partnerId === partner.id);
+  const partnerDrivers = drivers.filter((driver) => driver.partnerId === partner.id);
+  const partnerVehicles = vehicles.filter((vehicle) => vehicle.partnerId === partner.id);
+  const partnerBlackouts = blackouts.filter((blackout) => blackout.partnerId === partner.id);
+  const partnerPricing = pricing.filter((price) => price.partnerId === partner.id);
+  const activeDrivers = partnerDrivers.filter((driver) => driver.status !== "inactive").length;
+  const activeVehicles = partnerVehicles.filter((vehicle) => vehicle.status !== "inactive").length;
+  const activePrices = partnerPricing.filter((price) => price.status !== "inactive").length;
+  const activeBlackouts = partnerBlackouts.filter((blackout) => blackout.status !== "cancelled").length;
+  const openRequests = partnerRequests.filter((request) => !closedStatuses.includes(request.status || "")).length;
+  const awaitingVisitor = partnerRequests.filter((request) =>
+    ["quote_sent", "accepted"].includes(request.status || "") && !request.quoteDecision
+  ).length;
+  const completedRequests = partnerRequests.filter((request) => request.status === "completed").length;
+  const completedReferrals = partnerReferrals.filter((referral) => referral.status === "completed" || referral.status === "booked").length;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <CardTitle>Partner Profile Snapshot</CardTitle>
+            <CardDescription>
+              Full admin view of saved profile details, portal status, operational readiness, and recent setup records.
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge status={partner.status || "active"} />
+            <Badge variant={partner.userId ? "default" : "outline"}>
+              {partner.userId ? "Portal linked" : "Invite needed"}
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <section className="rounded-lg border bg-muted/20 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-base font-semibold">{partner.companyName}</h3>
+              <p className="text-sm text-muted-foreground">
+                {completion.completed} of {completion.total} profile fields complete
+              </p>
+            </div>
+            <div className="text-sm font-semibold tabular-nums">{completion.percent}% complete</div>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-background">
+            <div className="h-full rounded-full bg-primary" style={{ width: `${completion.percent}%` }} />
+          </div>
+          {completion.missing.length > 0 && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Missing: {completion.missing.slice(0, 6).join(", ")}
+              {completion.missing.length > 6 ? `, +${completion.missing.length - 6} more` : ""}
+            </p>
+          )}
+        </section>
+
+        <section>
+          <h3 className="mb-3 text-sm font-semibold">Operational Summary</h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <SummaryPill label="Open requests" value={openRequests} />
+            <SummaryPill label="Awaiting visitor" value={awaitingVisitor} />
+            <SummaryPill label="Completed trips" value={completedRequests} />
+            <SummaryPill label="Tour referrals" value={partnerReferrals.length} />
+            <SummaryPill label="Booked referrals" value={completedReferrals} />
+            <SummaryPill label="Active drivers" value={activeDrivers} />
+            <SummaryPill label="Active vehicles" value={activeVehicles} />
+            <SummaryPill label="Active prices" value={activePrices} />
+          </div>
+        </section>
+
+        <section>
+          <h3 className="mb-3 text-sm font-semibold">Contact and Service Profile</h3>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <InfoBlock label="Contact person" value={partner.contactName} />
+            <InfoBlock label="Email" value={partner.email} />
+            <InfoBlock label="Phone" value={partner.phone} />
+            <InfoBlock label="WhatsApp" value={partner.whatsapp} />
+            <InfoBlock label="Preferred contact" value={humanizeStatus(partner.preferredContactMethod)} />
+            <InfoBlock label="Base location" value={partner.baseLocation} />
+            <InfoBlock label="Service areas">
+              {partner.serviceAreas?.length ? (
+                <div className="flex flex-wrap gap-1">
+                  {partner.serviceAreas.map((area) => (
+                    <Badge key={area} variant="outline">{area}</Badge>
+                  ))}
+                </div>
+              ) : (
+                "Not recorded"
+              )}
+            </InfoBlock>
+            <InfoBlock label="Default currency" value={partner.defaultCurrency || "MWK"} />
+            <InfoBlock label="Created" value={formatOptionalDate(partner.createdAt)} />
+            <InfoBlock label="Last updated" value={formatOptionalDate(partner.updatedAt)} />
+          </div>
+        </section>
+
+        <section>
+          <h3 className="mb-3 text-sm font-semibold">Agreement and Notes</h3>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <InfoBlock label="Payment terms" value={partner.paymentTerms} />
+            <InfoBlock label="Pricing notes" value={partner.pricingNotes} />
+            <InfoBlock label="Partner service notes" value={partner.publicNotes} />
+            <InfoBlock label="Partner notes" value={partner.notes} />
+            <InfoBlock label="Private internal notes" value={partner.internalNotes} />
+            <InfoBlock label="Availability blackouts" value={`${activeBlackouts} active blackout${activeBlackouts === 1 ? "" : "s"}`} />
+          </div>
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-3">
+          <div className="rounded-lg border p-4">
+            <h3 className="text-sm font-semibold">Saved Drivers</h3>
+            <div className="mt-3 space-y-2">
+              {partnerDrivers.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No saved drivers yet.</p>
+              ) : (
+                partnerDrivers.slice(0, 4).map((driver) => (
+                  <div key={driver.id} className="rounded-md bg-muted/30 p-2 text-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-medium">{driver.name}</span>
+                      <StatusBadge status={driver.status || "active"} />
+                    </div>
+                    <p className="mt-1 text-muted-foreground">{displayValue(driver.phone)}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-4">
+            <h3 className="text-sm font-semibold">Saved Vehicles</h3>
+            <div className="mt-3 space-y-2">
+              {partnerVehicles.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No saved vehicles yet.</p>
+              ) : (
+                partnerVehicles.slice(0, 4).map((vehicle) => (
+                  <div key={vehicle.id} className="rounded-md bg-muted/30 p-2 text-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-medium">{vehicle.label}</span>
+                      <StatusBadge status={vehicle.status || "active"} />
+                    </div>
+                    <p className="mt-1 text-muted-foreground">
+                      {[vehicle.vehicleType, vehicle.plateNumber, vehicle.capacity ? `${vehicle.capacity} seats` : null]
+                        .filter(Boolean)
+                        .join(" · ") || "Details not recorded"}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-4">
+            <h3 className="text-sm font-semibold">Route Prices</h3>
+            <div className="mt-3 space-y-2">
+              {partnerPricing.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No route pricing yet.</p>
+              ) : (
+                partnerPricing.slice(0, 4).map((price) => (
+                  <div key={price.id} className="rounded-md bg-muted/30 p-2 text-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-medium">{price.label || getTransportRoute(price.route).shortLabel}</span>
+                      <StatusBadge status={price.status || "active"} />
+                    </div>
+                    <p className="mt-1 text-muted-foreground tabular-nums">
+                      {formatCurrency(price.basePrice || 0, price.currency || partner.defaultCurrency || "MWK")} · {humanizeStatus(price.pricingType)}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
+      </CardContent>
+    </Card>
+  );
+}
+
 function HelpCenterPanel({ isAdmin }: { isAdmin: boolean }) {
   const guides = isAdmin
     ? [
@@ -543,7 +806,7 @@ function HelpCenterPanel({ isAdmin }: { isAdmin: boolean }) {
           icon: Users,
           title: "Control partner records",
           steps: [
-            "Use Partner Records to create partners, pause partners, update contact details, or unlink a user account.",
+            "Use Partner Records to create partners, pause partners, update contact details, unlink accounts, or delete unused partner records.",
             "Use Fleet Records and Blackout Controls to check whether a partner has usable drivers, vehicles, and availability.",
             "Use the request timeline before changing disputed, declined, rescheduled, or cancelled requests.",
           ],
@@ -683,6 +946,7 @@ export default function TransportPartnerPortal() {
   const search = useSearch();
   const params = new URLSearchParams(search);
   const requestedTab = params.get("tab");
+  const requestedPartnerId = params.get("partner");
   const [referralForm, setReferralForm] = useState(initialReferralForm);
   const [requestDrafts, setRequestDrafts] = useState<Record<string, RequestDraft>>({});
   const [selectedActivityRequestId, setSelectedActivityRequestId] = useState<string>("");
@@ -733,6 +997,7 @@ export default function TransportPartnerPortal() {
 
   const userRole = profile?.user?.role;
   const isAdminView = userRole === "admin" || userRole === "coordinator";
+  const canDeletePartners = userRole === "admin";
   const availableTabs = isAdminView
     ? ["requests", "referrals", "roster", "availability", "pricing", "partners", "help"]
     : ["requests", "referrals", "roster", "availability", "pricing", "profile", "help"];
@@ -751,6 +1016,9 @@ export default function TransportPartnerPortal() {
   const rosterPartnerId = isAdminView
     ? (adminPartnerId !== "new" ? adminPartnerId : partners[0]?.id || "")
     : profile?.partner?.id || "";
+  const selectedAdminPartner = adminPartnerId === "new"
+    ? null
+    : partners.find((partner) => partner.id === adminPartnerId) || null;
 
   useEffect(() => {
     if (!isAdminView && profile?.partner) {
@@ -760,12 +1028,16 @@ export default function TransportPartnerPortal() {
 
   useEffect(() => {
     if (!isAdminView) return;
+    if (requestedPartnerId && adminPartnerId !== requestedPartnerId && partners.some((partner) => partner.id === requestedPartnerId)) {
+      setAdminPartnerId(requestedPartnerId);
+      return;
+    }
     if (adminPartnerId === "new") {
       setAdminPartnerForm(initialPartnerForm);
       return;
     }
     setAdminPartnerForm(partnerToForm(partners.find((partner) => partner.id === adminPartnerId)));
-  }, [adminPartnerId, isAdminView, partners]);
+  }, [adminPartnerId, isAdminView, partners, requestedPartnerId]);
 
   const pricingGuide = useMemo(() => {
     const configsByGroup = new Map(pricingConfigs.map((config) => [config.groupSize, config]));
@@ -909,6 +1181,68 @@ export default function TransportPartnerPortal() {
     onError: (error: Error) => {
       toast({
         title: "Could not unlink account",
+        description: error.message || "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const sendPartnerInviteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest("POST", `/api/transport-partners/${id}/send-invite`);
+      return response.json() as Promise<{
+        mode?: string;
+        sent?: boolean;
+        error?: string;
+        linkedUserId?: string;
+      }>;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/me"] });
+      if (result.mode === "existing_user") {
+        toast({
+          title: "Partner account linked",
+          description: "This partner already had a transport partner login, so the record was linked.",
+        });
+        return;
+      }
+
+      toast({
+        title: result.sent ? "Portal invite sent" : "Invite saved",
+        description: result.sent
+          ? "The partner received an email to create their portal account."
+          : result.error || "The invite exists, but the email could not be sent. Check Email History or email settings.",
+        variant: result.sent ? "default" : "destructive",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Could not send invite",
+        description: error.message || "Please check the partner email and try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deletePartnerMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/transport-partners/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/referrals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/drivers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/blackouts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/pricing"] });
+      setAdminPartnerId("new");
+      setAdminPartnerForm(initialPartnerForm);
+      toast({ title: "Transport partner deleted" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Could not delete partner",
         description: error.message || "Please try again.",
         variant: "destructive",
       });
@@ -1071,9 +1405,9 @@ export default function TransportPartnerPortal() {
   });
 
   const partnerName = profile?.partner?.companyName || "Transport Partner";
-  const pageTitle = isAdminView ? "Transport Admin Control" : "Transport Partner Portal";
+  const pageTitle = isAdminView ? "Transport Operations" : "Transport Partner Portal";
   const pageDescription = isAdminView
-    ? "Control assignments, quote approvals, partner records, route pricing, fleet readiness, and transport exceptions."
+    ? "Manage transport requests, partner records, route pricing, fleet readiness, and transport exceptions."
     : "Manage visitor transport requests and refer your own guests for guided Dzaleka experiences.";
 
   return (
@@ -1147,10 +1481,10 @@ export default function TransportPartnerPortal() {
             <div>
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
-                <CardTitle>Admin Control Center</CardTitle>
+                <CardTitle>Operations Overview</CardTitle>
               </div>
               <CardDescription>
-                Operational queues for assignments, visitor quote decisions, partner records, pricing readiness, and request exceptions.
+                Queues for assignments, visitor quote decisions, partner records, pricing readiness, and request exceptions.
               </CardDescription>
             </div>
             <Badge variant="outline">{stats.openRequests} open requests</Badge>
@@ -1209,7 +1543,7 @@ export default function TransportPartnerPortal() {
               </section>
 
               <section>
-                <h2 className="text-sm font-semibold">Control actions</h2>
+                <h2 className="text-sm font-semibold">Actions</h2>
                 <div className="mt-3 grid gap-2">
                   {[
                     { label: "Assign requests", tab: "requests", icon: ClipboardList },
@@ -2416,50 +2750,95 @@ export default function TransportPartnerPortal() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>{adminPartnerId === "new" ? "Create Partner" : "Edit Partner"}</CardTitle>
-                  <CardDescription>
-                    Manage assignment readiness, contact details, service areas, and internal agreement notes.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form
-                    className="space-y-4"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      savePartnerMutation.mutate({ id: adminPartnerId, form: adminPartnerForm });
-                    }}
-                  >
-                    <PartnerProfileFields form={adminPartnerForm} onChange={setAdminPartnerForm} isAdmin />
-                    <div className="flex flex-wrap gap-2">
-                      <Button type="submit" disabled={savePartnerMutation.isPending}>
-                        {savePartnerMutation.isPending ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Save className="h-4 w-4" />
-                        )}
-                        Save partner
-                      </Button>
-                      {adminPartnerId !== "new" && partners.find((partner) => partner.id === adminPartnerId)?.userId && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={unlinkPartnerMutation.isPending}
-                          onClick={() => unlinkPartnerMutation.mutate(adminPartnerId)}
-                        >
-                          {unlinkPartnerMutation.isPending ? (
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{adminPartnerId === "new" ? "Create Partner" : "Edit Partner"}</CardTitle>
+                    <CardDescription>
+                      Manage assignment readiness, contact details, service areas, and internal agreement notes.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <form
+                      className="space-y-4"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        savePartnerMutation.mutate({ id: adminPartnerId, form: adminPartnerForm });
+                      }}
+                    >
+                      <PartnerProfileFields form={adminPartnerForm} onChange={setAdminPartnerForm} isAdmin />
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="submit" disabled={savePartnerMutation.isPending}>
+                          {savePartnerMutation.isPending ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            <UserPlus className="h-4 w-4" />
+                            <Save className="h-4 w-4" />
                           )}
-                          Unlink account
+                          Save partner
                         </Button>
-                      )}
-                    </div>
-                  </form>
-                </CardContent>
-              </Card>
+                        {adminPartnerId !== "new" && (
+                          <Button type="button" variant="outline" asChild>
+                            <Link href={`/transport-partner/partners/${adminPartnerId}`}>
+                              <ExternalLink className="h-4 w-4" />
+                              Open full profile
+                            </Link>
+                          </Button>
+                        )}
+                        {adminPartnerId !== "new" && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={sendPartnerInviteMutation.isPending || Boolean(selectedAdminPartner?.userId)}
+                            onClick={() => sendPartnerInviteMutation.mutate(adminPartnerId)}
+                          >
+                            {sendPartnerInviteMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Mail className="h-4 w-4" />
+                            )}
+                            {selectedAdminPartner?.userId ? "Portal linked" : "Send portal invite"}
+                          </Button>
+                        )}
+                        {adminPartnerId !== "new" && selectedAdminPartner?.userId && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={unlinkPartnerMutation.isPending}
+                            onClick={() => unlinkPartnerMutation.mutate(adminPartnerId)}
+                          >
+                            {unlinkPartnerMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <UserPlus className="h-4 w-4" />
+                            )}
+                            Unlink account
+                          </Button>
+                        )}
+                        {canDeletePartners && adminPartnerId !== "new" && (
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            disabled={deletePartnerMutation.isPending}
+                            onClick={() => {
+                              const partnerLabel = selectedAdminPartner?.companyName || "this partner";
+                              if (window.confirm(`Delete ${partnerLabel}? Existing transport requests and tour referrals will stay in the system, but this partner record, pricing, drivers, vehicles, and blackout dates will be removed.`)) {
+                                deletePartnerMutation.mutate(adminPartnerId);
+                              }
+                            }}
+                          >
+                            {deletePartnerMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                            Delete partner
+                          </Button>
+                        )}
+                      </div>
+                    </form>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </TabsContent>
         ) : (
@@ -2500,6 +2879,104 @@ export default function TransportPartnerPortal() {
           <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden="true" />
           {stats.confirmedRequests} transport request{stats.confirmedRequests === 1 ? "" : "s"} confirmed.
         </div>
+      )}
+    </PageContainer>
+  );
+}
+
+export function TransportPartnerRecordPage() {
+  const [, params] = useRoute("/transport-partner/partners/:partnerId");
+  const partnerId = params?.partnerId ? decodeURIComponent(params.partnerId) : "";
+
+  const { data: profile, isLoading: profileLoading } = useQuery<PartnerProfileResponse>({
+    queryKey: ["/api/transport-partner/me"],
+  });
+
+  const { data: transportRequests = [], isLoading: requestsLoading } = useQuery<TransportRequest[]>({
+    queryKey: ["/api/transport-partner/requests"],
+  });
+
+  const { data: referrals = [], isLoading: referralsLoading } = useQuery<PartnerTourReferral[]>({
+    queryKey: ["/api/transport-partner/referrals"],
+  });
+
+  const { data: drivers = [], isLoading: driversLoading } = useQuery<TransportPartnerDriver[]>({
+    queryKey: ["/api/transport-partner/drivers"],
+  });
+
+  const { data: vehicles = [], isLoading: vehiclesLoading } = useQuery<TransportPartnerVehicle[]>({
+    queryKey: ["/api/transport-partner/vehicles"],
+  });
+
+  const { data: blackouts = [], isLoading: blackoutsLoading } = useQuery<TransportPartnerBlackout[]>({
+    queryKey: ["/api/transport-partner/blackouts"],
+  });
+
+  const { data: partnerPricing = [], isLoading: pricingLoading } = useQuery<TransportPartnerPricing[]>({
+    queryKey: ["/api/transport-partner/pricing"],
+  });
+
+  const loading = profileLoading || requestsLoading || referralsLoading || driversLoading || vehiclesLoading || blackoutsLoading || pricingLoading;
+  const partners = profile?.partners || [];
+  const partner = partners.find((item) => item.id === partnerId) || null;
+
+  return (
+    <PageContainer>
+      <SEO
+        title={partner ? `${partner.companyName} Transport Partner Profile` : "Transport Partner Profile"}
+        description="Admin profile view for a transport partner record."
+        robots="noindex"
+      />
+      <PageHeader
+        title={partner ? partner.companyName : "Transport Partner Profile"}
+        description="Complete admin view of the partner profile, setup completeness, fleet readiness, pricing, availability, requests, and referrals."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline">
+              <Link href="/transport-partner?tab=partners">
+                <ChevronLeft className="h-4 w-4" />
+                Back to Partner Records
+              </Link>
+            </Button>
+            {partner && (
+              <Button asChild>
+                <Link href={`/transport-partner?tab=partners&partner=${encodeURIComponent(partner.id)}`}>
+                  <Settings className="h-4 w-4" />
+                  Edit Partner
+                </Link>
+              </Button>
+            )}
+          </div>
+        }
+      />
+
+      {loading ? (
+        <Card>
+          <CardContent className="flex items-center gap-2 p-6 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading partner profile…
+          </CardContent>
+        </Card>
+      ) : !partner ? (
+        <Card>
+          <CardContent className="p-6">
+            <EmptyState
+              icon={Car}
+              title="Partner not found"
+              description="This partner may have been deleted or you may not have access to the record."
+            />
+          </CardContent>
+        </Card>
+      ) : (
+        <PartnerRecordOverview
+          partner={partner}
+          requests={transportRequests}
+          referrals={referrals}
+          drivers={drivers}
+          vehicles={vehicles}
+          blackouts={blackouts}
+          pricing={partnerPricing}
+        />
       )}
     </PageContainer>
   );

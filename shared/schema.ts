@@ -545,7 +545,7 @@ export const partnerTourReferrals = pgTable(
   "partner_tour_referrals",
   {
     id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-    partnerId: varchar("partner_id").notNull().references(() => transportPartners.id),
+    partnerId: varchar("partner_id").references(() => transportPartners.id),
     bookingId: varchar("booking_id").references(() => bookings.id),
     visitorName: varchar("visitor_name").notNull(),
     visitorEmail: varchar("visitor_email").notNull(),

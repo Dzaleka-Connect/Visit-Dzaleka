@@ -199,6 +199,51 @@ interface TransportDriverDetailsEmailData {
   accountActionText?: string | null;
 }
 
+interface TransportWorkflowEmailData {
+  recipientName: string;
+  recipientEmail: string;
+  visitorName: string;
+  visitorEmail?: string | null;
+  visitorPhone?: string | null;
+  bookingReference?: string | null;
+  partnerName?: string | null;
+  partnerEmail?: string | null;
+  route: string;
+  pickupLocation?: string | null;
+  visitDate?: string | null;
+  visitTime?: string | null;
+  quotedAmount?: number | null;
+  currency?: string | null;
+  estimatedPickupTime?: string | null;
+  requestedVisitDate?: string | null;
+  requestedPickupTime?: string | null;
+  driverName?: string | null;
+  driverPhone?: string | null;
+  vehicleDetails?: string | null;
+  notes?: string | null;
+  partnerNotes?: string | null;
+  adminNotes?: string | null;
+  actionUrl?: string | null;
+  actionLabel?: string | null;
+}
+
+interface TransportRequestAssignedEmailData extends TransportWorkflowEmailData {
+  assignedByName?: string | null;
+}
+
+interface TransportQuoteDecisionEmailData extends TransportWorkflowEmailData {
+  decision: 'approved' | 'declined';
+  decisionNotes?: string | null;
+  decisionAt?: string | null;
+}
+
+interface TransportStatusChangedEmailData extends TransportWorkflowEmailData {
+  status: string;
+  previousStatus?: string | null;
+  statusMessage: string;
+  changedByName?: string | null;
+}
+
 function escapeHtml(value: string | number | null | undefined): string {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -291,6 +336,84 @@ function formatMoneyAmount(amount: number | null | undefined, currency?: string 
   } catch {
     return `${currencyCode} ${Number(amount).toLocaleString()}`;
   }
+}
+
+function formatEmailLabel(value: string | null | undefined): string {
+  return String(value || '')
+    .replace(/[_-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function compactRows(rows: Array<[string, string | number | null | undefined]>): Array<[string, string]> {
+  return rows
+    .filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== '')
+    .map(([label, value]) => [label, String(value)]);
+}
+
+function transportWorkflowRows(data: TransportWorkflowEmailData): Array<[string, string]> {
+  const quote = formatMoneyAmount(data.quotedAmount, data.currency);
+  return compactRows([
+    ['Reference', data.bookingReference || 'Transport request'],
+    ['Visitor', data.visitorName],
+    ['Visitor email', data.visitorEmail],
+    ['Visitor phone', data.visitorPhone],
+    ['Partner', data.partnerName],
+    ['Route', formatEmailLabel(data.route) || data.route],
+    ['Pickup location', data.pickupLocation || 'To be confirmed'],
+    ['Visit date', data.visitDate || 'To be confirmed'],
+    ['Visit time', data.visitTime || 'To be confirmed'],
+    ['Pickup time', data.estimatedPickupTime],
+    ['Quote', quote],
+    ['Requested new date', data.requestedVisitDate],
+    ['Requested new pickup', data.requestedPickupTime],
+    ['Driver', data.driverName],
+    ['Driver phone', data.driverPhone],
+    ['Vehicle', data.vehicleDetails],
+  ]);
+}
+
+function renderTransportTable(rows: Array<[string, string]>): string {
+  return `
+    <table style="width: 100%; border-collapse: collapse;">
+      ${rows.map(([label, value]) => `
+        <tr>
+          <td style="padding: 8px 0; color: #6b7280; vertical-align: top;">${escapeHtml(label)}:</td>
+          <td style="padding: 8px 0; font-weight: ${label === 'Reference' ? '600' : '400'};">${escapeHtml(value)}</td>
+        </tr>
+      `).join('')}
+    </table>
+  `;
+}
+
+function renderTransportNotes(data: TransportWorkflowEmailData): string {
+  const notes = compactRows([
+    ['Visitor notes', data.notes],
+    ['Partner notes', data.partnerNotes],
+    ['Internal notes', data.adminNotes],
+  ]);
+
+  if (notes.length === 0) return '';
+
+  return `
+    <div style="background: #ecfeff; border: 1px solid #06b6d4; border-radius: 8px; padding: 15px; margin: 20px 0;">
+      ${notes.map(([label, value]) => `
+        <p style="margin: 0 0 8px 0; color: #155e75; font-size: 14px;"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>
+      `).join('')}
+    </div>
+  `;
+}
+
+function transportTextDetails(data: TransportWorkflowEmailData): string[] {
+  const rows = transportWorkflowRows(data).map(([label, value]) => `${label}: ${value}`);
+  const notes = compactRows([
+    ['Visitor notes', data.notes],
+    ['Partner notes', data.partnerNotes],
+    ['Internal notes', data.adminNotes],
+  ]).map(([label, value]) => `${label}: ${value}`);
+
+  return [...rows, ...notes];
 }
 
 // Send booking request received email
@@ -627,6 +750,242 @@ export async function sendTransportDriverDetailsEmailDetailed(data: TransportDri
     subject: data.bookingReference
       ? `Your transport details - ${data.bookingReference}`
       : 'Your Visit Dzaleka transport details',
+    html,
+    text,
+  });
+}
+
+export async function sendTransportRequestAssignedEmailDetailed(data: TransportRequestAssignedEmailData): Promise<EmailSendResult> {
+  const resendClient = getResendClient();
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
+
+  const reference = data.bookingReference || data.visitorName || 'transport request';
+  const safeRecipientName = escapeHtml(data.recipientName || data.partnerName || 'Transport partner');
+  const safeAssignedBy = escapeHtml(data.assignedByName || 'Visit Dzaleka');
+  const actionUrl = data.actionUrl || publicAppUrl('/transport-partner?tab=requests');
+  const actionLabel = data.actionLabel || 'Open Transport Request';
+  const rows = transportWorkflowRows(data);
+
+  const text = [
+    `Hello ${data.recipientName || data.partnerName || 'there'},`,
+    '',
+    `${data.assignedByName || 'Visit Dzaleka'} assigned a transport request to ${data.partnerName || 'your company'}.`,
+    '',
+    ...transportTextDetails(data),
+    '',
+    `${actionLabel}: ${actionUrl}`,
+    '',
+    `Please review the request, add quote and driver details, then mark it as Quote sent or Accepted so the visitor can approve it.`,
+  ].join('\n');
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>New Transport Request</title>
+      </head>
+      <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #0284C7 0%, #0369a1 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">New Transport Request</p>
+        </div>
+
+        <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+          <p style="margin: 0 0 20px 0;">Hello ${safeRecipientName},</p>
+          <p><strong>${safeAssignedBy}</strong> assigned a visitor transport request to <strong>${escapeHtml(data.partnerName || 'your company')}</strong>.</p>
+
+          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h2 style="color: #0284C7; margin: 0 0 15px 0; font-size: 18px;">Request Details</h2>
+            ${renderTransportTable(rows)}
+          </div>
+
+          ${renderTransportNotes(data)}
+
+          <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; color: #1e40af; font-size: 14px;">
+              Add a quote, pickup time, driver, phone number, and vehicle details before saving as Quote sent or Accepted.
+            </p>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${escapeHtml(actionUrl)}" style="display: inline-block; background: #0284C7; color: white; padding: 15px 32px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+              ${escapeHtml(actionLabel)}
+            </a>
+          </div>
+        </div>
+
+        <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
+          <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">${emailFooterText()}</p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return await sendEmailWithRetry({
+    from: resendClient.fromEmail,
+    replyTo: resendClient.replyTo,
+    to: data.recipientEmail,
+    subject: `New transport request assigned - ${reference}`,
+    html,
+    text,
+  });
+}
+
+export async function sendTransportQuoteDecisionEmailDetailed(data: TransportQuoteDecisionEmailData): Promise<EmailSendResult> {
+  const resendClient = getResendClient();
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
+
+  const approved = data.decision === 'approved';
+  const reference = data.bookingReference || data.visitorName || 'transport request';
+  const decisionLabel = approved ? 'approved' : 'declined';
+  const actionUrl = data.actionUrl || publicAppUrl('/transport-partner?tab=requests');
+  const actionLabel = data.actionLabel || 'Open Transport Request';
+  const safeRecipientName = escapeHtml(data.recipientName || 'there');
+  const safeDecision = escapeHtml(formatEmailLabel(data.decision));
+  const safeDecisionNotes = escapeHtml(data.decisionNotes || '');
+  const rows = transportWorkflowRows(data);
+
+  const text = [
+    `Hello ${data.recipientName || 'there'},`,
+    '',
+    `${data.visitorName} ${decisionLabel} the transport quote${data.bookingReference ? ` for ${data.bookingReference}` : ''}.`,
+    data.decisionNotes ? `Visitor notes: ${data.decisionNotes}` : '',
+    '',
+    ...transportTextDetails(data),
+    '',
+    `${actionLabel}: ${actionUrl}`,
+  ].filter(Boolean).join('\n');
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Transport Quote ${safeDecision}</title>
+      </head>
+      <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: ${approved ? '#047857' : '#b91c1c'}; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Transport Quote ${safeDecision}</p>
+        </div>
+
+        <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+          <p style="margin: 0 0 20px 0;">Hello ${safeRecipientName},</p>
+          <p><strong>${escapeHtml(data.visitorName)}</strong> has <strong>${safeDecision}</strong> the transport quote${data.bookingReference ? ` for <strong>${escapeHtml(data.bookingReference)}</strong>` : ''}.</p>
+
+          ${safeDecisionNotes ? `
+            <div style="background: #fff7ed; border: 1px solid #fb923c; border-radius: 8px; padding: 15px; margin: 20px 0;">
+              <p style="margin: 0; color: #9a3412; font-size: 14px;"><strong>Visitor notes:</strong> ${safeDecisionNotes}</p>
+            </div>
+          ` : ''}
+
+          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h2 style="color: #0284C7; margin: 0 0 15px 0; font-size: 18px;">Transport Details</h2>
+            ${renderTransportTable(rows)}
+          </div>
+
+          ${renderTransportNotes(data)}
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${escapeHtml(actionUrl)}" style="display: inline-block; background: #0284C7; color: white; padding: 15px 32px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+              ${escapeHtml(actionLabel)}
+            </a>
+          </div>
+        </div>
+
+        <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
+          <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">${emailFooterText()}</p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return await sendEmailWithRetry({
+    from: resendClient.fromEmail,
+    replyTo: resendClient.replyTo,
+    to: data.recipientEmail,
+    subject: `Transport quote ${decisionLabel} - ${reference}`,
+    html,
+    text,
+  });
+}
+
+export async function sendTransportStatusChangedEmailDetailed(data: TransportStatusChangedEmailData): Promise<EmailSendResult> {
+  const resendClient = getResendClient();
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
+
+  const reference = data.bookingReference || data.visitorName || 'transport request';
+  const statusLabel = formatEmailLabel(data.status);
+  const actionUrl = data.actionUrl || publicAppUrl('/transport-partner?tab=requests');
+  const actionLabel = data.actionLabel || 'Open Transport Request';
+  const safeRecipientName = escapeHtml(data.recipientName || 'there');
+  const rows = transportWorkflowRows(data);
+
+  const text = [
+    `Hello ${data.recipientName || 'there'},`,
+    '',
+    data.statusMessage,
+    data.changedByName ? `Updated by: ${data.changedByName}` : '',
+    data.previousStatus ? `Previous status: ${formatEmailLabel(data.previousStatus)}` : '',
+    `Current status: ${statusLabel}`,
+    '',
+    ...transportTextDetails(data),
+    '',
+    `${actionLabel}: ${actionUrl}`,
+  ].filter(Boolean).join('\n');
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Transport Request ${escapeHtml(statusLabel)}</title>
+      </head>
+      <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #0284C7 0%, #0369a1 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Transport Request ${escapeHtml(statusLabel)}</p>
+        </div>
+
+        <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+          <p style="margin: 0 0 20px 0;">Hello ${safeRecipientName},</p>
+          <p>${escapeHtml(data.statusMessage)}</p>
+
+          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h2 style="color: #0284C7; margin: 0 0 15px 0; font-size: 18px;">Status Details</h2>
+            ${renderTransportTable(compactRows([
+              ['Previous status', data.previousStatus ? formatEmailLabel(data.previousStatus) : null],
+              ['Current status', statusLabel],
+              ['Updated by', data.changedByName],
+              ...rows,
+            ]))}
+          </div>
+
+          ${renderTransportNotes(data)}
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${escapeHtml(actionUrl)}" style="display: inline-block; background: #0284C7; color: white; padding: 15px 32px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+              ${escapeHtml(actionLabel)}
+            </a>
+          </div>
+        </div>
+
+        <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
+          <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">${emailFooterText()}</p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return await sendEmailWithRetry({
+    from: resendClient.fromEmail,
+    replyTo: resendClient.replyTo,
+    to: data.recipientEmail,
+    subject: `Transport request ${statusLabel.toLowerCase()} - ${reference}`,
     html,
     text,
   });

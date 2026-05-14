@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Info } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,9 +63,18 @@ export function TransportRequestFields({
         <Label htmlFor={checkboxId} className={cn("grid cursor-pointer gap-1 text-sm leading-relaxed", textClassName)}>
           <span className="font-medium">Request trusted transport support</span>
           <span className={cn("text-muted-foreground", descriptionClassName)}>
-            Add a Lilongwe, airport, or Lake Malawi transfer request to this booking.
+            Add a Lilongwe, airport, or Lake Malawi transfer request. Transport is confirmed only after a partner accepts.
           </span>
         </Label>
+      </div>
+
+      <div className="mt-3 flex gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+        <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        <p className="min-w-0 break-words">
+          <span className="font-medium">Transport depends on partner availability.</span>{" "}
+          We will share your request with available partners, but transport is not guaranteed until a partner confirms it.
+          If no partner is available, you may need to arrange transport outside our partner network.
+        </p>
       </div>
 
       {requested && (
