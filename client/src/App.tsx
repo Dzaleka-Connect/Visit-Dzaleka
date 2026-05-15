@@ -87,6 +87,7 @@ import LiveOperations from "@/pages/live-ops";
 import MyTours from "@/pages/my-tours";
 import MyEarnings from "@/pages/my-earnings";
 import MyAvailability from "@/pages/my-availability";
+import MyGuideProfile from "@/pages/my-guide-profile";
 import SavedItineraries from "@/pages/saved-itineraries";
 import FavoriteGuides from "@/pages/favorite-guides";
 import CustomersPage from "@/pages/customers";
@@ -319,6 +320,7 @@ function Router() {
         <ProtectedRoute path="/my-tours" component={MyTours} allowedRoles={["guide"]} />
         <ProtectedRoute path="/my-earnings" component={MyEarnings} allowedRoles={["guide"]} />
         <ProtectedRoute path="/my-availability" component={MyAvailability} allowedRoles={["guide"]} />
+        <ProtectedRoute path="/my-guide-profile" component={MyGuideProfile} allowedRoles={["guide"]} />
         <ProtectedRoute path="/training-admin" component={TrainingAdmin} allowedRoles={["admin"]} />
         <ProtectedRoute path="/zones" component={Zones} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/security" component={Security} allowedRoles={["admin", "coordinator", "security"]} />

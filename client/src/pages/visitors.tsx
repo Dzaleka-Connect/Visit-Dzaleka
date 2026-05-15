@@ -51,6 +51,7 @@ interface VisitorWithStats {
     lastName?: string | null;
     email: string;
     phone?: string | null;
+    country?: string | null;
     profileImageUrl?: string | null;
     isActive?: boolean | null;
     isRegistered: boolean; // true = has user account, false = from booking only
@@ -99,6 +100,7 @@ export default function VisitorsPage() {
                 lastName,
                 email: booking.visitorEmail,
                 phone: booking.visitorPhone,
+                country: booking.visitorCountry,
                 profileImageUrl: null,
                 isActive: null, // Not applicable for unregistered
                 isRegistered: false,
@@ -134,6 +136,9 @@ export default function VisitorsPage() {
         const lastBooking = visitorBookings.sort(
             (a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime()
         )[0];
+        const latestCountry = visitor.country || visitorBookings
+            .filter((booking) => booking.visitorCountry)
+            .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0]?.visitorCountry || null;
 
         // For unregistered visitors, use earliest booking date as createdAt
         const earliestBooking = visitorBookings.sort(
@@ -147,6 +152,7 @@ export default function VisitorsPage() {
             completedTours: completedBookings.length,
             totalSpent,
             lastVisit: lastBooking?.visitDate,
+            country: latestCountry,
         };
     });
 
@@ -163,7 +169,8 @@ export default function VisitorsPage() {
                 v.firstName?.toLowerCase().includes(query) ||
                 v.lastName?.toLowerCase().includes(query) ||
                 v.email?.toLowerCase().includes(query) ||
-                v.phone?.toLowerCase().includes(query)
+                v.phone?.toLowerCase().includes(query) ||
+                v.country?.toLowerCase().includes(query)
             );
         })
         .sort((a, b) => {
@@ -384,6 +391,12 @@ export default function VisitorsPage() {
                                                         {visitor.phone}
                                                     </div>
                                                 )}
+                                                {visitor.country && (
+                                                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                                        <MapPin className="h-3 w-3" />
+                                                        {visitor.country}
+                                                    </div>
+                                                )}
                                             </div>
                                         </TableCell>
                                         <TableCell>
@@ -468,6 +481,12 @@ export default function VisitorsPage() {
                                             <div className="flex items-center gap-2">
                                                 <Phone className="h-4 w-4" />
                                                 {selectedVisitor.phone}
+                                            </div>
+                                        )}
+                                        {selectedVisitor.country && (
+                                            <div className="flex items-center gap-2">
+                                                <MapPin className="h-4 w-4" />
+                                                {selectedVisitor.country}
                                             </div>
                                         )}
                                         <div className="flex items-center gap-2">

@@ -21,6 +21,8 @@ import {
   type Booking,
   type SpecialOffer,
   type Guide,
+  type GuideProfileChangeRequest,
+  type GuideTourReport,
   type RecurringBooking,
   type SupportTicket,
   type User,
@@ -292,6 +294,7 @@ function buildBookingTemplateData(
     booking_id: booking.bookingReference || booking.id,
     booking_reference: booking.bookingReference || booking.id,
     visitor_phone: booking.visitorPhone || "",
+    visitor_country: booking.visitorCountry || "",
     visitor_organization: booking.visitorOrganization || "",
     visit_date: booking.visitDate,
     visit_time: booking.visitTime,
@@ -1367,6 +1370,198 @@ const partnerReferralStatusSchema = z.object({
 const partnerReferralUpdateSchema = z.object({
   status: z.enum(["submitted", "contacted", "booked", "completed", "cancelled"]).optional(),
 });
+
+const MAX_PROFILE_IMAGE_BYTES = 5 * 1024 * 1024;
+const allowedProfileImageTypes = new Map([
+  ["image/jpeg", "jpg"],
+  ["image/png", "png"],
+  ["image/webp", "webp"],
+  ["image/gif", "gif"],
+]);
+
+const profileImageUploadSchema = z.object({
+  purpose: z.enum(["user_avatar", "guide_profile"]).default("user_avatar"),
+  fileName: z.string().trim().max(255).optional(),
+  contentType: z.string().trim().max(80),
+  size: z.coerce.number().int().min(1).max(MAX_PROFILE_IMAGE_BYTES),
+  dataUrl: z.string().max(8_000_000),
+});
+
+const optionalUrlField = z.preprocess(
+  (value) => value === "" ? null : value,
+  z.string().trim().url().max(1000).nullable().optional(),
+);
+
+const guideSelfProfileSchema = z.object({
+  firstName: z.string().trim().min(1).max(120).optional(),
+  lastName: z.string().trim().min(1).max(120).optional(),
+  email: z.preprocess(
+    (value) => value === "" ? null : value,
+    z.string().trim().email().max(255).nullable().optional(),
+  ),
+  phone: z.string().trim().min(1).max(80).optional(),
+  profileImageUrl: optionalUrlField,
+  bio: z.string().trim().max(2000).nullable().optional(),
+  languages: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+  specialties: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
+  availableDays: z.array(z.string().trim().min(1).max(40)).max(7).optional(),
+  preferredTimes: z.array(z.string().trim().min(1).max(80)).max(8).optional(),
+});
+
+const guideProfileReviewDecisionSchema = z.object({
+  decision: z.enum(["approved", "rejected"]),
+  notes: z.string().trim().max(3000).optional().nullable(),
+});
+
+const visitorRescheduleRequestSchema = z.object({
+  visitDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  visitTime: z.string().regex(/^\d{2}:\d{2}$/),
+  note: z.string().trim().max(3000).optional().nullable(),
+});
+
+const guideTourReportSchema = z.object({
+  summary: z.string().trim().min(10, "Summary is required").max(5000),
+  visitorNeeds: z.string().trim().max(3000).optional().nullable(),
+  incidents: z.string().trim().max(3000).optional().nullable(),
+  followUpNeeded: z.boolean().default(false),
+  privateNotes: z.string().trim().max(3000).optional().nullable(),
+});
+
+const guideTourReportReviewSchema = z.object({
+  status: z.enum(["reviewed", "action_required"]),
+  notes: z.string().trim().max(3000).optional().nullable(),
+});
+
+function uniqueStringList(values?: string[]) {
+  if (!values) return undefined;
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+const guideProfileEditableFields: Array<keyof Guide> = [
+  "firstName",
+  "lastName",
+  "email",
+  "phone",
+  "profileImageUrl",
+  "bio",
+  "languages",
+  "specialties",
+  "availableDays",
+  "preferredTimes",
+];
+
+function buildGuideProfileSnapshot(guide: Guide) {
+  return Object.fromEntries(
+    guideProfileEditableFields.map((field) => [field, (guide as any)[field] ?? null])
+  );
+}
+
+function extractApprovedGuideProfileUpdates(request: GuideProfileChangeRequest) {
+  const proposedData = request.proposedData && typeof request.proposedData === "object"
+    ? request.proposedData as Record<string, unknown>
+    : {};
+  const updates: Partial<Guide> = {};
+
+  for (const field of guideProfileEditableFields) {
+    if (Object.prototype.hasOwnProperty.call(proposedData, field)) {
+      (updates as any)[field] = proposedData[field];
+    }
+  }
+
+  return updates;
+}
+
+async function enrichGuideProfileChangeRequest(request: GuideProfileChangeRequest) {
+  const [guide, submittedBy, reviewedBy] = await Promise.all([
+    storage.getGuide(request.guideId),
+    request.submittedByUserId ? storage.getUser(request.submittedByUserId) : Promise.resolve(undefined),
+    request.reviewedByUserId ? storage.getUser(request.reviewedByUserId) : Promise.resolve(undefined),
+  ]);
+
+  return {
+    ...request,
+    guide: guide
+      ? {
+          id: guide.id,
+          firstName: guide.firstName,
+          lastName: guide.lastName,
+          email: guide.email,
+          phone: guide.phone,
+          profileImageUrl: guide.profileImageUrl,
+        }
+      : null,
+    submittedBy: submittedBy
+      ? {
+          id: submittedBy.id,
+          firstName: submittedBy.firstName,
+          lastName: submittedBy.lastName,
+          email: submittedBy.email,
+        }
+      : null,
+    reviewedBy: reviewedBy
+      ? {
+          id: reviewedBy.id,
+          firstName: reviewedBy.firstName,
+          lastName: reviewedBy.lastName,
+          email: reviewedBy.email,
+        }
+      : null,
+  };
+}
+
+async function enrichGuideTourReport(report: GuideTourReport) {
+  const [guide, booking, reviewedBy] = await Promise.all([
+    storage.getGuide(report.guideId),
+    storage.getBooking(report.bookingId),
+    report.reviewedByUserId ? storage.getUser(report.reviewedByUserId) : Promise.resolve(undefined),
+  ]);
+
+  return {
+    ...report,
+    guide: guide
+      ? {
+          id: guide.id,
+          firstName: guide.firstName,
+          lastName: guide.lastName,
+          phone: guide.phone,
+          email: guide.email,
+        }
+      : null,
+    booking: booking
+      ? {
+          id: booking.id,
+          bookingReference: booking.bookingReference,
+          visitorName: booking.visitorName,
+          visitorEmail: booking.visitorEmail,
+          visitDate: booking.visitDate,
+          visitTime: booking.visitTime,
+          status: booking.status,
+        }
+      : null,
+    reviewedBy: reviewedBy
+      ? {
+          id: reviewedBy.id,
+          firstName: reviewedBy.firstName,
+          lastName: reviewedBy.lastName,
+          email: reviewedBy.email,
+        }
+      : null,
+  };
+}
+
+function parseProfileImageDataUrl(dataUrl: string, contentType: string) {
+  const match = dataUrl.match(/^data:([^;,]+);base64,([A-Za-z0-9+/=\s]+)$/);
+  if (!match) {
+    throw new Error("Invalid image data");
+  }
+
+  const dataUrlContentType = match[1].toLowerCase();
+  if (dataUrlContentType !== contentType.toLowerCase()) {
+    throw new Error("Image content type mismatch");
+  }
+
+  return Buffer.from(match[2].replace(/\s/g, ""), "base64");
+}
 
 // Session-based authentication middleware
 function isAuthenticated(req: Request, res: Response, next: NextFunction) {
@@ -2528,6 +2723,7 @@ function registerGetYourGuideSupplierApiRoutes(app: Express) {
         visitorName,
         visitorEmail: traveler.email || `gyg-${data.gygBookingReference}@getyourguide.invalid`,
         visitorPhone: traveler.phoneNumber || "Not provided",
+        visitorCountry: traveler.country || traveler.countryCode || data.country || null,
         visitDate: parts.date,
         visitTime,
         groupSize: participantCount > 5 ? "large_group" : participantCount > 1 ? "small_group" : "individual",
@@ -3057,9 +3253,13 @@ export async function registerRoutes(
         const lastVisit = userBookings
           .filter(b => b.visitDate)
           .sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime())[0]?.visitDate;
+        const latestCountry = user.country || userBookings
+          .filter(b => b.visitorCountry)
+          .sort((a, b) => dateSortValue(b.createdAt) - dateSortValue(a.createdAt))[0]?.visitorCountry || null;
 
         return {
           ...user,
+          country: latestCountry,
           stats: {
             totalVisits,
             totalSpend,
@@ -3640,6 +3840,55 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/uploads/avatar", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ message: "Session expired" });
+      }
+
+      const payload = profileImageUploadSchema.parse(req.body);
+      if (payload.purpose === "guide_profile" && !["admin", "coordinator", "guide"].includes(user.role || "")) {
+        return res.status(403).json({ message: "You do not have permission to upload guide photos" });
+      }
+
+      const contentType = payload.contentType.toLowerCase();
+      const extension = allowedProfileImageTypes.get(contentType);
+      if (!extension) {
+        return res.status(400).json({ message: "Please upload a JPG, PNG, WEBP, or GIF image" });
+      }
+
+      const imageBuffer = parseProfileImageDataUrl(payload.dataUrl, contentType);
+      if (imageBuffer.length === 0 || imageBuffer.length > MAX_PROFILE_IMAGE_BYTES) {
+        return res.status(400).json({ message: "Please upload an image smaller than 5 MB" });
+      }
+
+      const folder = payload.purpose === "guide_profile" ? "guide-images" : "profile-images";
+      const filePath = `${folder}/${userId}/${Date.now()}-${crypto.randomBytes(8).toString("hex")}.${extension}`;
+      const uploaded = await storage.uploadPublicStorageObject("avatars", filePath, imageBuffer, {
+        contentType,
+        cacheControl: "31536000",
+      });
+
+      await createAuditLog(userId, "update", "storage_object", uploaded.path, null, {
+        bucket: "avatars",
+        purpose: payload.purpose,
+        contentType,
+        size: imageBuffer.length,
+      }, req);
+
+      res.status(201).json(uploaded);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid image upload", errors: error.errors });
+      }
+
+      logError("Error uploading avatar image", error, req.requestId);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to upload image" });
+    }
+  });
+
   // Change password
   app.post("/api/auth/change-password", isAuthenticated, async (req: any, res) => {
     try {
@@ -3722,6 +3971,33 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error fetching stats", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
+
+  app.get("/api/stats/visitor-countries", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const bookings = await storage.getBookings();
+      const countryCounts = new Map<string, number>();
+
+      for (const booking of bookings) {
+        const country = (booking.visitorCountry || "").trim();
+        if (!country) continue;
+        countryCounts.set(country, (countryCounts.get(country) || 0) + 1);
+      }
+
+      const countries = Array.from(countryCounts.entries())
+        .map(([country, count]) => ({ country, count }))
+        .sort((a, b) => b.count - a.count || a.country.localeCompare(b.country));
+
+      res.json({
+        countries,
+        knownCountries: countries.length,
+        bookingsWithCountry: countries.reduce((sum, item) => sum + item.count, 0),
+        totalBookings: bookings.length,
+      });
+    } catch (error) {
+      logError("Error fetching visitor country stats", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch visitor country stats" });
     }
   });
 
@@ -5963,6 +6239,7 @@ export async function registerRoutes(
         visitorName,
         visitorEmail,
         visitorPhone,
+        visitorCountry,
         visitDate,
         visitTime,
         groupSize,
@@ -6000,6 +6277,7 @@ export async function registerRoutes(
         visitorName,
         visitorEmail,
         visitorPhone: visitorPhone || "",
+        visitorCountry: visitorCountry || null,
         visitDate,
         visitTime: visitTime || "09:00",
         groupSize: groupSize || "individual",
@@ -6205,6 +6483,170 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error rescheduling booking", error, req.requestId);
       res.status(500).json({ message: "Failed to reschedule booking" });
+    }
+  });
+
+  app.post("/api/bookings/:id/visitor-reschedule-request", isAuthenticated, async (req: any, res) => {
+    try {
+      const payload = visitorRescheduleRequestSchema.parse(req.body);
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const user = await storage.getUser(userId);
+      const booking = await storage.getBooking(req.params.id);
+      if (!user || !booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      const visitorOwnsBooking = booking.visitorUserId === user.id || normalizedEmail(booking.visitorEmail) === normalizedEmail(user.email);
+      if (!visitorOwnsBooking) {
+        return res.status(403).json({ message: "You can only request changes for your own bookings" });
+      }
+
+      if (!["pending", "confirmed"].includes(booking.status || "pending")) {
+        return res.status(409).json({ message: "Only pending or confirmed bookings can be rescheduled by request" });
+      }
+
+      const note = payload.note?.trim();
+      const description = `Visitor requested reschedule from ${booking.visitDate} ${booking.visitTime || ""} to ${payload.visitDate} ${payload.visitTime}.`;
+      const adminNote = [
+        `[${new Date().toISOString()}] ${description}`,
+        note ? `Visitor note: ${note}` : null,
+      ].filter(Boolean).join("\n");
+
+      const updatedBooking = await storage.updateBooking(booking.id, {
+        adminNotes: [booking.adminNotes, adminNote].filter(Boolean).join("\n\n"),
+      });
+
+      await storage.createBookingActivityLog({
+        bookingId: booking.id,
+        userId,
+        action: "visitor_reschedule_requested",
+        description: note ? `${description} Note: ${note}` : description,
+        oldStatus: booking.status || null,
+        newStatus: booking.status || null,
+      });
+
+      const transportRequests = await storage.getTransportRequestsByBookingIds([booking.id]);
+      const activeTransportRequests = transportRequests.filter(
+        (request) => !["cancelled", "completed"].includes(request.status || "")
+      );
+      await Promise.all(activeTransportRequests.map(async (request) => {
+        const updatedRequest = await storage.updateTransportRequest(request.id, {
+          status: "reschedule_requested" as TransportRequestStatus,
+          requestedVisitDate: payload.visitDate,
+          requestedPickupTime: payload.visitTime,
+          rescheduleNotes: note || `Visitor requested booking reschedule to ${payload.visitDate} ${payload.visitTime}.`,
+        });
+        await logTransportRequestActivity(
+          request.id,
+          "visitor_reschedule_requested",
+          user,
+          { visitDate: payload.visitDate, visitTime: payload.visitTime, note: note || null },
+          request.status,
+          updatedRequest?.status || "reschedule_requested"
+        );
+      }));
+
+      await createAuditLog(userId, "update", "booking", booking.id,
+        { visitDate: booking.visitDate, visitTime: booking.visitTime },
+        { requestedVisitDate: payload.visitDate, requestedVisitTime: payload.visitTime, note: note || null },
+        req
+      );
+
+      res.json({
+        booking: updatedBooking || booking,
+        transportRequestsUpdated: activeTransportRequests.length,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid reschedule request", errors: error.errors });
+      }
+      logError("Error requesting visitor reschedule", error, req.requestId);
+      res.status(500).json({ message: "Failed to request reschedule" });
+    }
+  });
+
+  app.post("/api/bookings/:id/transport-quote-decision", isAuthenticated, async (req: any, res) => {
+    try {
+      const payload = quoteDecisionSchema.parse(req.body);
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const [user, booking] = await Promise.all([
+        storage.getUser(userId),
+        storage.getBooking(req.params.id),
+      ]);
+      if (!user || !booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      const visitorOwnsBooking = booking.visitorUserId === user.id || normalizedEmail(booking.visitorEmail) === normalizedEmail(user.email);
+      if (!visitorOwnsBooking) {
+        return res.status(403).json({ message: "You can only respond to transport quotes for your own bookings" });
+      }
+
+      const transportRequests = await storage.getTransportRequestsByBookingIds([booking.id]);
+      const request = transportRequests
+        .filter((item) => !["cancelled", "completed"].includes(item.status || ""))
+        .sort((a, b) => dateSortValue(b.updatedAt) - dateSortValue(a.updatedAt))[0];
+
+      if (!request) {
+        return res.status(404).json({ message: "Transport quote not found for this booking" });
+      }
+      if (request.quoteDecision) {
+        return res.status(409).json({ message: "This transport quote has already been answered" });
+      }
+      if (request.quotedAmount == null || !["quote_sent", "accepted"].includes(request.status || "")) {
+        return res.status(409).json({ message: "Transport partner has not sent a quote for review yet" });
+      }
+
+      const newStatus = payload.decision === "approved" ? "visitor_approved" : "visitor_declined";
+      const updated = await storage.updateTransportRequest(request.id, {
+        status: newStatus as TransportRequestStatus,
+        quoteDecision: payload.decision,
+        quoteDecisionAt: new Date() as any,
+        quoteDecisionNotes: payload.notes || null,
+      });
+      if (!updated) {
+        return res.status(404).json({ message: "Transport quote not found" });
+      }
+
+      await logTransportRequestActivity(
+        request.id,
+        payload.decision === "approved" ? "visitor_approved_quote" : "visitor_declined_quote",
+        user,
+        { notes: payload.notes || null },
+        request.status,
+        newStatus
+      );
+
+      let notificationEmails: Array<{ sent?: boolean; success?: boolean; error?: string; audience?: string; recipientEmail?: string }> = [];
+      try {
+        const partner = updated.partnerId ? await storage.getTransportPartner(updated.partnerId) : undefined;
+        notificationEmails = await sendTransportQuoteDecisionEmails({
+          request: updated,
+          partner,
+          booking,
+          decision: payload.decision,
+          decisionNotes: payload.notes || null,
+          actor: user,
+        });
+      } catch (emailError) {
+        logError("Failed to send authenticated transport quote decision emails", emailError, req.requestId);
+      }
+
+      res.json({ ...updated, notificationEmails });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid quote decision", errors: error.errors });
+      }
+      logError("Error saving visitor transport quote decision", error, req.requestId);
+      res.status(500).json({ message: "Failed to save quote decision" });
     }
   });
 
@@ -7181,6 +7623,174 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/guides/me", isAuthenticated, requireRole("guide"), async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const guide = await storage.getGuideByUserId(userId);
+      if (!guide) {
+        return res.status(404).json({ message: "Guide profile not found" });
+      }
+
+      const payload = guideSelfProfileSchema.parse(req.body);
+      const proposedData: Partial<Guide> = {};
+
+      if (payload.firstName !== undefined) proposedData.firstName = payload.firstName;
+      if (payload.lastName !== undefined) proposedData.lastName = payload.lastName;
+      if (payload.email !== undefined) proposedData.email = payload.email;
+      if (payload.phone !== undefined) proposedData.phone = payload.phone;
+      if (payload.profileImageUrl !== undefined) proposedData.profileImageUrl = payload.profileImageUrl;
+      if (payload.bio !== undefined) proposedData.bio = payload.bio;
+
+      const languages = uniqueStringList(payload.languages);
+      const specialties = uniqueStringList(payload.specialties);
+      const availableDays = uniqueStringList(payload.availableDays);
+      const preferredTimes = uniqueStringList(payload.preferredTimes);
+
+      if (languages !== undefined) proposedData.languages = languages;
+      if (specialties !== undefined) proposedData.specialties = specialties;
+      if (availableDays !== undefined) proposedData.availableDays = availableDays;
+      if (preferredTimes !== undefined) proposedData.preferredTimes = preferredTimes;
+
+      if (Object.keys(proposedData).length === 0) {
+        return res.status(400).json({ message: "No guide profile changes submitted" });
+      }
+
+      const changeRequest = await storage.createGuideProfileChangeRequest({
+        guideId: guide.id,
+        guideUserId: guide.userId || userId,
+        submittedByUserId: userId,
+        status: "pending",
+        currentData: buildGuideProfileSnapshot(guide),
+        proposedData,
+      } as any);
+
+      await createAuditLog(userId, "update", "guide_profile_change_request", changeRequest.id, null, {
+        guideId: guide.id,
+        proposedData,
+      }, req);
+
+      res.status(202).json({
+        guide,
+        changeRequest,
+        message: "Your guide profile changes were submitted for admin review.",
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid guide profile", errors: error.errors });
+      }
+
+      logError("Error updating guide self profile", error, req.requestId);
+      res.status(500).json({ message: "Failed to update guide profile" });
+    }
+  });
+
+  app.get("/api/guides/me/profile-change-requests", isAuthenticated, requireRole("guide"), async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const guide = await storage.getGuideByUserId(userId);
+      if (!guide) {
+        return res.status(404).json({ message: "Guide profile not found" });
+      }
+
+      const requests = await storage.getGuideProfileChangeRequestsByGuide(guide.id);
+      res.json(requests);
+    } catch (error) {
+      logError("Error fetching guide profile change requests", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch profile change requests" });
+    }
+  });
+
+  app.get("/api/admin/guide-profile-change-requests", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const status = typeof req.query.status === "string" && req.query.status !== "all"
+        ? req.query.status
+        : undefined;
+      const requests = await storage.getGuideProfileChangeRequests(status);
+      res.json(await Promise.all(requests.map(enrichGuideProfileChangeRequest)));
+    } catch (error) {
+      logError("Error fetching admin guide profile change requests", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch guide profile review queue" });
+    }
+  });
+
+  app.post("/api/admin/guide-profile-change-requests/:id/decision", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
+    try {
+      const payload = guideProfileReviewDecisionSchema.parse(req.body);
+      const reviewerId = req.session?.userId;
+      const request = await storage.getGuideProfileChangeRequest(req.params.id);
+      if (!request) {
+        return res.status(404).json({ message: "Guide profile change request not found" });
+      }
+
+      if (request.status !== "pending") {
+        return res.status(409).json({ message: "This guide profile change has already been reviewed" });
+      }
+
+      let updatedGuide: Guide | undefined;
+      if (payload.decision === "approved") {
+        const guideUpdates = extractApprovedGuideProfileUpdates(request);
+        if (Object.keys(guideUpdates).length === 0) {
+          return res.status(400).json({ message: "No approved guide profile fields found" });
+        }
+
+        updatedGuide = await storage.updateGuide(request.guideId, guideUpdates);
+        if (!updatedGuide) {
+          return res.status(404).json({ message: "Guide profile not found" });
+        }
+
+        if (updatedGuide.userId) {
+          const userProfileUpdates: {
+            firstName?: string;
+            lastName?: string;
+            phone?: string;
+            profileImageUrl?: string;
+          } = {};
+          if (typeof guideUpdates.firstName === "string") userProfileUpdates.firstName = guideUpdates.firstName;
+          if (typeof guideUpdates.lastName === "string") userProfileUpdates.lastName = guideUpdates.lastName;
+          if (typeof guideUpdates.phone === "string") userProfileUpdates.phone = guideUpdates.phone;
+          if (typeof guideUpdates.profileImageUrl === "string") userProfileUpdates.profileImageUrl = guideUpdates.profileImageUrl;
+          if (Object.keys(userProfileUpdates).length > 0) {
+            await storage.updateUserProfile(updatedGuide.userId, userProfileUpdates);
+          }
+        }
+      }
+
+      const reviewedRequest = await storage.updateGuideProfileChangeRequest(request.id, {
+        status: payload.decision,
+        reviewNotes: payload.notes || null,
+        reviewedByUserId: reviewerId || null,
+        reviewedAt: new Date() as any,
+      });
+
+      if (reviewerId) {
+        await createAuditLog(reviewerId, "update", "guide_profile_change_request", request.id,
+          { status: request.status, proposedData: request.proposedData },
+          { status: payload.decision, notes: payload.notes || null },
+          req
+        );
+      }
+
+      res.json({
+        request: reviewedRequest ? await enrichGuideProfileChangeRequest(reviewedRequest) : null,
+        guide: updatedGuide || null,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid review decision", errors: error.errors });
+      }
+      logError("Error reviewing guide profile change request", error, req.requestId);
+      res.status(500).json({ message: "Failed to review guide profile change" });
+    }
+  });
+
   // Guide earnings endpoint
   app.get("/api/guides/me/earnings", isAuthenticated, requireRole("guide"), async (req: any, res) => {
     try {
@@ -7288,6 +7898,26 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error fetching guide tours", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch tours" });
+    }
+  });
+
+  app.get("/api/guides/me/tour-reports", isAuthenticated, requireRole("guide"), async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const guide = await storage.getGuideByUserId(userId);
+      if (!guide) {
+        return res.status(404).json({ message: "Guide profile not found" });
+      }
+
+      const reports = await storage.getGuideTourReports({ guideId: guide.id });
+      res.json(reports);
+    } catch (error) {
+      logError("Error fetching guide tour reports", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch tour reports" });
     }
   });
 
@@ -7404,6 +8034,135 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error marking visitor as no-show", error, req.requestId);
       res.status(500).json({ message: "Failed to mark visitor as no-show" });
+    }
+  });
+
+  app.post("/api/bookings/:id/guide-report", isAuthenticated, requireRole("guide"), async (req: any, res) => {
+    try {
+      const payload = guideTourReportSchema.parse(req.body);
+      const bookingId = req.params.id;
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const guide = await storage.getGuideByUserId(userId);
+      if (!guide) {
+        return res.status(404).json({ message: "Guide profile not found" });
+      }
+
+      const booking = await storage.getBooking(bookingId);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      if (booking.assignedGuideId !== guide.id) {
+        return res.status(403).json({ message: "You are not assigned to this booking" });
+      }
+
+      if (booking.status !== "completed") {
+        return res.status(409).json({ message: "Post-tour reports can only be submitted after checkout" });
+      }
+
+      const existingReport = await storage.getGuideTourReportByBookingAndGuide(booking.id, guide.id);
+      const reportPayload = {
+        bookingId: booking.id,
+        guideId: guide.id,
+        guideUserId: userId,
+        summary: payload.summary,
+        visitorNeeds: payload.visitorNeeds || null,
+        incidents: payload.incidents || null,
+        followUpNeeded: payload.followUpNeeded,
+        privateNotes: payload.privateNotes || null,
+        status: "submitted",
+        reviewedByUserId: null,
+        reviewedAt: null,
+        adminReviewNotes: null,
+      };
+
+      const report = existingReport
+        ? await storage.updateGuideTourReport(existingReport.id, reportPayload as Partial<GuideTourReport>)
+        : await storage.createGuideTourReport(reportPayload as any);
+
+      if (!report) {
+        return res.status(500).json({ message: "Failed to save tour report" });
+      }
+
+      await storage.createBookingActivityLog({
+        bookingId: booking.id,
+        userId,
+        action: existingReport ? "guide_tour_report_updated" : "guide_tour_report_submitted",
+        description: existingReport
+          ? `Guide updated post-tour report for ${booking.bookingReference || booking.id}.`
+          : `Guide submitted post-tour report for ${booking.bookingReference || booking.id}.`,
+        oldStatus: booking.status || null,
+        newStatus: booking.status || null,
+      });
+
+      await createAuditLog(userId, existingReport ? "update" : "create", "guide_tour_report", report.id,
+        existingReport || null,
+        report,
+        req
+      );
+
+      res.status(existingReport ? 200 : 201).json(report);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid tour report", errors: error.errors });
+      }
+      logError("Error saving guide tour report", error, req.requestId);
+      res.status(500).json({ message: "Failed to save tour report" });
+    }
+  });
+
+  app.get("/api/admin/guide-tour-reports", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const status = typeof req.query.status === "string" && req.query.status !== "all"
+        ? req.query.status
+        : undefined;
+      const reports = await storage.getGuideTourReports({ status });
+      res.json(await Promise.all(reports.map(enrichGuideTourReport)));
+    } catch (error) {
+      logError("Error fetching admin guide tour reports", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch guide tour reports" });
+    }
+  });
+
+  app.post("/api/admin/guide-tour-reports/:id/review", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
+    try {
+      const payload = guideTourReportReviewSchema.parse(req.body);
+      const reviewerId = req.session?.userId;
+      const existingReports = await storage.getGuideTourReports();
+      const report = existingReports.find((item) => item.id === req.params.id);
+      if (!report) {
+        return res.status(404).json({ message: "Guide tour report not found" });
+      }
+
+      const updated = await storage.updateGuideTourReport(report.id, {
+        status: payload.status,
+        adminReviewNotes: payload.notes || null,
+        reviewedByUserId: reviewerId || null,
+        reviewedAt: new Date() as any,
+      });
+      if (!updated) {
+        return res.status(404).json({ message: "Guide tour report not found" });
+      }
+
+      if (reviewerId) {
+        await createAuditLog(reviewerId, "update", "guide_tour_report", updated.id,
+          { status: report.status, adminReviewNotes: report.adminReviewNotes || null },
+          { status: updated.status, adminReviewNotes: updated.adminReviewNotes || null },
+          req
+        );
+      }
+
+      res.json(await enrichGuideTourReport(updated));
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid report review", errors: error.errors });
+      }
+      logError("Error reviewing guide tour report", error, req.requestId);
+      res.status(500).json({ message: "Failed to review guide tour report" });
     }
   });
 
@@ -8248,6 +9007,7 @@ export async function registerRoutes(
         visitorName: customer.name || '',
         visitorEmail: customer.email || '',
         visitorPhone: customer.phone || '',
+        visitorCountry: customer.country || customer.countryCode || null,
         bookingReference,
         totalAmount,
         paymentStatus: 'paid',
@@ -11833,6 +12593,9 @@ export async function registerRoutes(
       });
 
       await storage.updateBookingRating(booking.id, payload.rating);
+      if (payload.country && !booking.visitorCountry) {
+        await storage.updateBooking(booking.id, { visitorCountry: payload.country });
+      }
 
       res.status(201).json({
         success: true,

@@ -138,6 +138,7 @@ export async function createApp() {
   // Session setup
   app.use(
     express.json({
+      limit: "8mb",
       verify: (req, _res, buf) => {
         (req as any).rawBody = buf;
       },

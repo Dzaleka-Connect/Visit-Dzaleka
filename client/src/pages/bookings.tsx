@@ -313,6 +313,7 @@ const generateBookingPDF = async (booking: BookingWithGuide, meetingPointName: s
   leftY = drawDetail('Full Name', booking.visitorName, leftColX, leftY);
   leftY = drawDetail('Email Address', booking.visitorEmail, leftColX, leftY);
   leftY = drawDetail('Phone Number', booking.visitorPhone || 'Not provided', leftColX, leftY);
+  leftY = drawDetail('Country/Region', booking.visitorCountry || 'Not provided', leftColX, leftY);
   leftY += 5;
 
   leftY = drawSectionHeader('Tour Details', leftColX, leftY);
@@ -411,6 +412,7 @@ export default function Bookings() {
     visitorName: "",
     visitorEmail: "",
     visitorPhone: "",
+    visitorCountry: "",
     visitDate: "",
     visitTime: "09:00",
     groupSize: "individual" as "individual" | "small_group" | "large_group",
@@ -735,6 +737,7 @@ export default function Bookings() {
     visitorName: "",
     visitorEmail: "",
     visitorPhone: "",
+    visitorCountry: "",
     visitDate: "",
     visitTime: "10:00",
     groupSize: "individual" as "individual" | "small_group" | "large_group" | "custom",
@@ -788,6 +791,7 @@ export default function Bookings() {
         visitorName: "",
         visitorEmail: "",
         visitorPhone: "",
+        visitorCountry: "",
         visitDate: "",
         visitTime: "10:00",
         groupSize: "individual",
@@ -844,6 +848,7 @@ export default function Bookings() {
         visitorName: "",
         visitorEmail: "",
         visitorPhone: "",
+        visitorCountry: "",
         visitDate: "",
         visitTime: "09:00",
         groupSize: "individual",
@@ -874,7 +879,8 @@ export default function Bookings() {
   const filteredBookings = bookings?.filter((booking) => {
     const matchesSearch =
       booking.visitorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      booking.visitorEmail.toLowerCase().includes(searchQuery.toLowerCase());
+      booking.visitorEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (booking.visitorCountry || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus =
       statusFilters.length === 0 || statusFilters.includes(booking.status || "pending");
     const matchesDateFrom = !dateFrom || booking.visitDate >= dateFrom;
@@ -1001,6 +1007,10 @@ export default function Bookings() {
                     <div>
                       <Label className="text-xs text-muted-foreground">Phone</Label>
                       <p className="font-medium">{selectedBooking.visitorPhone}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Country / region</Label>
+                      <p className="font-medium">{selectedBooking.visitorCountry || "Not provided"}</p>
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Status</Label>
@@ -1408,6 +1418,7 @@ export default function Bookings() {
                     "Visitor Name",
                     "Visitor Email",
                     "Visitor Phone",
+                    "Visitor Country",
                     "Visit Date",
                     "Visit Time",
                     "Status",
@@ -1427,6 +1438,7 @@ export default function Bookings() {
                       `"${b.visitorName.replace(/"/g, '""')}"`, // Escape quotes
                       b.visitorEmail,
                       b.visitorPhone || "",
+                      `"${(b.visitorCountry || "").replace(/"/g, '""')}"`,
                       b.visitDate,
                       b.visitTime || "",
                       b.status || "pending",
@@ -1595,6 +1607,11 @@ export default function Bookings() {
                             <span className="text-xs text-muted-foreground truncate max-w-[180px]">
                               {booking.visitorEmail}
                             </span>
+                            {booking.visitorCountry && (
+                              <span className="text-xs text-muted-foreground truncate max-w-[180px]">
+                                {booking.visitorCountry}
+                              </span>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
@@ -1980,6 +1997,18 @@ export default function Bookings() {
                 data-testid="input-new-visitor-email"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="visitor-country">Country / region</Label>
+              <Input
+                id="visitor-country"
+                name="country"
+                autoComplete="country-name"
+                placeholder="Malawi, United States, Kenya…"
+                value={newBooking.visitorCountry}
+                onChange={(e) => setNewBooking({ ...newBooking, visitorCountry: e.target.value })}
+                data-testid="input-new-visitor-country"
+              />
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="visit-date">Visit Date *</Label>
@@ -2244,8 +2273,8 @@ export default function Bookings() {
               </div>
             </div>
 
-            {/* Row 2: Phone & Date/Time */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Row 2: Phone, country, and date */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="hist-phone">Phone</Label>
                 <Input
@@ -2253,6 +2282,17 @@ export default function Bookings() {
                   value={historicalBooking.visitorPhone}
                   onChange={(e) => setHistoricalBooking({ ...historicalBooking, visitorPhone: e.target.value })}
                   placeholder="Phone number"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="hist-country">Country / region</Label>
+                <Input
+                  id="hist-country"
+                  name="country"
+                  autoComplete="country-name"
+                  value={historicalBooking.visitorCountry}
+                  onChange={(e) => setHistoricalBooking({ ...historicalBooking, visitorCountry: e.target.value })}
+                  placeholder="Visitor country"
                 />
               </div>
               <div className="space-y-2">
@@ -2265,7 +2305,7 @@ export default function Bookings() {
                   max={new Date().toISOString().split('T')[0]}
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 sm:col-span-1">
                 <Label htmlFor="hist-time">Visit Time</Label>
                 <Input
                   id="hist-time"

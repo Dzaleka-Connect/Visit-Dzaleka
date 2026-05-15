@@ -51,6 +51,7 @@ export default function EmbedBooking() {
         visitorName: "",
         visitorEmail: "",
         visitorPhone: "",
+        visitorCountry: "",
         visitDate: "",
         visitTime: "10:00",
         groupSize: defaultTourType,
@@ -209,6 +210,20 @@ export default function EmbedBooking() {
                                     className={inputClass}
                                 />
                             </div>
+                            <div className="space-y-2">
+                                <Label className={isDark ? "text-gray-200" : ""}>Country / region</Label>
+                                <Input
+                                    name="country"
+                                    autoComplete="country-name"
+                                    placeholder="Country or region…"
+                                    value={formData.visitorCountry}
+                                    onChange={(e) => setFormData({ ...formData, visitorCountry: e.target.value })}
+                                    className={inputClass}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-2">
                                 <Label className={isDark ? "text-gray-200" : ""}>Visit Date *</Label>
                                 <Input

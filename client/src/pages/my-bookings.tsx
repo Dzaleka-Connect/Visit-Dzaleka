@@ -232,6 +232,7 @@ const generateBookingPDF = async (booking: Booking, meetingPointName: string) =>
   leftY = drawDetail('Full Name', booking.visitorName, leftColX, leftY);
   leftY = drawDetail('Email Address', booking.visitorEmail, leftColX, leftY);
   leftY = drawDetail('Phone Number', booking.visitorPhone || 'Not provided', leftColX, leftY);
+  leftY = drawDetail('Country/Region', booking.visitorCountry || 'Not provided', leftColX, leftY);
 
   // Tour Details Section
   leftY = drawSectionHeader('Tour Details', leftColX, leftY);
@@ -390,13 +391,28 @@ function TransportSummaryButton({
   );
 }
 
-function TransportDetailsCard({ request }: { request: VisitorTransportRequest }) {
+function TransportDetailsCard({
+  request,
+  onQuoteDecision,
+  isQuoteDecisionPending = false,
+}: {
+  request: VisitorTransportRequest;
+  onQuoteDecision?: (request: VisitorTransportRequest, decision: "approved" | "declined", notes?: string) => void;
+  isQuoteDecisionPending?: boolean;
+}) {
+  const [quoteNotes, setQuoteNotes] = useState("");
   const route = getTransportRoute(request.route);
   const amount = formatTransportAmount(request);
   const pickupTime = formatOptionalTime(request.estimatedPickupTime || request.requestedPickupTime);
   const whatsappHref = getWhatsappHref(request.partner?.whatsapp || request.partner?.phone);
   const partnerPhone = request.partner?.phone || request.partner?.whatsapp;
   const transportPending = ["pending", "sent_to_partner"].includes(request.status || "pending");
+  const canAnswerQuote = Boolean(
+    onQuoteDecision
+    && !request.quoteDecision
+    && request.quotedAmount != null
+    && ["quote_sent", "accepted"].includes(request.status || "")
+  );
 
   return (
     <Card className="border-sky-200 bg-sky-50/60 dark:border-sky-800 dark:bg-sky-950/20">
@@ -530,6 +546,50 @@ function TransportDetailsCard({ request }: { request: VisitorTransportRequest })
             )}
           </div>
         )}
+
+        {canAnswerQuote && (
+          <div className="rounded-md border bg-background/90 p-3">
+            <Label htmlFor={`quote-notes-${request.id}`} className="text-xs text-muted-foreground">
+              Optional note to transport partner
+            </Label>
+            <Textarea
+              id={`quote-notes-${request.id}`}
+              value={quoteNotes}
+              onChange={(event) => setQuoteNotes(event.target.value)}
+              placeholder="Add a short note…"
+              rows={3}
+              className="mt-2"
+            />
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <Button
+                type="button"
+                onClick={() => onQuoteDecision?.(request, "approved", quoteNotes)}
+                disabled={isQuoteDecisionPending}
+              >
+                {isQuoteDecisionPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <CheckCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+                )}
+                Approve quote
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
+                onClick={() => onQuoteDecision?.(request, "declined", quoteNotes)}
+                disabled={isQuoteDecisionPending}
+              >
+                {isQuoteDecisionPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <XCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+                )}
+                Decline quote
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -550,6 +610,7 @@ export default function MyBookings() {
   const [selectedBooking, setSelectedBooking] = useState<BookingWithGuide | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleTime, setRescheduleTime] = useState("");
+  const [rescheduleNote, setRescheduleNote] = useState("");
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -559,6 +620,7 @@ export default function MyBookings() {
     visitorName: "",
     visitorEmail: "",
     visitorPhone: "",
+    visitorCountry: "",
     visitDate: "",
     visitTime: "",
     groupSize: "individual" as "individual" | "small_group" | "large_group" | "custom",
@@ -585,6 +647,7 @@ export default function MyBookings() {
         visitorName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || prev.visitorName,
         visitorEmail: user.email || prev.visitorEmail,
         visitorPhone: user.phone || prev.visitorPhone,
+        visitorCountry: user.country || prev.visitorCountry,
       }));
     }
   }, [user]);
@@ -653,6 +716,7 @@ export default function MyBookings() {
         visitorName: "",
         visitorEmail: "",
         visitorPhone: "",
+        visitorCountry: "",
         visitDate: "",
         visitTime: "",
         groupSize: "individual",
@@ -686,8 +750,8 @@ export default function MyBookings() {
 
   // Reschedule mutation
   const rescheduleMutation = useMutation({
-    mutationFn: async ({ id, visitDate, visitTime }: { id: string; visitDate: string; visitTime: string }) => {
-      return apiRequest("PATCH", `/api/bookings/${id}/reschedule`, { visitDate, visitTime });
+    mutationFn: async ({ id, visitDate, visitTime, note }: { id: string; visitDate: string; visitTime: string; note?: string }) => {
+      return apiRequest("POST", `/api/bookings/${id}/visitor-reschedule-request`, { visitDate, visitTime, note });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bookings/my-bookings"] });
@@ -695,15 +759,60 @@ export default function MyBookings() {
       setSelectedBooking(null);
       setRescheduleDate("");
       setRescheduleTime("");
+      setRescheduleNote("");
       toast({
-        title: "Booking rescheduled",
-        description: "Your booking has been moved to the new date and time.",
+        title: "Reschedule request sent",
+        description: "Our team will review availability and confirm the new date with you.",
       });
     },
     onError: () => {
       toast({
         title: "Failed to reschedule",
         description: "Could not reschedule your booking. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const transportQuoteDecisionMutation = useMutation({
+    mutationFn: async ({
+      bookingId,
+      decision,
+      notes,
+    }: {
+      bookingId: string;
+      decision: "approved" | "declined";
+      notes?: string;
+    }) => {
+      const response = await apiRequest("POST", `/api/bookings/${bookingId}/transport-quote-decision`, {
+        decision,
+        notes,
+      });
+      return response.json() as Promise<VisitorTransportRequest>;
+    },
+    onSuccess: (updatedRequest, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings/my-bookings"] });
+      setSelectedBooking((current) => {
+        if (!current || current.id !== variables.bookingId || !current.transportRequest) return current;
+        return {
+          ...current,
+          transportRequest: {
+            ...current.transportRequest,
+            ...updatedRequest,
+          },
+        };
+      });
+      toast({
+        title: variables.decision === "approved" ? "Transport quote approved" : "Transport quote declined",
+        description: variables.decision === "approved"
+          ? "The transport partner and admin team have been notified."
+          : "The transport partner and admin team will follow up if needed.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Transport quote update failed",
+        description: error.message,
         variant: "destructive",
       });
     },
@@ -882,6 +991,10 @@ export default function MyBookings() {
                       <p className="font-medium">{selectedBooking.visitorPhone}</p>
                     </div>
                     <div>
+                      <Label className="text-xs text-muted-foreground">Country / region</Label>
+                      <p className="font-medium">{selectedBooking.visitorCountry || "Not provided"}</p>
+                    </div>
+                    <div>
                       <Label className="text-xs text-muted-foreground">Status</Label>
                       <div className="mt-1"><StatusBadge status={selectedBooking.status || "pending"} /></div>
                     </div>
@@ -1036,7 +1149,17 @@ export default function MyBookings() {
               )}
 
               {selectedBooking.transportRequest && (
-                <TransportDetailsCard request={selectedBooking.transportRequest} />
+                <TransportDetailsCard
+                  request={selectedBooking.transportRequest}
+                  isQuoteDecisionPending={transportQuoteDecisionMutation.isPending}
+                  onQuoteDecision={(_request, decision, notes) => {
+                    transportQuoteDecisionMutation.mutate({
+                      bookingId: selectedBooking.id,
+                      decision,
+                      notes,
+                    });
+                  }}
+                />
               )}
 
               <Card>
@@ -1286,6 +1409,7 @@ export default function MyBookings() {
                             setSelectedBooking(booking);
                             setRescheduleDate(booking.visitDate);
                             setRescheduleTime(booking.visitTime || "");
+                            setRescheduleNote("");
                             setRescheduleDialogOpen(true);
                           }}
                         >
@@ -1371,6 +1495,18 @@ export default function MyBookings() {
                     value={newBooking.visitorEmail}
                     onChange={(e) => setNewBooking({ ...newBooking, visitorEmail: e.target.value })}
                     data-testid="input-visitor-email"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="visitor-country">Country / region</Label>
+                  <Input
+                    id="visitor-country"
+                    name="country"
+                    autoComplete="country-name"
+                    placeholder="Malawi, United States, Kenya…"
+                    value={newBooking.visitorCountry}
+                    onChange={(e) => setNewBooking({ ...newBooking, visitorCountry: e.target.value })}
+                    data-testid="input-visitor-country"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -1680,9 +1816,9 @@ export default function MyBookings() {
           <Dialog open={rescheduleDialogOpen} onOpenChange={setRescheduleDialogOpen}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Reschedule Your Booking</DialogTitle>
+                <DialogTitle>Request a Reschedule</DialogTitle>
                 <DialogDescription>
-                  Choose a new date and time for your visit.
+                  Choose a preferred new date and time. Our team will confirm once guide and transport availability is checked.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -1703,6 +1839,16 @@ export default function MyBookings() {
                     onChange={(e) => setRescheduleTime(e.target.value)}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reschedule-note">Note</Label>
+                  <Textarea
+                    id="reschedule-note"
+                    value={rescheduleNote}
+                    onChange={(e) => setRescheduleNote(e.target.value)}
+                    placeholder="Share why you need the change or any flexible times…"
+                    rows={3}
+                  />
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setRescheduleDialogOpen(false)}>
@@ -1715,6 +1861,7 @@ export default function MyBookings() {
                         id: selectedBooking.id,
                         visitDate: rescheduleDate,
                         visitTime: rescheduleTime,
+                        note: rescheduleNote,
                       });
                     }
                   }}
@@ -1728,7 +1875,7 @@ export default function MyBookings() {
                   ) : (
                     <>
                       <CalendarClock className="mr-2 h-4 w-4" />
-                      Confirm New Date
+                      Send request
                     </>
                   )}
                 </Button>

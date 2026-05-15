@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { supabase } from "@/lib/supabase";
+import { uploadAvatarImage, validateProfileImage } from "@/lib/uploads";
 import { SEO } from "@/components/seo";
 
 export default function Profile() {
@@ -82,21 +82,12 @@ export default function Profile() {
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
-    // Validate file type
-    if (!file.type.startsWith("image/")) {
+    try {
+      validateProfileImage(file);
+    } catch (error) {
       toast({
-        title: "Invalid file",
-        description: "Please upload an image file.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "Please upload an image smaller than 5MB.",
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Please choose a different image.",
         variant: "destructive",
       });
       return;
@@ -104,29 +95,7 @@ export default function Profile() {
 
     setIsUploadingImage(true);
     try {
-      // Generate unique filename
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-      const filePath = `profile-images/${fileName}`;
-
-      // Check if supabase client is available
-      if (!supabase) {
-        throw new Error("Storage is not configured");
-      }
-
-      // Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(filePath);
-
-      // Update profile with new image URL
+      const { publicUrl } = await uploadAvatarImage(file, "user_avatar");
       const res = await apiRequest("PATCH", "/api/auth/profile", { profileImageUrl: publicUrl });
       const updatedUser = await res.json();
 

@@ -20,8 +20,12 @@ import {
   AlertCircle,
   CreditCard,
   Camera,
+  CheckCircle2,
+  ClipboardCheck,
   ExternalLink,
+  FileText,
   Loader2,
+  XCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,11 +63,12 @@ import {
 import { EmptyState } from "@/components/empty-state";
 import { CardGridSkeleton } from "@/components/loading-skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import { supabase } from "@/lib/supabase";
 import { formatCurrency, LANGUAGES } from "@/lib/constants";
-import type { Guide, InsertGuide } from "@shared/schema";
+import { uploadAvatarImage, validateProfileImage } from "@/lib/uploads";
+import type { Guide, GuideProfileChangeRequest, GuideTourReport, InsertGuide } from "@shared/schema";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -100,6 +105,29 @@ const guideFormSchema = z.object({
 
 type GuideFormValues = z.infer<typeof guideFormSchema>;
 
+interface AdminGuideProfileChangeRequest extends GuideProfileChangeRequest {
+  guide?: Pick<Guide, "id" | "firstName" | "lastName" | "email" | "phone" | "profileImageUrl"> | null;
+  submittedBy?: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+  } | null;
+}
+
+interface AdminGuideTourReport extends GuideTourReport {
+  guide?: Pick<Guide, "id" | "firstName" | "lastName" | "phone" | "email"> | null;
+  booking?: {
+    id: string;
+    bookingReference: string | null;
+    visitorName: string;
+    visitorEmail: string;
+    visitDate: string;
+    visitTime: string;
+    status: string | null;
+  } | null;
+}
+
 const DAYS_OF_WEEK = [
   { value: "monday", label: "Monday" },
   { value: "tuesday", label: "Tuesday" },
@@ -125,8 +153,25 @@ const createGuideSlug = (firstName: string, lastName: string) => {
     .replace(/[^a-z0-9-]/g, '');
 };
 
+function formatAdminDate(value?: string | Date | null) {
+  if (!value) return "Not recorded";
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatProfileValue(value: unknown) {
+  if (Array.isArray(value)) return value.filter(Boolean).join(", ") || "None";
+  if (value === null || value === undefined || value === "") return "None";
+  return String(value);
+}
+
 export default function Guides() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const searchString = useSearch();
   const [searchQuery, setSearchQuery] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -138,6 +183,17 @@ export default function Guides() {
 
   const { data: guides, isLoading } = useQuery<Guide[]>({
     queryKey: ["/api/guides"],
+  });
+  const canReviewGuideChanges = user?.role === "admin" || user?.role === "coordinator";
+
+  const { data: profileChangeRequests = [] } = useQuery<AdminGuideProfileChangeRequest[]>({
+    queryKey: ["/api/admin/guide-profile-change-requests?status=pending"],
+    enabled: canReviewGuideChanges,
+  });
+
+  const { data: guideTourReports = [] } = useQuery<AdminGuideTourReport[]>({
+    queryKey: ["/api/admin/guide-tour-reports?status=submitted"],
+    enabled: canReviewGuideChanges,
   });
 
   // Handle ?edit=<guideId> query parameter
@@ -280,6 +336,75 @@ export default function Guides() {
     },
   });
 
+  const reviewProfileChangeMutation = useMutation({
+    mutationFn: async ({
+      id,
+      decision,
+      notes,
+    }: {
+      id: string;
+      decision: "approved" | "rejected";
+      notes?: string;
+    }) => {
+      const response = await apiRequest("POST", `/api/admin/guide-profile-change-requests/${id}/decision`, {
+        decision,
+        notes,
+      });
+      return response.json();
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/guide-profile-change-requests?status=pending"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/guides"] });
+      toast({
+        title: variables.decision === "approved" ? "Guide profile approved" : "Guide profile rejected",
+        description: variables.decision === "approved"
+          ? "The approved changes are now published."
+          : "The guide will see the review note on their profile page.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Review failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const reviewTourReportMutation = useMutation({
+    mutationFn: async ({
+      id,
+      status,
+      notes,
+    }: {
+      id: string;
+      status: "reviewed" | "action_required";
+      notes?: string;
+    }) => {
+      const response = await apiRequest("POST", `/api/admin/guide-tour-reports/${id}/review`, {
+        status,
+        notes,
+      });
+      return response.json();
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/guide-tour-reports?status=submitted"] });
+      toast({
+        title: variables.status === "reviewed" ? "Tour report reviewed" : "Tour report flagged",
+        description: variables.status === "reviewed"
+          ? "The report has been marked reviewed."
+          : "The report has been marked for follow-up.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Report review failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const filteredGuides = guides?.filter(
     (guide) =>
       guide.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -350,20 +475,12 @@ export default function Guides() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
+    try {
+      validateProfileImage(file);
+    } catch (error) {
       toast({
-        title: "Invalid file",
-        description: "Please upload an image file.",
-        variant: "destructive",
-      });
-      event.target.value = "";
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "Please upload an image smaller than 5 MB.",
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Please choose a different image.",
         variant: "destructive",
       });
       event.target.value = "";
@@ -372,23 +489,7 @@ export default function Guides() {
 
     setIsUploadingGuideImage(true);
     try {
-      if (!supabase) {
-        throw new Error("Storage is not configured");
-      }
-
-      const fileExt = file.name.split(".").pop() || "jpg";
-      const guideKey = editingGuide?.id || `new-guide-${Date.now()}`;
-      const filePath = `guide-images/${guideKey}-${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(filePath);
-
+      const { publicUrl } = await uploadAvatarImage(file, "guide_profile");
       form.setValue("profileImageUrl", publicUrl, {
         shouldDirty: true,
         shouldTouch: true,
@@ -429,6 +530,149 @@ export default function Guides() {
           Add Guide
         </Button>
       </PageHeader>
+
+      {canReviewGuideChanges && (
+        <div className="grid gap-4 xl:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <ClipboardCheck className="h-5 w-5 text-primary" aria-hidden="true" />
+                Guide Profile Reviews
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {profileChangeRequests.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No pending guide profile changes.</p>
+              ) : (
+                profileChangeRequests.map((request) => {
+                  const proposedData = (request.proposedData || {}) as Record<string, unknown>;
+                  const currentData = (request.currentData || {}) as Record<string, unknown>;
+                  const changedFields = Object.keys(proposedData);
+                  const guideName = request.guide
+                    ? `${request.guide.firstName} ${request.guide.lastName}`
+                    : "Guide profile";
+
+                  return (
+                    <div key={request.id} className="rounded-lg border p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="break-words font-medium">{guideName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Submitted {formatAdminDate(request.createdAt)}
+                          </p>
+                        </div>
+                        <Badge variant="secondary" className="shrink-0">
+                          {changedFields.length} change{changedFields.length === 1 ? "" : "s"}
+                        </Badge>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {changedFields.slice(0, 4).map((field) => (
+                          <div key={field} className="rounded-md bg-muted/60 p-2 text-xs">
+                            <p className="font-medium capitalize">{field.replace(/([A-Z])/g, " $1")}</p>
+                            <p className="mt-1 break-words text-muted-foreground">
+                              {formatProfileValue(currentData[field])} → {formatProfileValue(proposedData[field])}
+                            </p>
+                          </div>
+                        ))}
+                        {changedFields.length > 4 && (
+                          <p className="text-xs text-muted-foreground">+{changedFields.length - 4} more fields</p>
+                        )}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => reviewProfileChangeMutation.mutate({ id: request.id, decision: "approved" })}
+                          disabled={reviewProfileChangeMutation.isPending}
+                        >
+                          <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
+                          onClick={() => {
+                            const notes = window.prompt("Add a short reason for rejecting these profile changes:");
+                            if (notes === null) return;
+                            reviewProfileChangeMutation.mutate({ id: request.id, decision: "rejected", notes });
+                          }}
+                          disabled={reviewProfileChangeMutation.isPending}
+                        >
+                          <XCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FileText className="h-5 w-5 text-primary" aria-hidden="true" />
+                Post-Tour Reports
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {guideTourReports.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No submitted guide reports need review.</p>
+              ) : (
+                guideTourReports.map((report) => (
+                  <div key={report.id} className="rounded-lg border p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="break-words font-medium">
+                          {report.booking?.bookingReference || "Booking"} · {report.booking?.visitorName || "Visitor"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {report.guide ? `${report.guide.firstName} ${report.guide.lastName}` : "Guide"} · {formatAdminDate(report.createdAt)}
+                        </p>
+                      </div>
+                      {report.followUpNeeded && (
+                        <Badge variant="destructive" className="shrink-0">Follow-up</Badge>
+                      )}
+                    </div>
+                    <p className="mt-3 line-clamp-3 break-words text-sm text-muted-foreground">
+                      {report.summary}
+                    </p>
+                    {report.incidents && (
+                      <p className="mt-2 break-words rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+                        Incident note: {report.incidents}
+                      </p>
+                    )}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => reviewTourReportMutation.mutate({ id: report.id, status: "reviewed" })}
+                        disabled={reviewTourReportMutation.isPending}
+                      >
+                        <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                        Mark reviewed
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const notes = window.prompt("What needs action from this report?");
+                          if (notes === null) return;
+                          reviewTourReportMutation.mutate({ id: report.id, status: "action_required", notes });
+                        }}
+                        disabled={reviewTourReportMutation.isPending}
+                      >
+                        <AlertCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+                        Needs action
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

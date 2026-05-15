@@ -207,6 +207,12 @@ const mainNavigationItems: NavItem[] = [
     roles: ["guide"],
   },
   {
+    title: "My Guide Profile",
+    url: "/my-guide-profile",
+    icon: User,
+    roles: ["guide"],
+  },
+  {
     title: "Blog",
     url: "/admin/blog",
     icon: FileText,

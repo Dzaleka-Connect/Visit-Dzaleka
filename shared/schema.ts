@@ -206,6 +206,29 @@ export const guides = pgTable("guides", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const guideProfileChangeRequests = pgTable(
+  "guide_profile_change_requests",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    guideId: varchar("guide_id").notNull().references(() => guides.id),
+    guideUserId: varchar("guide_user_id").references(() => users.id),
+    submittedByUserId: varchar("submitted_by_user_id").references(() => users.id),
+    status: varchar("status").default("pending").notNull(),
+    currentData: jsonb("current_data").default({}),
+    proposedData: jsonb("proposed_data").notNull(),
+    reviewNotes: text("review_notes"),
+    reviewedByUserId: varchar("reviewed_by_user_id").references(() => users.id),
+    reviewedAt: timestamp("reviewed_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("IDX_guide_profile_change_requests_guide").on(table.guideId),
+    index("IDX_guide_profile_change_requests_status").on(table.status),
+    index("IDX_guide_profile_change_requests_created").on(table.createdAt),
+  ]
+);
+
 // Camp Zones table
 export const zones = pgTable("zones", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -314,6 +337,7 @@ export const bookings = pgTable("bookings", {
   visitorName: varchar("visitor_name").notNull(),
   visitorEmail: varchar("visitor_email").notNull(),
   visitorPhone: varchar("visitor_phone").notNull(),
+  visitorCountry: varchar("visitor_country"),
   visitorUserId: varchar("visitor_user_id"),
   visitDate: date("visit_date").notNull(),
   visitTime: time("visit_time").notNull(),
@@ -358,6 +382,33 @@ export const bookings = pgTable("bookings", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+export const guideTourReports = pgTable(
+  "guide_tour_reports",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    bookingId: varchar("booking_id").notNull().references(() => bookings.id),
+    guideId: varchar("guide_id").notNull().references(() => guides.id),
+    guideUserId: varchar("guide_user_id").references(() => users.id),
+    summary: text("summary").notNull(),
+    visitorNeeds: text("visitor_needs"),
+    incidents: text("incidents"),
+    followUpNeeded: boolean("follow_up_needed").default(false),
+    privateNotes: text("private_notes"),
+    status: varchar("status").default("submitted").notNull(),
+    adminReviewNotes: text("admin_review_notes"),
+    reviewedByUserId: varchar("reviewed_by_user_id").references(() => users.id),
+    reviewedAt: timestamp("reviewed_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("IDX_guide_tour_reports_booking_guide").on(table.bookingId, table.guideId),
+    index("IDX_guide_tour_reports_guide").on(table.guideId),
+    index("IDX_guide_tour_reports_status").on(table.status),
+    index("IDX_guide_tour_reports_created").on(table.createdAt),
+  ]
+);
 
 export const transportPartners = pgTable(
   "transport_partners",
@@ -982,6 +1033,12 @@ export const insertGuideSchema = createInsertSchema(guides).omit({
   updatedAt: true,
 });
 
+export const insertGuideProfileChangeRequestSchema = createInsertSchema(guideProfileChangeRequests).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertZoneSchema = createInsertSchema(zones).omit({
   id: true,
   totalVisits: true,
@@ -1024,6 +1081,12 @@ export const insertBookingSchema = createInsertSchema(bookings).omit({
   checkOutTime: true,
   checkInBy: true,
   checkOutBy: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertGuideTourReportSchema = createInsertSchema(guideTourReports).omit({
+  id: true,
   createdAt: true,
   updatedAt: true,
 });
@@ -1174,6 +1237,9 @@ export type User = typeof users.$inferSelect;
 export type InsertGuide = z.infer<typeof insertGuideSchema>;
 export type Guide = typeof guides.$inferSelect;
 
+export type InsertGuideProfileChangeRequest = z.infer<typeof insertGuideProfileChangeRequestSchema>;
+export type GuideProfileChangeRequest = typeof guideProfileChangeRequests.$inferSelect;
+
 export type InsertZone = z.infer<typeof insertZoneSchema>;
 export type Zone = typeof zones.$inferSelect;
 
@@ -1191,6 +1257,9 @@ export type SpecialOffer = typeof specialOffers.$inferSelect;
 
 export type InsertBooking = z.infer<typeof insertBookingSchema>;
 export type Booking = typeof bookings.$inferSelect;
+
+export type InsertGuideTourReport = z.infer<typeof insertGuideTourReportSchema>;
+export type GuideTourReport = typeof guideTourReports.$inferSelect;
 
 export type InsertTransportPartner = z.infer<typeof insertTransportPartnerSchema>;
 export type TransportPartner = typeof transportPartners.$inferSelect;

@@ -3,6 +3,8 @@ import {
   type UpsertUser,
   type Guide,
   type InsertGuide,
+  type GuideProfileChangeRequest,
+  type InsertGuideProfileChangeRequest,
   type Zone,
   type InsertZone,
   type PointOfInterest,
@@ -15,6 +17,8 @@ import {
   type InsertSpecialOffer,
   type Booking,
   type InsertBooking,
+  type GuideTourReport,
+  type InsertGuideTourReport,
   type TransportPartner,
   type InsertTransportPartner,
   type TransportRequest,
@@ -208,6 +212,7 @@ export interface IStorage {
   setEmailVerificationToken(userId: string, token: string, expires: Date): Promise<void>;
   getUserByEmailVerificationToken(token: string): Promise<User | undefined>;
   clearEmailVerificationToken(userId: string): Promise<void>;
+  uploadPublicStorageObject(bucket: string, path: string, body: Buffer, options: { contentType: string; cacheControl?: string }): Promise<{ path: string; publicUrl: string }>;
 
   // Guide operations
   getGuides(): Promise<Guide[]>;
@@ -216,6 +221,11 @@ export interface IStorage {
   createGuide(guide: InsertGuide): Promise<Guide>;
   updateGuide(id: string, guide: Partial<Guide>): Promise<Guide | undefined>;
   deleteGuide(id: string): Promise<void>;
+  getGuideProfileChangeRequests(status?: string): Promise<GuideProfileChangeRequest[]>;
+  getGuideProfileChangeRequestsByGuide(guideId: string): Promise<GuideProfileChangeRequest[]>;
+  getGuideProfileChangeRequest(id: string): Promise<GuideProfileChangeRequest | undefined>;
+  createGuideProfileChangeRequest(request: InsertGuideProfileChangeRequest): Promise<GuideProfileChangeRequest>;
+  updateGuideProfileChangeRequest(id: string, request: Partial<GuideProfileChangeRequest>): Promise<GuideProfileChangeRequest | undefined>;
 
   // Zone operations
   getZones(): Promise<Zone[]>;
@@ -271,6 +281,10 @@ export interface IStorage {
   checkOutVisitor(id: string, checkOutBy: string): Promise<Booking | undefined>;
   updateBookingRating(id: string, rating: number): Promise<Booking | undefined>;
   rescheduleBooking(id: string, visitDate: string, visitTime: string): Promise<Booking | undefined>;
+  getGuideTourReports(filters?: { guideId?: string; bookingId?: string; status?: string }): Promise<GuideTourReport[]>;
+  getGuideTourReportByBookingAndGuide(bookingId: string, guideId: string): Promise<GuideTourReport | undefined>;
+  createGuideTourReport(report: InsertGuideTourReport): Promise<GuideTourReport>;
+  updateGuideTourReport(id: string, report: Partial<GuideTourReport>): Promise<GuideTourReport | undefined>;
 
   // Transport partner operations
   getTransportPartners(): Promise<TransportPartner[]>;
@@ -570,6 +584,7 @@ export interface IStorage {
 
 export class SupabaseStorage implements IStorage {
   private supabase: SupabaseClient;
+  private hasServiceRoleKey: boolean;
 
   constructor() {
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
@@ -577,6 +592,7 @@ export class SupabaseStorage implements IStorage {
     }
     // Prefer SUPABASE_SERVICE_ROLE_KEY if available to bypass RLS on the backend
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+    this.hasServiceRoleKey = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
     this.supabase = createClient(process.env.SUPABASE_URL, supabaseKey);
   }
 
@@ -591,6 +607,36 @@ export class SupabaseStorage implements IStorage {
   private handleOptionalResponse<T>(data: T | null, error: any): T | undefined {
     if (error) throw new Error(error.message);
     return data ? transformToCamel<T>(data) : undefined;
+  }
+
+  async uploadPublicStorageObject(
+    bucket: string,
+    path: string,
+    body: Buffer,
+    options: { contentType: string; cacheControl?: string }
+  ): Promise<{ path: string; publicUrl: string }> {
+    if (!this.hasServiceRoleKey) {
+      throw new Error("SUPABASE_SERVICE_ROLE_KEY is required for server-side storage uploads");
+    }
+
+    const { data, error } = await this.supabase.storage
+      .from(bucket)
+      .upload(path, body, {
+        contentType: options.contentType,
+        cacheControl: options.cacheControl || "3600",
+        upsert: false,
+      });
+
+    if (error) throw new Error(error.message);
+
+    const { data: publicUrlData } = this.supabase.storage
+      .from(bucket)
+      .getPublicUrl(path);
+
+    return {
+      path: data?.path || path,
+      publicUrl: publicUrlData.publicUrl,
+    };
   }
 
   // User operations
@@ -748,6 +794,64 @@ export class SupabaseStorage implements IStorage {
     // Soft delete - set deleted_at timestamp
     const { error } = await this.supabase.from("guides").update({ deleted_at: new Date().toISOString() }).eq("id", id);
     if (error) throw new Error(error.message);
+  }
+
+  async getGuideProfileChangeRequests(status?: string): Promise<GuideProfileChangeRequest[]> {
+    let query = this.supabase
+      .from("guide_profile_change_requests")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (status) {
+      query = query.eq("status", status);
+    }
+
+    const { data, error } = await query;
+    return this.handleResponse(data, error);
+  }
+
+  async getGuideProfileChangeRequestsByGuide(guideId: string): Promise<GuideProfileChangeRequest[]> {
+    const { data, error } = await this.supabase
+      .from("guide_profile_change_requests")
+      .select("*")
+      .eq("guide_id", guideId)
+      .order("created_at", { ascending: false });
+    return this.handleResponse(data, error);
+  }
+
+  async getGuideProfileChangeRequest(id: string): Promise<GuideProfileChangeRequest | undefined> {
+    const { data, error } = await this.supabase
+      .from("guide_profile_change_requests")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createGuideProfileChangeRequest(request: InsertGuideProfileChangeRequest): Promise<GuideProfileChangeRequest> {
+    const snakeData = transformToSnake(request);
+    const { data, error } = await this.supabase
+      .from("guide_profile_change_requests")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async updateGuideProfileChangeRequest(
+    id: string,
+    request: Partial<GuideProfileChangeRequest>
+  ): Promise<GuideProfileChangeRequest | undefined> {
+    const snakeData = transformToSnake(request);
+    const { data, error } = await this.supabase
+      .from("guide_profile_change_requests")
+      .update({ ...snakeData, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
   }
 
   // Zone operations
@@ -1399,6 +1503,53 @@ export class SupabaseStorage implements IStorage {
       .eq("id", id)
       .select()
       .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async getGuideTourReports(filters: { guideId?: string; bookingId?: string; status?: string } = {}): Promise<GuideTourReport[]> {
+    let query = this.supabase
+      .from("guide_tour_reports")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (filters.guideId) query = query.eq("guide_id", filters.guideId);
+    if (filters.bookingId) query = query.eq("booking_id", filters.bookingId);
+    if (filters.status) query = query.eq("status", filters.status);
+
+    const { data, error } = await query;
+    return this.handleResponse(data, error);
+  }
+
+  async getGuideTourReportByBookingAndGuide(bookingId: string, guideId: string): Promise<GuideTourReport | undefined> {
+    const { data, error } = await this.supabase
+      .from("guide_tour_reports")
+      .select("*")
+      .eq("booking_id", bookingId)
+      .eq("guide_id", guideId)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createGuideTourReport(report: InsertGuideTourReport): Promise<GuideTourReport> {
+    const snakeData = transformToSnake(report);
+    const { data, error } = await this.supabase
+      .from("guide_tour_reports")
+      .insert(snakeData)
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async updateGuideTourReport(id: string, report: Partial<GuideTourReport>): Promise<GuideTourReport | undefined> {
+    const snakeData = transformToSnake(report);
+    const { data, error } = await this.supabase
+      .from("guide_tour_reports")
+      .update({ ...snakeData, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
     return this.handleOptionalResponse(data, error);
   }
 

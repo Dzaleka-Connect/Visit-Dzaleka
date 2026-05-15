@@ -92,6 +92,13 @@ interface DashboardStats {
   monthlyGrowth: number;
 }
 
+interface VisitorCountryStats {
+  countries: Array<{ country: string; count: number }>;
+  knownCountries: number;
+  bookingsWithCountry: number;
+  totalBookings: number;
+}
+
 interface VisitorTransportPartnerProfile {
   companyName?: string | null;
   phone?: string | null;
@@ -193,6 +200,10 @@ function AdminDashboard() {
 
   const { data: todaysTours, isLoading: toursLoading } = useQuery<RecentBooking[]>({
     queryKey: ["/api/bookings/today"],
+  });
+
+  const { data: visitorCountryStats } = useQuery<VisitorCountryStats>({
+    queryKey: ["/api/stats/visitor-countries"],
   });
 
   const sendEmailMutation = useMutation({
@@ -319,6 +330,12 @@ function AdminDashboard() {
                 <span>Schedule</span>
               </Button>
             </Link>
+            <Link href="/my-guide-profile">
+              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+                <UserCheck className={quickActionIconClass} />
+                <span>Guide profile</span>
+              </Button>
+            </Link>
             <Link href="/tasks">
               <Button variant="secondary" size="sm" className={quickActionButtonClass}>
                 <ListTodo className={quickActionIconClass} />
@@ -415,7 +432,49 @@ function AdminDashboard() {
         <GuideComparisonChart />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+              <Globe className="h-5 w-5 text-primary" aria-hidden="true" />
+              Visitor Countries
+            </CardTitle>
+            <CardDescription>
+              Countries captured on booking requests.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!visitorCountryStats || visitorCountryStats.countries.length === 0 ? (
+              <EmptyState
+                icon={Globe}
+                title="No countries yet"
+                description="Country data will appear after it is captured on bookings."
+                className="py-8"
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <div className="text-3xl font-semibold tabular-nums">{visitorCountryStats.knownCountries}</div>
+                    <p className="text-sm text-muted-foreground">Countries / regions</p>
+                  </div>
+                  <Badge variant="secondary">
+                    {visitorCountryStats.bookingsWithCountry}/{visitorCountryStats.totalBookings} bookings
+                  </Badge>
+                </div>
+                <div className="space-y-2">
+                  {visitorCountryStats.countries.slice(0, 5).map((item) => (
+                    <div key={item.country} className="flex items-center justify-between gap-3 rounded-md border p-2 text-sm">
+                      <span className="min-w-0 truncate font-medium">{item.country}</span>
+                      <span className="tabular-nums text-muted-foreground">{item.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-4">
             <CardTitle className="text-lg font-semibold">Today's Schedule</CardTitle>

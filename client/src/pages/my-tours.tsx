@@ -6,7 +6,18 @@ import { SEO } from "@/components/seo";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { formatDate, formatTime, formatCurrency } from "@/lib/constants";
@@ -23,8 +34,9 @@ import {
     User,
     ScanLine,
     UserX,
+    FileText,
 } from "lucide-react";
-import type { Booking } from "@shared/schema";
+import type { Booking, GuideTourReport } from "@shared/schema";
 import { QRScannerDialog } from "@/components/qr-scanner-dialog";
 
 export default function MyTours() {
@@ -32,9 +44,21 @@ export default function MyTours() {
     const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState("upcoming");
     const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
+    const [reportDialogTour, setReportDialogTour] = useState<Booking | null>(null);
+    const [reportForm, setReportForm] = useState({
+        summary: "",
+        visitorNeeds: "",
+        incidents: "",
+        followUpNeeded: false,
+        privateNotes: "",
+    });
 
     const { data: tours = [], isLoading } = useQuery<Booking[]>({
         queryKey: ["/api/guides/me/tours"],
+    });
+
+    const { data: tourReports = [] } = useQuery<GuideTourReport[]>({
+        queryKey: ["/api/guides/me/tour-reports"],
     });
 
     const checkInMutation = useMutation({
@@ -81,6 +105,34 @@ export default function MyTours() {
         },
     });
 
+    const reportMutation = useMutation({
+        mutationFn: async ({ bookingId, report }: { bookingId: string; report: typeof reportForm }) => {
+            const response = await apiRequest("POST", `/api/bookings/${bookingId}/guide-report`, {
+                summary: report.summary.trim(),
+                visitorNeeds: report.visitorNeeds.trim() || null,
+                incidents: report.incidents.trim() || null,
+                followUpNeeded: report.followUpNeeded,
+                privateNotes: report.privateNotes.trim() || null,
+            });
+            return response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/guides/me/tour-reports"] });
+            setReportDialogTour(null);
+            setReportForm({
+                summary: "",
+                visitorNeeds: "",
+                incidents: "",
+                followUpNeeded: false,
+                privateNotes: "",
+            });
+            toast({ title: "Tour report saved", description: "Admin can now review your post-tour notes." });
+        },
+        onError: (error: Error) => {
+            toast({ title: "Report failed", description: error.message, variant: "destructive" });
+        },
+    });
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -92,6 +144,21 @@ export default function MyTours() {
     const inProgressTours = tours.filter(t => t.status === "in_progress");
 
     const completedTours = tours.filter(t => t.status === "completed");
+
+    const getReportForTour = (bookingId: string) =>
+        tourReports.find(report => report.bookingId === bookingId);
+
+    const openReportDialog = (tour: Booking) => {
+        const existingReport = getReportForTour(tour.id);
+        setReportDialogTour(tour);
+        setReportForm({
+            summary: existingReport?.summary || "",
+            visitorNeeds: existingReport?.visitorNeeds || "",
+            incidents: existingReport?.incidents || "",
+            followUpNeeded: existingReport?.followUpNeeded || false,
+            privateNotes: existingReport?.privateNotes || "",
+        });
+    };
 
     const handleQRScan = (result: string) => {
         // Find the matching booking by reference
@@ -110,7 +177,10 @@ export default function MyTours() {
         }
     };
 
-    const renderTourCard = (tour: Booking) => (
+    const renderTourCard = (tour: Booking) => {
+        const report = getReportForTour(tour.id);
+
+        return (
         <Card key={tour.id} className="hover:shadow-md transition-shadow">
             <CardContent className="p-4">
                 <div className="flex flex-col gap-4">
@@ -228,16 +298,33 @@ export default function MyTours() {
                             </Button>
                         )}
                         {tour.status === "completed" && (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <CheckCircle className="h-4 w-4 text-green-500" />
-                                Completed on {formatDate(tour.checkOutTime || tour.visitDate)}
+                            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <CheckCircle className="h-4 w-4 text-green-500" />
+                                    Completed on {formatDate(tour.checkOutTime || tour.visitDate)}
+                                    {report && (
+                                        <Badge variant={report.status === "action_required" ? "destructive" : "secondary"}>
+                                            {report.status.replace(/_/g, " ")}
+                                        </Badge>
+                                    )}
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant={report ? "outline" : "default"}
+                                    size="sm"
+                                    onClick={() => openReportDialog(tour)}
+                                >
+                                    <FileText className="mr-2 h-4 w-4" />
+                                    {report ? "Update report" : "Submit report"}
+                                </Button>
                             </div>
                         )}
                     </div>
                 </div>
             </CardContent>
         </Card>
-    );
+        );
+    };
 
     if (isLoading) {
         return (
@@ -360,6 +447,94 @@ export default function MyTours() {
                 title="Scan Visitor QR Code"
                 description="Scan the visitor's QR code to quickly check them in for their tour."
             />
+
+            <Dialog open={!!reportDialogTour} onOpenChange={(open) => !open && setReportDialogTour(null)}>
+                <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Post-Tour Report</DialogTitle>
+                        <DialogDescription>
+                            Record anything admin should know after the visit.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        {reportDialogTour && (
+                            <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                                <p className="font-medium">{reportDialogTour.visitorName}</p>
+                                <p className="text-muted-foreground">
+                                    {formatDate(reportDialogTour.visitDate)} at {formatTime(reportDialogTour.visitTime)}
+                                </p>
+                            </div>
+                        )}
+                        <div className="space-y-2">
+                            <Label htmlFor="tour-report-summary">Tour summary</Label>
+                            <Textarea
+                                id="tour-report-summary"
+                                value={reportForm.summary}
+                                onChange={(event) => setReportForm((current) => ({ ...current, summary: event.target.value }))}
+                                placeholder="Summarize how the tour went, visitor engagement, and main outcomes…"
+                                rows={5}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="tour-report-needs">Visitor needs or follow-up</Label>
+                            <Textarea
+                                id="tour-report-needs"
+                                value={reportForm.visitorNeeds}
+                                onChange={(event) => setReportForm((current) => ({ ...current, visitorNeeds: event.target.value }))}
+                                placeholder="Accessibility, interests, questions, or support the visitor requested…"
+                                rows={3}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="tour-report-incidents">Incidents or concerns</Label>
+                            <Textarea
+                                id="tour-report-incidents"
+                                value={reportForm.incidents}
+                                onChange={(event) => setReportForm((current) => ({ ...current, incidents: event.target.value }))}
+                                placeholder="Safety concerns, delays, no-shows, transport issues, or anything unusual…"
+                                rows={3}
+                            />
+                        </div>
+                        <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border p-3 text-sm">
+                            <Checkbox
+                                checked={reportForm.followUpNeeded}
+                                onCheckedChange={(checked) => setReportForm((current) => ({ ...current, followUpNeeded: checked === true }))}
+                            />
+                            <span>Admin follow-up is needed</span>
+                        </label>
+                        <div className="space-y-2">
+                            <Label htmlFor="tour-report-private">Private admin notes</Label>
+                            <Textarea
+                                id="tour-report-private"
+                                value={reportForm.privateNotes}
+                                onChange={(event) => setReportForm((current) => ({ ...current, privateNotes: event.target.value }))}
+                                placeholder="Internal notes for the Visit Dzaleka team…"
+                                rows={3}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setReportDialogTour(null)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            disabled={!reportForm.summary.trim() || reportForm.summary.trim().length < 10 || reportMutation.isPending}
+                            onClick={() => {
+                                if (!reportDialogTour) return;
+                                reportMutation.mutate({ bookingId: reportDialogTour.id, report: reportForm });
+                            }}
+                        >
+                            {reportMutation.isPending ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <FileText className="mr-2 h-4 w-4" />
+                            )}
+                            Save report
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
