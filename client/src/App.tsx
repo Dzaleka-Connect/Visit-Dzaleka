@@ -39,10 +39,15 @@ import EmailHistory from "@/pages/email-history";
 import EmailSettings from "@/pages/email-settings";
 import Revenue from "@/pages/revenue";
 import AuditLogs from "@/pages/audit-logs";
-import Visitors from "@/pages/visitors";
+import VisitorsPage from "@/pages/visitors";
+import VisitorDetailsPage from "@/pages/visitor-details";
 import Landing from "@/pages/landing";
 import CMSPage from "@/pages/cms";
 import SecurityAdmin from "@/pages/security-admin";
+import IncidentDetails from "@/pages/incident-details";
+import SystemHealth from "@/pages/system-health";
+import Webhooks from "@/pages/webhooks";
+import ScheduledReports from "@/pages/scheduled-reports";
 import AcceptInvite from "@/pages/accept-invite";
 import GuideTraining from "@/pages/guide-training";
 import DTDWGuide from "@/pages/dtdw-guide";
@@ -324,6 +329,10 @@ function Router() {
         <ProtectedRoute path="/training-admin" component={TrainingAdmin} allowedRoles={["admin"]} />
         <ProtectedRoute path="/zones" component={Zones} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/security" component={Security} allowedRoles={["admin", "coordinator", "security"]} />
+        <ProtectedRoute path="/security/incidents/:id" component={IncidentDetails} allowedRoles={["admin", "coordinator", "security"]} />
+        <ProtectedRoute path="/admin/system-health" component={SystemHealth} allowedRoles={["admin"]} />
+        <ProtectedRoute path="/admin/webhooks" component={Webhooks} allowedRoles={["admin"]} />
+        <ProtectedRoute path="/admin/scheduled-reports" component={ScheduledReports} allowedRoles={["admin"]} />
         <ProtectedRoute path="/share-photos" component={SharePhotos} allowedRoles={["visitor"]} />
         <ProtectedRoute path="/users" component={UsersPage} allowedRoles={["admin"]} />
         <ProtectedRoute path="/settings" component={Settings} allowedRoles={["admin"]} />
@@ -337,7 +346,7 @@ function Router() {
         <ProtectedRoute path="/audit-logs" component={AuditLogs} allowedRoles={["admin"]} />
         <ProtectedRoute path="/analytics" component={Analytics} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/reports" component={Reports} allowedRoles={["admin", "coordinator"]} />
-        <ProtectedRoute path="/visitors" component={Visitors} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/visitors" component={VisitorsPage} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/cms" component={CMSPage} allowedRoles={["admin"]} />
         <ProtectedRoute path="/security-admin" component={SecurityAdmin} allowedRoles={["admin"]} />
         <ProtectedRoute path="/resources" component={VisitorResources} allowedRoles={["visitor"]} />
@@ -352,6 +361,8 @@ function Router() {
         <ProtectedRoute path="/help-admin" component={HelpAdmin} allowedRoles={["admin"]} />
         <ProtectedRoute path="/itinerary-builder" component={ItineraryBuilder} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/itinerary-builder/:bookingId" component={ItineraryBuilder} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/admin/visitors" component={VisitorsPage} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/admin/visitors/:id" component={VisitorDetailsPage} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/developer" component={DeveloperSettings} allowedRoles={["admin"]} />
         <Route path="/community" component={CommunityHub} />
         <Route path="/landing" component={Landing} />

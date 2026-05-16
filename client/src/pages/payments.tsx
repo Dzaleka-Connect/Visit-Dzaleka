@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/page-header";
 import { PageContainer } from "@/components/page-container";
@@ -6,11 +7,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Loader2, RefreshCw, Wallet, ArrowUpRight, ArrowDownLeft, CheckCircle2, XCircle, Clock, CreditCard, ExternalLink } from "lucide-react";
+import { Loader2, RefreshCw, Wallet, ArrowUpRight, ArrowDownLeft, CheckCircle2, XCircle, Clock, CreditCard, ExternalLink, Search, Download } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { Redirect } from "wouter";
+import { Input } from "@/components/ui/input";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 const ZERO_DECIMAL_CURRENCIES = new Set([
     "BIF",
@@ -106,6 +115,9 @@ interface Transaction {
 export default function PaymentsPage() {
     const { user } = useAuth();
     const queryClient = useQueryClient();
+    const [datePreset, setDatePreset] = useState("all");
+    const [statusFilter, setStatusFilter] = useState("all");
+    const [txSearch, setTxSearch] = useState("");
 
     // Redirect non-admins
     if (user && user.role !== "admin") {
@@ -120,7 +132,7 @@ export default function PaymentsPage() {
     // Fetch Payment Config
     const { data: config } = useQuery<PaymentConfig>({
         queryKey: ["/api/admin/payment-config"],
-        staleTime: 0, // Always fetch fresh data
+        staleTime: 0,
     });
 
     // Fetch Stripe Balance
@@ -130,12 +142,38 @@ export default function PaymentsPage() {
     }
     const { data: stripeBalance, isLoading: isLoadingBalance } = useQuery<StripeBalance>({
         queryKey: ["/api/admin/stripe/balance"],
-        refetchInterval: 60000, // Refresh every minute
+        refetchInterval: 60000,
     });
 
-    const totalRevenue = transactions?.reduce((sum, t) => sum + (t.status === 'paid' ? t.amount : 0), 0) || 0;
-    const totalFees = transactions?.reduce((sum, t) => sum + (t.paymentFees || 0), 0) || 0;
-    const netRevenue = transactions?.reduce((sum, t) => sum + (t.netAmount || (t.status === 'paid' ? t.amount : 0)), 0) || 0;
+    // Filtered transactions
+    const filteredTransactions = useMemo(() => {
+        if (!transactions) return [];
+        return transactions.filter(tx => {
+            // Date filter
+            if (datePreset !== "all") {
+                const days = parseInt(datePreset);
+                const cutoff = new Date();
+                cutoff.setDate(cutoff.getDate() - days);
+                if (new Date(tx.date) < cutoff) return false;
+            }
+            // Status filter
+            if (statusFilter !== "all" && tx.status !== statusFilter) return false;
+            // Search
+            if (txSearch) {
+                const q = txSearch.toLowerCase();
+                if (
+                    !tx.visitorName?.toLowerCase().includes(q) &&
+                    !tx.bookingReference?.toLowerCase().includes(q) &&
+                    !tx.reference?.toLowerCase().includes(q)
+                ) return false;
+            }
+            return true;
+        });
+    }, [transactions, datePreset, statusFilter, txSearch]);
+
+    const totalRevenue = filteredTransactions.reduce((sum, t) => sum + (t.status === 'paid' ? t.amount : 0), 0);
+    const totalFees = filteredTransactions.reduce((sum, t) => sum + (t.paymentFees || 0), 0);
+    const netRevenue = filteredTransactions.reduce((sum, t) => sum + (t.netAmount || (t.status === 'paid' ? t.amount : 0)), 0);
 
     if (isLoadingTransactions) {
         return (
@@ -269,14 +307,59 @@ export default function PaymentsPage() {
                 <TabsContent value="transactions" className="mt-6">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Transaction History</CardTitle>
-                            <CardDescription>Recent booking payments and transfers.</CardDescription>
+                            <div className="flex flex-col gap-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <CardTitle>Transaction History</CardTitle>
+                                        <CardDescription>
+                                            {filteredTransactions.length} of {transactions?.length || 0} transactions
+                                        </CardDescription>
+                                    </div>
+                                </div>
+                                {/* Filters */}
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
+                                    <div className="relative flex-1 sm:max-w-xs">
+                                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Search by name or reference\u2026"
+                                            value={txSearch}
+                                            onChange={(e) => setTxSearch(e.target.value)}
+                                            className="pl-9 h-9"
+                                        />
+                                    </div>
+                                    <div className="flex gap-1">
+                                        {(["7", "30", "90", "all"] as const).map(preset => (
+                                            <Button
+                                                key={preset}
+                                                variant={datePreset === preset ? "default" : "outline"}
+                                                size="sm"
+                                                className="h-9 text-xs"
+                                                onClick={() => setDatePreset(preset)}
+                                            >
+                                                {preset === "all" ? "All" : `${preset}d`}
+                                            </Button>
+                                        ))}
+                                    </div>
+                                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                                        <SelectTrigger className="w-32 h-9">
+                                            <SelectValue placeholder="Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Status</SelectItem>
+                                            <SelectItem value="paid">Paid</SelectItem>
+                                            <SelectItem value="pending">Pending</SelectItem>
+                                            <SelectItem value="failed">Failed</SelectItem>
+                                            <SelectItem value="refunded">Refunded</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
                         </CardHeader>
                         <CardContent>
-                            {!transactions || transactions.length === 0 ? (
+                            {!filteredTransactions || filteredTransactions.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
                                     <Clock className="h-10 w-10 mb-3 opacity-20" />
-                                    <p>No recent transactions found.</p>
+                                    <p>{transactions && transactions.length > 0 ? "No transactions match your filters." : "No recent transactions found."}</p>
                                 </div>
                             ) : (
                                 <div className="overflow-x-auto -mx-6 sm:mx-0">
@@ -295,7 +378,7 @@ export default function PaymentsPage() {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y">
-                                                    {transactions.map((tx) => (
+                                                    {filteredTransactions.map((tx) => (
                                                         <tr key={tx.id} className="hover:bg-muted/50 transition-colors">
                                                             <td className="p-2 sm:p-3 whitespace-nowrap text-xs sm:text-sm">{format(new Date(tx.date), "MMM d, yyyy")}</td>
                                                             <td className="p-2 sm:p-3 font-medium whitespace-nowrap text-xs sm:text-sm">{tx.visitorName}</td>

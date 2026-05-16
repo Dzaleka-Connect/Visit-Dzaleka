@@ -15,7 +15,6 @@ import {
     ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
     Popover,
     PopoverContent,
@@ -123,17 +122,19 @@ export function NotificationBell() {
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="relative overflow-visible"
+                    className="relative"
+                    style={{ overflow: 'visible' }}
                     data-testid="notification-bell"
                     aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
                 >
                     <Bell className="h-5 w-5" />
                     {unreadCount > 0 && (
-                        <Badge
-                            className="absolute -right-1 -top-1 h-5 min-w-[1.25rem] rounded-full px-1 flex items-center justify-center text-xs bg-red-500 text-white hover:bg-red-600 border-2 border-background shadow-sm"
+                        <span
+                            className="absolute top-0.5 right-0.5 flex items-center justify-center h-[18px] min-w-[18px] rounded-full bg-red-500 text-white text-[11px] font-semibold leading-none px-[5px] border border-background shadow-sm pointer-events-none"
+                            aria-hidden="true"
                         >
                             {unreadCount > 99 ? "99+" : unreadCount}
-                        </Badge>
+                        </span>
                     )}
                 </Button>
             </PopoverTrigger>

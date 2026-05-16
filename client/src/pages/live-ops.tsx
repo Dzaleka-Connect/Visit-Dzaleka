@@ -19,8 +19,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { queryClient } from "@/lib/queryClient";
 import { SEO } from "@/components/seo";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { formatDistanceToNow } from "date-fns";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -74,10 +75,17 @@ export default function LiveOperations() {
     const [checkOutBookingId, setCheckOutBookingId] = useState<string | null>(null);
     const [incidentBookingId, setIncidentBookingId] = useState<string | null>(null);
 
-    const { data: stats, isLoading, refetch } = useQuery<LiveStats>({
+    const { data: stats, isLoading, dataUpdatedAt, refetch } = useQuery<LiveStats>({
         queryKey: ["/api/live-ops/stats"],
         refetchInterval: 30000,
     });
+
+    // Track refresh time — re-render every 10s so the "last refreshed" text stays current
+    const [, setRefreshTick] = useState(0);
+    useEffect(() => {
+        const id = setInterval(() => setRefreshTick(t => t + 1), 10000);
+        return () => clearInterval(id);
+    }, []);
 
     // Fetch today's confirmed bookings that haven't started yet
     const { data: todaysTours } = useQuery<ActiveBooking[]>({
@@ -150,10 +158,17 @@ export default function LiveOperations() {
                         Real-time overview • Auto-refreshes every 30s
                     </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => refetch()} className="self-start sm:self-auto gap-2">
-                    <RefreshCw className="h-4 w-4" />
-                    Refresh
-                </Button>
+                <div className="flex items-center gap-3 self-start sm:self-auto">
+                    {dataUpdatedAt > 0 && (
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                            Updated {formatDistanceToNow(new Date(dataUpdatedAt), { addSuffix: true })}
+                        </span>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
+                        <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                        Refresh
+                    </Button>
+                </div>
             </div>
 
             {/* Key Metrics */}

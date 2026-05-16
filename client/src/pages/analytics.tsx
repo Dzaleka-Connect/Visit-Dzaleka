@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, subDays } from "date-fns";
 import {
     BarChart3,
     Monitor,
@@ -22,7 +22,7 @@ import {
     RefreshCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -120,6 +120,16 @@ const COLORS = [
 
 export default function Analytics() {
     const { user } = useAuth();
+    const [dateRange, setDateRange] = useState<"7d" | "30d" | "90d" | "all">("30d");
+
+    // Compute date params based on selected range
+    const dateParams = useMemo(() => {
+        if (dateRange === "all") return "";
+        const days = dateRange === "7d" ? 7 : dateRange === "30d" ? 30 : 90;
+        const start = subDays(new Date(), days).toISOString();
+        const end = new Date().toISOString();
+        return `?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`;
+    }, [dateRange]);
 
     const { data: liveData } = useQuery<{ count: number }>({
         queryKey: ["/api/analytics/live"],
@@ -127,13 +137,13 @@ export default function Analytics() {
     });
 
     const { data, isLoading, refetch: refetchPageviews } = useQuery<PageViewStats>({
-        queryKey: ["/api/analytics/pageviews"],
-        staleTime: 60 * 1000, // 1 minute
+        queryKey: [`/api/analytics/pageviews${dateParams}`],
+        staleTime: 60 * 1000,
     });
 
     const { data: bookingKpis, isLoading: kpisLoading, refetch: refetchKpis } = useQuery<BookingKPIs>({
-        queryKey: ["/api/analytics/booking-kpis"],
-        staleTime: 60 * 1000, // 1 minute
+        queryKey: [`/api/analytics/booking-kpis${dateParams}`],
+        staleTime: 60 * 1000,
     });
 
     const handleRefresh = () => {
@@ -196,10 +206,22 @@ export default function Analytics() {
                 title="Website Analytics"
                 description="Track page views, visitor behavior, and conversion metrics."
             >
-                <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading || kpisLoading}>
-                    <RefreshCcw className={`mr-2 h-4 w-4 ${(isLoading || kpisLoading) ? 'animate-spin' : ''}`} />
-                    Refresh
-                </Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                    {(["7d", "30d", "90d", "all"] as const).map((range) => (
+                        <Button
+                            key={range}
+                            variant={dateRange === range ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setDateRange(range)}
+                        >
+                            {range === "all" ? "All" : range}
+                        </Button>
+                    ))}
+                    <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading || kpisLoading}>
+                        <RefreshCcw className={`mr-2 h-4 w-4 ${(isLoading || kpisLoading) ? 'animate-spin' : ''}`} />
+                        Refresh
+                    </Button>
+                </div>
             </PageHeader>
 
             {/* Summary Cards */}

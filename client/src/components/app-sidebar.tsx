@@ -273,6 +273,12 @@ const operationsItems: NavItem[] = [
     roles: ["admin", "coordinator", "security"],
   },
   {
+    title: "System Health",
+    url: "/admin/system-health",
+    icon: Activity,
+    roles: ["admin"],
+  },
+  {
     title: "GetYourGuide",
     url: "/getyourguide",
     icon: Globe,
@@ -376,6 +382,18 @@ const adminItems: NavItem[] = [
     url: "/customers",
     icon: Users,
     roles: ["admin", "coordinator"],
+  },
+  {
+    title: "Webhooks",
+    url: "/admin/webhooks",
+    icon: Globe,
+    roles: ["admin"],
+  },
+  {
+    title: "Scheduled Reports",
+    url: "/admin/scheduled-reports",
+    icon: Calendar,
+    roles: ["admin"],
   },
   {
     title: "My Profile",

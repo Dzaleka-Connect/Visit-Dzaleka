@@ -1489,6 +1489,25 @@ export async function sendCustomEmail(data: CustomEmailData): Promise<boolean> {
   return result.success;
 }
 
+interface SystemHtmlEmailData {
+  recipientEmail: string;
+  subject: string;
+  html: string;
+}
+
+export async function sendSystemHtmlEmailDetailed(data: SystemHtmlEmailData): Promise<EmailSendResult> {
+  const resendClient = getResendClient();
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
+
+  return sendEmailWithRetry({
+    from: resendClient.fromEmail,
+    replyTo: resendClient.replyTo,
+    to: data.recipientEmail,
+    subject: data.subject,
+    html: data.html
+  });
+}
+
 // Send password reset email
 export async function sendPasswordResetDetailed(data: PasswordResetData): Promise<EmailSendResult> {
   const resendClient = getResendClient();

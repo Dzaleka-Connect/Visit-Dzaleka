@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
@@ -19,6 +19,7 @@ import {
     AlertTriangle,
     Send,
     MailOpen,
+    Search,
 } from "lucide-react";
 import {
     Card,
@@ -138,6 +139,7 @@ export default function SecurityAdmin() {
 
     // Login History Filter
     const [historyFilter, setHistoryFilter] = useState<"all" | "success" | "failed">("all");
+    const [loginSearch, setLoginSearch] = useState("");
 
     // Email Filter
     const [emailFilter, setEmailFilter] = useState<"all" | "sent" | "failed">("all");
@@ -245,15 +247,27 @@ export default function SecurityAdmin() {
     });
 
     // Filter login history
-    const filteredHistory = loginHistory?.filter(entry => {
-        if (historyFilter === "success") return entry.success;
-        if (historyFilter === "failed") return !entry.success;
-        return true;
-    });
+    const filteredHistory = useMemo(() => {
+        if (!loginHistory) return [];
+        return loginHistory.filter(entry => {
+            if (historyFilter === "success" && !entry.success) return false;
+            if (historyFilter === "failed" && entry.success) return false;
+            if (loginSearch) {
+                const q = loginSearch.toLowerCase();
+                if (
+                    !entry.email?.toLowerCase().includes(q) &&
+                    !entry.ipAddress?.toLowerCase().includes(q) &&
+                    !entry.browser?.toLowerCase().includes(q) &&
+                    !entry.os?.toLowerCase().includes(q)
+                ) return false;
+            }
+            return true;
+        });
+    }, [loginHistory, historyFilter, loginSearch]);
 
     // Filter email logs
     const filteredEmails = emailLogs?.filter(entry => {
-        if (emailFilter === "sent") return entry.status === "sent";
+        if (emailFilter === "sent") return entry.status === "sent" || entry.status === "accepted";
         if (emailFilter === "failed") return entry.status === "failed";
         return true;
     });
@@ -444,37 +458,48 @@ export default function SecurityAdmin() {
                 {/* Login History Tab */}
                 <TabsContent value="login-history" className="space-y-4">
                     <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <div>
-                                <CardTitle>Login History</CardTitle>
-                                <CardDescription>
-                                    View all login attempts with detailed information
-                                </CardDescription>
+                        <CardHeader className="flex flex-col gap-4">
+                            <div className="flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle>Login History</CardTitle>
+                                    <CardDescription>
+                                        View all login attempts with detailed information
+                                    </CardDescription>
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant={historyFilter === "all" ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => setHistoryFilter("all")}
+                                    >
+                                        All
+                                    </Button>
+                                    <Button
+                                        variant={historyFilter === "success" ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => setHistoryFilter("success")}
+                                    >
+                                        <CheckCircle className="mr-1 h-3 w-3" />
+                                        Success
+                                    </Button>
+                                    <Button
+                                        variant={historyFilter === "failed" ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => setHistoryFilter("failed")}
+                                    >
+                                        <XCircle className="mr-1 h-3 w-3" />
+                                        Failed
+                                    </Button>
+                                </div>
                             </div>
-                            <div className="flex gap-2">
-                                <Button
-                                    variant={historyFilter === "all" ? "default" : "outline"}
-                                    size="sm"
-                                    onClick={() => setHistoryFilter("all")}
-                                >
-                                    All
-                                </Button>
-                                <Button
-                                    variant={historyFilter === "success" ? "default" : "outline"}
-                                    size="sm"
-                                    onClick={() => setHistoryFilter("success")}
-                                >
-                                    <CheckCircle className="mr-1 h-3 w-3" />
-                                    Success
-                                </Button>
-                                <Button
-                                    variant={historyFilter === "failed" ? "default" : "outline"}
-                                    size="sm"
-                                    onClick={() => setHistoryFilter("failed")}
-                                >
-                                    <XCircle className="mr-1 h-3 w-3" />
-                                    Failed
-                                </Button>
+                            <div className="relative sm:max-w-xs">
+                                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                    placeholder="Search by email, IP, browser\u2026"
+                                    value={loginSearch}
+                                    onChange={(e) => setLoginSearch(e.target.value)}
+                                    className="pl-9 h-9"
+                                />
                             </div>
                         </CardHeader>
                         <CardContent>
@@ -604,7 +629,7 @@ export default function SecurityAdmin() {
                                         {filteredEmails?.map((email) => (
                                             <TableRow key={email.id}>
                                                 <TableCell>
-                                                    {email.status === "sent" ? (
+                                                    {email.status === "sent" || email.status === "accepted" ? (
                                                         <Badge variant="default" className="bg-green-500">
                                                             <CheckCircle className="mr-1 h-3 w-3" />
                                                             Sent

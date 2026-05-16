@@ -189,7 +189,7 @@ function calculateWorkloadScore(
 
     // Count bookings assigned to this guide in the week
     const weekBookings = allBookings.filter(b =>
-        b.assignedGuideId === guide.id &&
+        (b.assignedGuideId === guide.id || (!!guide.userId && b.assignedGuideId === guide.userId)) &&
         b.visitDate >= weekStartStr &&
         b.visitDate <= weekEndStr &&
         b.status !== "cancelled"

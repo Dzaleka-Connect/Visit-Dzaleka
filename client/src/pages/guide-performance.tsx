@@ -5,7 +5,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } f
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
     Select,
     SelectContent,
@@ -15,14 +15,16 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TrendingUp, TrendingDown, Calendar, DollarSign, Users, Star, CheckCircle, Clock, Loader2, GitCompare, ArrowUp, ArrowDown, Minus, Wallet } from "lucide-react";
-import { formatCurrency } from "@/lib/constants";
+import { Calendar, DollarSign, Users, Star, CheckCircle, Clock, Loader2, GitCompare, Wallet, UserCheck, Eye, FileText, AlertTriangle, Receipt, Save, Pencil, XCircle, Globe2, CalendarDays, type LucideIcon } from "lucide-react";
+import { formatCurrency, formatDate, formatTime } from "@/lib/constants";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { Guide, Booking } from "@shared/schema";
+import type { Guide, Booking, GuideAvailability, GuidePayout, GuideTourReport } from "@shared/schema";
 import { SEO } from "@/components/seo";
 import { queryClient } from "@/lib/queryClient";
 
@@ -35,7 +37,10 @@ interface GuideEarnings {
 interface GuideWithStats extends Guide {
     totalEarnings: number;
     totalTours: number;
+    completedTours: number;
+    cancelledTours: number;
     completionRate: number;
+    cancellationRate: number;
 }
 
 // Generate months for the chart
@@ -74,11 +79,67 @@ interface GuideCompareData {
     monthlyTrends: { month: string; tours: number; earnings: number }[];
 }
 
+interface GuidePerformanceDetail {
+    guide: Guide;
+    stats: {
+        totalTours: number;
+        completedTours: number;
+        cancelledTours: number;
+        upcomingTours: number;
+        completionRate: number;
+        cancellationRate: number;
+        totalRevenue: number;
+        totalEarnings: number;
+        payableEarnings: number;
+        pendingPaymentEarnings: number;
+        paidPayoutAmount: number;
+        pendingPayoutAmount: number;
+        outstandingAmount: number;
+        averageVisitorRating: number | null;
+        totalRatings: number;
+        reportsSubmitted: number;
+        reportsPendingReview: number;
+        followUpsNeeded: number;
+        bookingsWithCountry: number;
+    };
+    visitorCountries: { country: string; count: number; percentage: number }[];
+    upcomingBookings: Booking[];
+    recentBookings: Booking[];
+    payouts: GuidePayout[];
+    reports: Array<GuideTourReport & {
+        booking?: {
+            id: string;
+            bookingReference: string | null;
+            visitorName: string;
+            visitDate: string;
+            status: string | null;
+        } | null;
+    }>;
+    availability: GuideAvailability[];
+}
+
+const getGuideEarnings = (booking: Pick<Booking, "guidePayment" | "totalAmount">) => {
+    const guidePayment = Number(booking.guidePayment || 0);
+    return guidePayment > 0 ? guidePayment : Number(booking.totalAmount || 0);
+};
+
+const yearOptions = Array.from({ length: 6 }, (_, index) => String(new Date().getFullYear() - index));
+
+const formatStatusLabel = (status: string | null | undefined) =>
+    String(status || "unknown").replace(/_/g, " ");
+
+const formatList = (items: string[] | null | undefined, fallback = "Not set") =>
+    items && items.length > 0 ? items.join(", ") : fallback;
+
 export default function GuidePerformance() {
+    const [activeTab, setActiveTab] = useState("earnings");
     const [selectedGuideId, setSelectedGuideId] = useState<string>("");
+    const [selectedDetailGuideId, setSelectedDetailGuideId] = useState<string>("");
     const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
     const [selectedGuidesToCompare, setSelectedGuidesToCompare] = useState<string[]>([]);
+    const [editingBookingId, setEditingBookingId] = useState("");
+    const [guidePaymentDraft, setGuidePaymentDraft] = useState("");
 
     const { data: guides, isLoading: guidesLoading } = useQuery<Guide[]>({
         queryKey: ["/api/guides"],
@@ -88,67 +149,138 @@ export default function GuidePerformance() {
         queryKey: ["/api/bookings"],
     });
 
+    const { data: guideDetail, isLoading: detailLoading } = useQuery<GuidePerformanceDetail>({
+        queryKey: ["/api/guides", selectedDetailGuideId, "performance-detail"],
+        queryFn: async () => {
+            const res = await fetch(`/api/guides/${selectedDetailGuideId}/performance-detail`, {
+                credentials: "include",
+            });
+            if (!res.ok) throw new Error("Failed to fetch guide performance detail");
+            return res.json();
+        },
+        enabled: Boolean(selectedDetailGuideId),
+    });
+
     const isLoading = guidesLoading || bookingsLoading;
 
     // Calculate guide statistics
     const guideStats: GuideWithStats[] = (guides || []).map(guide => {
-        const guideBookings = (bookings || []).filter(b => b.assignedGuideId === guide.id);
+        const guideBookings = (bookings || []).filter(b => b.assignedGuideId === guide.id || (!!guide.userId && b.assignedGuideId === guide.userId));
+        const countedTours = guideBookings.filter(b => b.status !== "cancelled");
         const completedTours = guideBookings.filter(b => b.status === "completed");
-        const totalEarnings = completedTours.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
-        const completionRate = guideBookings.length > 0
-            ? Math.round((completedTours.length / guideBookings.length) * 100)
+        const cancelledTours = guideBookings.filter(b => b.status === "cancelled" || b.status === "no_show");
+        const totalEarnings = completedTours.reduce((sum, b) => sum + getGuideEarnings(b), 0);
+        const completionRate = countedTours.length > 0
+            ? Math.round((completedTours.length / countedTours.length) * 100)
+            : 0;
+        const cancellationRate = guideBookings.length > 0
+            ? Math.round((cancelledTours.length / guideBookings.length) * 100)
             : 0;
 
         return {
             ...guide,
             totalEarnings,
-            totalTours: guideBookings.length,
+            totalTours: countedTours.length,
+            completedTours: completedTours.length,
+            cancelledTours: cancelledTours.length,
             completionRate,
+            cancellationRate,
         };
     }).sort((a, b) => b.totalEarnings - a.totalEarnings);
 
     // Payout State
     const [isPayoutOpen, setIsPayoutOpen] = useState(false);
     const [payoutAmount, setPayoutAmount] = useState("");
-    const [payoutPhone, setPayoutPhone] = useState("");
-    const [payoutOperator, setPayoutOperator] = useState("Airtel");
+    const [payoutToursCount, setPayoutToursCount] = useState("");
+    const [payoutStatus, setPayoutStatus] = useState("pending");
+    const [payoutMethod, setPayoutMethod] = useState("cash");
+    const [payoutReference, setPayoutReference] = useState("");
+    const [payoutNotes, setPayoutNotes] = useState("");
     const { toast } = useToast();
 
-    // Payout Mutation
-    const { mutate: initiatePayout, isPending: isPayoutPending } = useMutation({
-        mutationFn: async (data: any) => {
-            const res = await apiRequest("POST", "/api/paychangu/payouts", data);
-            return res.json();
+    const { mutate: recordPayout, isPending: isPayoutPending } = useMutation({
+        mutationFn: async () => {
+            if (!selectedDetailGuideId) throw new Error("Select a guide first");
+            return apiRequest("POST", "/api/payouts", {
+                guideId: selectedDetailGuideId,
+                amount: Number(payoutAmount),
+                toursCount: Number(payoutToursCount || 0),
+                status: payoutStatus,
+                paymentMethod: payoutMethod,
+                paymentReference: payoutReference.trim() || null,
+                notes: payoutNotes.trim() || null,
+                paidAt: payoutStatus === "paid" ? new Date().toISOString() : null,
+            });
         },
         onSuccess: () => {
             setIsPayoutOpen(false);
             setPayoutAmount("");
+            setPayoutToursCount("");
+            setPayoutReference("");
+            setPayoutNotes("");
+            queryClient.invalidateQueries({ queryKey: ["/api/payouts"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/payouts/summary"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/guides", selectedDetailGuideId, "performance-detail"] });
             toast({
-                title: "Payout Initiated",
-                description: "The mobile money payout has been successfully initiated.",
+                title: "Payout recorded",
+                description: "The guide payout record has been saved.",
             });
         },
         onError: (error: any) => {
             toast({
-                title: "Payout Failed",
-                description: error.message || "Failed to initiate payout",
+                title: "Failed to record payout",
+                description: error.message || "Please check the amount and try again.",
                 variant: "destructive",
             });
         }
     });
 
-    const handlePayoutOpen = () => {
-        if (selectedGuide) {
-            setPayoutPhone(selectedGuide.phone || "");
-            setPayoutAmount(""); // Let them enter amount
+    const updateGuidePaymentMutation = useMutation({
+        mutationFn: async ({ bookingId, guidePayment }: { bookingId: string; guidePayment: number }) => {
+            const res = await apiRequest("PATCH", `/api/bookings/${bookingId}/guide-payment`, { guidePayment });
+            return res.json();
+        },
+        onSuccess: () => {
+            setEditingBookingId("");
+            setGuidePaymentDraft("");
+            queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/guides", selectedDetailGuideId, "performance-detail"] });
+            toast({ title: "Guide earnings updated" });
+        },
+        onError: (error: any) => {
+            toast({
+                title: "Could not update guide earnings",
+                description: error.message || "Please try again.",
+                variant: "destructive",
+            });
+        },
+    });
+
+    const handlePayoutOpen = (guideId?: string) => {
+        const nextGuideId = guideId || selectedDetailGuideId || selectedGuideId;
+        if (nextGuideId) {
+            setSelectedDetailGuideId(nextGuideId);
+            const detailMatches = guideDetail?.guide.id === nextGuideId;
+            const fallbackGuide = guideStats.find(g => g.id === nextGuideId);
+            const suggestedAmount = detailMatches
+                ? guideDetail?.stats.outstandingAmount || guideDetail?.stats.totalEarnings || 0
+                : fallbackGuide?.totalEarnings || 0;
+
+            setPayoutAmount(suggestedAmount > 0 ? String(suggestedAmount) : "");
+            setPayoutToursCount(detailMatches ? String(guideDetail?.stats.completedTours || 0) : String(fallbackGuide?.completedTours || 0));
+            setPayoutStatus("pending");
+            setPayoutMethod("cash");
+            setPayoutReference("");
+            setPayoutNotes("");
             setIsPayoutOpen(true);
         }
     };
 
     // Calculate monthly earnings for selected guide
     const getMonthlyEarnings = (guideId: string): GuideEarnings[] => {
+        const guide = guideStats.find(g => g.id === guideId);
         const guideBookings = (bookings || []).filter(
-            b => b.assignedGuideId === guideId && b.status === "completed"
+            b => (b.assignedGuideId === guideId || (!!guide?.userId && b.assignedGuideId === guide.userId)) && b.status === "completed"
         );
 
         return MONTHS.map((month, index) => {
@@ -160,7 +292,7 @@ export default function GuidePerformance() {
 
             return {
                 month,
-                earnings: monthBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0),
+                earnings: monthBookings.reduce((sum, b) => sum + getGuideEarnings(b), 0),
                 tours: monthBookings.length,
             };
         });
@@ -219,12 +351,16 @@ export default function GuidePerformance() {
                 </p>
             </div>
 
-            <Tabs defaultValue="earnings" className="space-y-6">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                 <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
                     <TabsList className="w-max sm:w-auto">
                         <TabsTrigger value="earnings">
                             <DollarSign className="mr-2 h-4 w-4" />
                             Earnings
+                        </TabsTrigger>
+                        <TabsTrigger value="detail">
+                            <UserCheck className="mr-2 h-4 w-4" />
+                            Guide Detail
                         </TabsTrigger>
                         <TabsTrigger value="compare">
                             <GitCompare className="mr-2 h-4 w-4" />
@@ -232,7 +368,7 @@ export default function GuidePerformance() {
                         </TabsTrigger>
                         <TabsTrigger value="calendar">
                             <Calendar className="mr-2 h-4 w-4" />
-                            Availability Calendar
+                            Schedule Calendar
                         </TabsTrigger>
                     </TabsList>
                 </div>
@@ -253,26 +389,26 @@ export default function GuidePerformance() {
                         </Card>
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-sm font-medium">Total Earnings</CardTitle>
+                                <CardTitle className="text-sm font-medium">Guide Earnings</CardTitle>
                                 <DollarSign className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
                                 <div className="text-2xl font-bold">
                                     {formatCurrency(guideStats.reduce((sum, g) => sum + g.totalEarnings, 0))}
                                 </div>
-                                <p className="text-xs text-muted-foreground">All time revenue</p>
+                                <p className="text-xs text-muted-foreground">Completed tour guide pay</p>
                             </CardContent>
                         </Card>
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-sm font-medium">Total Tours</CardTitle>
+                                <CardTitle className="text-sm font-medium">Completed Tours</CardTitle>
                                 <CheckCircle className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
                                 <div className="text-2xl font-bold">
-                                    {guideStats.reduce((sum, g) => sum + g.totalTours, 0)}
+                                    {guideStats.reduce((sum, g) => sum + g.completedTours, 0)}
                                 </div>
-                                <p className="text-xs text-muted-foreground">Completed tours</p>
+                                <p className="text-xs text-muted-foreground">Across active guides</p>
                             </CardContent>
                         </Card>
                         <Card>
@@ -299,28 +435,44 @@ export default function GuidePerformance() {
                         <CardContent>
                             <div className="space-y-4">
                                 {guideStats.filter(g => g.isActive).slice(0, 5).map((guide, index) => (
-                                    <div key={guide.id} className="flex items-center gap-4">
+                                    <div key={guide.id} className="flex flex-wrap items-center gap-4">
                                         <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted font-bold text-sm">
                                             {index + 1}
                                         </div>
                                         <Avatar className="h-10 w-10">
+                                            {guide.profileImageUrl && (
+                                                <AvatarImage src={guide.profileImageUrl} alt={`${guide.firstName} ${guide.lastName}`} />
+                                            )}
                                             <AvatarFallback className="bg-primary/10 text-primary">
                                                 {guide.firstName[0]}{guide.lastName[0]}
                                             </AvatarFallback>
                                         </Avatar>
-                                        <div className="flex-1">
-                                            <div className="font-medium">{guide.firstName} {guide.lastName}</div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="break-words font-medium">{guide.firstName} {guide.lastName}</div>
                                             <div className="text-sm text-muted-foreground">
-                                                {guide.totalTours} tours · {guide.completionRate}% completion
+                                                {guide.completedTours}/{guide.totalTours} completed · {guide.completionRate}% completion
                                             </div>
                                         </div>
-                                        <div className="text-right">
+                                        <div className="shrink-0 text-right">
                                             <div className="font-bold text-green-600">{formatCurrency(guide.totalEarnings)}</div>
                                             <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                                 <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
                                                 {(guide.rating || 0).toFixed(1)}
                                             </div>
                                         </div>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="shrink-0 gap-2"
+                                            onClick={() => {
+                                                setSelectedDetailGuideId(guide.id);
+                                                setSelectedGuideId(guide.id);
+                                                setActiveTab("detail");
+                                            }}
+                                        >
+                                            <Eye className="h-4 w-4" aria-hidden="true" />
+                                            Details
+                                        </Button>
                                     </div>
                                 ))}
                             </div>
@@ -336,7 +488,13 @@ export default function GuidePerformance() {
                                     <CardDescription>Select a guide to view their earnings trend</CardDescription>
                                 </div>
                                 <div className="flex gap-2">
-                                    <Select value={selectedGuideId} onValueChange={setSelectedGuideId}>
+                                    <Select
+                                        value={selectedGuideId}
+                                        onValueChange={(value) => {
+                                            setSelectedGuideId(value);
+                                            setSelectedDetailGuideId(value);
+                                        }}
+                                    >
                                         <SelectTrigger className="w-48">
                                             <SelectValue placeholder="Select guide" />
                                         </SelectTrigger>
@@ -353,8 +511,9 @@ export default function GuidePerformance() {
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="2024">2024</SelectItem>
-                                            <SelectItem value="2025">2025</SelectItem>
+                                            {yearOptions.map(year => (
+                                                <SelectItem key={year} value={year}>{year}</SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -408,16 +567,93 @@ export default function GuidePerformance() {
                                         <div className="text-2xl font-bold">{selectedGuide.completionRate}%</div>
                                         <div className="text-sm text-muted-foreground">Completion Rate</div>
                                     </div>
-                                    <div className="col-span-1 sm:col-span-3 flex justify-center mt-4 pt-4 border-t">
-                                        <Button size="sm" className="gap-2" onClick={handlePayoutOpen}>
+                                    <div className="col-span-1 sm:col-span-3 flex flex-wrap justify-center gap-2 mt-4 pt-4 border-t">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="gap-2"
+                                            onClick={() => {
+                                                setSelectedDetailGuideId(selectedGuide.id);
+                                                setActiveTab("detail");
+                                            }}
+                                        >
+                                            <UserCheck className="h-4 w-4" />
+                                            Open Detail
+                                        </Button>
+                                        <Button size="sm" className="gap-2" onClick={() => handlePayoutOpen(selectedGuide.id)}>
                                             <Wallet className="h-4 w-4" />
-                                            Pay Guide
+                                            Record Payout
                                         </Button>
                                     </div>
                                 </div>
                             )}
                         </CardContent>
                     </Card>
+                </TabsContent>
+
+                {/* Guide Detail Tab */}
+                <TabsContent value="detail" className="space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                <div>
+                                    <CardTitle>Guide Admin Detail</CardTitle>
+                                    <CardDescription>Profile, earnings, payouts, reports, availability, and recent tour history.</CardDescription>
+                                </div>
+                                <Select
+                                    value={selectedDetailGuideId}
+                                    onValueChange={(value) => {
+                                        setSelectedDetailGuideId(value);
+                                        setSelectedGuideId(value);
+                                    }}
+                                >
+                                    <SelectTrigger className="w-full lg:w-64">
+                                        <SelectValue placeholder="Select guide" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {guideStats.filter(g => g.isActive).map(guide => (
+                                            <SelectItem key={guide.id} value={guide.id}>
+                                                {guide.firstName} {guide.lastName}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </CardHeader>
+                    </Card>
+
+                    {selectedDetailGuideId ? (
+                        <GuideDetailPanel
+                            detail={guideDetail}
+                            isLoading={detailLoading}
+                            editingBookingId={editingBookingId}
+                            guidePaymentDraft={guidePaymentDraft}
+                            isSavingGuidePayment={updateGuidePaymentMutation.isPending}
+                            onOpenPayout={() => handlePayoutOpen(selectedDetailGuideId)}
+                            onStartEditPayment={(booking) => {
+                                setEditingBookingId(booking.id);
+                                setGuidePaymentDraft(String(getGuideEarnings(booking)));
+                            }}
+                            onCancelEditPayment={() => {
+                                setEditingBookingId("");
+                                setGuidePaymentDraft("");
+                            }}
+                            onGuidePaymentDraftChange={setGuidePaymentDraft}
+                            onSaveGuidePayment={(bookingId) => {
+                                updateGuidePaymentMutation.mutate({
+                                    bookingId,
+                                    guidePayment: Number(guidePaymentDraft || 0),
+                                });
+                            }}
+                        />
+                    ) : (
+                        <Card>
+                            <CardContent className="flex flex-col items-center justify-center gap-3 py-12 text-center text-muted-foreground">
+                                <UserCheck className="h-12 w-12 opacity-50" aria-hidden="true" />
+                                <p>Select a guide to view their full admin record.</p>
+                            </CardContent>
+                        </Card>
+                    )}
                 </TabsContent>
 
                 {/* Compare Guides Tab */}
@@ -434,11 +670,23 @@ export default function GuidePerformance() {
                                 {guideStats.filter(g => g.isActive).map(guide => (
                                     <div
                                         key={guide.id}
+                                        role="checkbox"
+                                        aria-checked={selectedGuidesToCompare.includes(guide.id)}
+                                        tabIndex={0}
                                         className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${selectedGuidesToCompare.includes(guide.id)
                                             ? "border-primary bg-primary/5"
                                             : "border-muted hover:border-primary/50"
                                             }`}
                                         onClick={() => {
+                                            if (selectedGuidesToCompare.includes(guide.id)) {
+                                                setSelectedGuidesToCompare(prev => prev.filter(id => id !== guide.id));
+                                            } else if (selectedGuidesToCompare.length < 4) {
+                                                setSelectedGuidesToCompare(prev => [...prev, guide.id]);
+                                            }
+                                        }}
+                                        onKeyDown={(event) => {
+                                            if (event.key !== "Enter" && event.key !== " ") return;
+                                            event.preventDefault();
                                             if (selectedGuidesToCompare.includes(guide.id)) {
                                                 setSelectedGuidesToCompare(prev => prev.filter(id => id !== guide.id));
                                             } else if (selectedGuidesToCompare.length < 4) {
@@ -451,6 +699,9 @@ export default function GuidePerformance() {
                                             disabled={!selectedGuidesToCompare.includes(guide.id) && selectedGuidesToCompare.length >= 4}
                                         />
                                         <Avatar className="h-8 w-8">
+                                            {guide.profileImageUrl && (
+                                                <AvatarImage src={guide.profileImageUrl} alt={`${guide.firstName} ${guide.lastName}`} />
+                                            )}
                                             <AvatarFallback className="bg-primary/10 text-primary text-xs">
                                                 {guide.firstName[0]}{guide.lastName[0]}
                                             </AvatarFallback>
@@ -477,12 +728,12 @@ export default function GuidePerformance() {
                 <TabsContent value="calendar" className="space-y-6">
                     <Card>
                         <CardHeader>
-                            <div className="flex items-center justify-between">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                                 <div>
-                                    <CardTitle>Guide Availability Calendar</CardTitle>
-                                    <CardDescription>View scheduled tours and guide availability</CardDescription>
+                                    <CardTitle>Guide Schedule Calendar</CardTitle>
+                                    <CardDescription>View scheduled tours by day.</CardDescription>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
                                     <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
                                         <SelectTrigger className="w-32">
                                             <SelectValue />
@@ -498,8 +749,9 @@ export default function GuidePerformance() {
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="2024">2024</SelectItem>
-                                            <SelectItem value="2025">2025</SelectItem>
+                                            {yearOptions.map(year => (
+                                                <SelectItem key={year} value={year}>{year}</SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -551,7 +803,7 @@ export default function GuidePerformance() {
                             <div className="mt-4 flex items-center gap-4 text-sm">
                                 <div className="flex items-center gap-2">
                                     <div className="w-4 h-4 rounded bg-muted/30 border" />
-                                    <span className="text-muted-foreground">Available</span>
+                                    <span className="text-muted-foreground">No scheduled tours</span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <div className="w-4 h-4 rounded bg-green-50 dark:bg-green-950/20 border border-green-200" />
@@ -575,20 +827,23 @@ export default function GuidePerformance() {
                             <div className="space-y-4">
                                 {guideStats.filter(g => g.isActive).map(guide => {
                                     const monthTours = (bookings || []).filter(b => {
-                                        if (!b.visitDate || b.assignedGuideId !== guide.id) return false;
+                                        if (!b.visitDate || (b.assignedGuideId !== guide.id && (!guide.userId || b.assignedGuideId !== guide.userId))) return false;
                                         const date = new Date(b.visitDate);
                                         return date.getMonth() === selectedMonth && date.getFullYear() === selectedYear;
                                     });
 
                                     return (
-                                        <div key={guide.id} className="flex items-center gap-4">
+                                        <div key={guide.id} className="flex flex-wrap items-center gap-4">
                                             <Avatar className="h-10 w-10">
+                                                {guide.profileImageUrl && (
+                                                    <AvatarImage src={guide.profileImageUrl} alt={`${guide.firstName} ${guide.lastName}`} />
+                                                )}
                                                 <AvatarFallback className="bg-primary/10 text-primary">
                                                     {guide.firstName[0]}{guide.lastName[0]}
                                                 </AvatarFallback>
                                             </Avatar>
-                                            <div className="flex-1">
-                                                <div className="font-medium">{guide.firstName} {guide.lastName}</div>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="break-words font-medium">{guide.firstName} {guide.lastName}</div>
                                                 <div className="text-sm text-muted-foreground">
                                                     {monthTours.length} tour{monthTours.length !== 1 ? "s" : ""} scheduled
                                                 </div>
@@ -597,7 +852,7 @@ export default function GuidePerformance() {
                                                 {monthTours.length === 0 ? (
                                                     <Badge variant="outline" className="text-green-600 border-green-200">
                                                         <Clock className="mr-1 h-3 w-3" />
-                                                        Available
+                                                        No tours
                                                     </Badge>
                                                 ) : (
                                                     <Badge variant="secondary">
@@ -613,6 +868,490 @@ export default function GuidePerformance() {
                     </Card>
                 </TabsContent>
             </Tabs>
+
+            <Dialog open={isPayoutOpen} onOpenChange={setIsPayoutOpen}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Record Guide Payout</DialogTitle>
+                        <DialogDescription>
+                            Save a payout record after confirming the amount with the guide.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-2">
+                        <div className="grid gap-2">
+                            <Label htmlFor="guide-payout-amount">Amount</Label>
+                            <Input
+                                id="guide-payout-amount"
+                                name="amount"
+                                type="number"
+                                min="0"
+                                inputMode="numeric"
+                                value={payoutAmount}
+                                onChange={(event) => setPayoutAmount(event.target.value)}
+                                placeholder="Amount in MWK…"
+                            />
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                            <div className="grid gap-2">
+                                <Label htmlFor="guide-payout-tours">Tours covered</Label>
+                                <Input
+                                    id="guide-payout-tours"
+                                    name="toursCount"
+                                    type="number"
+                                    min="0"
+                                    inputMode="numeric"
+                                    value={payoutToursCount}
+                                    onChange={(event) => setPayoutToursCount(event.target.value)}
+                                    placeholder="0…"
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label>Status</Label>
+                                <Select value={payoutStatus} onValueChange={setPayoutStatus}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="pending">Pending</SelectItem>
+                                        <SelectItem value="paid">Paid</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                            <div className="grid gap-2">
+                                <Label>Payment method</Label>
+                                <Select value={payoutMethod} onValueChange={setPayoutMethod}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="cash">Cash</SelectItem>
+                                        <SelectItem value="airtel_money">Airtel Money</SelectItem>
+                                        <SelectItem value="tnm_mpamba">TNM Mpamba</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="guide-payout-reference">Reference</Label>
+                                <Input
+                                    id="guide-payout-reference"
+                                    name="paymentReference"
+                                    value={payoutReference}
+                                    onChange={(event) => setPayoutReference(event.target.value)}
+                                    placeholder="Receipt or transaction ID…"
+                                />
+                            </div>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="guide-payout-notes">Notes</Label>
+                            <Textarea
+                                id="guide-payout-notes"
+                                name="notes"
+                                value={payoutNotes}
+                                onChange={(event) => setPayoutNotes(event.target.value)}
+                                placeholder="Internal payout notes…"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <Button type="button" variant="outline" onClick={() => setIsPayoutOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={() => recordPayout()}
+                            disabled={isPayoutPending || !Number(payoutAmount)}
+                        >
+                            {isPayoutPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+                            Record payout
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+}
+
+interface GuideDetailPanelProps {
+    detail?: GuidePerformanceDetail;
+    isLoading: boolean;
+    editingBookingId: string;
+    guidePaymentDraft: string;
+    isSavingGuidePayment: boolean;
+    onOpenPayout: () => void;
+    onStartEditPayment: (booking: Booking) => void;
+    onCancelEditPayment: () => void;
+    onGuidePaymentDraftChange: (value: string) => void;
+    onSaveGuidePayment: (bookingId: string) => void;
+}
+
+function GuideDetailPanel({
+    detail,
+    isLoading,
+    editingBookingId,
+    guidePaymentDraft,
+    isSavingGuidePayment,
+    onOpenPayout,
+    onStartEditPayment,
+    onCancelEditPayment,
+    onGuidePaymentDraftChange,
+    onSaveGuidePayment,
+}: GuideDetailPanelProps) {
+    if (isLoading) {
+        return (
+            <Card>
+                <CardContent className="flex items-center justify-center py-16">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </CardContent>
+            </Card>
+        );
+    }
+
+    if (!detail) {
+        return (
+            <Card>
+                <CardContent className="flex items-center justify-center py-12 text-muted-foreground">
+                    Guide details are not available.
+                </CardContent>
+            </Card>
+        );
+    }
+
+    const { guide, stats } = detail;
+    const guideName = `${guide.firstName} ${guide.lastName}`;
+    const workingHours = (guide.workingHours || {}) as { start?: string; end?: string };
+    const weeklyAvailability = (guide.availability || {}) as Record<string, boolean>;
+    const selfManagedDays = Object.entries(weeklyAvailability)
+        .filter(([, isAvailable]) => Boolean(isAvailable))
+        .map(([day]) => day.charAt(0).toUpperCase() + day.slice(1));
+    const recentReports = detail.reports.slice(0, 5);
+    const recentPayouts = detail.payouts.slice(0, 5);
+    const recentBookings = detail.recentBookings.slice(0, 8);
+
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex min-w-0 items-center gap-4">
+                            <Avatar className="h-16 w-16">
+                                {guide.profileImageUrl && (
+                                    <AvatarImage src={guide.profileImageUrl} alt={guideName} />
+                                )}
+                                <AvatarFallback className="bg-primary/10 text-lg text-primary">
+                                    {guide.firstName[0]}{guide.lastName[0]}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <CardTitle className="break-words text-xl">{guideName}</CardTitle>
+                                    <Badge variant={guide.isActive ? "default" : "secondary"}>
+                                        {guide.isActive ? "Active" : "Inactive"}
+                                    </Badge>
+                                </div>
+                                <p className="break-words text-sm text-muted-foreground">{guide.email || "No email"} · {guide.phone || "No phone"}</p>
+                            </div>
+                        </div>
+                        <Button className="w-full gap-2 sm:w-auto" onClick={onOpenPayout}>
+                            <Receipt className="h-4 w-4" aria-hidden="true" />
+                            Record Payout
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                        <MiniMetric label="Completed" value={`${stats.completedTours}/${stats.totalTours}`} icon={CheckCircle} />
+                        <MiniMetric label="Guide earnings" value={formatCurrency(stats.totalEarnings)} icon={DollarSign} />
+                        <MiniMetric label="Outstanding" value={formatCurrency(stats.outstandingAmount)} icon={Wallet} />
+                        <MiniMetric label="Avg rating" value={stats.averageVisitorRating ? `${stats.averageVisitorRating.toFixed(1)} ★` : "No ratings"} icon={Star} />
+                    </div>
+                </CardContent>
+            </Card>
+
+            <div className="grid gap-6 xl:grid-cols-2">
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                            <DollarSign className="h-5 w-5 text-primary" aria-hidden="true" />
+                            Earnings & Payouts
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <StatRow label="Tour revenue" value={formatCurrency(stats.totalRevenue)} />
+                            <StatRow label="Guide earnings" value={formatCurrency(stats.totalEarnings)} />
+                            <StatRow label="Paid payouts" value={formatCurrency(stats.paidPayoutAmount)} />
+                            <StatRow label="Pending payouts" value={formatCurrency(stats.pendingPayoutAmount)} />
+                            <StatRow label="Paid bookings earnings" value={formatCurrency(stats.payableEarnings)} />
+                            <StatRow label="Unpaid booking earnings" value={formatCurrency(stats.pendingPaymentEarnings)} />
+                        </div>
+                        <div className="rounded-md border">
+                            {recentPayouts.length === 0 ? (
+                                <p className="p-4 text-sm text-muted-foreground">No payout records yet.</p>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Date</TableHead>
+                                                <TableHead>Status</TableHead>
+                                                <TableHead className="text-right">Amount</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {recentPayouts.map((payout) => (
+                                                <TableRow key={payout.id}>
+                                                    <TableCell>{payout.createdAt ? formatDate(payout.createdAt) : "No date"}</TableCell>
+                                                    <TableCell>
+                                                        <Badge variant={payout.status === "paid" ? "default" : "secondary"}>
+                                                            {formatStatusLabel(payout.status)}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-medium tabular-nums">
+                                                        {formatCurrency(payout.amount || 0)}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                            <CalendarDays className="h-5 w-5 text-primary" aria-hidden="true" />
+                            Profile & Availability
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="grid gap-3">
+                            <StatRow label="Languages" value={formatList(guide.languages)} />
+                            <StatRow label="Specialties" value={formatList(guide.specialties)} />
+                            <StatRow label="Assigned zones" value={formatList(guide.assignedZones)} />
+                            <StatRow label="Available days" value={formatList(selfManagedDays.length ? selfManagedDays : guide.availableDays)} />
+                            <StatRow label="Preferred times" value={formatList(guide.preferredTimes)} />
+                            <StatRow
+                                label="Working hours"
+                                value={workingHours.start && workingHours.end ? `${workingHours.start} - ${workingHours.end}` : "Not set"}
+                            />
+                        </div>
+                        <div className="rounded-md border p-3">
+                            <p className="text-sm font-medium">Structured availability</p>
+                            {detail.availability.length === 0 ? (
+                                <p className="mt-1 text-sm text-muted-foreground">No date-specific availability records.</p>
+                            ) : (
+                                <div className="mt-2 space-y-2">
+                                    {detail.availability.slice(0, 4).map((item) => (
+                                        <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                                            <span className="text-muted-foreground">
+                                                {item.date ? formatDate(item.date) : `Day ${item.dayOfWeek ?? "-"}`}
+                                            </span>
+                                            <span className="font-medium">
+                                                {item.startTime} - {item.endTime}
+                                            </span>
+                                            <Badge variant={item.isAvailable ? "outline" : "secondary"}>
+                                                {item.isAvailable ? "Available" : "Unavailable"}
+                                            </Badge>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-2">
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                            <Globe2 className="h-5 w-5 text-primary" aria-hidden="true" />
+                            Visitor Countries
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {detail.visitorCountries.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No country data recorded for this guide yet.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {detail.visitorCountries.slice(0, 8).map((country) => (
+                                    <div key={country.country} className="flex items-center justify-between gap-4 text-sm">
+                                        <span className="min-w-0 break-words font-medium">{country.country}</span>
+                                        <span className="shrink-0 text-muted-foreground">
+                                            {country.count} · {country.percentage}%
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                            <FileText className="h-5 w-5 text-primary" aria-hidden="true" />
+                            Post-Tour Reports
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="grid gap-3 sm:grid-cols-3">
+                            <MiniMetric label="Submitted" value={stats.reportsSubmitted} icon={FileText} />
+                            <MiniMetric label="Pending review" value={stats.reportsPendingReview} icon={Clock} />
+                            <MiniMetric label="Follow-up" value={stats.followUpsNeeded} icon={AlertTriangle} />
+                        </div>
+                        {recentReports.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No guide reports submitted yet.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {recentReports.map((report) => (
+                                    <div key={report.id} className="rounded-md border p-3">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <p className="min-w-0 break-words text-sm font-medium">
+                                                {report.booking?.bookingReference || "Booking"} · {report.booking?.visitorName || "Visitor"}
+                                            </p>
+                                            <Badge variant={report.followUpNeeded ? "destructive" : "secondary"}>
+                                                {report.followUpNeeded ? "Follow-up" : formatStatusLabel(report.status)}
+                                            </Badge>
+                                        </div>
+                                        <p className="mt-2 line-clamp-3 break-words text-sm text-muted-foreground">{report.summary}</p>
+                                        {report.incidents && (
+                                            <p className="mt-2 break-words rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+                                                Incident note: {report.incidents}
+                                            </p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Recent Tours</CardTitle>
+                    <CardDescription>Admin can review tour outcomes and adjust guide earnings when needed.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {recentBookings.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No tours assigned to this guide yet.</p>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Visit</TableHead>
+                                        <TableHead>Booking</TableHead>
+                                        <TableHead>Visitor</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead>Payment</TableHead>
+                                        <TableHead className="text-right">Guide Earnings</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {recentBookings.map((booking) => (
+                                        <TableRow key={booking.id}>
+                                            <TableCell className="whitespace-nowrap">
+                                                {booking.visitDate ? formatDate(booking.visitDate) : "No date"}
+                                                {booking.visitTime && (
+                                                    <div className="text-xs text-muted-foreground">{formatTime(booking.visitTime)}</div>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="font-medium">{booking.bookingReference}</TableCell>
+                                            <TableCell>
+                                                <div className="min-w-44">
+                                                    <p className="break-words font-medium">{booking.visitorName}</p>
+                                                    <p className="break-words text-xs text-muted-foreground">{booking.visitorCountry || "Country not set"}</p>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="secondary">{formatStatusLabel(booking.status)}</Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant={booking.paymentStatus === "paid" ? "default" : "outline"}>
+                                                    {formatStatusLabel(booking.paymentStatus)}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                {editingBookingId === booking.id ? (
+                                                    <div className="flex min-w-56 justify-end gap-2">
+                                                        <Label htmlFor={`guide-payment-${booking.id}`} className="sr-only">
+                                                            Guide earnings
+                                                        </Label>
+                                                        <Input
+                                                            id={`guide-payment-${booking.id}`}
+                                                            type="number"
+                                                            min="0"
+                                                            inputMode="numeric"
+                                                            value={guidePaymentDraft}
+                                                            onChange={(event) => onGuidePaymentDraftChange(event.target.value)}
+                                                            className="h-9 w-28 text-right"
+                                                            placeholder="0…"
+                                                        />
+                                                        <Button
+                                                            size="icon"
+                                                            type="button"
+                                                            aria-label="Save guide earnings"
+                                                            disabled={isSavingGuidePayment}
+                                                            onClick={() => onSaveGuidePayment(booking.id)}
+                                                        >
+                                                            {isSavingGuidePayment ? (
+                                                                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                                                            ) : (
+                                                                <Save className="h-4 w-4" aria-hidden="true" />
+                                                            )}
+                                                        </Button>
+                                                        <Button
+                                                            size="icon"
+                                                            type="button"
+                                                            variant="outline"
+                                                            aria-label="Cancel guide earnings edit"
+                                                            onClick={onCancelEditPayment}
+                                                        >
+                                                            <XCircle className="h-4 w-4" aria-hidden="true" />
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <span className="font-medium tabular-nums">{formatCurrency(getGuideEarnings(booking))}</span>
+                                                        <Button
+                                                            size="icon"
+                                                            type="button"
+                                                            variant="ghost"
+                                                            aria-label={`Edit guide earnings for ${booking.bookingReference}`}
+                                                            onClick={() => onStartEditPayment(booking)}
+                                                        >
+                                                            <Pencil className="h-4 w-4" aria-hidden="true" />
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+function MiniMetric({ label, value, icon: Icon }: { label: string; value: string | number; icon: LucideIcon }) {
+    return (
+        <div className="rounded-md border p-3">
+            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <Icon className="h-4 w-4" aria-hidden="true" />
+                <span className="break-words">{label}</span>
+            </div>
+            <div className="mt-2 break-words text-lg font-semibold tabular-nums">{value}</div>
         </div>
     );
 }
@@ -683,6 +1422,9 @@ function CompareGuidesContent({ guideIds }: { guideIds: string[] }) {
                         <CardHeader className="pb-2">
                             <div className="flex items-center gap-2">
                                 <Avatar className="h-10 w-10">
+                                    {data.guide.profileImageUrl && (
+                                        <AvatarImage src={data.guide.profileImageUrl} alt={`${data.guide.firstName} ${data.guide.lastName}`} />
+                                    )}
                                     <AvatarFallback className="bg-primary/10 text-primary">
                                         {data.guide.firstName[0]}{data.guide.lastName[0]}
                                     </AvatarFallback>

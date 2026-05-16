@@ -53,6 +53,8 @@ import {
   sendItineraryEmailDetailed,
   sendBookingReminderEmailDetailed
 } from "./email";
+import { ReportScheduler } from "./lib/report-scheduler";
+import { WebhookDispatcher } from "./lib/webhook-dispatcher";
 import {
   notifyBookingCreated,
   notifyBookingStatusChanged,
@@ -73,6 +75,53 @@ import crypto from "crypto";
 
 const dateSortValue = (date: string | Date | null | undefined) =>
   date ? new Date(date).getTime() : 0;
+
+const getBookingGuideEarnings = (booking: Pick<Booking, "guidePayment" | "totalAmount">) => {
+  const guidePayment = Number(booking.guidePayment || 0);
+  return guidePayment > 0 ? guidePayment : Number(booking.totalAmount || 0);
+};
+
+const getRecognizedBookingRevenue = (booking: Pick<Booking, "paymentStatus" | "status" | "totalAmount">) =>
+  booking.paymentStatus === "paid" && booking.status !== "cancelled"
+    ? Number(booking.totalAmount || 0)
+    : 0;
+
+const isBookingAssignedToGuide = (
+  booking: Pick<Booking, "assignedGuideId">,
+  guide: Pick<Guide, "id" | "userId">
+) => booking.assignedGuideId === guide.id || (!!guide.userId && booking.assignedGuideId === guide.userId);
+
+const getGuideBookings = (bookings: Booking[], guide: Pick<Guide, "id" | "userId">) =>
+  bookings.filter((booking) => isBookingAssignedToGuide(booking, guide));
+
+const buildGuideLookup = (guides: Guide[]) => {
+  const guideMap = new Map<string, Guide>();
+  guides.forEach((guide) => {
+    guideMap.set(guide.id, guide);
+    if (guide.userId) guideMap.set(guide.userId, guide);
+  });
+  return guideMap;
+};
+
+const buildGuideComputedStats = (guide: Guide, bookings: Booking[]) => {
+  const guideBookings = getGuideBookings(bookings, guide);
+  const totalTours = guideBookings.filter((booking) => booking.status !== "cancelled").length;
+  const completedTours = guideBookings.filter((booking) => booking.status === "completed");
+
+  return {
+    ...guide,
+    totalTours,
+    completedTours: completedTours.length,
+    totalEarnings: completedTours.reduce((sum, booking) => sum + getBookingGuideEarnings(booking), 0),
+  };
+};
+
+async function getAssignedGuide(booking: Pick<Booking, "assignedGuideId">) {
+  if (!booking.assignedGuideId) return null;
+  const directGuide = await storage.getGuide(booking.assignedGuideId);
+  if (directGuide) return directGuide;
+  return storage.getGuideByUserId(booking.assignedGuideId);
+}
 
 const PUBLIC_APP_URL = (process.env.APP_URL || "https://visit.dzaleka.com").replace(/\/$/, "");
 
@@ -217,6 +266,10 @@ const reviewModerationSchema = z.object({
   status: z.enum(["pending", "published", "hidden"]).optional(),
   responseText: z.string().trim().max(3000).optional().nullable(),
   staffNotes: z.string().trim().max(3000).optional().nullable(),
+});
+
+const guidePaymentUpdateSchema = z.object({
+  guidePayment: z.coerce.number().int().min(0).max(100_000_000),
 });
 
 const TEMPLATE_SAMPLE_DATA: Record<string, string> = {
@@ -407,7 +460,7 @@ async function sendLoggedTemplateEmail(options: {
 }
 
 async function sendBookingCancelledEmail(booking: Booking, reason = "Cancelled by staff", sentBy?: string | null) {
-  const guide = booking.assignedGuideId ? await storage.getGuide(booking.assignedGuideId) : null;
+  const guide = await getAssignedGuide(booking);
   const meetingPoint = booking.meetingPointId ? await storage.getMeetingPoint(booking.meetingPointId) : null;
   const guideName = guide ? `${guide.firstName} ${guide.lastName}` : "";
   const rescheduleLink = `${PUBLIC_APP_URL}/my-bookings`;
@@ -848,9 +901,7 @@ async function sendBookingRescheduledEmail(booking: Booking, oldBooking: Booking
   const meetingPoint = booking.meetingPointId
     ? await storage.getMeetingPoint(booking.meetingPointId)
     : null;
-  const guide = booking.assignedGuideId
-    ? await storage.getGuide(booking.assignedGuideId)
-    : null;
+  const guide = await getAssignedGuide(booking);
   const guideName = guide ? `${guide.firstName} ${guide.lastName}` : "";
   const oldVisitTime = oldBooking.visitTime || "";
   const newVisitTime = booking.visitTime || "";
@@ -967,9 +1018,7 @@ async function sendBookingRescheduledEmail(booking: Booking, oldBooking: Booking
 }
 
 async function sendFeedbackRequestEmail(booking: Booking, sentBy?: string | null) {
-  const guide = booking.assignedGuideId
-    ? await storage.getGuide(booking.assignedGuideId)
-    : null;
+  const guide = await getAssignedGuide(booking);
   const guideName = guide ? `${guide.firstName} ${guide.lastName}` : "";
   const feedbackLink = buildFeedbackLink(booking.bookingReference || booking.id);
 
@@ -1349,6 +1398,40 @@ const transportBlackoutSchema = transportBlackoutBaseSchema.superRefine((data, c
 const quoteDecisionSchema = z.object({
   decision: z.enum(["approved", "declined"]),
   notes: z.string().trim().max(2000).optional().nullable(),
+});
+
+const scheduledReportPayloadSchema = z.object({
+  name: z.string().trim().min(2, "Report name is required").max(160),
+  type: z.enum(["visitors", "revenue", "incidents"]),
+  frequency: z.enum(["daily", "weekly", "monthly"]),
+  recipients: z.string().trim().min(3, "At least one recipient is required").max(2000)
+    .refine((value) => value.split(",").every((email) => z.string().email().safeParse(email.trim()).success), {
+      message: "Recipients must be valid comma-separated email addresses",
+    }),
+  nextRunAt: z.coerce.date(),
+  status: z.enum(["active", "paused"]).default("active"),
+});
+
+const webhookEventNames = ["booking.created", "booking.updated", "incident.reported"] as const;
+
+const webhookEndpointPayloadSchema = z.object({
+  description: z.string().trim().min(2, "Description is required").max(180),
+  url: z.string().trim().url("Use a valid endpoint URL").max(2000)
+    .refine((value) => {
+      try {
+        return ["http:", "https:"].includes(new URL(value).protocol);
+      } catch {
+        return false;
+      }
+    }, {
+      message: "Webhook URL must use HTTP or HTTPS",
+    }),
+  events: z.array(z.enum(webhookEventNames)).min(1, "Choose at least one event"),
+  secret: z.preprocess(
+    (value) => value === "" ? null : value,
+    z.string().trim().min(12, "Secret must be at least 12 characters").max(255).nullable().optional(),
+  ),
+  status: z.enum(["active", "failing", "disabled"]).default("active"),
 });
 
 const partnerReferralSchema = z.object({
@@ -2941,7 +3024,7 @@ async function ensureAssignedGuideCanManageBooking(
     return false;
   }
 
-  if (booking.assignedGuideId !== guide.id) {
+  if (!isBookingAssignedToGuide(booking, guide)) {
     res.status(403).json({ message: "You are not assigned to this booking" });
     return false;
   }
@@ -3249,7 +3332,7 @@ export async function registerRoutes(
       const customerStats = visitors.map(user => {
         const userBookings = bookings.filter(b => b.visitorUserId === user.id || b.visitorEmail === user.email);
         const totalVisits = userBookings.filter(b => b.status === "completed").length;
-        const totalSpend = userBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+        const totalSpend = userBookings.reduce((sum, b) => sum + getRecognizedBookingRevenue(b), 0);
         const lastVisit = userBookings
           .filter(b => b.visitDate)
           .sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime())[0]?.visitDate;
@@ -3287,7 +3370,7 @@ export async function registerRoutes(
 
       const stats = {
         totalVisits: userBookings.filter(b => b.status === "completed").length,
-        totalSpend: userBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0),
+        totalSpend: userBookings.reduce((sum, b) => sum + getRecognizedBookingRevenue(b), 0),
         lastVisit: userBookings
           .filter(b => b.visitDate)
           .sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime())[0]?.visitDate
@@ -4102,10 +4185,8 @@ export async function registerRoutes(
       const guideStats = guides
         .filter(g => g.isActive)
         .map(guide => {
-          const guideTours = bookings.filter(
-            b => b.assignedGuideId === guide.id && b.status === 'completed'
-          );
-          const allGuideTours = bookings.filter(b => b.assignedGuideId === guide.id);
+          const allGuideTours = getGuideBookings(bookings, guide);
+          const guideTours = allGuideTours.filter(b => b.status === 'completed');
           return {
             name: `${guide.firstName} ${guide.lastName.charAt(0)}.`,
             tours: guideTours.length || allGuideTours.length,
@@ -4344,20 +4425,24 @@ export async function registerRoutes(
       const guides = await storage.getGuides();
 
       const guideStats: Record<string, { assigned: number; completed: number; cancelled: number }> = {};
+      const guideIdAliases = new Map<string, string>();
 
       // Initialize all guides
       guides.forEach(guide => {
         guideStats[guide.id] = { assigned: 0, completed: 0, cancelled: 0 };
+        guideIdAliases.set(guide.id, guide.id);
+        if (guide.userId) guideIdAliases.set(guide.userId, guide.id);
       });
 
       // Count bookings per guide
       bookings.forEach(booking => {
-        if (booking.assignedGuideId && guideStats[booking.assignedGuideId]) {
-          guideStats[booking.assignedGuideId].assigned++;
+        const canonicalGuideId = booking.assignedGuideId ? guideIdAliases.get(booking.assignedGuideId) : undefined;
+        if (canonicalGuideId && guideStats[canonicalGuideId]) {
+          guideStats[canonicalGuideId].assigned++;
           if (booking.status === "completed") {
-            guideStats[booking.assignedGuideId].completed++;
+            guideStats[canonicalGuideId].completed++;
           } else if (booking.status === "cancelled") {
-            guideStats[booking.assignedGuideId].cancelled++;
+            guideStats[canonicalGuideId].cancelled++;
           }
         }
       });
@@ -4421,17 +4506,15 @@ export async function registerRoutes(
         // Find the guide profile for this user
         const guideProfile = await storage.getGuideByUserId(currentUser.id);
         if (guideProfile) {
-          bookingsList = bookingsList.filter(b => b.assignedGuideId === guideProfile.id);
+          bookingsList = bookingsList.filter(b => isBookingAssignedToGuide(b, guideProfile));
         } else {
           // No guide profile - return empty list
           bookingsList = [];
         }
       }
 
-      // Batch fetch guides
-      const guideIds = Array.from(new Set(bookingsList.map(b => b.assignedGuideId).filter(Boolean) as string[]));
-      const guides = await storage.getGuidesByIds(guideIds);
-      const guidesMap = new Map(guides.map(g => [g.id, g]));
+      const guides = await storage.getGuides();
+      const guidesMap = buildGuideLookup(guides);
 
       const bookingsWithGuides = bookingsList.map(booking => ({
         ...booking,
@@ -4465,10 +4548,8 @@ export async function registerRoutes(
         paymentStatus: paymentStatus as any
       });
 
-      // Attach guides
-      const guideIds = Array.from(new Set(bookings.map(b => b.assignedGuideId).filter(Boolean) as string[]));
-      const guides = await storage.getGuidesByIds(guideIds);
-      const guidesMap = new Map(guides.map(g => [g.id, g]));
+      const guides = await storage.getGuides();
+      const guidesMap = buildGuideLookup(guides);
 
       const bookingsWithGuides = bookings.map(booking => ({
         ...booking,
@@ -4486,10 +4567,8 @@ export async function registerRoutes(
     try {
       const recentBookings = await storage.getRecentBookings(10);
 
-      // Batch fetch guides
-      const guideIds = Array.from(new Set(recentBookings.map(b => b.assignedGuideId).filter(Boolean) as string[]));
-      const guides = await storage.getGuidesByIds(guideIds);
-      const guidesMap = new Map(guides.map(g => [g.id, g]));
+      const guides = await storage.getGuides();
+      const guidesMap = buildGuideLookup(guides);
 
       const bookingsWithGuides = recentBookings.map(booking => ({
         ...booking,
@@ -4511,14 +4590,13 @@ export async function registerRoutes(
       if (currentUser?.role === "guide") {
         const guide = await storage.getGuideByUserId(currentUser.id);
         todaysBookings = guide
-          ? todaysBookings.filter((booking) => booking.assignedGuideId === guide.id)
+          ? todaysBookings.filter((booking) => isBookingAssignedToGuide(booking, guide))
           : [];
       }
 
-      // Batch fetch guides
-      const guideIds = Array.from(new Set(todaysBookings.map(b => b.assignedGuideId).filter(Boolean) as string[]));
-      const guides = await storage.getGuidesByIds(guideIds);
-      const guidesMap = new Map(guides.map(g => [g.id, g]));
+      // Use the full guide list so legacy assignments saved by guide user ID still resolve.
+      const guides = await storage.getGuides();
+      const guidesMap = buildGuideLookup(guides);
 
       const bookingsWithGuides = todaysBookings.map(booking => ({
         ...booking,
@@ -4537,10 +4615,8 @@ export async function registerRoutes(
     try {
       const activeVisits = await storage.getActiveVisits();
 
-      // Batch fetch guides
-      const guideIds = Array.from(new Set(activeVisits.map(b => b.assignedGuideId).filter(Boolean) as string[]));
-      const guides = await storage.getGuidesByIds(guideIds);
-      const guidesMap = new Map(guides.map(g => [g.id, g]));
+      const guides = await storage.getGuides();
+      const guidesMap = buildGuideLookup(guides);
 
       const bookingsWithGuides = activeVisits.map(booking => ({
         ...booking,
@@ -4586,9 +4662,10 @@ export async function registerRoutes(
           .filter(Boolean)
           .map((partner) => [partner!.id, partner!])
       );
+      const guideMap = buildGuideLookup(guides);
       const bookingsWithGuide = myBookings.map(booking => {
         const guide = booking.assignedGuideId
-          ? guides.find(g => g.id === booking.assignedGuideId)
+          ? guideMap.get(booking.assignedGuideId)
           : null;
         const transportRequest = transportRequests
           .filter((request) => request.bookingId === booking.id)
@@ -4748,6 +4825,7 @@ export async function registerRoutes(
 
       // Get guide details
       const guides = await storage.getGuides();
+      const guideMap = buildGuideLookup(guides);
       const zones = await storage.getZones();
 
       const exportData = {
@@ -4759,7 +4837,7 @@ export async function registerRoutes(
         totalVisits: completedBookings.length,
         visits: completedBookings.map(booking => {
           const guide = booking.assignedGuideId
-            ? guides.find(g => g.id === booking.assignedGuideId)
+            ? guideMap.get(booking.assignedGuideId)
             : null;
           const zoneNames = (booking.selectedZones || [])
             .map(zId => zones.find(z => z.id === zId)?.name)
@@ -4806,7 +4884,7 @@ export async function registerRoutes(
 
       // Get bookings assigned to this guide
       const allBookings = await storage.getBookings();
-      const myTours = allBookings.filter(b => b.assignedGuideId === myGuide.id);
+      const myTours = allBookings.filter(b => isBookingAssignedToGuide(b, myGuide));
       res.json(myTours);
     } catch (error) {
       logError("Error fetching my tours", error, req.requestId);
@@ -4910,7 +4988,7 @@ export async function registerRoutes(
 
       if (isGuide) {
         const guide = await storage.getGuideByUserId(user.id);
-        if (!guide || guide.id !== booking.assignedGuideId) {
+        if (!guide || !isBookingAssignedToGuide(booking, guide)) {
           return res.status(403).json({ message: "Forbidden" });
         }
       }
@@ -4923,17 +5001,14 @@ export async function registerRoutes(
         }
         if (isGuide) {
           const guide = await storage.getGuideByUserId(user.id);
-          if (!guide || guide.id !== booking.assignedGuideId) {
+          if (!guide || !isBookingAssignedToGuide(booking, guide)) {
             return res.status(403).json({ message: "Forbidden" });
           }
         }
       }
 
       // Fetch guide details if assigned
-      let guide = null;
-      if (booking.assignedGuideId) {
-        guide = await storage.getGuide(booking.assignedGuideId);
-      }
+      const guide = await getAssignedGuide(booking);
 
       const transportRequests = await storage.getTransportRequestsByBookingIds([booking.id]);
       const transportRequest = transportRequests
@@ -5072,6 +5147,9 @@ export async function registerRoutes(
         booking.visitorName,
         booking.visitDate
       );
+
+      // Dispatch Webhook
+      WebhookDispatcher.dispatch("booking.created", booking);
 
       res.status(201).json(booking);
     } catch (error) {
@@ -6302,7 +6380,7 @@ export async function registerRoutes(
         if (guide) {
           await storage.updateGuide(assignedGuideId, {
             totalTours: (guide.totalTours || 0) + 1,
-            totalEarnings: (guide.totalEarnings || 0) + (finalAmount || 0),
+            totalEarnings: (guide.totalEarnings || 0) + getBookingGuideEarnings(booking),
           });
         }
       }
@@ -6422,6 +6500,9 @@ export async function registerRoutes(
           booking.bookingReference || booking.id.slice(0, 8)
         );
       }
+
+      // Dispatch Webhook
+      WebhookDispatcher.dispatch("booking.updated", booking);
 
       res.json(booking);
     } catch (error: any) {
@@ -6705,9 +6786,7 @@ export async function registerRoutes(
       const meetingPoint = booking.meetingPointId
         ? await storage.getMeetingPoint(booking.meetingPointId)
         : null;
-      const guide = booking.assignedGuideId
-        ? await storage.getGuide(booking.assignedGuideId)
-        : null;
+      const guide = await getAssignedGuide(booking);
 
       if (type === "feedback_request") {
         const result = await sendFeedbackRequestEmail(booking, req.session?.userId || null);
@@ -7016,6 +7095,43 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/bookings/:id/guide-payment", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const payload = guidePaymentUpdateSchema.parse(req.body);
+      const oldBooking = await storage.getBooking(id);
+
+      if (!oldBooking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      if (!oldBooking.assignedGuideId) {
+        return res.status(400).json({ message: "Assign a guide before setting guide earnings" });
+      }
+
+      const booking = await storage.updateBooking(id, { guidePayment: payload.guidePayment });
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      if (req.session?.userId) {
+        await createAuditLog(req.session.userId, "update", "booking", id,
+          { guidePayment: oldBooking.guidePayment || null },
+          { guidePayment: payload.guidePayment },
+          req
+        );
+      }
+
+      res.json(booking);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid guide payment", errors: error.errors });
+      }
+      logError("Error updating guide payment", error, req.requestId);
+      res.status(500).json({ message: "Failed to update guide payment" });
+    }
+  });
+
   // Visitor can report payment for staff verification. Staff still mark it paid.
   app.patch("/api/bookings/:id/visitor-payment", isAuthenticated, async (req: any, res) => {
     try {
@@ -7125,7 +7241,7 @@ export async function registerRoutes(
       // Get guideUserId if assigned
       let guideUserId;
       if (booking.assignedGuideId) {
-        const guide = await storage.getGuide(booking.assignedGuideId);
+        const guide = await getAssignedGuide(booking);
         if (guide) guideUserId = guide.userId;
       }
 
@@ -7196,14 +7312,14 @@ export async function registerRoutes(
       }
 
       // Update guide rating
-      const guide = await storage.getGuide(booking.assignedGuideId);
+      const guide = buildGuideLookup(await storage.getGuides()).get(booking.assignedGuideId);
       if (guide) {
         // Calculate new average rating
         const currentTotal = (guide.rating || 0) * (guide.totalRatings || 0);
         const newTotalRatings = (guide.totalRatings || 0) + 1;
         const newRating = Math.round((currentTotal + rating) / newTotalRatings);
 
-        await storage.updateGuide(booking.assignedGuideId, {
+        await storage.updateGuide(guide.id, {
           rating: newRating,
           totalRatings: newTotalRatings
         });
@@ -7213,7 +7329,7 @@ export async function registerRoutes(
       await storage.updateBookingRating(id, rating);
 
       // Create audit log
-      await createAuditLog(userId, "create", "guide_rating", booking.assignedGuideId,
+      await createAuditLog(userId, "create", "guide_rating", guide?.id || booking.assignedGuideId,
         null, { rating, bookingId: id }, req);
 
       // Notify admins if rating is low (<= 3)
@@ -7242,16 +7358,14 @@ export async function registerRoutes(
 
       // Get guide info and send email
       const guide = await storage.getGuide(guideId);
-      const oldGuide = oldBooking?.assignedGuideId
-        ? await storage.getGuide(oldBooking.assignedGuideId)
-        : undefined;
+      const oldGuide = oldBooking ? await getAssignedGuide(oldBooking) : undefined;
       const meetingPoint = booking.meetingPointId
         ? await storage.getMeetingPoint(booking.meetingPointId)
         : null;
 
       let guideAssignmentEmailResult: { success: boolean; error?: string; messageId?: string } = { success: false };
       if (guide) {
-        if (oldBooking?.assignedGuideId && oldBooking.assignedGuideId !== guideId) {
+        if (oldGuide && oldGuide.id !== guideId) {
           await sendGuideAssignmentChangedEmails(
             booking,
             oldGuide,
@@ -7356,7 +7470,7 @@ export async function registerRoutes(
       // Get guide info for email
       let guideName: string | undefined;
       if (booking.assignedGuideId) {
-        const guide = await storage.getGuide(booking.assignedGuideId);
+        const guide = await getAssignedGuide(booking);
         if (guide) {
           guideName = `${guide.firstName} ${guide.lastName}`;
         }
@@ -7525,7 +7639,10 @@ export async function registerRoutes(
       // Update guide rating if assigned
       if (oldBooking.assignedGuideId) {
         if (rating && rating >= 1 && rating <= 5) {
-          await storage.updateGuideRating(oldBooking.assignedGuideId, rating);
+          const guide = await getAssignedGuide(oldBooking);
+          if (guide) {
+            await storage.updateGuideRating(guide.id, rating);
+          }
         }
       }
 
@@ -7600,16 +7717,11 @@ export async function registerRoutes(
       }
 
       const allBookings = await storage.getBookings();
-      const assignedBookings = allBookings.filter(
-        (booking) => booking.assignedGuideId === guide.id && booking.status !== "cancelled"
+      const assignedBookings = getGuideBookings(allBookings, guide).filter(
+        (booking) => booking.status !== "cancelled"
       );
       const completedBookings = assignedBookings.filter((booking) => booking.status === "completed");
-      const totalEarnings = completedBookings.reduce((sum, booking) => {
-        if (booking.guidePayment && booking.guidePayment > 0) {
-          return sum + booking.guidePayment;
-        }
-        return sum + (booking.totalAmount || 0);
-      }, 0);
+      const totalEarnings = completedBookings.reduce((sum, booking) => sum + getBookingGuideEarnings(booking), 0);
 
       res.json({
         ...guide,
@@ -7806,20 +7918,7 @@ export async function registerRoutes(
 
       // Get all completed bookings for this guide
       const allBookings = await storage.getBookings();
-      const guideBookings = allBookings.filter(b =>
-        b.assignedGuideId === guide.id && b.status === "completed"
-      );
-
-      // Calculate earnings - use guidePayment if set, otherwise use 100% of totalAmount
-      const GUIDE_PERCENTAGE = 1.0; // 100% of booking goes to guide
-
-      const getEarnings = (booking: typeof allBookings[0]) => {
-        if (booking.guidePayment && booking.guidePayment > 0) {
-          return booking.guidePayment;
-        }
-        // Fallback: calculate as percentage of total amount
-        return Math.round((booking.totalAmount || 0) * GUIDE_PERCENTAGE);
-      };
+      const guideBookings = getGuideBookings(allBookings, guide).filter(b => b.status === "completed");
 
       const now = new Date();
       const startOfWeek = new Date(now);
@@ -7828,13 +7927,13 @@ export async function registerRoutes(
 
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      const totalEarnings = guideBookings.reduce((sum, b) => sum + getEarnings(b), 0);
+      const totalEarnings = guideBookings.reduce((sum, b) => sum + getBookingGuideEarnings(b), 0);
       const weeklyEarnings = guideBookings
         .filter(b => new Date(b.visitDate) >= startOfWeek)
-        .reduce((sum, b) => sum + getEarnings(b), 0);
+        .reduce((sum, b) => sum + getBookingGuideEarnings(b), 0);
       const monthlyEarnings = guideBookings
         .filter(b => new Date(b.visitDate) >= startOfMonth)
-        .reduce((sum, b) => sum + getEarnings(b), 0);
+        .reduce((sum, b) => sum + getBookingGuideEarnings(b), 0);
       const payouts = await storage.getPayouts({ guideId: guide.id });
       const pendingPayouts = payouts.filter((payout) => payout.status === "pending");
       const paidPayouts = payouts.filter((payout) => payout.status === "paid");
@@ -7851,7 +7950,7 @@ export async function registerRoutes(
         visitDate: b.visitDate,
         tourType: b.tourType,
         numberOfPeople: b.numberOfPeople,
-        guidePayment: getEarnings(b),
+        guidePayment: getBookingGuideEarnings(b),
         totalAmount: b.totalAmount || 0,
       })).sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime());
 
@@ -7891,7 +7990,7 @@ export async function registerRoutes(
 
       const allBookings = await storage.getBookings();
       const guideBookings = allBookings
-        .filter(b => b.assignedGuideId === guide.id)
+        .filter(b => isBookingAssignedToGuide(b, guide))
         .sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime());
 
       res.json(guideBookings);
@@ -7937,7 +8036,7 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Booking not found" });
       }
 
-      if (booking.assignedGuideId !== guide.id) {
+      if (!isBookingAssignedToGuide(booking, guide)) {
         return res.status(403).json({ message: "You are not assigned to this booking" });
       }
 
@@ -7971,7 +8070,7 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Booking not found" });
       }
 
-      if (booking.assignedGuideId !== guide.id) {
+      if (!isBookingAssignedToGuide(booking, guide)) {
         return res.status(403).json({ message: "You are not assigned to this booking" });
       }
 
@@ -8015,7 +8114,7 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Booking not found" });
       }
 
-      if (booking.assignedGuideId !== guide.id) {
+      if (!isBookingAssignedToGuide(booking, guide)) {
         return res.status(403).json({ message: "You are not assigned to this booking" });
       }
 
@@ -8056,7 +8155,7 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Booking not found" });
       }
 
-      if (booking.assignedGuideId !== guide.id) {
+      if (!isBookingAssignedToGuide(booking, guide)) {
         return res.status(403).json({ message: "You are not assigned to this booking" });
       }
 
@@ -8232,14 +8331,16 @@ export async function registerRoutes(
   app.get("/api/guides", isAuthenticated, requireRole("admin", "coordinator", "guide", "security"), async (req: any, res) => {
     try {
       const guidesList = await storage.getGuides();
+      const bookings = await storage.getBookings();
+      const guidesWithStats = guidesList.map((guide) => buildGuideComputedStats(guide, bookings));
       const currentUser = req.currentUser as User | undefined;
       const canViewFullGuideRecords = currentUser?.role === "admin" || currentUser?.role === "coordinator";
 
       if (canViewFullGuideRecords) {
-        return res.json(guidesList);
+        return res.json(guidesWithStats);
       }
 
-      const publicGuideDirectory = guidesList
+      const publicGuideDirectory = guidesWithStats
         .filter((guide) => guide.isActive || guide.userId === currentUser?.id)
         .map((guide) => ({
           id: guide.id,
@@ -8257,6 +8358,8 @@ export async function registerRoutes(
           isActive: guide.isActive,
           rating: guide.rating,
           totalRatings: guide.totalRatings,
+          totalTours: guide.totalTours,
+          completedTours: guide.completedTours,
           availability: guide.availability,
           workingHours: guide.workingHours,
         }));
@@ -8293,7 +8396,8 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Guide not found" });
       }
 
-      res.json(guide);
+      const bookings = await storage.getBookings();
+      res.json(buildGuideComputedStats(guide, bookings));
     } catch (error) {
       logError("Error fetching guide by slug", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch guide" });
@@ -8303,8 +8407,12 @@ export async function registerRoutes(
   // Get bookings for a specific guide
   app.get("/api/guides/:id/bookings", isAuthenticated, requireRole("admin", "coordinator", "guide"), async (req, res) => {
     try {
+      const guide = await storage.getGuide(req.params.id);
+      if (!guide) {
+        return res.status(404).json({ message: "Guide not found" });
+      }
       const bookings = await storage.getBookings();
-      const guideBookings = bookings.filter(b => b.assignedGuideId === req.params.id);
+      const guideBookings = getGuideBookings(bookings, guide);
       res.json(guideBookings);
     } catch (error) {
       logError("Error fetching guide bookings", error, req.requestId);
@@ -8377,7 +8485,8 @@ export async function registerRoutes(
 
       // Calculate comparison stats for each guide
       const comparison = guides.map(guide => {
-        const guideBookings = allBookings.filter(b => b.assignedGuideId === guide.id);
+        const guideBookings = getGuideBookings(allBookings, guide);
+        const countedBookings = guideBookings.filter(b => b.status !== "cancelled");
         const completedBookings = guideBookings.filter(b => b.status === "completed");
         const cancelledBookings = guideBookings.filter(b => b.status === "cancelled" || b.status === "no_show");
 
@@ -8397,7 +8506,7 @@ export async function registerRoutes(
           monthlyStats.push({
             month: monthStart.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
             tours: monthBookings.length,
-            earnings: monthBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0),
+            earnings: monthBookings.reduce((sum, b) => sum + getBookingGuideEarnings(b), 0),
           });
         }
 
@@ -8418,14 +8527,14 @@ export async function registerRoutes(
             assignedZones: guide.assignedZones,
           },
           stats: {
-            totalTours: guide.totalTours || 0,
-            completedTours: guide.completedTours || 0,
-            totalEarnings: guide.totalEarnings || 0,
+            totalTours: countedBookings.length,
+            completedTours: completedBookings.length,
+            totalEarnings: completedBookings.reduce((sum, b) => sum + getBookingGuideEarnings(b), 0),
             rating: guide.rating || 0,
             totalRatings: guide.totalRatings || 0,
             avgVisitorRating: avgVisitorRating ? Math.round(avgVisitorRating * 10) / 10 : null,
-            completionRate: guideBookings.length > 0
-              ? Math.round((completedBookings.length / guideBookings.length) * 100)
+            completionRate: countedBookings.length > 0
+              ? Math.round((completedBookings.length / countedBookings.length) * 100)
               : 0,
             cancellationRate: guideBookings.length > 0
               ? Math.round((cancelledBookings.length / guideBookings.length) * 100)
@@ -8439,6 +8548,131 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error comparing guides", error, req.requestId);
       res.status(500).json({ message: "Failed to compare guides" });
+    }
+  });
+
+  app.get("/api/guides/:id/performance-detail", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const guide = await storage.getGuide(req.params.id);
+      if (!guide) {
+        return res.status(404).json({ message: "Guide not found" });
+      }
+
+      const allBookings = await storage.getBookings();
+      const guideBookings = getGuideBookings(allBookings, guide);
+      const countedBookings = guideBookings.filter((booking) => booking.status !== "cancelled");
+      const completedBookings = guideBookings.filter((booking) => booking.status === "completed");
+      const cancelledBookings = guideBookings.filter(
+        (booking) => booking.status === "cancelled" || booking.status === "no_show"
+      );
+      const ratedBookings = guideBookings.filter((booking) => Number(booking.visitorRating || 0) > 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const upcomingBookings = guideBookings
+        .filter((booking) => {
+          if (!booking.visitDate) return false;
+          const visitDate = new Date(booking.visitDate);
+          return visitDate >= today && booking.status !== "cancelled" && booking.status !== "no_show";
+        })
+        .sort((a, b) => dateSortValue(a.visitDate) - dateSortValue(b.visitDate))
+        .slice(0, 10);
+
+      const recentBookings = [...guideBookings]
+        .sort((a, b) => {
+          const visitDiff = dateSortValue(b.visitDate) - dateSortValue(a.visitDate);
+          return visitDiff || dateSortValue(b.createdAt) - dateSortValue(a.createdAt);
+        })
+        .slice(0, 20);
+
+      const totalRevenue = completedBookings.reduce((sum, booking) => sum + Number(booking.totalAmount || 0), 0);
+      const totalEarnings = completedBookings.reduce((sum, booking) => sum + getBookingGuideEarnings(booking), 0);
+      const paidBookings = completedBookings.filter((booking) => booking.paymentStatus === "paid");
+      const payableEarnings = paidBookings.reduce((sum, booking) => sum + getBookingGuideEarnings(booking), 0);
+      const pendingPaymentEarnings = Math.max(totalEarnings - payableEarnings, 0);
+
+      const payouts = await storage.getPayouts({ guideId: guide.id });
+      const paidPayoutAmount = payouts
+        .filter((payout) => payout.status === "paid")
+        .reduce((sum, payout) => sum + Number(payout.amount || 0), 0);
+      const pendingPayoutAmount = payouts
+        .filter((payout) => payout.status === "pending")
+        .reduce((sum, payout) => sum + Number(payout.amount || 0), 0);
+      const outstandingAmount = Math.max(totalEarnings - paidPayoutAmount - pendingPayoutAmount, 0);
+
+      const countryCounts = new Map<string, number>();
+      guideBookings.forEach((booking) => {
+        const country = String(booking.visitorCountry || "").trim();
+        if (country) countryCounts.set(country, (countryCounts.get(country) || 0) + 1);
+      });
+      const bookingsWithCountry = Array.from(countryCounts.values()).reduce((sum, count) => sum + count, 0);
+      const visitorCountries = Array.from(countryCounts.entries())
+        .map(([country, count]) => ({
+          country,
+          count,
+          percentage: bookingsWithCountry > 0 ? Math.round((count / bookingsWithCountry) * 100) : 0,
+        }))
+        .sort((a, b) => b.count - a.count);
+
+      const reports = await storage.getGuideTourReports({ guideId: guide.id });
+      const bookingMap = new Map(guideBookings.map((booking) => [booking.id, booking]));
+      const reportsWithBookings = reports.map((report) => {
+        const booking = bookingMap.get(report.bookingId);
+        return {
+          ...report,
+          booking: booking
+            ? {
+              id: booking.id,
+              bookingReference: booking.bookingReference,
+              visitorName: booking.visitorName,
+              visitDate: booking.visitDate,
+              status: booking.status,
+            }
+            : null,
+        };
+      });
+
+      const availability = await storage.getGuideAvailability(guide.id);
+
+      res.json({
+        guide,
+        stats: {
+          totalTours: countedBookings.length,
+          completedTours: completedBookings.length,
+          cancelledTours: cancelledBookings.length,
+          upcomingTours: upcomingBookings.length,
+          completionRate: countedBookings.length > 0
+            ? Math.round((completedBookings.length / countedBookings.length) * 100)
+            : 0,
+          cancellationRate: guideBookings.length > 0
+            ? Math.round((cancelledBookings.length / guideBookings.length) * 100)
+            : 0,
+          totalRevenue,
+          totalEarnings,
+          payableEarnings,
+          pendingPaymentEarnings,
+          paidPayoutAmount,
+          pendingPayoutAmount,
+          outstandingAmount,
+          averageVisitorRating: ratedBookings.length > 0
+            ? Math.round((ratedBookings.reduce((sum, booking) => sum + Number(booking.visitorRating || 0), 0) / ratedBookings.length) * 10) / 10
+            : null,
+          totalRatings: ratedBookings.length,
+          reportsSubmitted: reports.length,
+          reportsPendingReview: reports.filter((report) => report.status === "submitted").length,
+          followUpsNeeded: reports.filter((report) => report.followUpNeeded).length,
+          bookingsWithCountry,
+        },
+        visitorCountries,
+        upcomingBookings,
+        recentBookings,
+        payouts,
+        reports: reportsWithBookings,
+        availability,
+      });
+    } catch (error) {
+      logError("Error fetching guide performance detail", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch guide performance detail" });
     }
   });
 
@@ -8477,7 +8711,8 @@ export async function registerRoutes(
       if (!guide) {
         return res.status(404).json({ message: "Guide not found" });
       }
-      res.json(guide);
+      const bookings = await storage.getBookings();
+      res.json(buildGuideComputedStats(guide, bookings));
     } catch (error) {
       logError("Error fetching guide", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch guide" });
@@ -8562,7 +8797,14 @@ export async function registerRoutes(
   // Guide leaderboard - public for display
   app.get("/api/guides/leaderboard", isAuthenticated, async (req, res) => {
     try {
-      const leaderboard = await storage.getGuideLeaderboard();
+      const [guides, bookings] = await Promise.all([
+        storage.getGuides(),
+        storage.getBookings(),
+      ]);
+      const leaderboard = guides
+        .map((guide) => buildGuideComputedStats(guide, bookings))
+        .sort((a, b) => (b.rating || 0) - (a.rating || 0) || (b.completedTours || 0) - (a.completedTours || 0))
+        .slice(0, 10);
       res.json(leaderboard);
     } catch (error) {
       logError("Error fetching leaderboard", error, req.requestId);
@@ -9688,6 +9930,9 @@ export async function registerRoutes(
         );
       }
 
+      // Dispatch Webhook
+      WebhookDispatcher.dispatch("incident.reported", incident);
+
       res.status(201).json(incident);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -10480,12 +10725,12 @@ export async function registerRoutes(
       const GUIDE_SHARE_PERCENT = 100; // 100% to guides
       const PLATFORM_SHARE_PERCENT = 0;  // 0% to platform
 
-      // Calculate actual guide earnings (100% of completed tour revenue)
+      // Calculate actual guide earnings, honoring per-booking guidePayment when set.
       const completedPaidBookings = allBookings.filter(b =>
         (b.status === "completed" || b.status === "in_progress" || b.status === "confirmed") &&
         b.paymentStatus === "paid"
       );
-      const totalGuideEarnings = completedPaidBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+      const totalGuideEarnings = completedPaidBookings.reduce((sum, b) => sum + getBookingGuideEarnings(b), 0);
 
       // 2. Gross Margin % = Platform keeps 0% since guides take 100%
       const platformRevenue = totalRevenue - totalGuideEarnings;
@@ -10759,10 +11004,7 @@ export async function registerRoutes(
       const payouts = guides.map(guide => {
         // Get all completed bookings for this guide (regardless of payment status)
         // Check both guide.id and guide.userId since assignedGuideId could be either
-        const guideBookings = bookings.filter(b =>
-          b.status === 'completed' &&
-          (b.assignedGuideId === guide.id || b.assignedGuideId === guide.userId)
-        );
+        const guideBookings = getGuideBookings(bookings, guide).filter(b => b.status === 'completed');
 
         // Separate by payment status
         const paidBookings = guideBookings.filter(b => b.paymentStatus === 'paid');
@@ -10772,8 +11014,10 @@ export async function registerRoutes(
         const pendingRevenue = pendingBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
         const totalRevenue = paidRevenue + pendingRevenue;
 
-        const guideShare = Math.round(paidRevenue * GUIDE_SHARE_PERCENTAGE);
-        const platformShare = paidRevenue - guideShare;
+        const paidGuideShare = Math.round(paidBookings.reduce((sum, b) => sum + getBookingGuideEarnings(b), 0) * GUIDE_SHARE_PERCENTAGE);
+        const pendingGuideShare = Math.round(pendingBookings.reduce((sum, b) => sum + getBookingGuideEarnings(b), 0) * GUIDE_SHARE_PERCENTAGE);
+        const guideShare = paidGuideShare + pendingGuideShare;
+        const platformShare = Math.max(0, totalRevenue - guideShare);
 
         return {
           guideId: guide.id,
@@ -10784,7 +11028,9 @@ export async function registerRoutes(
           totalRevenue,
           paidRevenue,
           pendingRevenue,
-          guideShare, // Only calculated on paid revenue
+          paidGuideShare,
+          pendingGuideShare,
+          guideShare,
           platformShare
         };
       }).filter(p => p.completedTours > 0); // Show anyone with completed tours
@@ -12512,7 +12758,7 @@ export async function registerRoutes(
       }
 
       const review = await storage.getTourReviewByBookingReference(booking.bookingReference);
-      const guide = booking.assignedGuideId ? await storage.getGuide(booking.assignedGuideId) : null;
+      const guide = await getAssignedGuide(booking);
       res.json({
         bookingReference: booking.bookingReference,
         visitorName: booking.visitorName,
@@ -13730,6 +13976,152 @@ export async function registerRoutes(
     } catch (error) {
       logError("Failed to delete blog post", error, req.requestId);
       res.status(500).json({ message: "Failed to delete blog post" });
+    }
+  });
+
+  // ==================== Scheduled Reports ====================
+
+  app.get("/api/scheduled-reports", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const reports = await storage.getScheduledReports();
+      res.json(reports);
+    } catch (error) {
+      logError("Failed to fetch scheduled reports", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch scheduled reports" });
+    }
+  });
+
+  app.post("/api/scheduled-reports", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const payload = scheduledReportPayloadSchema.parse(req.body);
+      const report = await storage.createScheduledReport({
+        ...payload,
+        createdByUserId: req.session!.userId!,
+      });
+      res.status(201).json(report);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid scheduled report", errors: error.errors });
+      }
+      logError("Failed to create scheduled report", error, req.requestId);
+      res.status(500).json({ message: "Failed to create scheduled report" });
+    }
+  });
+
+  app.patch("/api/scheduled-reports/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const payload = scheduledReportPayloadSchema.partial().parse(req.body);
+      const report = await storage.updateScheduledReport(req.params.id, payload);
+      if (!report) {
+        return res.status(404).json({ message: "Scheduled report not found" });
+      }
+      res.json(report);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid scheduled report update", errors: error.errors });
+      }
+      logError("Failed to update scheduled report", error, req.requestId);
+      res.status(500).json({ message: "Failed to update scheduled report" });
+    }
+  });
+
+  app.delete("/api/scheduled-reports/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      await storage.deleteScheduledReport(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      logError("Failed to delete scheduled report", error, req.requestId);
+      res.status(500).json({ message: "Failed to delete scheduled report" });
+    }
+  });
+
+  app.post("/api/scheduled-reports/:id/run", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const report = await storage.getScheduledReport(req.params.id);
+      if (!report) {
+        return res.status(404).json({ message: "Scheduled report not found" });
+      }
+
+      await ReportScheduler.executeReport(report, { advanceSchedule: false });
+
+      res.json({ message: "Report sent successfully" });
+    } catch (error) {
+      logError("Failed to run scheduled report", error, req.requestId);
+      res.status(500).json({ message: "Failed to run scheduled report" });
+    }
+  });
+
+  // ==================== Webhooks ====================
+
+  app.get("/api/webhooks", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const endpoints = await storage.getWebhookEndpoints();
+      res.json(endpoints);
+    } catch (error) {
+      logError("Failed to fetch webhook endpoints", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch webhook endpoints" });
+    }
+  });
+
+  app.post("/api/webhooks", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const payload = webhookEndpointPayloadSchema.parse(req.body);
+      const endpoint = await storage.createWebhookEndpoint(payload);
+      res.status(201).json(endpoint);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid webhook endpoint", errors: error.errors });
+      }
+      logError("Failed to create webhook endpoint", error, req.requestId);
+      res.status(500).json({ message: "Failed to create webhook endpoint" });
+    }
+  });
+
+  app.patch("/api/webhooks/:id", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const payload = webhookEndpointPayloadSchema.partial().parse(req.body);
+      const endpoint = await storage.updateWebhookEndpoint(req.params.id, payload);
+      if (!endpoint) {
+        return res.status(404).json({ message: "Webhook endpoint not found" });
+      }
+      res.json(endpoint);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid webhook endpoint update", errors: error.errors });
+      }
+      logError("Failed to update webhook endpoint", error, req.requestId);
+      res.status(500).json({ message: "Failed to update webhook endpoint" });
+    }
+  });
+
+  app.delete("/api/webhooks/:id", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      await storage.deleteWebhookEndpoint(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      logError("Failed to delete webhook endpoint", error, req.requestId);
+      res.status(500).json({ message: "Failed to delete webhook endpoint" });
+    }
+  });
+
+  app.get("/api/webhooks/deliveries", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const endpointId = req.query.endpointId as string | undefined;
+      const deliveries = await storage.getWebhookDeliveries(endpointId);
+      res.json(deliveries);
+    } catch (error) {
+      logError("Failed to fetch webhook deliveries", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch webhook deliveries" });
+    }
+  });
+
+  app.post("/api/webhooks/deliveries/:id/retry", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const result = await WebhookDispatcher.retryDelivery(req.params.id);
+      res.json(result);
+    } catch (error) {
+      logError("Failed to retry webhook delivery", error, req.requestId);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to retry webhook delivery" });
     }
   });
 

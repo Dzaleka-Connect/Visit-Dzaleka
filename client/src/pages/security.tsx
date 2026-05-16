@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Search,
@@ -12,8 +12,12 @@ import {
   Plus,
   ScanLine,
   Ban,
+  Users,
+  Timer,
+  Filter,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -100,6 +104,11 @@ export default function Security() {
   const [verifiedBooking, setVerifiedBooking] = useState<BookingWithGuide | null>(null);
   const [isIncidentFormOpen, setIsIncidentFormOpen] = useState(false);
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
+
+  // Incident filters
+  const [incidentSeverityFilter, setIncidentSeverityFilter] = useState<string>("all");
+  const [incidentStatusFilter, setIncidentStatusFilter] = useState<string>("all");
+  const [incidentSearch, setIncidentSearch] = useState("");
 
   const { data: activeVisits, isLoading: activeLoading } = useQuery<BookingWithGuide[]>({
     queryKey: ["/api/bookings/active"],
@@ -326,6 +335,30 @@ export default function Security() {
     verifyMutation.mutate(reference);
   };
 
+  // Computed stats
+  const checkedInToday = todaysBookings?.filter(b => b.checkInTime).length || 0;
+  const activeOnSite = activeVisits?.length || 0;
+  const noShowsToday = todaysBookings?.filter(b => b.status === "no_show").length || 0;
+  const openIncidents = incidents?.filter(i => i.status !== "resolved" && i.status !== "closed").length || 0;
+
+  // Filtered incidents
+  const filteredIncidents = useMemo(() => {
+    if (!incidents) return [];
+    return incidents.filter(incident => {
+      if (incidentSeverityFilter !== "all" && incident.severity !== incidentSeverityFilter) return false;
+      if (incidentStatusFilter !== "all" && incident.status !== incidentStatusFilter) return false;
+      if (incidentSearch) {
+        const q = incidentSearch.toLowerCase();
+        if (
+          !incident.title?.toLowerCase().includes(q) &&
+          !incident.description?.toLowerCase().includes(q) &&
+          !incident.location?.toLowerCase().includes(q)
+        ) return false;
+      }
+      return true;
+    });
+  }, [incidents, incidentSeverityFilter, incidentStatusFilter, incidentSearch]);
+
   return (
     <div className="space-y-6">
       <SEO
@@ -337,6 +370,54 @@ export default function Security() {
         <p className="text-muted-foreground">
           Visitor check-in/out, booking verification, and incident management.
         </p>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="rounded-full bg-green-100 p-2.5 dark:bg-green-900/30">
+              <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold font-variant-numeric tabular-nums">{checkedInToday}</p>
+              <p className="text-xs text-muted-foreground">Checked In Today</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className={activeOnSite > 0 ? "border-blue-200 dark:border-blue-800" : ""}>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="rounded-full bg-blue-100 p-2.5 dark:bg-blue-900/30">
+              <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold font-variant-numeric tabular-nums">{activeOnSite}</p>
+              <p className="text-xs text-muted-foreground">Active on Site</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="rounded-full bg-orange-100 p-2.5 dark:bg-orange-900/30">
+              <Ban className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold font-variant-numeric tabular-nums">{noShowsToday}</p>
+              <p className="text-xs text-muted-foreground">No-Shows Today</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className={openIncidents > 0 ? "border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/20" : ""}>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="rounded-full bg-red-100 p-2.5 dark:bg-red-900/30">
+              <AlertTriangle className={`h-5 w-5 ${openIncidents > 0 ? "text-red-600 dark:text-red-400" : "text-red-400 dark:text-red-500"}`} />
+            </div>
+            <div>
+              <p className={`text-2xl font-bold font-variant-numeric tabular-nums ${openIncidents > 0 ? "text-red-600 dark:text-red-400" : ""}`}>{openIncidents}</p>
+              <p className="text-xs text-muted-foreground">{openIncidents > 0 ? "Open Incidents" : "No Incidents"}</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -636,8 +717,9 @@ export default function Security() {
                             (Date.now() - checkInTime.getTime()) / (1000 * 60)
                           )
                           : 0;
+                        const isOverstay = duration > 120;
                         return (
-                          <TableRow key={visit.id}>
+                          <TableRow key={visit.id} className={isOverstay ? "bg-red-50/50 dark:bg-red-950/10" : ""}>
                             <TableCell className="font-mono text-sm">
                               {visit.bookingReference}
                             </TableCell>
@@ -653,16 +735,20 @@ export default function Security() {
                               {checkInTime?.toLocaleTimeString()}
                             </TableCell>
                             <TableCell>
-                              <Badge
-                                variant="outline"
-                                className={
-                                  duration > 120
-                                    ? "border-red-500 text-red-500"
-                                    : ""
-                                }
-                              >
-                                {Math.floor(duration / 60)}h {duration % 60}m
-                              </Badge>
+                              <div className="flex items-center gap-1.5">
+                                {isOverstay && <Timer className="h-3.5 w-3.5 text-red-500" />}
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    isOverstay
+                                      ? "border-red-500 text-red-500 font-semibold"
+                                      : ""
+                                  }
+                                >
+                                  {Math.floor(duration / 60)}h {duration % 60}m
+                                </Badge>
+                                {isOverstay && <span className="text-[10px] text-red-500 font-medium">OVERSTAY</span>}
+                              </div>
                             </TableCell>
                             <TableCell>
                               {visit.guide ? (
@@ -696,7 +782,43 @@ export default function Security() {
         </TabsContent>
 
         <TabsContent value="incidents" className="mt-6 space-y-6">
-          <div className="flex justify-end">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap gap-2">
+              <div className="relative flex-1 sm:w-56 sm:flex-none">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search incidents…"
+                  value={incidentSearch}
+                  onChange={(e) => setIncidentSearch(e.target.value)}
+                  className="pl-9 h-9"
+                  data-testid="input-incident-search"
+                />
+              </div>
+              <Select value={incidentSeverityFilter} onValueChange={setIncidentSeverityFilter}>
+                <SelectTrigger className="w-32 h-9" data-testid="select-incident-severity">
+                  <SelectValue placeholder="Severity" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Severity</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={incidentStatusFilter} onValueChange={setIncidentStatusFilter}>
+                <SelectTrigger className="w-32 h-9" data-testid="select-incident-status">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="reported">Reported</SelectItem>
+                  <SelectItem value="investigating">Investigating</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Button
               onClick={() => setIsIncidentFormOpen(true)}
               data-testid="button-new-incident"
@@ -708,16 +830,23 @@ export default function Security() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Incident Reports</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>Incident Reports</CardTitle>
+                {incidents && incidents.length > 0 && (
+                  <Badge variant="outline" className="text-xs">
+                    {filteredIncidents.length} of {incidents.length}
+                  </Badge>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {incidentsLoading ? (
                 <p className="text-muted-foreground">Loading…</p>
-              ) : !incidents || incidents.length === 0 ? (
+              ) : !filteredIncidents || filteredIncidents.length === 0 ? (
                 <EmptyState
                   icon={AlertTriangle}
-                  title="No incidents"
-                  description="No incidents have been reported."
+                  title={incidents && incidents.length > 0 ? "No matching incidents" : "No incidents"}
+                  description={incidents && incidents.length > 0 ? "Try adjusting your filters." : "No incidents have been reported."}
                   className="py-8"
                 />
               ) : (
@@ -734,7 +863,7 @@ export default function Security() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {incidents.map((incident) => (
+                      {filteredIncidents.map((incident) => (
                         <TableRow key={incident.id}>
                           <TableCell>
                             {incident.createdAt
@@ -769,20 +898,16 @@ export default function Security() {
                           </TableCell>
                           <TableCell>{incident.location || "-"}</TableCell>
                           <TableCell>
-                            {incident.status !== "resolved" &&
-                              incident.status !== "closed" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    resolveIncidentMutation.mutate(incident.id)
-                                  }
-                                  disabled={resolveIncidentMutation.isPending}
-                                >
-                                  <CheckCircle className="mr-2 h-4 w-4" />
-                                  Resolve
-                                </Button>
-                              )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              asChild
+                            >
+                              <Link href={`/security/incidents/${incident.id}`}>
+                                <Eye className="mr-2 h-4 w-4" />
+                                Details
+                              </Link>
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}

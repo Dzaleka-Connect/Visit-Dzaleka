@@ -115,6 +115,12 @@ import {
   type InsertFavoriteGuide,
   type Event,
   type InsertEvent,
+  type ScheduledReport,
+  type InsertScheduledReport,
+  type WebhookEndpoint,
+  type InsertWebhookEndpoint,
+  type WebhookDelivery,
+  type InsertWebhookDelivery,
 } from "@shared/schema";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import crypto from "crypto";
@@ -127,6 +133,11 @@ function generateBookingReference(): string {
   const year = new Date().getFullYear();
   const random = crypto.randomBytes(3).toString('hex').toUpperCase();
   return `DVS-${year}-${random}`;
+}
+
+function getStoredBookingGuideEarnings(booking: any): number {
+  const guidePayment = Number(booking?.guide_payment ?? booking?.guidePayment ?? 0);
+  return guidePayment > 0 ? guidePayment : Number(booking?.total_amount ?? booking?.totalAmount ?? 0);
 }
 
 // Helper to convert snake_case to camelCase
@@ -580,6 +591,23 @@ export interface IStorage {
   // Events
   getEvents(): Promise<Event[]>;
   createEvent(event: InsertEvent): Promise<Event>;
+
+  // Scheduled Reports
+  getScheduledReports(): Promise<ScheduledReport[]>;
+  getScheduledReport(id: string): Promise<ScheduledReport | undefined>;
+  createScheduledReport(report: InsertScheduledReport): Promise<ScheduledReport>;
+  updateScheduledReport(id: string, report: Partial<ScheduledReport>): Promise<ScheduledReport | undefined>;
+  deleteScheduledReport(id: string): Promise<void>;
+
+  // Webhooks
+  getWebhookEndpoints(): Promise<WebhookEndpoint[]>;
+  getWebhookEndpoint(id: string): Promise<WebhookEndpoint | undefined>;
+  createWebhookEndpoint(endpoint: InsertWebhookEndpoint): Promise<WebhookEndpoint>;
+  updateWebhookEndpoint(id: string, endpoint: Partial<WebhookEndpoint>): Promise<WebhookEndpoint | undefined>;
+  deleteWebhookEndpoint(id: string): Promise<void>;
+  getWebhookDeliveries(endpointId?: string): Promise<WebhookDelivery[]>;
+  getWebhookDelivery(id: string): Promise<WebhookDelivery | undefined>;
+  createWebhookDelivery(delivery: InsertWebhookDelivery): Promise<WebhookDelivery>;
 }
 
 export class SupabaseStorage implements IStorage {
@@ -1236,6 +1264,8 @@ export class SupabaseStorage implements IStorage {
     if (updates.paymentDetails !== undefined) dbUpdates.payment_details = updates.paymentDetails;
     if (updates.paymentVerifiedBy !== undefined) dbUpdates.payment_verified_by = updates.paymentVerifiedBy;
     if (updates.paymentVerifiedAt) dbUpdates.payment_verified_at = updates.paymentVerifiedAt;
+    if (updates.visitorCountry !== undefined) dbUpdates.visitor_country = updates.visitorCountry;
+    if (updates.guidePayment !== undefined) dbUpdates.guide_payment = updates.guidePayment;
     if (updates.cancellationCategory !== undefined) dbUpdates.cancellation_category = updates.cancellationCategory;
     if (updates.cancellationReason !== undefined) dbUpdates.cancellation_reason = updates.cancellationReason;
     if (updates.cancellationNote !== undefined) dbUpdates.cancellation_note = updates.cancellationNote;
@@ -1281,11 +1311,11 @@ export class SupabaseStorage implements IStorage {
 
       // If completed, update guide stats
       if (status === "completed" && previousBooking?.status !== "completed" && updated?.assigned_guide_id) {
-        const guide = await this.getGuide(updated.assigned_guide_id);
+        const guide = await this.getGuide(updated.assigned_guide_id) || await this.getGuideByUserId(updated.assigned_guide_id);
         if (guide) {
-          await this.updateGuide(updated.assigned_guide_id, {
+          await this.updateGuide(guide.id, {
             totalTours: (guide.totalTours || 0) + 1,
-            totalEarnings: (guide.totalEarnings || 0) + (updated.total_amount || 0),
+            totalEarnings: (guide.totalEarnings || 0) + getStoredBookingGuideEarnings(updated),
           });
         }
       }
@@ -1305,11 +1335,11 @@ export class SupabaseStorage implements IStorage {
 
     // If completed, update guide stats
     if (status === "completed" && previousBooking?.status !== "completed" && updated?.assigned_guide_id) {
-      const guide = await this.getGuide(updated.assigned_guide_id);
+      const guide = await this.getGuide(updated.assigned_guide_id) || await this.getGuideByUserId(updated.assigned_guide_id);
       if (guide) {
-        await this.updateGuide(updated.assigned_guide_id, {
+        await this.updateGuide(guide.id, {
           totalTours: (guide.totalTours || 0) + 1,
-          totalEarnings: (guide.totalEarnings || 0) + (updated.total_amount || 0),
+          totalEarnings: (guide.totalEarnings || 0) + getStoredBookingGuideEarnings(updated),
         });
       }
     }
@@ -1385,11 +1415,11 @@ export class SupabaseStorage implements IStorage {
 
     // Update guide stats on checkout
     if (previousBooking?.status !== "completed" && updated?.assigned_guide_id) {
-      const guide = await this.getGuide(updated.assigned_guide_id);
+      const guide = await this.getGuide(updated.assigned_guide_id) || await this.getGuideByUserId(updated.assigned_guide_id);
       if (guide) {
-        await this.updateGuide(updated.assigned_guide_id, {
+        await this.updateGuide(guide.id, {
           totalTours: (guide.totalTours || 0) + 1,
-          totalEarnings: (guide.totalEarnings || 0) + (updated.total_amount || 0),
+          totalEarnings: (guide.totalEarnings || 0) + getStoredBookingGuideEarnings(updated),
         });
       }
     }
@@ -4402,6 +4432,137 @@ export class SupabaseStorage implements IStorage {
     const { data, error } = await this.supabase
       .from("events")
       .insert({ ...snakeData, created_at: new Date(), updated_at: new Date() })
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  // Scheduled Reports
+  async getScheduledReports(): Promise<ScheduledReport[]> {
+    const { data, error } = await this.supabase
+      .from("scheduled_reports")
+      .select("*")
+      .order("created_at", { ascending: false });
+    return this.handleResponse(data, error);
+  }
+
+  async getScheduledReport(id: string): Promise<ScheduledReport | undefined> {
+    const { data, error } = await this.supabase
+      .from("scheduled_reports")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error && error.code === 'PGRST116') return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createScheduledReport(report: InsertScheduledReport): Promise<ScheduledReport> {
+    const snakeData = transformToSnake(report);
+    const { data, error } = await this.supabase
+      .from("scheduled_reports")
+      .insert({ ...snakeData, created_at: new Date(), updated_at: new Date() })
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async updateScheduledReport(id: string, report: Partial<ScheduledReport>): Promise<ScheduledReport | undefined> {
+    const snakeData = transformToSnake(report);
+    const { data, error } = await this.supabase
+      .from("scheduled_reports")
+      .update({ ...snakeData, updated_at: new Date() })
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async deleteScheduledReport(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("scheduled_reports")
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+  }
+
+  // Webhooks
+  async getWebhookEndpoints(): Promise<WebhookEndpoint[]> {
+    const { data, error } = await this.supabase
+      .from("webhook_endpoints")
+      .select("*")
+      .order("created_at", { ascending: false });
+    return this.handleResponse(data, error);
+  }
+
+  async getWebhookEndpoint(id: string): Promise<WebhookEndpoint | undefined> {
+    const { data, error } = await this.supabase
+      .from("webhook_endpoints")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error && error.code === 'PGRST116') return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createWebhookEndpoint(endpoint: InsertWebhookEndpoint): Promise<WebhookEndpoint> {
+    const snakeData = transformToSnake(endpoint);
+    const { data, error } = await this.supabase
+      .from("webhook_endpoints")
+      .insert({ ...snakeData, created_at: new Date(), updated_at: new Date() })
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async updateWebhookEndpoint(id: string, endpoint: Partial<WebhookEndpoint>): Promise<WebhookEndpoint | undefined> {
+    const snakeData = transformToSnake(endpoint);
+    const { data, error } = await this.supabase
+      .from("webhook_endpoints")
+      .update({ ...snakeData, updated_at: new Date() })
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async deleteWebhookEndpoint(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("webhook_endpoints")
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+  }
+
+  async getWebhookDeliveries(endpointId?: string): Promise<WebhookDelivery[]> {
+    let query = this.supabase
+      .from("webhook_deliveries")
+      .select("*")
+      .order("timestamp", { ascending: false })
+      .limit(100);
+      
+    if (endpointId) {
+      query = query.eq("endpoint_id", endpointId);
+    }
+    
+    const { data, error } = await query;
+    return this.handleResponse(data, error);
+  }
+
+  async getWebhookDelivery(id: string): Promise<WebhookDelivery | undefined> {
+    const { data, error } = await this.supabase
+      .from("webhook_deliveries")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createWebhookDelivery(delivery: InsertWebhookDelivery): Promise<WebhookDelivery> {
+    const snakeData = transformToSnake(delivery);
+    const { data, error } = await this.supabase
+      .from("webhook_deliveries")
+      .insert({ ...snakeData, timestamp: new Date() })
       .select()
       .single();
     return this.handleResponse(data, error);

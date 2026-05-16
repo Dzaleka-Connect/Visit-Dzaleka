@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { SEO } from "@/components/seo";
 
 const contentSchema = z.object({
@@ -60,10 +61,13 @@ export default function CMSPage() {
     queryKey: ["/api/content"],
   });
 
-  const { register, handleSubmit, formState: { errors } } = useForm<ContentFormData>({
+  const { register, handleSubmit, formState: { errors, isDirty } } = useForm<ContentFormData>({
     resolver: zodResolver(contentSchema),
     values: content as ContentFormData, // Auto-populate when data loads
   });
+
+  // Warn user before leaving with unsaved changes
+  useUnsavedChanges(isDirty);
 
   const mutation = useMutation({
     mutationFn: async (data: any) => {
@@ -213,7 +217,6 @@ export default function CMSPage() {
                 <div key={index} className="space-y-2 border-b pb-4 last:border-b-0 last:pb-0">
                   <h4 className="font-semibold text-lg">Testimonial {index}</h4>
                   <div className="space-y-2">
-                    <Label>Quote</Label>
                     <Label>Quote</Label>
                     <Textarea {...register(`testimonial_${index}_quote` as keyof ContentFormData)} />
                     {errors[`testimonial_${index}_quote` as keyof ContentFormData] && <span className="text-red-500 text-xs">Required</span>}

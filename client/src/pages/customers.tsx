@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
@@ -19,6 +19,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     Table,
@@ -109,6 +116,7 @@ function getTierBadgeColor(tier: string): string {
 export default function CustomersPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [ltvSearchQuery, setLtvSearchQuery] = useState("");
+    const [tierFilter, setTierFilter] = useState<string>("all");
 
     const { data: customers, isLoading } = useQuery<Customer[]>({
         queryKey: ["/api/customers"],
@@ -127,13 +135,17 @@ export default function CustomersPage() {
         );
     });
 
-    const filteredLtvVisitors = ltvData?.visitors?.filter((visitor) => {
-        const searchLower = ltvSearchQuery.toLowerCase();
-        return (
-            visitor.name?.toLowerCase().includes(searchLower) ||
-            visitor.email?.toLowerCase().includes(searchLower)
-        );
-    });
+    const filteredLtvVisitors = useMemo(() => {
+        if (!ltvData?.visitors) return [];
+        return ltvData.visitors.filter((visitor) => {
+            if (tierFilter !== "all" && visitor.tier !== tierFilter) return false;
+            if (ltvSearchQuery) {
+                const q = ltvSearchQuery.toLowerCase();
+                if (!visitor.name?.toLowerCase().includes(q) && !visitor.email?.toLowerCase().includes(q)) return false;
+            }
+            return true;
+        });
+    }, [ltvData?.visitors, ltvSearchQuery, tierFilter]);
 
     return (
         <div className="space-y-6">
@@ -377,14 +389,27 @@ export default function CustomersPage() {
                                     <CardTitle>Visitor Lifetime Value</CardTitle>
                                     <CardDescription>All visitors ranked by total spend</CardDescription>
                                 </div>
-                                <div className="relative md:w-64">
-                                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                    <Input
-                                        placeholder="Search visitors..."
-                                        value={ltvSearchQuery}
-                                        onChange={(e) => setLtvSearchQuery(e.target.value)}
-                                        className="pl-9"
-                                    />
+                                <div className="flex items-center gap-2">
+                                    <Select value={tierFilter} onValueChange={setTierFilter}>
+                                        <SelectTrigger className="w-32 h-9">
+                                            <SelectValue placeholder="All Tiers" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Tiers</SelectItem>
+                                            <SelectItem value="vip">VIP</SelectItem>
+                                            <SelectItem value="regular">Regular</SelectItem>
+                                            <SelectItem value="new">New</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <div className="relative md:w-64">
+                                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Search visitors\u2026"
+                                            value={ltvSearchQuery}
+                                            onChange={(e) => setLtvSearchQuery(e.target.value)}
+                                            className="pl-9"
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </CardHeader>

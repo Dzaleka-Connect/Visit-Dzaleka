@@ -230,7 +230,7 @@ export default function ItineraryBuilder() {
             form.setValue("bookingReference", selected.bookingReference || ""); // Add reference
             form.setValue("bookingId", selected.id);
             if (selected.assignedGuideId && guides) {
-                const guide = guides.find(g => g.id === selected.assignedGuideId);
+                const guide = guides.find(g => g.id === selected.assignedGuideId || (!!g.userId && g.userId === selected.assignedGuideId));
                 if (guide) {
                     form.setValue("guideName", `${guide.firstName} ${guide.lastName}`);
                     form.setValue("guideContact", guide.phone || "");
@@ -291,7 +291,7 @@ export default function ItineraryBuilder() {
             form.setValue("bookingId", booking.id);
 
             if (booking.assignedGuideId && guides) {
-                const guide = guides.find(g => g.id === booking.assignedGuideId);
+                const guide = guides.find(g => g.id === booking.assignedGuideId || (!!g.userId && g.userId === booking.assignedGuideId));
                 if (guide) {
                     form.setValue("guideName", `${guide.firstName} ${guide.lastName}`);
                     form.setValue("guideContact", guide.phone || "");

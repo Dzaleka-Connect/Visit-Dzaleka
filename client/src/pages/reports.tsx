@@ -58,6 +58,9 @@ interface BookingWithGuide extends Booking {
     guide?: Guide;
 }
 
+const isBookingForGuide = (booking: Booking, guide: Guide) =>
+    booking.assignedGuideId === guide.id || (!!guide.userId && booking.assignedGuideId === guide.userId);
+
 export default function Reports() {
     const [activeTab, setActiveTab] = useState("bookings");
     const [filtersOpen, setFiltersOpen] = useState(true);
@@ -95,6 +98,7 @@ export default function Reports() {
     // Filter bookings
     const filteredBookings = useMemo(() => {
         if (!bookings) return [];
+        const selectedGuide = guideId !== "all" ? guides?.find(guide => guide.id === guideId) : undefined;
 
         return bookings.filter(booking => {
             // Date filter
@@ -114,7 +118,7 @@ export default function Reports() {
             if (paymentStatus !== "all" && booking.paymentStatus !== paymentStatus) return false;
 
             // Guide filter
-            if (guideId !== "all" && booking.assignedGuideId !== guideId) return false;
+            if (guideId !== "all" && (!selectedGuide || !isBookingForGuide(booking, selectedGuide))) return false;
 
             // Search query
             if (searchQuery) {
@@ -130,7 +134,7 @@ export default function Reports() {
 
             return true;
         });
-    }, [bookings, dateFrom, dateTo, tourType, status, paymentStatus, guideId, searchQuery]);
+    }, [bookings, guides, dateFrom, dateTo, tourType, status, paymentStatus, guideId, searchQuery]);
 
     // Calculate summary stats & Chart Data
     const summaryStats = useMemo(() => {
@@ -206,14 +210,20 @@ export default function Reports() {
         if (!guides) return { guides: [], summary: { totalGuides: 0, activeGuides: 0, totalAssignedTours: 0, averageToursPerGuide: 0 } };
 
         const guideStats = new Map<string, { assigned: number, completed: number, cancelled: number }>();
+        const guideAliases = new Map<string, string>();
 
         // Initialize
-        guides.forEach(g => guideStats.set(g.id, { assigned: 0, completed: 0, cancelled: 0 }));
+        guides.forEach(g => {
+            guideStats.set(g.id, { assigned: 0, completed: 0, cancelled: 0 });
+            guideAliases.set(g.id, g.id);
+            if (g.userId) guideAliases.set(g.userId, g.id);
+        });
 
         // Count
         filteredBookings.forEach(b => {
-            if (b.assignedGuideId && guideStats.has(b.assignedGuideId)) {
-                const s = guideStats.get(b.assignedGuideId)!;
+            const canonicalGuideId = b.assignedGuideId ? guideAliases.get(b.assignedGuideId) : undefined;
+            if (canonicalGuideId && guideStats.has(canonicalGuideId)) {
+                const s = guideStats.get(canonicalGuideId)!;
                 s.assigned++;
                 if (b.status === "completed") s.completed++;
                 if (b.status === "cancelled") s.cancelled++;

@@ -370,7 +370,7 @@ export default function EmailHistory() {
                     <Avatar className="h-10 w-10 shrink-0">
                       <AvatarFallback className={cn(
                         "text-xs font-semibold",
-                        log.status === "sent" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                        log.status === "sent" || log.status === "accepted" || log.status === "delivered" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
                       )}>
                         {getInitials(log.recipientName, log.recipientEmail)}
                       </AvatarFallback>

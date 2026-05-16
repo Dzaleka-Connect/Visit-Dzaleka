@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,6 +61,7 @@ import {
     ListTodo,
     Calendar,
     Filter,
+    Search,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -90,6 +91,7 @@ export default function TaskAdmin() {
     const [deleteTask, setDeleteTask] = useState<Task | null>(null);
     const [statusFilter, setStatusFilter] = useState<string>("all");
     const [priorityFilter, setPriorityFilter] = useState<string>("all");
+    const [taskSearch, setTaskSearch] = useState("");
 
     // Form state
     const [formData, setFormData] = useState({
@@ -127,6 +129,24 @@ export default function TaskAdmin() {
     const { data: stats } = useQuery<{ total: number; pending: number; inProgress: number; completed: number; overdue: number }>({
         queryKey: ["/api/tasks/stats"],
     });
+
+    // Client-side text search
+    const filteredTasks = useMemo(() => {
+        if (!tasks) return [];
+        if (!taskSearch) return tasks;
+        const q = taskSearch.toLowerCase();
+        return tasks.filter(t =>
+            t.title.toLowerCase().includes(q) ||
+            t.description?.toLowerCase().includes(q)
+        );
+    }, [tasks, taskSearch]);
+
+    // Build a user lookup map for assignee display
+    const userMap = useMemo(() => {
+        const m = new Map<string, string>();
+        users?.forEach(u => m.set(u.id, `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email || "Unknown"));
+        return m;
+    }, [users]);
 
     // Task input type for API (dates as ISO strings)
     type TaskInput = {
@@ -318,11 +338,20 @@ export default function TaskAdmin() {
             </div>
 
             {/* Filters */}
-            <div className="flex gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+                <div className="relative flex-1 sm:max-w-xs">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                        placeholder="Search tasks\u2026"
+                        value={taskSearch}
+                        onChange={(e) => setTaskSearch(e.target.value)}
+                        className="pl-9 h-9"
+                    />
+                </div>
                 <div className="flex items-center gap-2">
                     <Filter className="h-4 w-4 text-muted-foreground" />
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-40">
+                        <SelectTrigger className="w-40 h-9">
                             <SelectValue placeholder="All Status" />
                         </SelectTrigger>
                         <SelectContent>
@@ -334,7 +363,7 @@ export default function TaskAdmin() {
                     </Select>
                 </div>
                 <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger className="w-40 h-9">
                         <SelectValue placeholder="All Priority" />
                     </SelectTrigger>
                     <SelectContent>
@@ -354,8 +383,8 @@ export default function TaskAdmin() {
                 </CardHeader>
                 <CardContent>
                     {tasksLoading ? (
-                        <p className="text-center py-8 text-muted-foreground">Loading tasks...</p>
-                    ) : tasks && tasks.length > 0 ? (
+                        <p className="text-center py-8 text-muted-foreground">Loading tasks\u2026</p>
+                    ) : filteredTasks && filteredTasks.length > 0 ? (
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -363,12 +392,13 @@ export default function TaskAdmin() {
                                     <TableHead>Category</TableHead>
                                     <TableHead>Priority</TableHead>
                                     <TableHead>Status</TableHead>
+                                    <TableHead>Assigned To</TableHead>
                                     <TableHead>Due Date</TableHead>
                                     <TableHead>Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {tasks.map((task) => (
+                                {filteredTasks.map((task) => (
                                     <TableRow key={task.id}>
                                         <TableCell className="font-medium">{task.title}</TableCell>
                                         <TableCell>
@@ -383,6 +413,13 @@ export default function TaskAdmin() {
                                             <Badge className={statusColors[task.status || "pending"]}>
                                                 {task.status?.replace("_", " ")}
                                             </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            {task.assignedTo ? (
+                                                <span className="text-sm">{userMap.get(task.assignedTo) || "Unknown"}</span>
+                                            ) : (
+                                                <span className="text-xs text-muted-foreground">Unassigned</span>
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             {task.dueDate ? (

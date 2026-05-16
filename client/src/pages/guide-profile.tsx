@@ -87,9 +87,7 @@ export default function GuideProfile() {
         ? Math.round(((guide.completedTours || 0) / guide.totalTours) * 100)
         : 0;
 
-    const averageRating = guide.totalRatings && guide.totalRatings > 0
-        ? (guide.rating || 0) / guide.totalRatings
-        : guide.rating || 0;
+    const averageRating = guide.rating || 0;
 
     // Count bookings by status
     const completedBookings = guideBookings?.filter(b => b.status === "completed").length || 0;

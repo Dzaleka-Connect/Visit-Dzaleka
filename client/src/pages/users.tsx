@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { formatDistanceToNow } from "date-fns";
 import {
   Users,
   Shield,
@@ -589,6 +590,7 @@ export default function UsersPage() {
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Last Login</TableHead>
                     <TableHead>Joined</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
@@ -627,6 +629,15 @@ export default function UsersPage() {
                         >
                           {user.isActive ? "Active" : "Inactive"}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {(user as any).lastLoginAt ? (
+                          <span className="text-sm" title={new Date((user as any).lastLoginAt).toLocaleString()}>
+                            {formatDistanceToNow(new Date((user as any).lastLoginAt), { addSuffix: true })}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Never</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {user.createdAt

@@ -2,6 +2,7 @@ import { createApp, log } from "./app";
 import { serveStatic } from "./static";
 import { type Request, Response, NextFunction } from "express";
 import { startReminderScheduler } from "./lib/reminder-scheduler";
+import { ReportScheduler } from "./lib/report-scheduler";
 
 (async () => {
   const { app, httpServer } = await createApp();
@@ -39,6 +40,9 @@ import { startReminderScheduler } from "./lib/reminder-scheduler";
       
       // Start booking reminder scheduler
       startReminderScheduler();
+      
+      // Start scheduled reports engine
+      ReportScheduler.init();
     },
   );
 })();

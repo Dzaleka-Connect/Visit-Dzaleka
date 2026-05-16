@@ -96,6 +96,8 @@ interface PayoutData {
   totalRevenue: number;
   paidRevenue: number;
   pendingRevenue: number;
+  paidGuideShare: number;
+  pendingGuideShare: number;
   guideShare: number;
   platformShare: number;
 }
@@ -295,10 +297,10 @@ function PayoutsTab() {
   });
 
   const handleRecordPayout = () => {
-    if (!selectedGuideData || selectedGuideData.pendingRevenue <= 0) return;
+    if (!selectedGuideData || selectedGuideData.pendingGuideShare <= 0) return;
     createPayoutMutation.mutate({
       guideId: selectedGuideData.guideId,
-      amount: selectedGuideData.pendingRevenue,
+      amount: selectedGuideData.pendingGuideShare,
       toursCount: selectedGuideData.pendingTours,
       status: "pending" // Default to pending, admin can mark as paid in history
     });
@@ -324,8 +326,7 @@ function PayoutsTab() {
   }
 
   const totalGuideShare = payouts.reduce((sum, p) => sum + p.guideShare, 0);
-  const totalPlatformShare = payouts.reduce((sum, p) => sum + p.platformShare, 0);
-  const totalPendingRevenue = payouts.reduce((sum, p) => sum + p.pendingRevenue, 0);
+  const totalPendingGuideShare = payouts.reduce((sum, p) => sum + p.pendingGuideShare, 0);
   const totalCompletedTours = payouts.reduce((sum, p) => sum + p.completedTours, 0);
   const totalPaidTours = payouts.reduce((sum, p) => sum + p.paidTours, 0);
   const totalPendingTours = payouts.reduce((sum, p) => sum + p.pendingTours, 0);
@@ -339,7 +340,7 @@ function PayoutsTab() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">{formatCurrency(totalGuideShare)}</div>
-            <p className="text-xs text-muted-foreground">{totalPaidTours} paid tours</p>
+            <p className="text-xs text-muted-foreground">{totalPaidTours} paid, {totalPendingTours} pending tours</p>
           </CardContent>
         </Card>
         <Card>
@@ -353,10 +354,10 @@ function PayoutsTab() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Pending Payments</CardTitle>
+            <CardTitle className="text-sm font-medium">Pending Guide Earnings</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-600">{formatCurrency(totalPendingRevenue)}</div>
+            <div className="text-2xl font-bold text-amber-600">{formatCurrency(totalPendingGuideShare)}</div>
             <p className="text-xs text-muted-foreground">{totalPendingTours} tours awaiting payment</p>
           </CardContent>
         </Card>
@@ -385,7 +386,7 @@ function PayoutsTab() {
                   <TableHead className="text-center">Paid</TableHead>
                   <TableHead className="text-center">Pending</TableHead>
                   <TableHead className="text-right">Paid Revenue</TableHead>
-                  <TableHead className="text-right">Pending Revenue</TableHead>
+                  <TableHead className="text-right">Pending Guide Earnings</TableHead>
                   <TableHead className="text-right">Total Earnings</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
@@ -411,11 +412,11 @@ function PayoutsTab() {
                     </TableCell>
                     <TableCell className="text-right">{formatCurrency(payout.paidRevenue)}</TableCell>
                     <TableCell className="text-right text-amber-600">
-                      {payout.pendingRevenue > 0 ? formatCurrency(payout.pendingRevenue) : "-"}
+                      {payout.pendingGuideShare > 0 ? formatCurrency(payout.pendingGuideShare) : "-"}
                     </TableCell>
                     <TableCell className="text-right font-bold text-green-600">{formatCurrency(payout.guideShare)}</TableCell>
                     <TableCell className="text-right">
-                      {payout.pendingRevenue > 0 ? (
+                      {payout.pendingGuideShare > 0 ? (
                         <Button
                           variant="outline"
                           size="sm"
@@ -451,9 +452,9 @@ function PayoutsTab() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="p-4 bg-muted rounded text-center">
-              <p className="text-sm text-muted-foreground">Pending Revenue to Record</p>
+              <p className="text-sm text-muted-foreground">Pending Guide Earnings to Record</p>
               <p className="text-2xl font-bold text-amber-600">
-                {selectedGuideData && formatCurrency(selectedGuideData.pendingRevenue)}
+                {selectedGuideData && formatCurrency(selectedGuideData.pendingGuideShare)}
               </p>
               <p className="text-xs text-muted-foreground mt-2">
                 From {selectedGuideData?.pendingTours} pending tours

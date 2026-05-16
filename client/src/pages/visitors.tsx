@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow, format } from "date-fns";
 import {
@@ -62,25 +63,35 @@ interface VisitorWithStats {
     lastVisit?: string;
 }
 
+type CustomerRecord = User & {
+    stats?: {
+        totalVisits?: number;
+        totalSpend?: number;
+        lastVisit?: string;
+        bookingCount?: number;
+    };
+};
+
+const getRecognizedBookingRevenue = (booking: Booking) =>
+    booking.paymentStatus === "paid" && booking.status !== "cancelled"
+        ? booking.totalAmount || 0
+        : 0;
+
 export default function VisitorsPage() {
+    const [, setLocation] = useLocation();
     const [searchQuery, setSearchQuery] = useState("");
     const [sortBy, setSortBy] = useState("recent");
     const [filterType, setFilterType] = useState("all"); // all, registered, unregistered
-    const [selectedVisitor, setSelectedVisitor] = useState<VisitorWithStats | null>(null);
-    const [detailsOpen, setDetailsOpen] = useState(false);
 
-    // Fetch all users with visitor role
-    const { data: allUsers, isLoading: usersLoading } = useQuery<User[]>({
-        queryKey: ["/api/users"],
+    // Fetch registered visitor CRM records
+    const { data: registeredVisitors = [], isLoading: usersLoading } = useQuery<CustomerRecord[]>({
+        queryKey: ["/api/customers"],
     });
 
     // Fetch all bookings for stats
     const { data: bookings, isLoading: bookingsLoading } = useQuery<Booking[]>({
         queryKey: ["/api/bookings"],
     });
-
-    // Filter to only visitors with accounts
-    const registeredVisitors = allUsers?.filter((u) => u.role === "visitor") || [];
 
     // Get unique visitors from bookings who are NOT in the users table
     const registeredEmails = new Set(registeredVisitors.map((v) => v.email?.toLowerCase()));
@@ -119,9 +130,10 @@ export default function VisitorsPage() {
         ...registeredVisitors.map((visitor) => ({
             ...visitor,
             isRegistered: true,
-            totalBookings: 0,
-            completedTours: 0,
-            totalSpent: 0,
+            totalBookings: visitor.stats?.bookingCount || 0,
+            completedTours: visitor.stats?.totalVisits || 0,
+            totalSpent: visitor.stats?.totalSpend || 0,
+            lastVisit: visitor.stats?.lastVisit,
         })),
         ...unregisteredVisitors,
     ];
@@ -129,11 +141,11 @@ export default function VisitorsPage() {
     // Enrich all visitors with booking stats
     const visitorsWithStats: VisitorWithStats[] = allVisitors.map((visitor) => {
         const visitorBookings = bookings?.filter(
-            (b) => b.visitorEmail?.toLowerCase() === visitor.email?.toLowerCase()
+            (b) => b.visitorUserId === visitor.id || b.visitorEmail?.toLowerCase() === visitor.email?.toLowerCase()
         ) || [];
         const completedBookings = visitorBookings.filter((b) => b.status === "completed");
-        const totalSpent = visitorBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
-        const lastBooking = visitorBookings.sort(
+        const totalSpent = visitorBookings.reduce((sum, b) => sum + getRecognizedBookingRevenue(b), 0);
+        const lastBooking = [...visitorBookings].sort(
             (a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime()
         )[0];
         const latestCountry = visitor.country || visitorBookings
@@ -141,7 +153,7 @@ export default function VisitorsPage() {
             .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0]?.visitorCountry || null;
 
         // For unregistered visitors, use earliest booking date as createdAt
-        const earliestBooking = visitorBookings.sort(
+        const earliestBooking = [...visitorBookings].sort(
             (a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
         )[0];
 
@@ -191,16 +203,6 @@ export default function VisitorsPage() {
     const registeredCount = visitorsWithStats.filter((v) => v.isRegistered).length;
     const totalBookingsCount = visitorsWithStats.reduce((sum, v) => sum + (v.totalBookings || 0), 0);
     const totalRevenue = visitorsWithStats.reduce((sum, v) => sum + (v.totalSpent || 0), 0);
-
-    // Fetch bookings for selected visitor
-    const { data: visitorBookings } = useQuery<Booking[]>({
-        queryKey: ["/api/bookings", { visitorId: selectedVisitor?.id }],
-        enabled: !!selectedVisitor,
-    });
-
-    const selectedVisitorBookings = visitorBookings?.filter(
-        (b) => b.visitorEmail === selectedVisitor?.email || b.visitorUserId === selectedVisitor?.id
-    ) || [];
 
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat("en-MW", {
@@ -364,10 +366,7 @@ export default function VisitorsPage() {
                                                 <div>
                                                     <button
                                                         className="font-medium text-left hover:text-primary hover:underline cursor-pointer transition-colors"
-                                                        onClick={() => {
-                                                            setSelectedVisitor(visitor);
-                                                            setDetailsOpen(true);
-                                                        }}
+                                                        onClick={() => setLocation(`/admin/visitors/${encodeURIComponent(visitor.id)}`)}
                                                     >
                                                         {visitor.firstName} {visitor.lastName}
                                                     </button>
@@ -435,10 +434,7 @@ export default function VisitorsPage() {
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                onClick={() => {
-                                                    setSelectedVisitor(visitor);
-                                                    setDetailsOpen(true);
-                                                }}
+                                                onClick={() => setLocation(`/admin/visitors/${encodeURIComponent(visitor.id)}`)}
                                             >
                                                 <Eye className="h-4 w-4" />
                                             </Button>
@@ -450,112 +446,6 @@ export default function VisitorsPage() {
                     )}
                 </CardContent>
             </Card>
-
-            {/* Visitor Details Dialog */}
-            <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>Visitor Details</DialogTitle>
-                    </DialogHeader>
-                    {selectedVisitor && (
-                        <div className="space-y-6">
-                            {/* Profile Section */}
-                            <div className="flex items-start gap-4">
-                                <Avatar className="h-16 w-16">
-                                    <AvatarImage src={selectedVisitor.profileImageUrl || undefined} />
-                                    <AvatarFallback className="text-lg">
-                                        {selectedVisitor.firstName?.charAt(0) || "V"}
-                                        {selectedVisitor.lastName?.charAt(0) || ""}
-                                    </AvatarFallback>
-                                </Avatar>
-                                <div className="flex-1">
-                                    <h3 className="text-xl font-semibold">
-                                        {selectedVisitor.firstName} {selectedVisitor.lastName}
-                                    </h3>
-                                    <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-                                        <div className="flex items-center gap-2">
-                                            <Mail className="h-4 w-4" />
-                                            {selectedVisitor.email}
-                                        </div>
-                                        {selectedVisitor.phone && (
-                                            <div className="flex items-center gap-2">
-                                                <Phone className="h-4 w-4" />
-                                                {selectedVisitor.phone}
-                                            </div>
-                                        )}
-                                        {selectedVisitor.country && (
-                                            <div className="flex items-center gap-2">
-                                                <MapPin className="h-4 w-4" />
-                                                {selectedVisitor.country}
-                                            </div>
-                                        )}
-                                        <div className="flex items-center gap-2">
-                                            <Clock className="h-4 w-4" />
-                                            Joined {selectedVisitor.createdAt
-                                                ? format(new Date(selectedVisitor.createdAt), "MMMM d, yyyy")
-                                                : "unknown"}
-                                        </div>
-                                    </div>
-                                </div>
-                                <Badge
-                                    className={
-                                        selectedVisitor.isRegistered
-                                            ? "bg-green-100 text-green-800"
-                                            : "bg-orange-100 text-orange-800"
-                                    }
-                                >
-                                    {selectedVisitor.isRegistered ? "Registered" : "Unregistered"}
-                                </Badge>
-                            </div>
-
-                            {/* Stats */}
-                            <div className="grid grid-cols-3 gap-4">
-                                <div className="rounded-lg border p-4 text-center">
-                                    <p className="text-2xl font-bold">{selectedVisitor.totalBookings || 0}</p>
-                                    <p className="text-sm text-muted-foreground">Total Bookings</p>
-                                </div>
-                                <div className="rounded-lg border p-4 text-center">
-                                    <p className="text-2xl font-bold">{selectedVisitor.completedTours || 0}</p>
-                                    <p className="text-sm text-muted-foreground">Completed Tours</p>
-                                </div>
-                                <div className="rounded-lg border p-4 text-center">
-                                    <p className="text-2xl font-bold">{formatCurrency(selectedVisitor.totalSpent || 0)}</p>
-                                    <p className="text-sm text-muted-foreground">Total Spent</p>
-                                </div>
-                            </div>
-
-                            {/* Booking History */}
-                            <div>
-                                <h4 className="font-semibold mb-3">Booking History</h4>
-                                {selectedVisitorBookings.length === 0 ? (
-                                    <p className="text-muted-foreground text-sm">No bookings found for this visitor.</p>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {selectedVisitorBookings.slice(0, 5).map((booking) => (
-                                            <div key={booking.id} className="flex items-center justify-between rounded-lg border p-3">
-                                                <div>
-                                                    <p className="font-medium">
-                                                        {booking.bookingReference || booking.id.slice(0, 8)}
-                                                    </p>
-                                                    <p className="text-sm text-muted-foreground">
-                                                        {format(new Date(booking.visitDate), "MMM d, yyyy")} at {booking.visitTime}
-                                                    </p>
-                                                </div>
-                                                <div className="text-right">
-                                                    {getStatusBadge(booking.status || "pending")}
-                                                    <p className="text-sm font-medium mt-1">
-                                                        {formatCurrency(booking.totalAmount || 0)}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }

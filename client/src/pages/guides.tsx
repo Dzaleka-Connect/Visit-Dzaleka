@@ -806,10 +806,10 @@ export default function Guides() {
 
                 <div className="mt-4 flex items-center justify-between border-t pt-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <Calendar className="h-4 w-4" />
-                      <span>{guide.totalTours || 0} tours</span>
-                    </div>
+	                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+	                      <Calendar className="h-4 w-4" />
+	                      <span>{guide.completedTours || 0} completed</span>
+	                    </div>
                     <div className="flex items-center gap-1 text-sm text-amber-600">
                       <Star className="h-4 w-4 fill-amber-400" />
                       <span>{guide.rating || 0}/5</span>
