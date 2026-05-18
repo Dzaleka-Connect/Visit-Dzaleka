@@ -15,13 +15,35 @@ import {
     CheckCircle,
     XCircle,
     Send,
+    UserCheck,
+    LogOut,
+    UserPlus,
+    Ban,
+    ClipboardCheck,
+    Play,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { StatusBadge, PaymentStatusBadge } from "@/components/status-badge";
 import { SEO } from "@/components/seo";
 import {
@@ -34,12 +56,64 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Booking, Guide, Zone, PointOfInterest, AnalyticsSetting, Itinerary, EmailLog } from "@shared/schema";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { jsPDF } from "jspdf";
 
-interface BookingWithGuide extends Booking {
-    guide?: Guide;
+interface TransportRequestSummary {
+    id: string;
+    bookingId?: string | null;
+    partnerId?: string | null;
+    route?: string | null;
+    pickupLocation?: string | null;
+    notes?: string | null;
+    status?: string | null;
+    quotedAmount?: number | null;
+    currency?: string | null;
+    quoteSentAt?: string | Date | null;
+    quoteDecision?: string | null;
+    quoteDecisionAt?: string | Date | null;
+    quoteDecisionNotes?: string | null;
+    estimatedPickupTime?: string | null;
+    requestedPickupTime?: string | null;
+    requestedVisitDate?: string | Date | null;
+    rescheduleNotes?: string | null;
+    driverName?: string | null;
+    driverPhone?: string | null;
+    vehicleDetails?: string | null;
+    partnerNotes?: string | null;
+    adminNotes?: string | null;
+    cancellationReason?: string | null;
+    cancelledAt?: string | Date | null;
+    assignedAt?: string | Date | null;
+    assignedByUserId?: string | null;
+    createdByUserId?: string | null;
+    partnerRespondedAt?: string | Date | null;
+    createdAt?: string | Date | null;
+    updatedAt?: string | Date | null;
+    partner?: {
+        companyName?: string | null;
+        contactName?: string | null;
+        email?: string | null;
+        phone?: string | null;
+        whatsapp?: string | null;
+        preferredContactMethod?: string | null;
+    } | null;
 }
+
+interface BookingWithGuide extends Booking {
+    guide?: Guide | null;
+    transportRequest?: TransportRequestSummary | null;
+    meetingPoint?: { id: string; name: string } | null;
+}
+
+const CANCELLATION_REASONS = [
+    { value: "guide_unavailable", label: "Guide unavailable" },
+    { value: "access_or_public_holiday", label: "Activity not accessible" },
+    { value: "minimum_participants_not_met", label: "Minimum participants not reached" },
+    { value: "weather_or_safety", label: "Weather or safety issue" },
+    { value: "customer_requested", label: "Visitor requested cancellation" },
+    { value: "other", label: "Other operational reason" },
+];
 
 // Timeline component
 function BookingTimeline({ bookingId }: { bookingId: string }) {
@@ -221,6 +295,34 @@ const getTourTypeName = (type: string) => {
                 : type;
 };
 
+const formatDateTime = (value?: string | Date | null) => {
+    if (!value) return "Not recorded";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Not recorded";
+    return new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+    }).format(date);
+};
+
+const formatLabel = (value?: string | null) => {
+    if (!value) return "Not provided";
+    return value.replace(/[_-]/g, " ");
+};
+
+const paymentDetailsToRows = (details: unknown) => {
+    if (!details || typeof details !== "object" || Array.isArray(details)) {
+        return [];
+    }
+
+    return Object.entries(details as Record<string, unknown>)
+        .filter(([, value]) => value !== null && value !== undefined && value !== "")
+        .map(([key, value]) => ({
+            key: formatLabel(key),
+            value: typeof value === "object" ? JSON.stringify(value) : String(value),
+        }));
+};
+
 import { generateQRCodeDataURL } from "@/lib/qrcode";
 
 // Premium PDF Generator function (async to support QR code generation)
@@ -391,10 +493,27 @@ export default function BookingDetails() {
     const [, params] = useRoute("/bookings/:id");
     const id = params?.id || "";
     const { toast } = useToast();
+    const isAdminOrCoordinator = user?.role === "admin" || user?.role === "coordinator";
+    const canCheckVisitors = isAdminOrCoordinator || user?.role === "security";
+    const [isAssignOpen, setIsAssignOpen] = useState(false);
+    const [selectedGuideId, setSelectedGuideId] = useState("");
+    const [adminNotes, setAdminNotes] = useState("");
+    const [paymentReference, setPaymentReference] = useState("");
+    const [isEmailOpen, setIsEmailOpen] = useState(false);
+    const [emailSubject, setEmailSubject] = useState("");
+    const [emailMessage, setEmailMessage] = useState("");
+    const [isCancelOpen, setIsCancelOpen] = useState(false);
+    const [cancellationReason, setCancellationReason] = useState("customer_requested");
+    const [cancellationNote, setCancellationNote] = useState("");
 
     const { data: booking, isLoading, error } = useQuery<BookingWithGuide>({
         queryKey: [`/api/bookings/${id}`],
         enabled: !!id,
+    });
+
+    const { data: guides = [] } = useQuery<Guide[]>({
+        queryKey: ["/api/guides"],
+        enabled: isAdminOrCoordinator,
     });
 
     const { data: itinerary } = useQuery<Itinerary>({
@@ -415,24 +534,45 @@ export default function BookingDetails() {
         queryKey: ["/api/points-of-interest"],
     });
 
+    useEffect(() => {
+        if (!booking) return;
+        setAdminNotes(booking.adminNotes || "");
+        setPaymentReference(booking.paymentReference || "");
+        setSelectedGuideId(booking.assignedGuideId || "");
+    }, [booking?.id, booking?.adminNotes, booking?.paymentReference, booking?.assignedGuideId]);
+
+    const invalidateBookingRecord = () => {
+        queryClient.invalidateQueries({ queryKey: [`/api/bookings/${id}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/bookings/${id}/activity`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/bookings/${id}/email-timeline`] });
+        queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+    };
+
     const updateStatusMutation = useMutation({
         mutationFn: async ({
             status,
             cancellationCategory,
             cancellationReason,
+            cancellationNote,
         }: {
             status: string;
             cancellationCategory?: string;
             cancellationReason?: string;
+            cancellationNote?: string;
         }) => {
             await apiRequest("PATCH", `/api/bookings/${id}/status`, {
                 status,
                 cancellationCategory,
                 cancellationReason,
+                cancellationNote,
             });
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: [`/api/bookings/${id}`] });
+            invalidateBookingRecord();
+            setIsCancelOpen(false);
+            setCancellationReason("customer_requested");
+            setCancellationNote("");
             toast({
                 title: "Status updated",
                 description: "Booking status has been updated successfully.",
@@ -447,12 +587,181 @@ export default function BookingDetails() {
         },
     });
 
+    const assignGuideMutation = useMutation({
+        mutationFn: async (guideId: string) => {
+            await apiRequest("PATCH", `/api/bookings/${id}/assign`, { guideId });
+        },
+        onSuccess: () => {
+            invalidateBookingRecord();
+            setIsAssignOpen(false);
+            toast({
+                title: "Guide assigned",
+                description: "The booking guide has been updated.",
+            });
+        },
+        onError: (error: Error) => {
+            toast({
+                title: "Failed to assign guide",
+                description: error.message,
+                variant: "destructive",
+            });
+        },
+    });
+
+    const updateNotesMutation = useMutation({
+        mutationFn: async (notes: string) => {
+            await apiRequest("PATCH", `/api/bookings/${id}/notes`, { adminNotes: notes });
+        },
+        onSuccess: () => {
+            invalidateBookingRecord();
+            toast({
+                title: "Notes saved",
+                description: "Internal booking notes have been updated.",
+            });
+        },
+        onError: (error: Error) => {
+            toast({
+                title: "Failed to save notes",
+                description: error.message,
+                variant: "destructive",
+            });
+        },
+    });
+
+    const updatePaymentMutation = useMutation({
+        mutationFn: async ({
+            paymentStatus,
+            paymentReference,
+            approvalConfirmed,
+        }: {
+            paymentStatus: string;
+            paymentReference?: string;
+            approvalConfirmed?: boolean;
+        }) => {
+            await apiRequest("PATCH", `/api/bookings/${id}/payment`, {
+                paymentStatus,
+                paymentReference,
+                approvalConfirmed,
+            });
+        },
+        onSuccess: () => {
+            invalidateBookingRecord();
+            toast({
+                title: "Payment updated",
+                description: "Payment details have been saved.",
+            });
+        },
+        onError: (error: Error) => {
+            toast({
+                title: "Failed to update payment",
+                description: error.message,
+                variant: "destructive",
+            });
+        },
+    });
+
+    const checkInMutation = useMutation({
+        mutationFn: async () => {
+            await apiRequest("POST", `/api/bookings/${id}/check-in`);
+        },
+        onSuccess: () => {
+            invalidateBookingRecord();
+            toast({ title: "Visitor checked in", description: "The check-in time has been recorded." });
+        },
+        onError: (error: Error) => {
+            toast({ title: "Check-in failed", description: error.message, variant: "destructive" });
+        },
+    });
+
+    const checkOutMutation = useMutation({
+        mutationFn: async () => {
+            await apiRequest("POST", `/api/bookings/${id}/check-out`);
+        },
+        onSuccess: () => {
+            invalidateBookingRecord();
+            toast({ title: "Visitor checked out", description: "The check-out time has been recorded." });
+        },
+        onError: (error: Error) => {
+            toast({ title: "Check-out failed", description: error.message, variant: "destructive" });
+        },
+    });
+
+    const noShowMutation = useMutation({
+        mutationFn: async () => {
+            await apiRequest("POST", `/api/bookings/${id}/no-show`);
+        },
+        onSuccess: () => {
+            invalidateBookingRecord();
+            toast({ title: "Marked no-show", description: "The booking was marked as no-show." });
+        },
+        onError: (error: Error) => {
+            toast({ title: "No-show failed", description: error.message, variant: "destructive" });
+        },
+    });
+
+    const startTourMutation = useMutation({
+        mutationFn: async () => {
+            await apiRequest("POST", `/api/bookings/${id}/start`);
+        },
+        onSuccess: () => {
+            invalidateBookingRecord();
+            toast({ title: "Tour started", description: "The booking is now marked in progress." });
+        },
+        onError: (error: Error) => {
+            toast({ title: "Start failed", description: error.message, variant: "destructive" });
+        },
+    });
+
+    const completeMutation = useMutation({
+        mutationFn: async () => {
+            await apiRequest("POST", `/api/bookings/${id}/complete`);
+        },
+        onSuccess: () => {
+            invalidateBookingRecord();
+            toast({ title: "Booking completed", description: "The tour was marked completed." });
+        },
+        onError: (error: Error) => {
+            toast({ title: "Completion failed", description: error.message, variant: "destructive" });
+        },
+    });
+
+    const sendEmailMutation = useMutation({
+        mutationFn: async ({
+            recipientName,
+            recipientEmail,
+            subject,
+            message,
+        }: {
+            recipientName: string;
+            recipientEmail: string;
+            subject: string;
+            message: string;
+        }) => {
+            await apiRequest("POST", "/api/send-email", {
+                recipientName,
+                recipientEmail,
+                subject,
+                message,
+            });
+        },
+        onSuccess: () => {
+            setIsEmailOpen(false);
+            setEmailSubject("");
+            setEmailMessage("");
+            queryClient.invalidateQueries({ queryKey: ["/api/email-logs"] });
+            toast({ title: "Email sent", description: "Your email has been sent successfully." });
+        },
+        onError: (error: Error) => {
+            toast({ title: "Failed to send email", description: error.message, variant: "destructive" });
+        },
+    });
+
     const resendBookingEmailMutation = useMutation({
         mutationFn: async (type: string) => {
             await apiRequest("POST", `/api/bookings/${id}/resend-email`, { type });
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: [`/api/bookings/${id}/email-timeline`] });
+            invalidateBookingRecord();
             queryClient.invalidateQueries({ queryKey: ["/api/email-logs"] });
             toast({
                 title: "Email resent",
@@ -601,6 +910,39 @@ export default function BookingDetails() {
                 : "Complete missing visitor-facing details",
         },
     ];
+    const paymentDetailRows = paymentDetailsToRows(booking.paymentDetails);
+    const transportRequest = booking.transportRequest;
+    const canManageBooking = isAdminOrCoordinator;
+    const anyActionPending =
+        updateStatusMutation.isPending ||
+        checkInMutation.isPending ||
+        checkOutMutation.isPending ||
+        noShowMutation.isPending ||
+        startTourMutation.isPending ||
+        completeMutation.isPending;
+    const submitCancellation = () => {
+        const reason = CANCELLATION_REASONS.find((item) => item.value === cancellationReason);
+        updateStatusMutation.mutate({
+            status: "cancelled",
+            cancellationCategory: cancellationReason,
+            cancellationReason: reason?.label || "Cancellation",
+            cancellationNote: cancellationNote.trim() || undefined,
+        });
+    };
+    const savePayment = (paymentStatus: string = booking.paymentStatus || "pending") => {
+        if (paymentStatus === "paid" && booking.paymentStatus !== "paid") {
+            const confirmed = window.confirm("Confirm payment approval: mark this booking as paid and send the visitor a receipt if applicable.");
+            if (!confirmed) return;
+            updatePaymentMutation.mutate({
+                paymentStatus,
+                paymentReference,
+                approvalConfirmed: true,
+            });
+            return;
+        }
+
+        updatePaymentMutation.mutate({ paymentStatus, paymentReference });
+    };
 
     return (
         <div className="space-y-6">
@@ -628,20 +970,40 @@ export default function BookingDetails() {
                 </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end">
-                    {booking.status !== "cancelled" && (
+                    {canManageBooking && booking.status === "pending" && (
+                        <Button
+                            className="w-full sm:w-auto"
+                            disabled={updateStatusMutation.isPending}
+                            onClick={() => updateStatusMutation.mutate({ status: "confirmed" })}
+                        >
+                            <CheckCircle className="mr-2 h-4 w-4" />
+                            Confirm
+                        </Button>
+                    )}
+                    {canManageBooking && booking.status !== "cancelled" && (
                         <Button
                             variant="destructive"
                             className="w-full sm:w-auto"
-                            onClick={() => updateStatusMutation.mutate({
-                                status: "cancelled",
-                                cancellationCategory: "staff_cancelled",
-                                cancellationReason: "Cancelled by staff",
-                            })}
+                            disabled={updateStatusMutation.isPending}
+                            onClick={() => setIsCancelOpen(true)}
                         >
+                            <XCircle className="mr-2 h-4 w-4" />
                             Cancel Booking
                         </Button>
                     )}
-                    {(user?.role === "admin" || user?.role === "coordinator") && (
+                    {canManageBooking && (
+                        <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => setIsAssignOpen(true)}>
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            {booking.assignedGuideId ? "Change Guide" : "Assign Guide"}
+                        </Button>
+                    )}
+                    {canManageBooking && (
+                        <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => setIsEmailOpen(true)}>
+                            <Mail className="mr-2 h-4 w-4" />
+                            Email Visitor
+                        </Button>
+                    )}
+                    {canManageBooking && (
                         <Button size="sm" variant="outline" className="w-full sm:w-auto" asChild>
                             <Link href={`/itinerary-builder/${booking.id}`}>
                                 <Mail className="mr-2 h-4 w-4" /> Send Proposal
@@ -684,6 +1046,79 @@ export default function BookingDetails() {
                 </CardContent>
             </Card>
 
+            {(canManageBooking || canCheckVisitors) && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Operational Actions</CardTitle>
+                        <CardDescription>Manage confirmation, guide assignment, visitor movement, payment, and follow-up from this record.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                        {canManageBooking && booking.status === "pending" && (
+                            <Button disabled={anyActionPending} onClick={() => updateStatusMutation.mutate({ status: "confirmed" })}>
+                                <CheckCircle className="mr-2 h-4 w-4" />
+                                Confirm Booking
+                            </Button>
+                        )}
+                        {canCheckVisitors && booking.status === "confirmed" && !booking.checkInTime && (
+                            <Button disabled={checkInMutation.isPending} onClick={() => checkInMutation.mutate()}>
+                                <UserCheck className="mr-2 h-4 w-4" />
+                                Check In Visitor
+                            </Button>
+                        )}
+                        {canCheckVisitors && booking.checkInTime && !booking.checkOutTime && booking.status !== "completed" && (
+                            <Button variant="secondary" disabled={checkOutMutation.isPending} onClick={() => checkOutMutation.mutate()}>
+                                <LogOut className="mr-2 h-4 w-4" />
+                                Check Out Visitor
+                            </Button>
+                        )}
+                        {canManageBooking && booking.status === "confirmed" && (
+                            <Button variant="outline" disabled={startTourMutation.isPending} onClick={() => startTourMutation.mutate()}>
+                                <Play className="mr-2 h-4 w-4" />
+                                Start Tour
+                            </Button>
+                        )}
+                        {canManageBooking && booking.status === "in_progress" && (
+                            <Button variant="outline" disabled={completeMutation.isPending} onClick={() => completeMutation.mutate()}>
+                                <ClipboardCheck className="mr-2 h-4 w-4" />
+                                Mark Completed
+                            </Button>
+                        )}
+                        {canCheckVisitors && booking.status !== "cancelled" && booking.status !== "completed" && (
+                            <Button
+                                variant="outline"
+                                disabled={noShowMutation.isPending}
+                                onClick={() => {
+                                    if (window.confirm("Mark this booking as no-show?")) {
+                                        noShowMutation.mutate();
+                                    }
+                                }}
+                            >
+                                <Ban className="mr-2 h-4 w-4" />
+                                Mark No-show
+                            </Button>
+                        )}
+                        {canManageBooking && (
+                            <Button variant="outline" onClick={() => setIsAssignOpen(true)}>
+                                <Users className="mr-2 h-4 w-4" />
+                                {booking.guide ? "Change Guide" : "Assign Guide"}
+                            </Button>
+                        )}
+                        {canManageBooking && (
+                            <Button variant="outline" onClick={() => setIsEmailOpen(true)}>
+                                <Mail className="mr-2 h-4 w-4" />
+                                Email Visitor
+                            </Button>
+                        )}
+                        {canManageBooking && booking.status !== "cancelled" && (
+                            <Button variant="destructive" disabled={updateStatusMutation.isPending} onClick={() => setIsCancelOpen(true)}>
+                                <XCircle className="mr-2 h-4 w-4" />
+                                Cancel Booking
+                            </Button>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
             <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-6">
                     <Card>
@@ -698,15 +1133,29 @@ export default function BookingDetails() {
                                 </div>
                                 <div className="min-w-0">
                                     <Label className="text-xs text-muted-foreground">Email</Label>
-                                    <p className="font-medium truncate">{booking.visitorEmail}</p>
+                                    <p className="break-all font-medium">{booking.visitorEmail}</p>
                                 </div>
                                 <div>
                                     <Label className="text-xs text-muted-foreground">Phone</Label>
                                     <p className="font-medium">{booking.visitorPhone || "N/A"}</p>
                                 </div>
                                 <div>
+                                    <Label className="text-xs text-muted-foreground">Country</Label>
+                                    <p className="font-medium">{booking.visitorCountry || "Not provided"}</p>
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-muted-foreground">Organization</Label>
+                                    <p className="font-medium">{booking.visitorOrganization || "Not provided"}</p>
+                                </div>
+                                <div>
                                     <Label className="text-xs text-muted-foreground">Group Size</Label>
-                                    <p className="font-medium">{booking.numberOfPeople} people</p>
+                                    <p className="font-medium">
+                                        {booking.numberOfPeople || 1} {(booking.numberOfPeople || 1) === 1 ? "person" : "people"}
+                                    </p>
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-muted-foreground">Visitor Account</Label>
+                                    <p className="break-all font-medium">{booking.visitorUserId || "Not linked"}</p>
                                 </div>
                             </div>
                         </CardContent>
@@ -737,11 +1186,33 @@ export default function BookingDetails() {
                                     <p className="font-medium capitalize">{getTourTypeName(booking.tourType)}</p>
                                 </div>
                                 <div>
+                                    <Label className="text-xs text-muted-foreground">Group Category</Label>
+                                    <p className="font-medium capitalize">{formatLabel(booking.groupSize)}</p>
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-muted-foreground">Custom Duration</Label>
+                                    <p className="font-medium">
+                                        {booking.customDuration ? `${booking.customDuration} hours` : "Not requested"}
+                                    </p>
+                                </div>
+                                <div>
                                     <Label className="text-xs text-muted-foreground">Meeting Point</Label>
                                     <p className="flex items-center gap-2 font-medium">
                                         <MapPin className="h-4 w-4 text-muted-foreground" />
                                         {getMeetingPointName(booking.meetingPointId)}
                                     </p>
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-muted-foreground">Source</Label>
+                                    <p className="font-medium capitalize">{formatLabel(booking.source || "direct")}</p>
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-muted-foreground">Referral Source</Label>
+                                    <p className="font-medium capitalize">{formatLabel(booking.referralSource)}</p>
+                                </div>
+                                <div className="min-w-0">
+                                    <Label className="text-xs text-muted-foreground">External Reference</Label>
+                                    <p className="break-all font-medium">{booking.externalReferenceId || "Not provided"}</p>
                                 </div>
                             </div>
                         </CardContent>
@@ -780,16 +1251,25 @@ export default function BookingDetails() {
 
                     {booking.guide ? (
                         <Card>
-                            <CardHeader>
-                                <CardTitle>Assigned Guide</CardTitle>
+                            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                    <CardTitle>Assigned Guide</CardTitle>
+                                    <CardDescription>Visible to staff and used for guide notifications.</CardDescription>
+                                </div>
+                                {canManageBooking && (
+                                    <Button variant="outline" size="sm" onClick={() => setIsAssignOpen(true)}>
+                                        <UserPlus className="mr-2 h-4 w-4" />
+                                        Change Guide
+                                    </Button>
+                                )}
                             </CardHeader>
                             <CardContent>
-                                <div className="flex items-center gap-4">
+                                <div className="flex min-w-0 items-center gap-4">
                                     <Avatar className="h-12 w-12">
                                         <AvatarImage src={booking.guide.profileImageUrl || undefined} />
                                         <AvatarFallback>{booking.guide.firstName[0]}{booking.guide.lastName[0]}</AvatarFallback>
                                     </Avatar>
-                                    <div>
+                                    <div className="min-w-0">
                                         <p className="font-medium">{booking.guide.firstName} {booking.guide.lastName}</p>
                                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                             <Phone className="h-3 w-3" /> {booking.guide.phone}
@@ -803,8 +1283,17 @@ export default function BookingDetails() {
                         </Card>
                     ) : (
                         <Card>
-                            <CardHeader>
-                                <CardTitle>Assigned Guide</CardTitle>
+                            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                    <CardTitle>Assigned Guide</CardTitle>
+                                    <CardDescription>No guide assignment has been recorded yet.</CardDescription>
+                                </div>
+                                {canManageBooking && (
+                                    <Button variant="outline" size="sm" onClick={() => setIsAssignOpen(true)}>
+                                        <UserPlus className="mr-2 h-4 w-4" />
+                                        Assign Guide
+                                    </Button>
+                                )}
                             </CardHeader>
                             <CardContent>
                                 <div className="flex items-center gap-2 text-yellow-600 bg-yellow-50 dark:bg-yellow-900/10 p-4 rounded-lg border border-yellow-100 dark:border-yellow-900/50">
@@ -859,20 +1348,252 @@ export default function BookingDetails() {
                     <Card>
                         <CardHeader>
                             <CardTitle>Payment Details</CardTitle>
+                            <CardDescription>Track visitor payment state, verification, fees, and card details where available.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="flex justify-between items-center py-2 border-b">
+                            <div className="flex justify-between items-center gap-3 py-2 border-b">
                                 <span className="text-sm text-muted-foreground">Total Amount</span>
                                 <span className="text-xl font-bold">{formatCurrency(booking.totalAmount || 0)}</span>
                             </div>
-                            <div className="flex justify-between items-center py-2 border-b">
+                            <div className="flex justify-between items-center gap-3 py-2 border-b">
                                 <span className="text-sm text-muted-foreground">Payment Status</span>
                                 <PaymentStatusBadge status={booking.paymentStatus || "pending"} />
                             </div>
-                            <div className="flex justify-between items-center py-2">
+                            <div className="flex justify-between items-center gap-3 py-2 border-b">
                                 <span className="text-sm text-muted-foreground">Payment Method</span>
                                 <span className="capitalize font-medium">{booking.paymentMethod?.replace(/_/g, " ") || "Cash"}</span>
                             </div>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <div>
+                                    <Label className="text-xs text-muted-foreground">Payment Reference</Label>
+                                    {canManageBooking ? (
+                                        <Input
+                                            className="mt-1"
+                                            value={paymentReference}
+                                            onChange={(event) => setPaymentReference(event.target.value)}
+                                            placeholder="Stripe session, receipt, or cash reference…"
+                                        />
+                                    ) : (
+                                        <p className="break-all text-sm font-medium">{booking.paymentReference || "Not recorded"}</p>
+                                    )}
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-muted-foreground">Verified At</Label>
+                                    <p className="text-sm font-medium">{formatDateTime(booking.paymentVerifiedAt)}</p>
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-muted-foreground">Payment Fees</Label>
+                                    <p className="text-sm font-medium">{formatCurrency(booking.paymentFees || 0)}</p>
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-muted-foreground">Net Amount</Label>
+                                    <p className="text-sm font-medium">{formatCurrency(booking.netAmount || 0)}</p>
+                                </div>
+                            </div>
+                            {canManageBooking && (
+                                <div className="grid gap-2 border-t pt-4 sm:grid-cols-[1fr_auto]">
+                                    <Select
+                                        value={booking.paymentStatus || "pending"}
+                                        onValueChange={(value) => savePayment(value)}
+                                    >
+                                        <SelectTrigger aria-label="Update payment status">
+                                            <SelectValue placeholder="Update payment status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="pending">Pending</SelectItem>
+                                            <SelectItem value="paid">Paid</SelectItem>
+                                            <SelectItem value="refunded">Refunded</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <Button
+                                        variant="outline"
+                                        disabled={updatePaymentMutation.isPending}
+                                        onClick={() => savePayment()}
+                                    >
+                                        {updatePaymentMutation.isPending ? (
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        ) : null}
+                                        Save Payment
+                                    </Button>
+                                </div>
+                            )}
+                            {paymentDetailRows.length > 0 && (
+                                <div className="rounded-lg border p-3">
+                                    <p className="text-sm font-medium">Processor Details</p>
+                                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                        {paymentDetailRows.map((row) => (
+                                            <div key={row.key} className="min-w-0">
+                                                <Label className="text-xs capitalize text-muted-foreground">{row.key}</Label>
+                                                <p className="break-all text-sm font-medium">{row.value}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {canManageBooking && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Internal Admin Notes</CardTitle>
+                                <CardDescription>Private operational notes for staff only.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                <Textarea
+                                    value={adminNotes}
+                                    onChange={(event) => setAdminNotes(event.target.value)}
+                                    placeholder="Add internal booking notes…"
+                                    className="min-h-[140px]"
+                                />
+                                <Button
+                                    variant="outline"
+                                    className="w-full"
+                                    disabled={updateNotesMutation.isPending}
+                                    onClick={() => updateNotesMutation.mutate(adminNotes)}
+                                >
+                                    {updateNotesMutation.isPending ? (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    ) : null}
+                                    Save Notes
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {!canManageBooking && booking.adminNotes && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Internal Notes</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="whitespace-pre-wrap break-words rounded-md bg-muted p-3 text-sm">{booking.adminNotes}</p>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Transport Request</CardTitle>
+                            <CardDescription>Partner, quote, pickup, and driver details linked to this booking.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {transportRequest ? (
+                                <div className="space-y-4">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Badge variant="secondary" className="capitalize">
+                                            {formatLabel(transportRequest.status)}
+                                        </Badge>
+                                        {transportRequest.quoteDecision && (
+                                            <Badge variant={transportRequest.quoteDecision === "approved" ? "default" : "destructive"} className="capitalize">
+                                                Quote {transportRequest.quoteDecision}
+                                            </Badge>
+                                        )}
+                                    </div>
+                                    <div className="grid gap-3 sm:grid-cols-2">
+                                        <div>
+                                            <Label className="text-xs text-muted-foreground">Partner</Label>
+                                            <p className="break-words text-sm font-medium">
+                                                {transportRequest.partner?.companyName || "Not assigned"}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs text-muted-foreground">Partner Contact</Label>
+                                            <p className="break-words text-sm font-medium">
+                                                {[transportRequest.partner?.contactName, transportRequest.partner?.phone || transportRequest.partner?.whatsapp || transportRequest.partner?.email].filter(Boolean).join(" - ") || "Not provided"}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs text-muted-foreground">Route</Label>
+                                            <p className="break-words text-sm font-medium">{formatLabel(transportRequest.route)}</p>
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs text-muted-foreground">Pickup Location</Label>
+                                            <p className="break-words text-sm font-medium">{transportRequest.pickupLocation || "Not provided"}</p>
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs text-muted-foreground">Requested Pickup</Label>
+                                            <p className="text-sm font-medium">{transportRequest.requestedPickupTime || "Not recorded"}</p>
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs text-muted-foreground">Estimated Pickup</Label>
+                                            <p className="text-sm font-medium">{transportRequest.estimatedPickupTime || "Not recorded"}</p>
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs text-muted-foreground">Quote</Label>
+                                            <p className="text-sm font-medium">
+                                                {transportRequest.quotedAmount != null
+                                                    ? formatCurrency(transportRequest.quotedAmount, transportRequest.currency || "MWK")
+                                                    : "Not quoted"}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs text-muted-foreground">Quote Sent</Label>
+                                            <p className="text-sm font-medium">{formatDateTime(transportRequest.quoteSentAt)}</p>
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs text-muted-foreground">Assigned At</Label>
+                                            <p className="text-sm font-medium">{formatDateTime(transportRequest.assignedAt)}</p>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <Label className="text-xs text-muted-foreground">Assigned By</Label>
+                                            <p className="break-all text-sm font-medium">{transportRequest.assignedByUserId || "Not recorded"}</p>
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs text-muted-foreground">Driver</Label>
+                                            <p className="break-words text-sm font-medium">{transportRequest.driverName || "Not assigned"}</p>
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs text-muted-foreground">Driver Phone</Label>
+                                            <p className="break-words text-sm font-medium">{transportRequest.driverPhone || "Not provided"}</p>
+                                        </div>
+                                    </div>
+                                    {transportRequest.vehicleDetails && (
+                                        <div>
+                                            <Label className="text-xs text-muted-foreground">Vehicle</Label>
+                                            <p className="mt-1 break-words rounded-md bg-muted p-2 text-sm">{transportRequest.vehicleDetails}</p>
+                                        </div>
+                                    )}
+                                    {(transportRequest.notes || transportRequest.partnerNotes || transportRequest.adminNotes || transportRequest.rescheduleNotes || transportRequest.quoteDecisionNotes) && (
+                                        <div className="grid gap-3">
+                                            {transportRequest.notes && (
+                                                <div>
+                                                    <Label className="text-xs text-muted-foreground">Transport Notes</Label>
+                                                    <p className="mt-1 break-words rounded-md bg-muted p-2 text-sm">{transportRequest.notes}</p>
+                                                </div>
+                                            )}
+                                            {transportRequest.partnerNotes && (
+                                                <div>
+                                                    <Label className="text-xs text-muted-foreground">Partner Notes</Label>
+                                                    <p className="mt-1 break-words rounded-md bg-muted p-2 text-sm">{transportRequest.partnerNotes}</p>
+                                                </div>
+                                            )}
+                                            {transportRequest.adminNotes && (
+                                                <div>
+                                                    <Label className="text-xs text-muted-foreground">Private Admin Notes</Label>
+                                                    <p className="mt-1 break-words rounded-md bg-muted p-2 text-sm">{transportRequest.adminNotes}</p>
+                                                </div>
+                                            )}
+                                            {transportRequest.rescheduleNotes && (
+                                                <div>
+                                                    <Label className="text-xs text-muted-foreground">Reschedule Notes</Label>
+                                                    <p className="mt-1 break-words rounded-md bg-muted p-2 text-sm">{transportRequest.rescheduleNotes}</p>
+                                                </div>
+                                            )}
+                                            {transportRequest.quoteDecisionNotes && (
+                                                <div>
+                                                    <Label className="text-xs text-muted-foreground">Quote Decision Notes</Label>
+                                                    <p className="mt-1 break-words rounded-md bg-muted p-2 text-sm">{transportRequest.quoteDecisionNotes}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                                    No transport request is linked to this booking.
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
@@ -963,6 +1684,43 @@ export default function BookingDetails() {
 
                     <Card>
                         <CardHeader>
+                            <CardTitle>Operational Timestamps</CardTitle>
+                            <CardDescription>Record history for check-in, check-out, cancellation, reminders, and updates.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="grid gap-3 sm:grid-cols-2">
+                            <div>
+                                <Label className="text-xs text-muted-foreground">Check-in Time</Label>
+                                <p className="text-sm font-medium">{formatDateTime(booking.checkInTime)}</p>
+                            </div>
+                            <div>
+                                <Label className="text-xs text-muted-foreground">Check-out Time</Label>
+                                <p className="text-sm font-medium">{formatDateTime(booking.checkOutTime)}</p>
+                            </div>
+                            <div>
+                                <Label className="text-xs text-muted-foreground">Cancelled At</Label>
+                                <p className="text-sm font-medium">{formatDateTime(booking.cancelledAt)}</p>
+                            </div>
+                            <div>
+                                <Label className="text-xs text-muted-foreground">Reminder Sent</Label>
+                                <p className="text-sm font-medium">{formatDateTime(booking.reminderSentAt)}</p>
+                            </div>
+                            <div>
+                                <Label className="text-xs text-muted-foreground">Created</Label>
+                                <p className="text-sm font-medium">{formatDateTime(booking.createdAt)}</p>
+                            </div>
+                            <div>
+                                <Label className="text-xs text-muted-foreground">Updated</Label>
+                                <p className="text-sm font-medium">{formatDateTime(booking.updatedAt)}</p>
+                            </div>
+                            <div className="min-w-0 sm:col-span-2">
+                                <Label className="text-xs text-muted-foreground">Booking ID</Label>
+                                <p className="break-all text-sm font-medium">{booking.id}</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
                             <CardTitle>Activity Log</CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -981,6 +1739,158 @@ export default function BookingDetails() {
                     </Card>
                 </div>
             </div>
+
+            <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{booking.guide ? "Change Assigned Guide" : "Assign Guide"}</DialogTitle>
+                        <DialogDescription>
+                            Select the guide responsible for this visitor booking.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2">
+                        <Label htmlFor="guide-select">Guide</Label>
+                        <Select value={selectedGuideId} onValueChange={setSelectedGuideId}>
+                            <SelectTrigger id="guide-select">
+                                <SelectValue placeholder="Choose a guide…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {guides.map((guide) => (
+                                    <SelectItem key={guide.id} value={guide.id}>
+                                        {guide.firstName} {guide.lastName}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setIsAssignOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            disabled={!selectedGuideId || assignGuideMutation.isPending}
+                            onClick={() => assignGuideMutation.mutate(selectedGuideId)}
+                        >
+                            {assignGuideMutation.isPending ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : null}
+                            Save Guide
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isEmailOpen} onOpenChange={setIsEmailOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Email Visitor</DialogTitle>
+                        <DialogDescription>
+                            Send a direct email to {booking.visitorName}. Template emails remain available in the resend panel.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="visitor-email">Recipient</Label>
+                            <Input id="visitor-email" value={booking.visitorEmail} readOnly />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="email-subject">Subject</Label>
+                            <Input
+                                id="email-subject"
+                                value={emailSubject}
+                                onChange={(event) => setEmailSubject(event.target.value)}
+                                placeholder="Booking update…"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="email-message">Message</Label>
+                            <Textarea
+                                id="email-message"
+                                value={emailMessage}
+                                onChange={(event) => setEmailMessage(event.target.value)}
+                                placeholder="Write your message…"
+                                className="min-h-[160px]"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setIsEmailOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            disabled={!emailSubject.trim() || !emailMessage.trim() || sendEmailMutation.isPending}
+                            onClick={() => sendEmailMutation.mutate({
+                                recipientName: booking.visitorName,
+                                recipientEmail: booking.visitorEmail,
+                                subject: emailSubject.trim(),
+                                message: emailMessage.trim(),
+                            })}
+                        >
+                            {sendEmailMutation.isPending ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Send className="mr-2 h-4 w-4" />
+                            )}
+                            Send Email
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isCancelOpen} onOpenChange={setIsCancelOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Cancel Booking</DialogTitle>
+                        <DialogDescription>
+                            This will update the booking status and notify the visitor using the cancellation email workflow.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="cancellation-reason">Reason</Label>
+                            <Select value={cancellationReason} onValueChange={setCancellationReason}>
+                                <SelectTrigger id="cancellation-reason">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {CANCELLATION_REASONS.map((reason) => (
+                                        <SelectItem key={reason.value} value={reason.value}>
+                                            {reason.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="cancellation-note">Internal Note</Label>
+                            <Textarea
+                                id="cancellation-note"
+                                value={cancellationNote}
+                                onChange={(event) => setCancellationNote(event.target.value)}
+                                placeholder="Add context for the cancellation…"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setIsCancelOpen(false)}>
+                            Keep Booking
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            disabled={updateStatusMutation.isPending}
+                            onClick={submitCancellation}
+                        >
+                            {updateStatusMutation.isPending ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : null}
+                            Cancel Booking
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

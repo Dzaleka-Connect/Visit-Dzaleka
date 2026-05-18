@@ -76,6 +76,7 @@ export default function Webhooks() {
       events: string[];
       secret: FormDataEntryValue | null;
       status: FormDataEntryValue | null;
+      approvalConfirmed?: boolean;
     }) => {
       const res = await apiRequest(
         editingEndpoint ? "PATCH" : "POST",
@@ -94,7 +95,7 @@ export default function Webhooks() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/webhooks/${id}`);
+      await apiRequest("DELETE", `/api/webhooks/${id}`, { approvalConfirmed: true });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/webhooks"] });
@@ -125,8 +126,13 @@ export default function Webhooks() {
       url: formData.get("url"),
       events: (formData.get("events") as string).split(",").map(s => s.trim()).filter(Boolean),
       secret: formData.get("secret"),
-      status: formData.get("status") || "active"
+      status: formData.get("status") || "active",
+      approvalConfirmed: true,
     };
+    const approved = window.confirm("Confirm webhook approval: this will create or update an outgoing integration endpoint.");
+    if (!approved) {
+      return;
+    }
     saveMutation.mutate(data);
   };
 
@@ -158,7 +164,7 @@ export default function Webhooks() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
-                <Input id="description" name="description" required defaultValue={editingEndpoint?.description} placeholder="Zapier Sync" />
+                <Input id="description" name="description" required defaultValue={editingEndpoint?.description} placeholder="Zapier Sync…" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="url">Payload URL</Label>
@@ -166,12 +172,12 @@ export default function Webhooks() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="events">Events (comma separated)</Label>
-                <Input id="events" name="events" required defaultValue={editingEndpoint?.events?.join(", ")} placeholder="booking.created, incident.reported" />
+                <Input id="events" name="events" required defaultValue={editingEndpoint?.events?.join(", ")} placeholder="booking.created, incident.reported…" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="secret">Secret Token (Optional)</Label>
-                  <Input id="secret" name="secret" type="password" defaultValue={editingEndpoint?.secret || ""} placeholder="For signature verification" />
+                  <Input id="secret" name="secret" type="password" defaultValue={editingEndpoint?.secret || ""} placeholder="For signature verification…" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="status">Status</Label>
@@ -298,8 +304,8 @@ export default function Webhooks() {
               <TableBody>
                 {endpoints.map((ep) => (
                   <TableRow key={ep.id}>
-                    <TableCell className="font-medium">{ep.description}</TableCell>
-                    <TableCell className="text-xs font-mono max-w-[200px] truncate">{ep.url}</TableCell>
+                    <TableCell className="font-medium max-w-[180px] break-words">{ep.description}</TableCell>
+                    <TableCell className="text-xs font-mono max-w-[240px] break-all">{ep.url}</TableCell>
                     <TableCell>
                       <div className="flex gap-1 flex-wrap">
                         {ep.events.map((ev: string) => (
@@ -320,7 +326,7 @@ export default function Webhooks() {
                         setIsDialogOpen(true);
                       }}>Edit</Button>
                       <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => {
-                        if (confirm("Delete this endpoint?")) {
+                        if (window.confirm("Confirm webhook approval: delete this endpoint?")) {
                           deleteMutation.mutate(ep.id);
                         }
                       }}>

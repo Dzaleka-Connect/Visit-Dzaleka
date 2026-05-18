@@ -1,5 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -31,28 +30,46 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { TrainingModule } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { SEO } from "@/components/seo";
+import { apiRequest } from "@/lib/queryClient";
+
+type ResourceProgress = Record<string, { status: "completed"; completedAt?: string }>;
 
 export default function VisitorResourcesPage() {
   const { toast } = useToast();
-  // We'll use local storage to track "read" status for visitors since there's no backend table for it
-  const [readModules, setReadModules] = useState<Record<string, boolean>>(() => {
-    const saved = localStorage.getItem("visitor_read_modules");
-    return saved ? JSON.parse(saved) : {};
-  });
+  const queryClient = useQueryClient();
 
   const { data: modules, isLoading } = useQuery<TrainingModule[]>({
     queryKey: ["/api/visitor-resources"],
   });
 
-  const markAsRead = (moduleId: string) => {
-    const newReadState = { ...readModules, [moduleId]: true };
-    setReadModules(newReadState);
-    localStorage.setItem("visitor_read_modules", JSON.stringify(newReadState));
-    toast({
-      title: "Marked as read",
-      description: "Progress saved locally.",
-    });
-  };
+  const { data: resourceProgress = {}, isLoading: progressLoading } = useQuery<ResourceProgress>({
+    queryKey: ["/api/visitor-resources/progress"],
+  });
+
+  const markAsReadMutation = useMutation({
+    mutationFn: async (moduleId: string) => {
+      const response = await apiRequest("PATCH", `/api/visitor-resources/progress/${moduleId}`, {
+        status: "completed",
+      });
+      return response.json() as Promise<ResourceProgress>;
+    },
+    onSuccess: (progress) => {
+      queryClient.setQueryData(["/api/visitor-resources/progress"], progress);
+      toast({
+        title: "Marked as read",
+        description: "Your progress is saved to your account.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Progress not saved",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const markAsRead = (moduleId: string) => markAsReadMutation.mutate(moduleId);
 
   const categories = modules
     ? Array.from(new Set(modules.map((m) => m.category)))
@@ -69,25 +86,25 @@ export default function VisitorResourcesPage() {
 
   const calculateProgress = () => {
     if (!modules || modules.length === 0) return 0;
-    const readCount = Object.keys(readModules).filter((id) =>
+    const readCount = Object.keys(resourceProgress).filter((id) =>
       modules.some((m) => m.id === id)
     ).length;
     return Math.round((readCount / modules.length) * 100);
   };
 
-  if (isLoading) {
+  if (isLoading || progressLoading) {
     return (
-      <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-        <div className="flex items-center justify-between space-y-2">
-          <h2 className="text-3xl font-bold tracking-tight">Visitor Resources</h2>
+      <div className="space-y-6 overflow-x-hidden">
+        <div className="min-w-0">
+          <h2 className="break-words text-2xl font-bold tracking-tight sm:text-3xl">Before You Visit</h2>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
           <div className="col-span-4 lg:col-span-5 space-y-4">
             {[1, 2, 3].map((i) => (
               <Card key={i}>
                 <CardHeader>
-                  <Skeleton className="h-4 w-[200px]" />
-                  <Skeleton className="h-4 w-[300px]" />
+                  <Skeleton className="h-4 w-full max-w-[200px]" />
+                  <Skeleton className="h-4 w-full max-w-[300px]" />
                 </CardHeader>
                 <CardContent>
                   <Skeleton className="h-[100px] w-full" />
@@ -103,21 +120,21 @@ export default function VisitorResourcesPage() {
   const progress = calculateProgress();
 
   return (
-    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+    <div className="space-y-6 overflow-x-hidden">
       <SEO
-        title="Learning Center"
+        title="Before You Visit"
         description="Essential information and guides for your visit to Dzaleka."
       />
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:space-y-0">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Learning Center</h2>
-          <p className="text-muted-foreground">
+        <div className="min-w-0">
+          <h2 className="break-words text-2xl font-bold tracking-tight sm:text-3xl">Before You Visit</h2>
+          <p className="break-words text-muted-foreground">
             Essential information and guides for your visit to Dzaleka.
           </p>
         </div>
         <div className="flex items-center w-full md:w-auto">
           <Card className="bg-primary/5 border-primary/20 w-full md:w-auto">
-            <CardContent className="p-4 flex items-center space-x-4">
+            <CardContent className="flex items-center gap-4 p-4">
               <div className="p-2 bg-primary/10 rounded-full">
                 <BookOpen className="h-6 w-6 text-primary" />
               </div>
@@ -125,7 +142,7 @@ export default function VisitorResourcesPage() {
                 <p className="text-sm font-medium text-muted-foreground">
                   Your Progress
                 </p>
-                <div className="flex items-baseline space-x-2">
+                <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold">{progress}%</span>
                   <span className="text-xs text-muted-foreground">read</span>
                 </div>
@@ -155,23 +172,23 @@ export default function VisitorResourcesPage() {
                 {modulesByCategory?.[category]?.map((module) => (
                   <Card key={module.id} className="overflow-hidden">
                     <CardHeader className="bg-muted/30">
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                        <div className="space-y-1">
-                          <CardTitle className="text-xl flex flex-wrap items-center gap-2 leading-tight">
+                      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                        <div className="min-w-0 space-y-1">
+                          <CardTitle className="flex min-w-0 flex-wrap items-center gap-2 break-words text-lg leading-tight sm:text-xl">
                             {module.title}
-                            {readModules[module.id] && (
+                            {resourceProgress[module.id] && (
                               <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-100 whitespace-nowrap">
                                 <CheckCircle className="h-3 w-3 mr-1" />
                                 Read
                               </Badge>
                             )}
                           </CardTitle>
-                          <CardDescription className="flex items-center gap-2">
+                          <CardDescription className="flex min-w-0 items-center gap-2 break-words">
                             <Clock className="h-3 w-3" />
                             {module.estimatedMinutes} min read
                           </CardDescription>
                         </div>
-                        {readModules[module.id] ? (
+                        {resourceProgress[module.id] ? (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -186,22 +203,30 @@ export default function VisitorResourcesPage() {
                             size="sm"
                             className="w-full sm:w-auto shrink-0"
                             onClick={() => markAsRead(module.id)}
+                            disabled={markAsReadMutation.isPending && markAsReadMutation.variables === module.id}
                           >
-                            Mark as Read
+                            {markAsReadMutation.isPending && markAsReadMutation.variables === module.id ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Saving…
+                              </>
+                            ) : (
+                              "Mark as Read"
+                            )}
                           </Button>
                         )}
                       </div>
                     </CardHeader>
-                    <CardContent className="p-6 space-y-4">
-                      <div className="prose prose-sm max-w-none text-muted-foreground">
+                    <CardContent className="space-y-4 p-4 sm:p-6">
+                      <div className="prose prose-sm max-w-none break-words text-muted-foreground">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {module.description}
                         </ReactMarkdown>
                       </div>
 
                       {module.content && (
-                        <div className="mt-4 p-4 bg-muted/50 rounded-lg text-sm leading-relaxed">
-                          <div className="prose prose-sm max-w-none">
+                        <div className="mt-4 rounded-lg bg-muted/50 p-4 text-sm leading-relaxed">
+                          <div className="prose prose-sm max-w-none break-words">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
                               {module.content}
                             </ReactMarkdown>
@@ -210,13 +235,13 @@ export default function VisitorResourcesPage() {
                       )}
 
                       {module.externalUrl && (
-                        <div className="pt-4 flex items-center gap-2">
-                          <Button asChild variant="ghost" className="px-0 h-auto text-primary hover:underline">
+                        <div className="flex items-center gap-2 pt-4">
+                          <Button asChild variant="ghost" className="h-auto min-h-10 max-w-full px-0 text-primary hover:underline">
                             <a
                               href={module.externalUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1"
+                              className="flex min-w-0 items-center gap-1 break-words"
                             >
                               Read full article <ExternalLink className="h-3 w-3" />
                             </a>

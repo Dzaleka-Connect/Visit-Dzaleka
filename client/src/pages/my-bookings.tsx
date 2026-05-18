@@ -943,24 +943,24 @@ export default function MyBookings() {
         title="My Bookings"
         description="View and manage your tour bookings at Dzaleka Refugee Camp. Request new visits, reschedule, or cancel existing bookings."
       />
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">
             {isDetailOpen ? "Booking Details" : "My Bookings"}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="break-words text-muted-foreground">
             {isDetailOpen
               ? `Reference: ${selectedBooking?.bookingReference || 'Pending'}`
               : "View your tour bookings and request new visits to Dzaleka."}
           </p>
         </div>
         {!isDetailOpen ? (
-          <Button onClick={() => setIsCreateOpen(true)} data-testid="button-new-booking">
+          <Button className="w-full sm:w-auto" onClick={() => setIsCreateOpen(true)} data-testid="button-new-booking">
             <Plus className="mr-2 h-4 w-4" />
             Book a Tour
           </Button>
         ) : (
-          <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
+          <Button className="w-full sm:w-auto" variant="outline" onClick={() => setIsDetailOpen(false)}>
             Back to Bookings
           </Button>
         )}
@@ -969,7 +969,7 @@ export default function MyBookings() {
       {isDetailOpen && selectedBooking ? (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           {/* Detail View Container */}
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 lg:grid-cols-2">
             {/* Left Column: Main Info */}
             <div className="space-y-6">
               <Card>
@@ -977,22 +977,22 @@ export default function MyBookings() {
                   <CardTitle>Visitor Information</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="min-w-0">
                       <Label className="text-xs text-muted-foreground">Name</Label>
-                      <p className="font-medium">{selectedBooking.visitorName}</p>
+                      <p className="break-words font-medium">{selectedBooking.visitorName}</p>
                     </div>
                     <div className="min-w-0">
                       <Label className="text-xs text-muted-foreground">Email</Label>
-                      <p className="font-medium truncate">{selectedBooking.visitorEmail}</p>
+                      <p className="break-all font-medium">{selectedBooking.visitorEmail}</p>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <Label className="text-xs text-muted-foreground">Phone</Label>
-                      <p className="font-medium">{selectedBooking.visitorPhone}</p>
+                      <p className="break-words font-medium">{selectedBooking.visitorPhone}</p>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <Label className="text-xs text-muted-foreground">Country / region</Label>
-                      <p className="font-medium">{selectedBooking.visitorCountry || "Not provided"}</p>
+                      <p className="break-words font-medium">{selectedBooking.visitorCountry || "Not provided"}</p>
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Status</Label>
@@ -1007,35 +1007,35 @@ export default function MyBookings() {
                   <CardTitle>Tour Information</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="min-w-0">
                       <Label className="text-xs text-muted-foreground">Date</Label>
-                      <p className="flex items-center gap-2 font-medium">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <p className="flex min-w-0 items-center gap-2 break-words font-medium">
+                        <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
                         {formatDate(selectedBooking.visitDate)}
                       </p>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <Label className="text-xs text-muted-foreground">Time</Label>
-                      <p className="flex items-center gap-2 font-medium">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
+                      <p className="flex min-w-0 items-center gap-2 break-words font-medium">
+                        <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
                         {formatTime(selectedBooking.visitTime)}
                       </p>
                     </div>
-                    <div className="col-span-2">
+                    <div className="min-w-0 sm:col-span-2">
                       <Label className="text-xs text-muted-foreground">Meeting Point</Label>
-                      <p className="flex items-center gap-2 font-medium">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                      <p className="flex min-w-0 items-center gap-2 break-words font-medium">
+                        <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
                         {getMeetingPointName(selectedBooking.meetingPointId)}
                       </p>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <Label className="text-xs text-muted-foreground">Tour Type</Label>
-                      <p className="font-medium capitalize">{selectedBooking.tourType}</p>
+                      <p className="break-words font-medium capitalize">{selectedBooking.tourType}</p>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <Label className="text-xs text-muted-foreground">Group Size</Label>
-                      <p className="font-medium">{selectedBooking.numberOfPeople || 1} people</p>
+                      <p className="break-words font-medium">{selectedBooking.numberOfPeople || 1} people</p>
                     </div>
                   </div>
                 </CardContent>
@@ -1047,7 +1047,7 @@ export default function MyBookings() {
                     <CardTitle>Special Requests</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-muted-foreground">{selectedBooking.specialRequests}</p>
+                    <p className="break-words text-sm text-muted-foreground">{selectedBooking.specialRequests}</p>
                   </CardContent>
                 </Card>
               )}
@@ -1092,15 +1092,15 @@ export default function MyBookings() {
                     <CardTitle>Assigned Guide</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    <div className="flex items-center gap-4">
+                    <div className="flex min-w-0 items-center gap-4">
                       <Avatar className="h-16 w-16 border-2 border-background shadow-sm">
                         <AvatarImage src={selectedBooking.guide.profileImageUrl || undefined} />
                         <AvatarFallback className="bg-primary/10 text-primary text-xl">
                           {selectedBooking.guide.firstName.charAt(0)}{selectedBooking.guide.lastName.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
-                      <div>
-                        <h4 className="text-lg font-bold">{selectedBooking.guide.firstName} {selectedBooking.guide.lastName}</h4>
+                      <div className="min-w-0">
+                        <h4 className="break-words text-lg font-bold">{selectedBooking.guide.firstName} {selectedBooking.guide.lastName}</h4>
                         {selectedBooking.guide.rating && (
                           <div className="flex items-center gap-1 text-amber-500">
                             <Star className="h-4 w-4 fill-current" />
@@ -1113,7 +1113,7 @@ export default function MyBookings() {
                     {selectedBooking.guide.bio && (
                       <div className="space-y-1">
                         <Label className="text-xs text-muted-foreground">About the Guide</Label>
-                        <p className="text-sm leading-relaxed">{selectedBooking.guide.bio}</p>
+                        <p className="break-words text-sm leading-relaxed">{selectedBooking.guide.bio}</p>
                       </div>
                     )}
 
@@ -1131,8 +1131,8 @@ export default function MyBookings() {
                     {selectedBooking.guide.phone && (
                       <div className="pt-2 border-t border-primary/10">
                         <Label className="text-xs text-muted-foreground">Contact</Label>
-                        <p className="flex items-center gap-2 font-medium mt-1">
-                          <Phone className="h-4 w-4" /> {selectedBooking.guide.phone}
+                        <p className="mt-1 flex min-w-0 items-center gap-2 break-words font-medium">
+                          <Phone className="h-4 w-4 shrink-0" /> {selectedBooking.guide.phone}
                         </p>
                       </div>
                     )}
@@ -1224,16 +1224,16 @@ export default function MyBookings() {
                 </Card>
               )}
 
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-col justify-end gap-2 sm:flex-row">
                 {itineraries?.some((i) => i.bookingId === selectedBooking.id) && (
-                  <Button variant="default" asChild>
+                  <Button variant="default" asChild className="w-full sm:w-auto">
                     <Link href={`/bookings/${selectedBooking.id}/itinerary`}>
                       <FileDown className="mr-2 h-4 w-4" /> View Itinerary
                     </Link>
                   </Button>
                 )}
 
-                <Button variant="outline" onClick={() => generateBookingPDF(selectedBooking, getMeetingPointName(selectedBooking.meetingPointId))} >
+                <Button className="w-full sm:w-auto" variant="outline" onClick={() => generateBookingPDF(selectedBooking, getMeetingPointName(selectedBooking.meetingPointId))} >
                   <FileDown className="mr-2 h-4 w-4" /> Download PDF
                 </Button>
               </div>
@@ -1265,9 +1265,9 @@ export default function MyBookings() {
                 <Card key={booking.id} className="hover-elevate" data-testid={`card-booking-${booking.id}`}>
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
                         {getStatusIcon(booking.status || "pending")}
-                        <CardTitle className="text-base">
+                        <CardTitle className="break-words text-base">
                           {booking.tourType === "standard"
                             ? "Standard Tour"
                             : booking.tourType === "extended"
@@ -1277,7 +1277,7 @@ export default function MyBookings() {
                       </div>
                       <StatusBadge status={booking.status || "pending"} />
                     </div>
-                    <CardDescription className="text-xs">
+                    <CardDescription className="break-words text-xs">
                       Ref: {booking.bookingReference || "Pending"}
                     </CardDescription>
                   </CardHeader>
@@ -1294,9 +1294,9 @@ export default function MyBookings() {
                       <Users className="h-4 w-4 text-muted-foreground" />
                       <span>{booking.numberOfPeople || 1} {(booking.numberOfPeople || 1) === 1 ? "person" : "people"}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span className="truncate">{getMeetingPointName(booking.meetingPointId)}</span>
+                    <div className="flex min-w-0 items-center gap-2 text-sm">
+                      <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="break-words">{getMeetingPointName(booking.meetingPointId)}</span>
                     </div>
 
                     {/* Assigned Guide Section */}
@@ -1375,13 +1375,12 @@ export default function MyBookings() {
                       variant="outline"
                       size="sm"
                       className="w-full mt-2"
-                      onClick={() => {
-                        setSelectedBooking(booking);
-                        setIsDetailOpen(true);
-                      }}
+                      asChild
                     >
-                      <Ticket className="mr-2 h-4 w-4" />
-                      View Full Details
+                      <Link href={`/my-bookings/${booking.id}`}>
+                        <Ticket className="mr-2 h-4 w-4" />
+                        View Full Details
+                      </Link>
                     </Button>
 
                     {canPayOnline(booking) && (
@@ -1399,7 +1398,7 @@ export default function MyBookings() {
                       )}
 
                     {/* Self-service action buttons */}
-                    <div className="grid grid-cols-2 gap-2 mt-2">
+                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {/* Reschedule - only for pending or confirmed */}
                       {(booking.status === "pending" || booking.status === "confirmed") && (
                         <Button
@@ -1456,7 +1455,7 @@ export default function MyBookings() {
           )}
 
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Book a Tour</DialogTitle>
                 <DialogDescription>
@@ -1464,7 +1463,7 @@ export default function MyBookings() {
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="visitor-name">Your Name *</Label>
                     <Input
@@ -1509,7 +1508,7 @@ export default function MyBookings() {
                     data-testid="input-visitor-country"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="visit-date">Preferred Date *</Label>
                     <Input
@@ -1529,10 +1528,10 @@ export default function MyBookings() {
                       onChange={(e) => setNewBooking({ ...newBooking, visitTime: e.target.value })}
                       data-testid="input-visit-time"
                     />
-                    <p className="text-xs text-muted-foreground">💡 Standard start times: 10:00 AM and 2:00 PM. Standard tours are 2 hours. Additional hours at MWK 10,000/hr.</p>
+                    <p className="break-words text-xs text-muted-foreground">Standard start times: 10:00 AM and 2:00 PM. Standard tours are 2 hours. Additional hours at MWK 10,000/hr.</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Tour Type *</Label>
                     <Select
@@ -1572,7 +1571,7 @@ export default function MyBookings() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="number-of-people">Number of People</Label>
                     <Input
@@ -1711,7 +1710,7 @@ export default function MyBookings() {
                   </p>
                 </div>
               </div>
-              <DialogFooter>
+              <DialogFooter className="gap-2 sm:gap-0">
                 <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
                   Cancel
                 </Button>

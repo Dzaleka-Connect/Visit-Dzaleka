@@ -826,7 +826,7 @@ function CoordinatorDashboard() {
   const hasActiveTours = todaysTours?.some(t => t.status === "in_progress") || false;
 
   return (
-    <PageContainer className="page-spacing">
+    <PageContainer className="page-spacing overflow-x-hidden">
       <PageHeader
         title="Coordinator Dashboard"
         description="Manage bookings, guides, and tour scheduling."
@@ -1793,7 +1793,7 @@ function VisitorDashboard() {
         nextVisitTransportQuote,
       ].filter(Boolean).join(" • ")
     : "Request transport from your booking form when needed.";
-  const visitHubItems = [
+  const nextVisitItems = [
     {
       label: "Next visit",
       value: nextVisit ? `${formatDate(nextVisit.visitDate)} at ${formatTime(nextVisit.visitTime)}` : "No visit scheduled",
@@ -1819,7 +1819,7 @@ function VisitorDashboard() {
   ];
 
   return (
-    <PageContainer className="page-spacing">
+    <PageContainer className="page-spacing overflow-x-hidden">
       <PageHeader
         title={`Welcome, ${displayName}`}
         description="Review your visits, tour details, payments, and support options."
@@ -1848,9 +1848,9 @@ function VisitorDashboard() {
 
       <Card>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <CardTitle className="text-lg font-semibold">Your Visit Hub</CardTitle>
-            <CardDescription>One place for your next visit, payment status, support, and preparation links.</CardDescription>
+          <div className="min-w-0">
+            <CardTitle className="break-words text-lg font-semibold">Next Visit</CardTitle>
+            <CardDescription className="break-words">Date, payment, transport, and support for your next booking.</CardDescription>
           </div>
           <Button asChild className="w-full sm:w-auto">
             <Link href="/my-bookings?book=true">
@@ -1862,7 +1862,7 @@ function VisitorDashboard() {
         <CardContent>
           <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {visitHubItems.map((item) => (
+              {nextVisitItems.map((item) => (
                 <div key={item.label} className="rounded-lg border p-4">
                   <p className="text-xs font-medium text-muted-foreground">{item.label}</p>
                   <p className="mt-1 break-words text-sm font-semibold">{item.value}</p>
@@ -1904,7 +1904,7 @@ function VisitorDashboard() {
               <div className="mt-4 grid gap-2">
                 {nextVisitTransport && (
                   <Button variant="outline" className="w-full justify-start" asChild>
-                    <Link href="/my-bookings">
+                    <Link href={nextVisit ? `/my-bookings/${nextVisit.id}` : "/my-bookings"}>
                       <Car className="mr-2 h-4 w-4" />
                       View transport details
                     </Link>
@@ -1925,7 +1925,7 @@ function VisitorDashboard() {
                 <Button variant="outline" className="w-full justify-start" asChild>
                   <Link href="/resources">
                     <BookOpen className="mr-2 h-4 w-4" />
-                    Visitor resources
+                    Before you visit
                   </Link>
                 </Button>
               </div>
@@ -1973,23 +1973,23 @@ function VisitorDashboard() {
         </Card>
       )}
 
-      {/* Community Hub Promotion */}
+      {/* Community promotion */}
       <Card>
-        <CardContent className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6">
-          <div className="flex items-center gap-4">
+        <CardContent className="flex flex-col items-center justify-between gap-4 p-6 sm:flex-row">
+          <div className="flex min-w-0 flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
             <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
               <Globe className="h-6 w-6 text-primary" />
             </div>
-            <div className="space-y-1 text-center sm:text-left">
-              <h3 className="font-semibold text-base">Community Hub</h3>
-              <p className="text-sm text-muted-foreground max-w-lg">
+            <div className="min-w-0 space-y-1">
+              <h3 className="break-words text-base font-semibold">Community</h3>
+              <p className="max-w-lg break-words text-sm text-muted-foreground">
                 Find local services, news, events, and community-led projects in one place.
               </p>
             </div>
           </div>
           <Button asChild size="default" className="shrink-0 w-full sm:w-auto">
             <Link href="/community">
-              Open community hub <ArrowRight className="ml-2 h-4 w-4" />
+              Open community <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
         </CardContent>
@@ -1998,7 +1998,7 @@ function VisitorDashboard() {
       <Card>
         <CardHeader className="flex flex-col items-start justify-between gap-4 space-y-0 pb-4 sm:flex-row sm:items-center">
           <CardTitle className="text-lg font-semibold">Your Upcoming Visits</CardTitle>
-          <Button asChild data-testid="button-book-visit">
+          <Button asChild className="w-full sm:w-auto" data-testid="button-book-visit">
             <Link href="/my-bookings?book=true">
               Book a visit
               <ArrowRight className="ml-2 h-4 w-4" />

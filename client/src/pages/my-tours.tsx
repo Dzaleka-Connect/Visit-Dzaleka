@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { SEO } from "@/components/seo";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,7 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
-import { formatDate, formatTime, formatCurrency } from "@/lib/constants";
+import { formatDate, formatTime } from "@/lib/constants";
 import {
     Calendar,
     Clock,
@@ -35,6 +36,9 @@ import {
     ScanLine,
     UserX,
     FileText,
+    Eye,
+    Globe2,
+    Accessibility,
 } from "lucide-react";
 import type { Booking, GuideTourReport } from "@shared/schema";
 import { QRScannerDialog } from "@/components/qr-scanner-dialog";
@@ -66,8 +70,9 @@ export default function MyTours() {
             const response = await apiRequest("POST", `/api/bookings/${bookingId}/guide-check-in`);
             return response.json();
         },
-        onSuccess: () => {
+        onSuccess: (_data, bookingId) => {
             queryClient.invalidateQueries({ queryKey: ["/api/guides/me/tours"] });
+            queryClient.invalidateQueries({ queryKey: [`/api/bookings/${bookingId}`] });
             toast({ title: "Visitor checked in", description: "The tour is now in progress." });
         },
         onError: (error: Error) => {
@@ -80,8 +85,9 @@ export default function MyTours() {
             const response = await apiRequest("POST", `/api/bookings/${bookingId}/guide-check-out`);
             return response.json();
         },
-        onSuccess: () => {
+        onSuccess: (_data, bookingId) => {
             queryClient.invalidateQueries({ queryKey: ["/api/guides/me/tours"] });
+            queryClient.invalidateQueries({ queryKey: [`/api/bookings/${bookingId}`] });
             queryClient.invalidateQueries({ queryKey: ["/api/guides/me"] });
             queryClient.invalidateQueries({ queryKey: ["/api/guides/me/earnings"] });
             toast({ title: "Tour completed", description: "The visitor has been checked out." });
@@ -96,8 +102,9 @@ export default function MyTours() {
             const response = await apiRequest("POST", `/api/bookings/${bookingId}/guide-no-show`);
             return response.json();
         },
-        onSuccess: () => {
+        onSuccess: (_data, bookingId) => {
             queryClient.invalidateQueries({ queryKey: ["/api/guides/me/tours"] });
+            queryClient.invalidateQueries({ queryKey: [`/api/bookings/${bookingId}`] });
             toast({ title: "Marked as No-Show", description: "The visitor has been marked as a no-show." });
         },
         onError: (error: Error) => {
@@ -185,21 +192,23 @@ export default function MyTours() {
             <CardContent className="p-4">
                 <div className="flex flex-col gap-4">
                     {/* Header */}
-                    <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
                             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
                                 <User className="h-5 w-5" />
                             </div>
-                            <div>
-                                <h3 className="font-semibold">{tour.visitorName}</h3>
-                                <p className="text-sm text-muted-foreground">{tour.visitorOrganization || "Individual"}</p>
+                            <div className="min-w-0">
+                                <h3 className="break-words font-semibold">{tour.visitorName}</h3>
+                                <p className="break-words text-sm text-muted-foreground">{tour.visitorOrganization || "Individual"}</p>
                             </div>
                         </div>
-                        <StatusBadge status={tour.status || "pending"} />
+                        <div className="shrink-0">
+                            <StatusBadge status={tour.status || "pending"} />
+                        </div>
                     </div>
 
                     {/* Tour Details */}
-                    <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                         <div className="flex items-center gap-2 text-muted-foreground">
                             <Calendar className="h-4 w-4" />
                             <span>{formatDate(tour.visitDate)}</span>
@@ -216,6 +225,12 @@ export default function MyTours() {
                             <MapPin className="h-4 w-4" />
                             <span className="capitalize">{tour.tourType?.replace("_", " ")}</span>
                         </div>
+                        {tour.visitorCountry && (
+                            <div className="flex min-w-0 items-center gap-2 text-muted-foreground sm:col-span-2">
+                                <Globe2 className="h-4 w-4 shrink-0" />
+                                <span className="break-words">{tour.visitorCountry}</span>
+                            </div>
+                        )}
                     </div>
 
                     {/* Contact Info */}
@@ -247,18 +262,36 @@ export default function MyTours() {
                     {tour.specialRequests && (
                         <div className="border-t pt-3">
                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Special Requests</p>
-                            <p className="text-sm">{tour.specialRequests}</p>
+                            <p className="break-words text-sm">{tour.specialRequests}</p>
+                        </div>
+                    )}
+
+                    {tour.accessibilityNeeds && (
+                        <div className="border-t pt-3">
+                            <p className="mb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">Accessibility Needs</p>
+                            <p className="break-words text-sm">{tour.accessibilityNeeds}</p>
                         </div>
                     )}
 
                     {/* Actions */}
-                    <div className="border-t pt-3 flex gap-2">
+                    <div className="flex flex-col gap-2 border-t pt-3 sm:flex-row sm:flex-wrap">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="sm:flex-1"
+                            asChild
+                        >
+                            <Link href={`/my-tours/${tour.id}`}>
+                                <Eye className="mr-2 h-4 w-4" />
+                                Visitor details
+                            </Link>
+                        </Button>
                         {tour.status === "confirmed" && (
                             <>
                                 <Button
                                     onClick={() => checkInMutation.mutate(tour.id)}
                                     disabled={checkInMutation.isPending}
-                                    className="flex-1"
+                                    className="sm:flex-1"
                                 >
                                     {checkInMutation.isPending && checkInMutation.variables === tour.id ? (
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -271,7 +304,7 @@ export default function MyTours() {
                                     variant="outline"
                                     onClick={() => noShowMutation.mutate(tour.id)}
                                     disabled={noShowMutation.isPending}
-                                    className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                                    className="border-orange-200 text-orange-600 hover:bg-orange-50 sm:flex-1"
                                 >
                                     {noShowMutation.isPending && noShowMutation.variables === tour.id ? (
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -287,7 +320,7 @@ export default function MyTours() {
                                 onClick={() => checkOutMutation.mutate(tour.id)}
                                 disabled={checkOutMutation.isPending}
                                 variant="outline"
-                                className="flex-1"
+                                className="sm:flex-1"
                             >
                                 {checkOutMutation.isPending && checkOutMutation.variables === tour.id ? (
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -342,11 +375,12 @@ export default function MyTours() {
             />
 
             <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">My Tours</h1>
                     <Button
                         variant="outline"
                         onClick={() => setIsQRScannerOpen(true)}
+                        className="w-full sm:w-auto"
                     >
                         <ScanLine className="mr-2 h-4 w-4" />
                         Scan QR
@@ -358,7 +392,7 @@ export default function MyTours() {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid gap-4 grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-3">
                 <Card>
                     <CardContent className="p-4 text-center">
                         <div className="text-3xl font-bold text-primary">{upcomingTours.length}</div>
@@ -381,7 +415,7 @@ export default function MyTours() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList>
+                <TabsList className="min-h-10 w-full justify-start overflow-x-auto sm:w-auto">
                     <TabsTrigger value="upcoming">
                         Upcoming ({upcomingTours.length})
                     </TabsTrigger>

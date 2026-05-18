@@ -608,11 +608,13 @@ export default function Bookings() {
     mutationFn: async ({
       id,
       paymentStatus,
+      approvalConfirmed,
     }: {
       id: string;
       paymentStatus: string;
+      approvalConfirmed?: boolean;
     }) => {
-      await apiRequest("PATCH", `/api/bookings/${id}/payment`, { paymentStatus });
+      await apiRequest("PATCH", `/api/bookings/${id}/payment`, { paymentStatus, approvalConfirmed });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
@@ -889,9 +891,7 @@ export default function Bookings() {
   });
 
   const handleViewDetails = (booking: BookingWithGuide) => {
-    setSelectedBooking(booking);
-    setAdminNotes(booking.adminNotes || "");
-    setIsDetailOpen(true);
+    setLocation(`/bookings/${booking.id}`);
   };
 
   const handleAssignGuide = (booking: BookingWithGuide) => {
@@ -1203,7 +1203,15 @@ export default function Bookings() {
                         <PaymentStatusBadge status={selectedBooking.paymentStatus || "pending"} />
                         <Select
                           value={selectedBooking.paymentStatus || "pending"}
-                          onValueChange={(value) => updatePaymentMutation.mutate({ id: selectedBooking.id, paymentStatus: value })}
+                          onValueChange={(value) => {
+                            if (value === "paid") {
+                              const confirmed = window.confirm("Confirm payment approval: mark this booking as paid and send the visitor a receipt if applicable.");
+                              if (!confirmed) return;
+                              updatePaymentMutation.mutate({ id: selectedBooking.id, paymentStatus: value, approvalConfirmed: true });
+                              return;
+                            }
+                            updatePaymentMutation.mutate({ id: selectedBooking.id, paymentStatus: value });
+                          }}
                         >
                           <SelectTrigger className="w-28 h-7 text-xs">
                             <SelectValue placeholder="Change" />
@@ -1598,12 +1606,12 @@ export default function Bookings() {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col min-w-0">
-                            <button
-                              className="font-medium text-left hover:text-primary hover:underline cursor-pointer transition-colors truncate"
-                              onClick={() => handleViewDetails(booking)}
+                            <Link
+                              href={`/bookings/${booking.id}`}
+                              className="truncate text-left font-medium transition-colors hover:text-primary hover:underline"
                             >
                               {booking.visitorName}
-                            </button>
+                            </Link>
                             <span className="text-xs text-muted-foreground truncate max-w-[180px]">
                               {booking.visitorEmail}
                             </span>

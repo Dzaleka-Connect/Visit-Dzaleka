@@ -21,6 +21,7 @@ import Dashboard from "@/pages/dashboard";
 import Bookings from "@/pages/bookings";
 import BookingDetails from "@/pages/booking-details";
 import MyBookings from "@/pages/my-bookings";
+import MyBookingDetails from "@/pages/my-booking-details";
 import Guides from "@/pages/guides";
 import GuideProfile from "@/pages/guide-profile";
 import CalendarPage from "@/pages/calendar";
@@ -28,6 +29,8 @@ import ChannelManager from "@/pages/channel-manager";
 import GetYourGuidePage from "@/pages/getyourguide";
 import SpecialOffersPage from "@/pages/special-offers";
 import GuidePerformance from "@/pages/guide-performance";
+import GuideProfileReviewDetails from "@/pages/guide-profile-review-details";
+import GuideTourReportDetails from "@/pages/guide-tour-report-details";
 import GuideCertificates from "@/pages/guide-certificates";
 import ReviewsPerformance from "@/pages/reviews-performance";
 import Zones from "@/pages/zones";
@@ -52,6 +55,7 @@ import AcceptInvite from "@/pages/accept-invite";
 import GuideTraining from "@/pages/guide-training";
 import DTDWGuide from "@/pages/dtdw-guide";
 import OperationsManual from "@/pages/operations-manual";
+import OperationsControl from "@/pages/operations-control";
 import StandardOperatingProcedures from "@/pages/standard-operating-procedures";
 import InternalPolicies from "@/pages/internal-policies";
 import MarketingStrategy from "@/pages/marketing-strategy";
@@ -90,6 +94,7 @@ import SharePhotos from "@/pages/share-photos";
 import RecurringBookingsPage from "@/pages/recurring-bookings";
 import LiveOperations from "@/pages/live-ops";
 import MyTours from "@/pages/my-tours";
+import GuideTourDetails from "@/pages/guide-tour-details";
 import MyEarnings from "@/pages/my-earnings";
 import MyAvailability from "@/pages/my-availability";
 import MyGuideProfile from "@/pages/my-guide-profile";
@@ -127,11 +132,14 @@ import TransportPartners from "@/pages/transport-partners";
 import { usePageTracker } from "@/hooks/usePageTracker";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { ScrollToTop } from "@/components/scroll-to-top";
+import { TimezoneClock } from "@/components/timezone-clock";
 
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   // Enable real-time subscriptions for the authenticated user
   useRealtimeSubscriptions();
+  const { user } = useAuth();
+  const showTimezoneClock = user?.role === "admin" || user?.role === "coordinator";
 
   const style = {
     "--sidebar-width": "16rem",
@@ -141,16 +149,23 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <div className="flex h-dvh w-full">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground focus:shadow-lg focus:ring-2 focus:ring-ring"
+        >
+          Skip to content
+        </a>
         <AppSidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <header className="sticky top-0 z-40 flex h-14 items-center justify-between gap-4 border-b bg-background px-4">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <div className="flex items-center gap-2">
+              {showTimezoneClock && <TimezoneClock />}
               <NotificationBell />
               <ThemeToggle />
             </div>
           </header>
-          <main className="flex-1 overflow-y-auto p-6 md:p-8">{children}</main>
+          <main id="main-content" className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-6 md:p-8">{children}</main>
         </div>
       </div>
     </SidebarProvider>
@@ -302,6 +317,7 @@ function Router() {
         <Route path="/bookings/:id" component={BookingDetails} />
         <Route path="/bookings/:id/itinerary" component={ItineraryView} />
         <ProtectedRoute path="/recurring-bookings" component={RecurringBookingsPage} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/my-bookings/:bookingId" component={MyBookingDetails} allowedRoles={["visitor"]} />
         <ProtectedRoute path="/my-bookings" component={MyBookings} allowedRoles={["visitor"]} />
         <ProtectedRoute path="/saved-itineraries" component={SavedItineraries} allowedRoles={["visitor"]} />
         <ProtectedRoute path="/favorite-guides" component={FavoriteGuides} allowedRoles={["visitor"]} />
@@ -310,6 +326,8 @@ function Router() {
         <ProtectedRoute path="/getyourguide" component={GetYourGuidePage} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/special-offers" component={SpecialOffersPage} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/guide-performance" component={GuidePerformance} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/admin/guide-profile-reviews/:id" component={GuideProfileReviewDetails} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/admin/guide-tour-reports/:id" component={GuideTourReportDetails} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/guide-certificates" component={GuideCertificates} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/reviews-performance" component={ReviewsPerformance} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/guides" component={Guides} allowedRoles={["admin", "coordinator"]} />
@@ -317,11 +335,13 @@ function Router() {
         <ProtectedRoute path="/guide-training" component={GuideTraining} allowedRoles={["guide"]} />
         <ProtectedRoute path="/dtdw-guide" component={DTDWGuide} allowedRoles={["admin", "coordinator", "guide"]} />
         <ProtectedRoute path="/operations-manual" component={OperationsManual} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/operations-control" component={OperationsControl} allowedRoles={["admin"]} />
         <ProtectedRoute path="/standard-operating-procedures" component={StandardOperatingProcedures} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/internal-policies" component={InternalPolicies} allowedRoles={["admin", "coordinator", "guide"]} />
         <ProtectedRoute path="/marketing-strategy" component={MarketingStrategy} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/continuous-improvement" component={ContinuousImprovement} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/financial-framework" component={FinancialFramework} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/my-tours/:bookingId" component={GuideTourDetails} allowedRoles={["guide"]} />
         <ProtectedRoute path="/my-tours" component={MyTours} allowedRoles={["guide"]} />
         <ProtectedRoute path="/my-earnings" component={MyEarnings} allowedRoles={["guide"]} />
         <ProtectedRoute path="/my-availability" component={MyAvailability} allowedRoles={["guide"]} />
@@ -380,7 +400,7 @@ function App() {
   return (
     <HelmetProvider>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
+        <TooltipProvider delayDuration={500} skipDelayDuration={100}>
           <ErrorBoundary>
             <AnalyticsTracker />
             <ScrollToTop />

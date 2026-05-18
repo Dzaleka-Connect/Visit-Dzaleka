@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, Legend } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
@@ -15,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, DollarSign, Users, Star, CheckCircle, Clock, Loader2, GitCompare, Wallet, UserCheck, Eye, FileText, AlertTriangle, Receipt, Save, Pencil, XCircle, Globe2, CalendarDays, type LucideIcon } from "lucide-react";
+import { Calendar, DollarSign, Users, Star, CheckCircle, Clock, Loader2, GitCompare, Wallet, UserCheck, Eye, FileText, AlertTriangle, Receipt, Save, Pencil, XCircle, Globe2, CalendarDays, ExternalLink, type LucideIcon } from "lucide-react";
 import { formatCurrency, formatDate, formatTime } from "@/lib/constants";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -433,37 +434,55 @@ export default function GuidePerformance() {
                             <CardDescription>Top performing guides by earnings</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <div className="space-y-4">
+                            <div className="space-y-3">
                                 {guideStats.filter(g => g.isActive).slice(0, 5).map((guide, index) => (
-                                    <div key={guide.id} className="flex flex-wrap items-center gap-4">
-                                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted font-bold text-sm">
-                                            {index + 1}
-                                        </div>
-                                        <Avatar className="h-10 w-10">
-                                            {guide.profileImageUrl && (
-                                                <AvatarImage src={guide.profileImageUrl} alt={`${guide.firstName} ${guide.lastName}`} />
-                                            )}
-                                            <AvatarFallback className="bg-primary/10 text-primary">
-                                                {guide.firstName[0]}{guide.lastName[0]}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                        <div className="min-w-0 flex-1">
-                                            <div className="break-words font-medium">{guide.firstName} {guide.lastName}</div>
-                                            <div className="text-sm text-muted-foreground">
-                                                {guide.completedTours}/{guide.totalTours} completed · {guide.completionRate}% completion
+                                    <div
+                                        key={guide.id}
+                                        className="rounded-lg border bg-background/60 p-3 shadow-sm sm:flex sm:items-center sm:gap-4 sm:p-4"
+                                    >
+                                        <div className="flex min-w-0 items-center gap-3">
+                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                                                {index + 1}
+                                            </div>
+                                            <Avatar className="h-11 w-11 shrink-0">
+                                                {guide.profileImageUrl && (
+                                                    <AvatarImage src={guide.profileImageUrl} alt={`${guide.firstName} ${guide.lastName}`} />
+                                                )}
+                                                <AvatarFallback className="bg-primary/10 text-primary">
+                                                    {guide.firstName[0]}{guide.lastName[0]}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="truncate font-medium">{guide.firstName} {guide.lastName}</div>
+                                                <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+                                                    <Badge variant="secondary" className="h-6 rounded-md px-2 capitalize">
+                                                        {guide.completedTours}/{guide.totalTours} completed
+                                                    </Badge>
+                                                    <Badge variant={guide.completionRate >= 80 ? "default" : "outline"} className="h-6 rounded-md px-2">
+                                                        {guide.completionRate}% completion
+                                                    </Badge>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="shrink-0 text-right">
-                                            <div className="font-bold text-green-600">{formatCurrency(guide.totalEarnings)}</div>
-                                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                                {(guide.rating || 0).toFixed(1)}
+
+                                        <div className="mt-3 grid grid-cols-2 gap-2 sm:ml-auto sm:mt-0 sm:w-auto sm:min-w-[13rem] sm:grid-cols-[1fr_auto] sm:items-center">
+                                            <div className="rounded-md bg-muted/60 p-2 sm:bg-transparent sm:p-0 sm:text-right">
+                                                <div className="text-xs text-muted-foreground">Earnings</div>
+                                                <div className="font-bold text-green-600">{formatCurrency(guide.totalEarnings)}</div>
+                                            </div>
+                                            <div className="rounded-md bg-muted/60 p-2 sm:bg-transparent sm:p-0 sm:text-right">
+                                                <div className="text-xs text-muted-foreground">Rating</div>
+                                                <div className="flex items-center gap-1 font-medium sm:justify-end">
+                                                    <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                                                    {(guide.rating || 0).toFixed(1)}
+                                                </div>
                                             </div>
                                         </div>
+
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            className="shrink-0 gap-2"
+                                            className="mt-3 w-full shrink-0 gap-2 sm:mt-0 sm:w-auto"
                                             onClick={() => {
                                                 setSelectedDetailGuideId(guide.id);
                                                 setSelectedGuideId(guide.id);
@@ -482,12 +501,12 @@ export default function GuidePerformance() {
                     {/* Monthly Earnings Chart */}
                     <Card>
                         <CardHeader>
-                            <div className="flex items-center justify-between">
-                                <div>
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                <div className="min-w-0">
                                     <CardTitle>Monthly Earnings</CardTitle>
                                     <CardDescription>Select a guide to view their earnings trend</CardDescription>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="grid w-full gap-2 sm:grid-cols-[1fr_auto] lg:w-auto">
                                     <Select
                                         value={selectedGuideId}
                                         onValueChange={(value) => {
@@ -495,7 +514,7 @@ export default function GuidePerformance() {
                                             setSelectedDetailGuideId(value);
                                         }}
                                     >
-                                        <SelectTrigger className="w-48">
+                                        <SelectTrigger className="w-full sm:min-w-56">
                                             <SelectValue placeholder="Select guide" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -507,7 +526,7 @@ export default function GuidePerformance() {
                                         </SelectContent>
                                     </Select>
                                     <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
-                                        <SelectTrigger className="w-24">
+                                        <SelectTrigger className="w-full sm:w-28">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -521,57 +540,60 @@ export default function GuidePerformance() {
                         </CardHeader>
                         <CardContent>
                             {selectedGuideId ? (
-                                <div className="h-80 w-full min-w-0">
-                                    <ChartContainer config={monthlyEarningsConfig} className="h-full w-full aspect-auto">
-                                        <BarChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                            <XAxis
-                                                dataKey="month"
-                                                tick={{ fontSize: 12 }}
-                                                tickLine={false}
-                                                axisLine={false}
-                                                tickMargin={8}
-                                            />
-                                            <YAxis
-                                                tick={{ fontSize: 12 }}
-                                                tickLine={false}
-                                                axisLine={false}
-                                                tickFormatter={(value: number) => `${(value / 1000).toFixed(0)}k`}
-                                            />
-                                            <ChartTooltip
-                                                cursor={false}
-                                                content={<ChartTooltipContent formatter={(value) => formatCurrency(Number(value))} />}
-                                            />
-                                            <Bar dataKey="earnings" fill="var(--color-earnings)" radius={[4, 4, 0, 0]} />
-                                        </BarChart>
-                                    </ChartContainer>
+                                <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+                                    <div className="h-72 min-w-[560px] sm:h-80 sm:min-w-0">
+                                        <ChartContainer config={monthlyEarningsConfig} className="h-full w-full aspect-auto">
+                                            <BarChart data={monthlyData} margin={{ top: 16, right: 12, left: 4, bottom: 4 }}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                <XAxis
+                                                    dataKey="month"
+                                                    tick={{ fontSize: 12 }}
+                                                    tickLine={false}
+                                                    axisLine={false}
+                                                    tickMargin={8}
+                                                />
+                                                <YAxis
+                                                    width={44}
+                                                    tick={{ fontSize: 12 }}
+                                                    tickLine={false}
+                                                    axisLine={false}
+                                                    tickFormatter={(value: number) => `${(value / 1000).toFixed(0)}k`}
+                                                />
+                                                <ChartTooltip
+                                                    cursor={false}
+                                                    content={<ChartTooltipContent formatter={(value) => formatCurrency(Number(value))} />}
+                                                />
+                                                <Bar dataKey="earnings" fill="var(--color-earnings)" radius={[4, 4, 0, 0]} />
+                                            </BarChart>
+                                        </ChartContainer>
+                                    </div>
                                 </div>
                             ) : (
-                                <div className="flex items-center justify-center h-80 text-muted-foreground">
+                                <div className="flex min-h-56 items-center justify-center rounded-lg border border-dashed p-6 text-center text-muted-foreground sm:h-80">
                                     Select a guide to view their monthly earnings chart
                                 </div>
                             )}
                             {selectedGuide && (
-                                <div className="mt-4 grid grid-cols-3 gap-4 text-center">
-                                    <div>
-                                        <div className="text-2xl font-bold text-green-600">
+                                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                                    <div className="rounded-lg border bg-background/60 p-3 text-center">
+                                        <div className="break-words text-xl font-bold text-green-600 sm:text-2xl">
                                             {formatCurrency(selectedGuide.totalEarnings)}
                                         </div>
                                         <div className="text-sm text-muted-foreground">Total Earnings</div>
                                     </div>
-                                    <div>
-                                        <div className="text-2xl font-bold">{selectedGuide.totalTours}</div>
+                                    <div className="rounded-lg border bg-background/60 p-3 text-center">
+                                        <div className="text-xl font-bold sm:text-2xl">{selectedGuide.totalTours}</div>
                                         <div className="text-sm text-muted-foreground">Total Tours</div>
                                     </div>
-                                    <div>
-                                        <div className="text-2xl font-bold">{selectedGuide.completionRate}%</div>
+                                    <div className="rounded-lg border bg-background/60 p-3 text-center">
+                                        <div className="text-xl font-bold sm:text-2xl">{selectedGuide.completionRate}%</div>
                                         <div className="text-sm text-muted-foreground">Completion Rate</div>
                                     </div>
-                                    <div className="col-span-1 sm:col-span-3 flex flex-wrap justify-center gap-2 mt-4 pt-4 border-t">
+                                    <div className="grid gap-2 border-t pt-4 sm:col-span-3 sm:flex sm:flex-wrap sm:justify-center">
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="gap-2"
+                                            className="w-full gap-2 sm:w-auto"
                                             onClick={() => {
                                                 setSelectedDetailGuideId(selectedGuide.id);
                                                 setActiveTab("detail");
@@ -580,7 +602,7 @@ export default function GuidePerformance() {
                                             <UserCheck className="h-4 w-4" />
                                             Open Detail
                                         </Button>
-                                        <Button size="sm" className="gap-2" onClick={() => handlePayoutOpen(selectedGuide.id)}>
+                                        <Button size="sm" className="w-full gap-2 sm:w-auto" onClick={() => handlePayoutOpen(selectedGuide.id)}>
                                             <Wallet className="h-4 w-4" />
                                             Record Payout
                                         </Button>
@@ -666,14 +688,14 @@ export default function GuidePerformance() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <div className="flex flex-wrap gap-4 mb-6">
+                            <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                                 {guideStats.filter(g => g.isActive).map(guide => (
                                     <div
                                         key={guide.id}
                                         role="checkbox"
                                         aria-checked={selectedGuidesToCompare.includes(guide.id)}
                                         tabIndex={0}
-                                        className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${selectedGuidesToCompare.includes(guide.id)
+                                        className={`flex min-w-0 items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${selectedGuidesToCompare.includes(guide.id)
                                             ? "border-primary bg-primary/5"
                                             : "border-muted hover:border-primary/50"
                                             }`}
@@ -706,7 +728,7 @@ export default function GuidePerformance() {
                                                 {guide.firstName[0]}{guide.lastName[0]}
                                             </AvatarFallback>
                                         </Avatar>
-                                        <span className="text-sm font-medium">{guide.firstName} {guide.lastName}</span>
+                                        <span className="min-w-0 truncate text-sm font-medium">{guide.firstName} {guide.lastName}</span>
                                     </div>
                                 ))}
                             </div>
@@ -733,9 +755,9 @@ export default function GuidePerformance() {
                                     <CardTitle>Guide Schedule Calendar</CardTitle>
                                     <CardDescription>View scheduled tours by day.</CardDescription>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="grid w-full grid-cols-2 gap-2 sm:w-auto">
                                     <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
-                                        <SelectTrigger className="w-32">
+                                        <SelectTrigger className="w-full sm:w-32">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -745,7 +767,7 @@ export default function GuidePerformance() {
                                         </SelectContent>
                                     </Select>
                                     <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
-                                        <SelectTrigger className="w-24">
+                                        <SelectTrigger className="w-full sm:w-28">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -759,48 +781,52 @@ export default function GuidePerformance() {
                         </CardHeader>
                         <CardContent>
                             {/* Calendar Grid */}
-                            <div className="grid grid-cols-7 gap-1 mb-2">
-                                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
-                                    <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
-                                        {day}
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="grid grid-cols-7 gap-1">
-                                {/* Empty cells for days before the first of the month */}
-                                {Array.from({ length: calendarData.firstDayOfMonth }).map((_, i) => (
-                                    <div key={`empty-${i}`} className="h-20 bg-muted/30 rounded-lg" />
-                                ))}
-                                {/* Calendar days */}
-                                {calendarData.days.map(day => {
-                                    const isToday =
-                                        day.day === new Date().getDate() &&
-                                        selectedMonth === new Date().getMonth() &&
-                                        selectedYear === new Date().getFullYear();
-
-                                    return (
-                                        <div
-                                            key={day.day}
-                                            className={`h-20 p-2 rounded-lg border ${isToday ? "border-primary bg-primary/5" : "border-transparent bg-muted/30"
-                                                } ${day.bookings > 0 ? "bg-green-50 dark:bg-green-950/20" : ""}`}
-                                        >
-                                            <div className={`text-sm font-medium ${isToday ? "text-primary" : ""}`}>
-                                                {day.day}
+                            <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+                                <div className="min-w-[560px]">
+                                    <div className="mb-2 grid grid-cols-7 gap-1">
+                                        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
+                                            <div key={day} className="py-2 text-center text-sm font-medium text-muted-foreground">
+                                                {day}
                                             </div>
-                                            {day.bookings > 0 && (
-                                                <div className="mt-1">
-                                                    <Badge variant="secondary" className="text-xs">
-                                                        {day.bookings} tour{day.bookings > 1 ? "s" : ""}
-                                                    </Badge>
+                                        ))}
+                                    </div>
+                                    <div className="grid grid-cols-7 gap-1">
+                                        {/* Empty cells for days before the first of the month */}
+                                        {Array.from({ length: calendarData.firstDayOfMonth }).map((_, i) => (
+                                            <div key={`empty-${i}`} className="h-20 rounded-lg bg-muted/30" />
+                                        ))}
+                                        {/* Calendar days */}
+                                        {calendarData.days.map(day => {
+                                            const isToday =
+                                                day.day === new Date().getDate() &&
+                                                selectedMonth === new Date().getMonth() &&
+                                                selectedYear === new Date().getFullYear();
+
+                                            return (
+                                                <div
+                                                    key={day.day}
+                                                    className={`h-20 rounded-lg border p-2 ${isToday ? "border-primary bg-primary/5" : "border-transparent bg-muted/30"
+                                                        } ${day.bookings > 0 ? "bg-green-50 dark:bg-green-950/20" : ""}`}
+                                                >
+                                                    <div className={`text-sm font-medium ${isToday ? "text-primary" : ""}`}>
+                                                        {day.day}
+                                                    </div>
+                                                    {day.bookings > 0 && (
+                                                        <div className="mt-1">
+                                                            <Badge variant="secondary" className="text-xs">
+                                                                {day.bookings} tour{day.bookings > 1 ? "s" : ""}
+                                                            </Badge>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
+                                            );
+                                        })}
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Legend */}
-                            <div className="mt-4 flex items-center gap-4 text-sm">
+                            <div className="mt-4 flex flex-wrap items-center gap-4 text-sm">
                                 <div className="flex items-center gap-2">
                                     <div className="w-4 h-4 rounded bg-muted/30 border" />
                                     <span className="text-muted-foreground">No scheduled tours</span>
@@ -833,24 +859,26 @@ export default function GuidePerformance() {
                                     });
 
                                     return (
-                                        <div key={guide.id} className="flex flex-wrap items-center gap-4">
-                                            <Avatar className="h-10 w-10">
-                                                {guide.profileImageUrl && (
-                                                    <AvatarImage src={guide.profileImageUrl} alt={`${guide.firstName} ${guide.lastName}`} />
-                                                )}
-                                                <AvatarFallback className="bg-primary/10 text-primary">
-                                                    {guide.firstName[0]}{guide.lastName[0]}
-                                                </AvatarFallback>
-                                            </Avatar>
-                                            <div className="min-w-0 flex-1">
-                                                <div className="break-words font-medium">{guide.firstName} {guide.lastName}</div>
-                                                <div className="text-sm text-muted-foreground">
-                                                    {monthTours.length} tour{monthTours.length !== 1 ? "s" : ""} scheduled
+                                        <div key={guide.id} className="rounded-lg border bg-background/60 p-3 sm:flex sm:items-center sm:gap-4 sm:p-4">
+                                            <div className="flex min-w-0 items-center gap-3">
+                                                <Avatar className="h-10 w-10 shrink-0">
+                                                    {guide.profileImageUrl && (
+                                                        <AvatarImage src={guide.profileImageUrl} alt={`${guide.firstName} ${guide.lastName}`} />
+                                                    )}
+                                                    <AvatarFallback className="bg-primary/10 text-primary">
+                                                        {guide.firstName[0]}{guide.lastName[0]}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="truncate font-medium">{guide.firstName} {guide.lastName}</div>
+                                                    <div className="text-sm text-muted-foreground">
+                                                        {monthTours.length} tour{monthTours.length !== 1 ? "s" : ""} scheduled
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="flex gap-1">
+                                            <div className="mt-3 flex gap-1 sm:ml-auto sm:mt-0">
                                                 {monthTours.length === 0 ? (
-                                                    <Badge variant="outline" className="text-green-600 border-green-200">
+                                                    <Badge variant="outline" className="border-green-200 text-green-600">
                                                         <Clock className="mr-1 h-3 w-3" />
                                                         No tours
                                                     </Badge>
@@ -1225,6 +1253,12 @@ function GuideDetailPanel({
                                                 Incident note: {report.incidents}
                                             </p>
                                         )}
+                                        <Button size="sm" variant="outline" className="mt-3 min-h-11 w-full sm:min-h-9 sm:w-auto" asChild>
+                                            <Link href={`/admin/guide-tour-reports/${report.id}`}>
+                                                <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
+                                                Open report
+                                            </Link>
+                                        </Button>
                                     </div>
                                 ))}
                             </div>
@@ -1461,41 +1495,43 @@ function CompareGuidesContent({ guideIds }: { guideIds: string[] }) {
                     <CardDescription>Last 6 months comparison</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={trendData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="month" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-                                <YAxis tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-                                <ChartTooltip
-                                    content={({ active, payload, label }: { active?: boolean; payload?: any[]; label?: string }) => {
-                                        if (!active || !payload) return null;
-                                        return (
-                                            <div className="bg-background border rounded-lg p-3 shadow-lg">
-                                                <p className="font-medium mb-2">{label}</p>
-                                                {payload.map((entry: any, i: number) => (
-                                                    <p key={i} style={{ color: entry.color }} className="text-sm">
-                                                        {compareData[i]?.guide.firstName}: {formatCurrency(entry.value)}
-                                                    </p>
-                                                ))}
-                                            </div>
-                                        );
-                                    }}
-                                />
-                                {compareData.map((_, index) => (
-                                    <Line
-                                        key={index}
-                                        type="monotone"
-                                        dataKey={`earnings${index}`}
-                                        name={compareData[index]?.guide.firstName || `Guide ${index + 1}`}
-                                        stroke={COMPARE_COLORS[index]}
-                                        strokeWidth={2}
-                                        dot={{ fill: COMPARE_COLORS[index], strokeWidth: 0, r: 4 }}
+                    <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+                        <div className="h-64 min-w-[540px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={trendData} margin={{ top: 12, right: 12, left: 0, bottom: 4 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="month" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                                    <YAxis width={44} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                                    <ChartTooltip
+                                        content={({ active, payload, label }: { active?: boolean; payload?: any[]; label?: string }) => {
+                                            if (!active || !payload) return null;
+                                            return (
+                                                <div className="rounded-lg border bg-background p-3 shadow-lg">
+                                                    <p className="mb-2 font-medium">{label}</p>
+                                                    {payload.map((entry: any, i: number) => (
+                                                        <p key={i} style={{ color: entry.color }} className="text-sm">
+                                                            {compareData[i]?.guide.firstName}: {formatCurrency(entry.value)}
+                                                        </p>
+                                                    ))}
+                                                </div>
+                                            );
+                                        }}
                                     />
-                                ))}
-                                <Legend />
-                            </LineChart>
-                        </ResponsiveContainer>
+                                    {compareData.map((_, index) => (
+                                        <Line
+                                            key={index}
+                                            type="monotone"
+                                            dataKey={`earnings${index}`}
+                                            name={compareData[index]?.guide.firstName || `Guide ${index + 1}`}
+                                            stroke={COMPARE_COLORS[index]}
+                                            strokeWidth={2}
+                                            dot={{ fill: COMPARE_COLORS[index], strokeWidth: 0, r: 4 }}
+                                        />
+                                    ))}
+                                    <Legend />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
@@ -1507,25 +1543,27 @@ function CompareGuidesContent({ guideIds }: { guideIds: string[] }) {
                     <CardDescription>Normalized comparison across key metrics</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <RadarChart data={radarData}>
-                                <PolarGrid />
-                                <PolarAngleAxis dataKey="metric" tick={{ fontSize: 12 }} />
-                                {compareData.map((data, index) => (
-                                    <Radar
-                                        key={data.guide.id}
-                                        name={data.guide.firstName}
-                                        dataKey={`guide${index}`}
-                                        stroke={COMPARE_COLORS[index]}
-                                        fill={COMPARE_COLORS[index]}
-                                        fillOpacity={0.15}
-                                        strokeWidth={2}
-                                    />
-                                ))}
-                                <Legend />
-                            </RadarChart>
-                        </ResponsiveContainer>
+                    <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+                        <div className="h-80 min-w-[520px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <RadarChart data={radarData}>
+                                    <PolarGrid />
+                                    <PolarAngleAxis dataKey="metric" tick={{ fontSize: 12 }} />
+                                    {compareData.map((data, index) => (
+                                        <Radar
+                                            key={data.guide.id}
+                                            name={data.guide.firstName}
+                                            dataKey={`guide${index}`}
+                                            stroke={COMPARE_COLORS[index]}
+                                            fill={COMPARE_COLORS[index]}
+                                            fillOpacity={0.15}
+                                            strokeWidth={2}
+                                        />
+                                    ))}
+                                    <Legend />
+                                </RadarChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
@@ -1537,9 +1575,9 @@ function CompareGuidesContent({ guideIds }: { guideIds: string[] }) {
 // Helper component for stat rows
 function StatRow({ label, value, isHighlight, isWarning }: { label: string; value: string; isHighlight?: boolean; isWarning?: boolean }) {
     return (
-        <div className="flex justify-between items-center text-sm">
-            <span className="text-muted-foreground">{label}</span>
-            <span className={`font-medium ${isHighlight ? "text-green-600" : isWarning ? "text-red-500" : ""}`}>
+        <div className="flex items-start justify-between gap-3 text-sm">
+            <span className="min-w-0 break-words text-muted-foreground">{label}</span>
+            <span className={`shrink-0 text-right font-medium ${isHighlight ? "text-green-600" : isWarning ? "text-red-500" : ""}`}>
                 {value}
             </span>
         </div>

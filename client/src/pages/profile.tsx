@@ -1,13 +1,21 @@
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { User, Mail, Phone, Shield, Save, Loader2, Bell, Camera } from "lucide-react";
+import { Accessibility, Contact, Globe2, Languages, Mail, Phone, Save, Shield, Utensils, User, Loader2, Bell, Camera } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
@@ -15,23 +23,78 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { uploadAvatarImage, validateProfileImage } from "@/lib/uploads";
 import { SEO } from "@/components/seo";
 
+type ProfileFormData = {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  country: string;
+  preferredLanguage: string;
+  preferredContactMethod: "email" | "phone" | "whatsapp";
+  accessibilityNeeds: string;
+  dietaryNotes: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+};
+
+function getVisitorPreferences(user: any) {
+  const preferences = user?.preferences;
+  if (!preferences || typeof preferences !== "object" || Array.isArray(preferences)) {
+    return {};
+  }
+  return (preferences.visitor || {}) as Record<string, string | undefined>;
+}
+
+function buildProfileFormData(user: any): ProfileFormData {
+  const visitorPreferences = getVisitorPreferences(user);
+  const contactMethod =
+    user?.preferredContactMethod === "phone" || user?.preferredContactMethod === "whatsapp"
+      ? user.preferredContactMethod
+      : "email";
+  return {
+    firstName: user?.firstName || "",
+    lastName: user?.lastName || "",
+    phone: user?.phone || "",
+    country: user?.country || "",
+    preferredLanguage: user?.preferredLanguage || "en",
+    preferredContactMethod: contactMethod,
+    accessibilityNeeds: visitorPreferences.accessibilityNeeds || "",
+    dietaryNotes: visitorPreferences.dietaryNotes || "",
+    emergencyContactName: visitorPreferences.emergencyContactName || "",
+    emergencyContactPhone: visitorPreferences.emergencyContactPhone || "",
+  };
+}
+
 export default function Profile() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [formData, setFormData] = useState({
-    firstName: user?.firstName || "",
-    lastName: user?.lastName || "",
-    phone: user?.phone || "",
-  });
+  const [formData, setFormData] = useState<ProfileFormData>(() => buildProfileFormData(user));
+
+  useEffect(() => {
+    if (!isEditing) {
+      setFormData(buildProfileFormData(user));
+    }
+  }, [isEditing, user]);
+
+  const isVisitor = user?.role === "visitor";
+  const currentFormData = buildProfileFormData(user);
 
   // Check if form has unsaved changes
   const hasUnsavedChanges = isEditing && (
-    formData.firstName !== (user?.firstName || "") ||
-    formData.lastName !== (user?.lastName || "") ||
-    formData.phone !== (user?.phone || "")
+    formData.firstName !== currentFormData.firstName ||
+    formData.lastName !== currentFormData.lastName ||
+    formData.phone !== currentFormData.phone ||
+    (isVisitor && (
+      formData.country !== currentFormData.country ||
+      formData.preferredLanguage !== currentFormData.preferredLanguage ||
+      formData.preferredContactMethod !== currentFormData.preferredContactMethod ||
+      formData.accessibilityNeeds !== currentFormData.accessibilityNeeds ||
+      formData.dietaryNotes !== currentFormData.dietaryNotes ||
+      formData.emergencyContactName !== currentFormData.emergencyContactName ||
+      formData.emergencyContactPhone !== currentFormData.emergencyContactPhone
+    ))
   );
 
   // Warn user before leaving with unsaved changes
@@ -39,7 +102,14 @@ export default function Profile() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      await apiRequest("PATCH", "/api/auth/profile", data);
+      const payload = isVisitor
+        ? data
+        : {
+            firstName: data.firstName,
+            lastName: data.lastName,
+            phone: data.phone,
+          };
+      await apiRequest("PATCH", "/api/auth/profile", payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
@@ -267,7 +337,7 @@ export default function Profile() {
                 <Input
                   id="phone"
                   className="pl-9"
-                  placeholder="+265..."
+                  placeholder="+265…"
                   value={isEditing ? formData.phone : user?.phone || ""}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   disabled={!isEditing}
@@ -275,6 +345,140 @@ export default function Profile() {
                 />
               </div>
             </div>
+            {isVisitor && (
+              <div className="space-y-5 rounded-md border bg-muted/20 p-4">
+                <div>
+                  <h2 className="text-base font-semibold">Visitor preferences</h2>
+                  <p className="text-sm text-muted-foreground">
+                    These details help us prepare your visit and support your booking.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="country">Country</Label>
+                    <div className="relative">
+                      <Globe2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="country"
+                        name="country"
+                        autoComplete="country-name"
+                        className="pl-9"
+                        placeholder="Malawi…"
+                        value={isEditing ? formData.country : user?.country || ""}
+                        onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                        disabled={!isEditing}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="preferredLanguage">Preferred language</Label>
+                    <div className="relative">
+                      <Languages className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="preferredLanguage"
+                        name="preferredLanguage"
+                        autoComplete="language"
+                        className="pl-9"
+                        placeholder="English…"
+                        value={isEditing ? formData.preferredLanguage : user?.preferredLanguage || "en"}
+                        onChange={(e) => setFormData({ ...formData, preferredLanguage: e.target.value })}
+                        disabled={!isEditing}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="preferredContactMethod">Preferred contact method</Label>
+                    <Select
+                      value={formData.preferredContactMethod}
+                      onValueChange={(value: "email" | "phone" | "whatsapp") => setFormData({ ...formData, preferredContactMethod: value })}
+                      disabled={!isEditing}
+                    >
+                      <SelectTrigger id="preferredContactMethod">
+                        <SelectValue placeholder="Choose contact method…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="email">Email</SelectItem>
+                        <SelectItem value="phone">Phone</SelectItem>
+                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="emergencyContactName">Emergency contact name</Label>
+                    <div className="relative">
+                      <Contact className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="emergencyContactName"
+                        name="emergencyContactName"
+                        autoComplete="name"
+                        className="pl-9"
+                        placeholder="Full name…"
+                        value={formData.emergencyContactName}
+                        onChange={(e) => setFormData({ ...formData, emergencyContactName: e.target.value })}
+                        disabled={!isEditing}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="emergencyContactPhone">Emergency contact phone</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="emergencyContactPhone"
+                      name="emergencyContactPhone"
+                      autoComplete="tel"
+                      className="pl-9"
+                      placeholder="+265…"
+                      value={formData.emergencyContactPhone}
+                      onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })}
+                      disabled={!isEditing}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="accessibilityNeeds" className="flex items-center gap-2">
+                      <Accessibility className="h-4 w-4 text-muted-foreground" />
+                      Accessibility needs
+                    </Label>
+                    <Textarea
+                      id="accessibilityNeeds"
+                      name="accessibilityNeeds"
+                      className="min-h-28 resize-y"
+                      placeholder="Mobility, hearing, visual, or other support needs…"
+                      value={formData.accessibilityNeeds}
+                      onChange={(e) => setFormData({ ...formData, accessibilityNeeds: e.target.value })}
+                      disabled={!isEditing}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="dietaryNotes" className="flex items-center gap-2">
+                      <Utensils className="h-4 w-4 text-muted-foreground" />
+                      Dietary notes
+                    </Label>
+                    <Textarea
+                      id="dietaryNotes"
+                      name="dietaryNotes"
+                      className="min-h-28 resize-y"
+                      placeholder="Allergies, restrictions, or food preferences…"
+                      value={formData.dietaryNotes}
+                      onChange={(e) => setFormData({ ...formData, dietaryNotes: e.target.value })}
+                      disabled={!isEditing}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Role</Label>
               <div className="relative">
@@ -297,11 +501,7 @@ export default function Profile() {
                   variant="outline"
                   onClick={() => {
                     setIsEditing(false);
-                    setFormData({
-                      firstName: user?.firstName || "",
-                      lastName: user?.lastName || "",
-                      phone: user?.phone || "",
-                    });
+                    setFormData(buildProfileFormData(user));
                   }}
                 >
                   Cancel

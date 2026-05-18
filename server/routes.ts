@@ -398,14 +398,35 @@ function formatMwk(amount?: number | null) {
   }).format(amount || 0);
 }
 
-async function getInternalEmailRecipients(roles: UserRole[]) {
+async function getInternalEmailRecipients(roles: UserRole[], routingKey?: typeof OPERATIONS_NOTIFICATION_KEYS[number]) {
   const roleSet = new Set(roles);
   const users = await storage.getUsers();
-  return users.filter(
+  const fallbackRecipients = users.filter(
     (user) => user.email
       && roleSet.has((user.role || "visitor") as UserRole)
       && user.emailNotifications !== false
   );
+
+  if (!routingKey) {
+    return fallbackRecipients;
+  }
+
+  const settings = getOperationsControlFromUsers(users);
+  const route = settings.notifications[routingKey];
+  if (!route) {
+    return fallbackRecipients;
+  }
+
+  const routeRoleSet = new Set(route.roleRecipients);
+  const routeUserSet = new Set(route.userRecipientIds);
+  const routedRecipients = users.filter((user) =>
+    user.email
+    && user.emailNotifications !== false
+    && user.isActive !== false
+    && (routeRoleSet.has((user.role || "visitor") as UserRole) || routeUserSet.has(user.id))
+  );
+
+  return routedRecipients.length > 0 ? routedRecipients : fallbackRecipients;
 }
 
 async function sendLoggedTemplateEmail(options: {
@@ -619,7 +640,7 @@ async function sendSupportTicketResolvedEmail(ticket: SupportTicket, user: User,
 }
 
 async function sendIncidentAlertEmail(incident: Incident, reporterName: string, sentBy?: string | null) {
-  const recipients = await getInternalEmailRecipients(["admin", "coordinator", "security"]);
+  const recipients = await getInternalEmailRecipients(["admin", "coordinator", "security"], "incident_alerts");
   await Promise.all(recipients.map((recipient) => sendLoggedTemplateEmail({
     templateName: "incident_alert",
     recipientName: getDisplayName(recipient),
@@ -650,7 +671,7 @@ async function sendIncidentAlertEmail(incident: Incident, reporterName: string, 
 }
 
 async function sendLowRatingAlertEmail(booking: Booking, guideName: string, rating: number, sentBy?: string | null) {
-  const recipients = await getInternalEmailRecipients(["admin", "coordinator"]);
+  const recipients = await getInternalEmailRecipients(["admin", "coordinator"], "guide_reports");
   await Promise.all(recipients.map((recipient) => sendLoggedTemplateEmail({
     templateName: "low_rating_alert",
     recipientName: getDisplayName(recipient),
@@ -753,7 +774,7 @@ async function sendRecurringBookingGeneratedEmails(
   if (bookings.length === 0) return;
 
   const generatedDates = bookings.map((booking) => `${booking.visitDate} ${booking.visitTime}`).join(", ");
-  const recipients = await getInternalEmailRecipients(["admin", "coordinator"]);
+  const recipients = await getInternalEmailRecipients(["admin", "coordinator"], "booking_updates");
   await Promise.all(recipients.map((recipient) => sendLoggedTemplateEmail({
     templateName: "recurring_booking_generated",
     recipientName: getDisplayName(recipient),
@@ -1216,7 +1237,122 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+const visitorPreferencesSchema = z.object({
+  country: z.string().trim().max(120).optional().nullable(),
+  phone: z.string().trim().max(80).optional().nullable(),
+  preferredLanguage: z.string().trim().max(80).optional().nullable(),
+  preferredContactMethod: z.enum(["email", "phone", "whatsapp"]).optional().nullable(),
+  accessibilityNeeds: z.string().trim().max(2000).optional().nullable(),
+  dietaryNotes: z.string().trim().max(2000).optional().nullable(),
+  emergencyContactName: z.string().trim().max(160).optional().nullable(),
+  emergencyContactPhone: z.string().trim().max(80).optional().nullable(),
+});
+
+const visitorResourceProgressSchema = z.object({
+  status: z.enum(["completed", "not_started"]).default("completed"),
+});
+
+const bookingMessageContactSchema = z.object({
+  target: z.enum(["admin", "guide"]),
+});
+
 const VALID_USER_ROLES: UserRole[] = ["admin", "coordinator", "guide", "security", "visitor", "transport_partner"];
+const OPERATIONS_WORKFLOW_KEYS = [
+  "payments",
+  "transport",
+  "guide_profile_reviews",
+  "tour_reports",
+  "visitor_messages",
+  "support_tickets",
+] as const;
+const OPERATIONS_NOTIFICATION_KEYS = [
+  "booking_updates",
+  "payment_updates",
+  "transport_updates",
+  "incident_alerts",
+  "guide_reports",
+  "support_tickets",
+] as const;
+
+const operationWorkflowDefinitions = [
+  {
+    key: "payments",
+    label: "Payments",
+    description: "Payment verification, reconciliation, and payment follow-up.",
+    ownerRoles: ["admin", "coordinator"] as UserRole[],
+    defaultEscalationHours: 24,
+  },
+  {
+    key: "transport",
+    label: "Transport",
+    description: "Transport requests, quotes, partner assignment, and driver details.",
+    ownerRoles: ["admin", "coordinator"] as UserRole[],
+    defaultEscalationHours: 12,
+  },
+  {
+    key: "guide_profile_reviews",
+    label: "Guide profile reviews",
+    description: "Approval queue for guide profile changes.",
+    ownerRoles: ["admin", "coordinator"] as UserRole[],
+    defaultEscalationHours: 48,
+  },
+  {
+    key: "tour_reports",
+    label: "Tour reports",
+    description: "Guide post-tour reports and follow-up actions.",
+    ownerRoles: ["admin", "coordinator"] as UserRole[],
+    defaultEscalationHours: 48,
+  },
+  {
+    key: "visitor_messages",
+    label: "Visitor messages",
+    description: "Booking-specific messages from visitors to Visit Dzaleka.",
+    ownerRoles: ["admin"] as UserRole[],
+    defaultEscalationHours: 8,
+  },
+  {
+    key: "support_tickets",
+    label: "Support tickets",
+    description: "Help Center tickets and visitor support follow-up.",
+    ownerRoles: ["admin", "coordinator"] as UserRole[],
+    defaultEscalationHours: 24,
+  },
+] as const;
+
+const approvalDefinitions = [
+  { key: "pricing_changes", label: "Pricing changes", description: "Require explicit admin approval before tour pricing changes." },
+  { key: "partner_deletion", label: "Deleting partners", description: "Require approval before transport partners are deleted or deactivated." },
+  { key: "payment_mark_paid", label: "Marking payments paid", description: "Require approval before manually marking a booking as paid." },
+  { key: "bulk_email_send", label: "Bulk email sends", description: "Require approval before sending bulk or role-wide email/notification messages." },
+  { key: "webhook_changes", label: "Webhook changes", description: "Require approval before creating, disabling, or deleting outgoing webhooks." },
+] as const;
+
+const notificationDefinitions = [
+  { key: "booking_updates", label: "Booking updates", defaultRoles: ["admin", "coordinator"] as UserRole[] },
+  { key: "payment_updates", label: "Payment updates", defaultRoles: ["admin"] as UserRole[] },
+  { key: "transport_updates", label: "Transport updates", defaultRoles: ["admin", "coordinator"] as UserRole[] },
+  { key: "incident_alerts", label: "Incident alerts", defaultRoles: ["admin", "coordinator", "security"] as UserRole[] },
+  { key: "guide_reports", label: "Guide reports", defaultRoles: ["admin", "coordinator"] as UserRole[] },
+  { key: "support_tickets", label: "Support tickets", defaultRoles: ["admin"] as UserRole[] },
+] as const;
+
+const operationWorkflowSettingSchema = z.object({
+  ownerUserId: z.string().trim().optional().nullable(),
+  assignedToUserId: z.string().trim().optional().nullable(),
+  priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
+  internalStatus: z.enum(["active", "watching", "paused", "escalated"]).default("active"),
+  escalationHours: z.coerce.number().int().min(1).max(720).default(24),
+  notes: z.string().trim().max(2000).optional().nullable(),
+});
+
+const operationsControlSettingsSchema = z.object({
+  workflows: z.record(operationWorkflowSettingSchema).default({}),
+  approvals: z.record(z.string(), z.boolean()).default({}),
+  notifications: z.record(z.object({
+    roleRecipients: z.array(z.enum(VALID_USER_ROLES as [UserRole, ...UserRole[]])).default([]),
+    userRecipientIds: z.array(z.string().trim()).default([]),
+  })).default({}),
+});
 
 const transportRequestPayloadSchema = z.object({
   transportRequested: z.boolean().optional(),
@@ -1275,6 +1411,257 @@ function buildVisitorTransportRequestSummary(request?: TransportRequest | null, 
     updatedAt: request.updatedAt,
     partner: buildPublicTransportPartnerProfile(partner),
   };
+}
+
+function getUserPreferences(user?: Pick<User, "preferences"> | null): Record<string, any> {
+  return user?.preferences && typeof user.preferences === "object" && !Array.isArray(user.preferences)
+    ? user.preferences as Record<string, any>
+    : {};
+}
+
+type OperationsControlSettings = z.infer<typeof operationsControlSettingsSchema>;
+
+function buildDefaultOperationsControlSettings(users: User[] = []): OperationsControlSettings {
+  const activeAdmins = users.filter((user) => user.role === "admin" && user.isActive !== false);
+  const activeOperators = users.filter((user) => (user.role === "admin" || user.role === "coordinator") && user.isActive !== false);
+  const visitorMessageOwner = activeAdmins.find((user) => getUserPreferences(user).visitorMessageOwner === true) || activeAdmins[0];
+  const defaultOperator = activeOperators[0] || visitorMessageOwner;
+
+  return {
+    workflows: Object.fromEntries(operationWorkflowDefinitions.map((definition) => {
+      const owner = definition.key === "visitor_messages" ? visitorMessageOwner : defaultOperator;
+      return [
+        definition.key,
+        {
+          ownerUserId: owner?.id || null,
+          assignedToUserId: null,
+          priority: definition.key === "transport" || definition.key === "visitor_messages" ? "high" : "normal",
+          internalStatus: "active",
+          escalationHours: definition.defaultEscalationHours,
+          notes: "",
+        },
+      ];
+    })) as OperationsControlSettings["workflows"],
+    approvals: Object.fromEntries(approvalDefinitions.map((definition) => [definition.key, true])),
+    notifications: Object.fromEntries(notificationDefinitions.map((definition) => [
+      definition.key,
+      {
+        roleRecipients: definition.defaultRoles,
+        userRecipientIds: [],
+      },
+    ])) as OperationsControlSettings["notifications"],
+  };
+}
+
+function getOperationsControlFromUsers(users: User[] = []) {
+  const stored = users
+    .map((user) => getUserPreferences(user).operationsControl)
+    .find((value) => value && typeof value === "object" && !Array.isArray(value));
+
+  return normalizeOperationsControlSettings(stored, users);
+}
+
+function normalizeOperationsControlSettings(raw: unknown, users: User[] = []): OperationsControlSettings {
+  const defaults = buildDefaultOperationsControlSettings(users);
+  const parsed = operationsControlSettingsSchema.safeParse(raw || {});
+  const settings = parsed.success ? parsed.data : { workflows: {}, approvals: {}, notifications: {} };
+  const usersById = new Map(users.map((user) => [user.id, user]));
+
+  const workflows = { ...defaults.workflows };
+  for (const definition of operationWorkflowDefinitions) {
+    const incoming = settings.workflows?.[definition.key];
+    if (!incoming) continue;
+
+    const owner = incoming.ownerUserId ? usersById.get(incoming.ownerUserId) : null;
+    const assigned = incoming.assignedToUserId ? usersById.get(incoming.assignedToUserId) : null;
+    workflows[definition.key] = {
+      ...defaults.workflows[definition.key],
+      ...incoming,
+      ownerUserId: owner && definition.ownerRoles.includes((owner.role || "visitor") as UserRole) && owner.isActive !== false
+        ? owner.id
+        : defaults.workflows[definition.key]?.ownerUserId || null,
+      assignedToUserId: assigned && definition.ownerRoles.includes((assigned.role || "visitor") as UserRole) && assigned.isActive !== false
+        ? assigned.id
+        : null,
+      notes: incoming.notes || "",
+    };
+  }
+
+  const approvals = { ...defaults.approvals };
+  for (const definition of approvalDefinitions) {
+    if (settings.approvals?.[definition.key] !== undefined) {
+      approvals[definition.key] = Boolean(settings.approvals[definition.key]);
+    }
+  }
+
+  const notifications = { ...defaults.notifications };
+  for (const definition of notificationDefinitions) {
+    const incoming = settings.notifications?.[definition.key];
+    if (!incoming) continue;
+    notifications[definition.key] = {
+      roleRecipients: incoming.roleRecipients.filter((role) => VALID_USER_ROLES.includes(role)),
+      userRecipientIds: incoming.userRecipientIds.filter((userId) => {
+        const user = usersById.get(userId);
+        return Boolean(user?.email && user.isActive !== false);
+      }),
+    };
+  }
+
+  return { workflows, approvals, notifications };
+}
+
+function buildOperationsUserSummary(user: User) {
+  return {
+    id: user.id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    role: user.role,
+    isActive: user.isActive,
+    profileImageUrl: user.profileImageUrl,
+  };
+}
+
+async function getOperationsQueueSummary() {
+  const [
+    bookings,
+    transportRequests,
+    guideProfileRequests,
+    tourReports,
+    supportTickets,
+  ] = await Promise.all([
+    storage.getBookings(),
+    storage.getTransportRequests(),
+    storage.getGuideProfileChangeRequests("pending"),
+    storage.getGuideTourReports(),
+    storage.getSupportTickets(),
+  ]);
+
+  return {
+    payments: {
+      openCount: bookings.filter((booking) => booking.status !== "cancelled" && booking.paymentStatus !== "paid").length,
+      urgentCount: bookings.filter((booking) => booking.status === "confirmed" && booking.paymentStatus !== "paid").length,
+      label: "unpaid bookings",
+    },
+    transport: {
+      openCount: transportRequests.filter((request) => !["completed", "cancelled", "declined"].includes(request.status || "")).length,
+      urgentCount: transportRequests.filter((request) => ["pending", "assigned", "quoted"].includes(request.status || "")).length,
+      label: "active transport requests",
+    },
+    guide_profile_reviews: {
+      openCount: guideProfileRequests.length,
+      urgentCount: guideProfileRequests.length,
+      label: "pending profile changes",
+    },
+    tour_reports: {
+      openCount: tourReports.filter((report) => report.status === "submitted").length,
+      urgentCount: tourReports.filter((report) => report.status === "submitted" && report.followUpNeeded).length,
+      label: "submitted reports",
+    },
+    visitor_messages: {
+      openCount: 0,
+      urgentCount: 0,
+      label: "routing rule",
+    },
+    support_tickets: {
+      openCount: supportTickets.filter((ticket) => ticket.status !== "resolved" && ticket.status !== "closed").length,
+      urgentCount: supportTickets.filter((ticket) => ticket.priority === "high" || ticket.priority === "urgent").length,
+      label: "open tickets",
+    },
+  };
+}
+
+type ApprovalKey = typeof approvalDefinitions[number]["key"];
+
+async function requireOperationApproval(req: Request, res: Response, key: ApprovalKey, label: string) {
+  const users = await storage.getUsers();
+  const settings = getOperationsControlFromUsers(users);
+  const approvalRequired = settings.approvals[key] !== false;
+  const approvalConfirmed = req.body?.approvalConfirmed === true
+    || req.body?.approvalConfirmed === "true"
+    || req.query.approvalConfirmed === "true";
+
+  if (approvalRequired && !approvalConfirmed) {
+    res.status(409).json({
+      message: `${label} requires approval confirmation in Operations Control.`,
+      approvalRequired: true,
+      approvalKey: key,
+    });
+    return false;
+  }
+
+  return true;
+}
+
+function buildAssignedGuideSummary(guide?: Guide | null) {
+  if (!guide) return null;
+
+  return {
+    id: guide.id,
+    firstName: guide.firstName,
+    lastName: guide.lastName,
+    phone: guide.phone,
+    profileImageUrl: guide.profileImageUrl,
+    languages: guide.languages,
+    bio: guide.bio,
+    specialties: guide.specialties,
+    rating: guide.rating,
+    userId: guide.userId,
+  };
+}
+
+function buildSafeBookingForRole(booking: Booking, role?: UserRole | null) {
+  const shared = {
+    id: booking.id,
+    bookingReference: booking.bookingReference,
+    source: booking.source,
+    visitorName: booking.visitorName,
+    visitorEmail: booking.visitorEmail,
+    visitorPhone: booking.visitorPhone,
+    visitorCountry: booking.visitorCountry,
+    visitorUserId: booking.visitorUserId,
+    visitDate: booking.visitDate,
+    visitTime: booking.visitTime,
+    groupSize: booking.groupSize,
+    numberOfPeople: booking.numberOfPeople,
+    tourType: booking.tourType,
+    customDuration: booking.customDuration,
+    meetingPointId: booking.meetingPointId,
+    paymentStatus: booking.paymentStatus,
+    status: booking.status,
+    cancellationCategory: booking.cancellationCategory,
+    cancellationReason: booking.cancellationReason,
+    cancellationNote: booking.cancellationNote,
+    cancelledAt: booking.cancelledAt,
+    selectedZones: booking.selectedZones,
+    selectedInterests: booking.selectedInterests,
+    specialRequests: booking.specialRequests,
+    accessibilityNeeds: booking.accessibilityNeeds,
+    referralSource: booking.referralSource,
+    assignedGuideId: booking.assignedGuideId,
+    checkInTime: booking.checkInTime,
+    checkOutTime: booking.checkOutTime,
+    visitorRating: booking.visitorRating,
+    visitorOrganization: booking.visitorOrganization,
+    recurringBookingId: booking.recurringBookingId,
+    createdAt: booking.createdAt,
+    updatedAt: booking.updatedAt,
+  };
+
+  if (role === "visitor") {
+    return {
+      ...shared,
+      paymentMethod: booking.paymentMethod,
+      paymentReference: booking.paymentReference,
+      totalAmount: booking.totalAmount,
+    };
+  }
+
+  if (role === "guide") {
+    return shared;
+  }
+
+  return booking;
 }
 
 const transportPartnerPayloadSchema = z.object({
@@ -1433,6 +1820,18 @@ const webhookEndpointPayloadSchema = z.object({
   ),
   status: z.enum(["active", "failing", "disabled"]).default("active"),
 });
+
+function redactWebhookSecret<T extends object | null | undefined>(endpoint: T) {
+  if (!endpoint) {
+    return endpoint;
+  }
+  const record = endpoint as Record<string, unknown>;
+
+  return {
+    ...endpoint,
+    secret: record.secret ? "[set]" : null,
+  };
+}
 
 const partnerReferralSchema = z.object({
   visitorName: z.string().trim().min(1, "Visitor name is required").max(160),
@@ -2009,7 +2408,7 @@ async function logTransportWorkflowEmail(options: {
 }
 
 async function getTransportAdminEmailRecipients(excludeEmails: Set<string> = new Set()) {
-  const admins = await getInternalEmailRecipients(["admin", "coordinator"]);
+  const admins = await getInternalEmailRecipients(["admin", "coordinator"], "transport_updates");
   return admins.filter((admin) => !excludeEmails.has(admin.email.toLowerCase()));
 }
 
@@ -3288,6 +3687,10 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Specify userIds, role, or sendToAll" });
       }
 
+      if ((sendToAll || role) && !(await requireOperationApproval(req, res, "bulk_email_send", "Bulk notification sends"))) {
+        return;
+      }
+
       let successCount = 0;
       for (const user of targetUsers) {
         try {
@@ -3899,6 +4302,11 @@ export async function registerRoutes(
   app.patch("/api/auth/profile", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId!;
+      const currentUser = await storage.getUser(userId);
+      if (!currentUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
       const { firstName, lastName, phone, profileImageUrl, emailNotifications } = req.body;
 
       // Build update object, filtering out undefined values
@@ -3908,8 +4316,44 @@ export async function registerRoutes(
       if (phone !== undefined) updates.phone = phone;
       if (profileImageUrl !== undefined) updates.profileImageUrl = profileImageUrl;
       if (emailNotifications !== undefined) updates.emailNotifications = emailNotifications;
+      if (req.body.country !== undefined) updates.country = req.body.country;
+      if (req.body.preferredLanguage !== undefined) updates.preferredLanguage = req.body.preferredLanguage;
+      if (req.body.preferredContactMethod !== undefined) updates.preferredContactMethod = req.body.preferredContactMethod;
 
-      const user = await storage.updateUserProfile(userId, updates);
+      const visitorPreferenceFields = [
+        "accessibilityNeeds",
+        "dietaryNotes",
+        "emergencyContactName",
+        "emergencyContactPhone",
+      ];
+
+      if (currentUser.role === "visitor" && visitorPreferenceFields.some((field) => req.body[field] !== undefined)) {
+        const visitorPreferences = visitorPreferencesSchema.parse({
+          country: req.body.country,
+          phone: req.body.phone,
+          preferredLanguage: req.body.preferredLanguage,
+          preferredContactMethod: req.body.preferredContactMethod,
+          accessibilityNeeds: req.body.accessibilityNeeds,
+          dietaryNotes: req.body.dietaryNotes,
+          emergencyContactName: req.body.emergencyContactName,
+          emergencyContactPhone: req.body.emergencyContactPhone,
+        });
+        const existingPreferences = getUserPreferences(currentUser);
+        const existingVisitorPreferences = existingPreferences.visitor || {};
+        const nextVisitorPreferences = { ...existingVisitorPreferences };
+        for (const field of visitorPreferenceFields) {
+          if (visitorPreferences[field as keyof typeof visitorPreferences] !== undefined) {
+            nextVisitorPreferences[field] = visitorPreferences[field as keyof typeof visitorPreferences] || "";
+          }
+        }
+
+        updates.preferences = {
+          ...existingPreferences,
+          visitor: nextVisitorPreferences,
+        };
+      }
+
+      const user = await storage.updateUser(userId, updates);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -3918,6 +4362,9 @@ export async function registerRoutes(
       const { password: _, ...safeUser } = user;
       res.json(safeUser);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid profile update", errors: error.errors });
+      }
       logError("Error updating profile", error, req.requestId);
       res.status(500).json({ message: "Failed to update profile" });
     }
@@ -4674,18 +5121,8 @@ export async function registerRoutes(
           ? transportPartnerMap.get(transportRequest.partnerId) || null
           : null;
         return {
-          ...booking,
-          guide: guide ? {
-            id: guide.id,
-            firstName: guide.firstName,
-            lastName: guide.lastName,
-            phone: guide.phone,
-            profileImageUrl: guide.profileImageUrl,
-            languages: guide.languages,
-            bio: guide.bio,
-            specialties: guide.specialties,
-            rating: guide.rating,
-          } : null,
+          ...buildSafeBookingForRole(booking, "visitor"),
+          guide: buildAssignedGuideSummary(guide),
           transportRequest: buildVisitorTransportRequestSummary(transportRequest, partner),
         };
       });
@@ -5007,8 +5444,11 @@ export async function registerRoutes(
         }
       }
 
-      // Fetch guide details if assigned
+      // Fetch guide and meeting point details for assigned booking views.
       const guide = await getAssignedGuide(booking);
+      const meetingPoint = booking.meetingPointId
+        ? await storage.getMeetingPoint(booking.meetingPointId)
+        : null;
 
       const transportRequests = await storage.getTransportRequestsByBookingIds([booking.id]);
       const transportRequest = transportRequests
@@ -5017,10 +5457,19 @@ export async function registerRoutes(
         ? await storage.getTransportPartner(transportRequest.partnerId)
         : null;
 
+      const bookingForResponse = buildSafeBookingForRole(booking, user.role as UserRole);
+      const canSeeAdminTransportDetails = user.role === "admin" || user.role === "coordinator";
+      const transportRequestPayload = transportRequest
+        ? canSeeAdminTransportDetails
+          ? { ...transportRequest, partner: transportPartner }
+          : buildVisitorTransportRequestSummary(transportRequest, transportPartner)
+        : null;
+
       res.json({
-        ...booking,
-        guide,
-        transportRequest: buildVisitorTransportRequestSummary(transportRequest, transportPartner),
+        ...bookingForResponse,
+        guide: isAdminOrCoord ? guide : buildAssignedGuideSummary(guide),
+        meetingPoint,
+        transportRequest: transportRequestPayload,
       });
     } catch (error) {
       logError("Error fetching booking details", error, req.requestId);
@@ -5435,6 +5884,9 @@ export async function registerRoutes(
       const existing = await storage.getTransportPartner(req.params.id);
       if (!existing) {
         return res.status(404).json({ message: "Transport partner not found" });
+      }
+      if (!(await requireOperationApproval(req, res, "partner_deletion", "Deleting transport partners"))) {
+        return;
       }
 
       await storage.deleteTransportPartner(req.params.id);
@@ -6774,6 +7226,211 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/bookings/:id/visitor-timeline", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const booking = await storage.getBooking(id);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      const canAccess = await userCanAccessBooking(req.session.userId!, booking);
+      if (!canAccess) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const [activities, emailLogs, transportRequests] = await Promise.all([
+        storage.getBookingActivityLogs(id),
+        storage.getEmailLogsForBooking(id, booking.bookingReference),
+        storage.getTransportRequestsByBookingIds([id]),
+      ]);
+      const transportRequest = transportRequests
+        .sort((a, b) => dateSortValue(b.updatedAt || b.createdAt) - dateSortValue(a.updatedAt || a.createdAt))[0] || null;
+
+      const events: Array<{
+        id: string;
+        type: string;
+        title: string;
+        description: string | null;
+        occurredAt: string | Date | null;
+        status?: string | null;
+      }> = [];
+
+      events.push({
+        id: `booking-created-${booking.id}`,
+        type: "booking_created",
+        title: "Booking request created",
+        description: booking.bookingReference ? `Reference ${booking.bookingReference}` : null,
+        occurredAt: booking.createdAt,
+        status: booking.status,
+      });
+
+      for (const activity of activities) {
+        const actionTitleMap: Record<string, string> = {
+          getyourguide_booking_created: "Booking confirmed by GetYourGuide",
+          getyourguide_booking_cancelled: "Booking cancelled by GetYourGuide",
+          rescheduled: "Visit rescheduled",
+          visitor_reschedule_requested: "Reschedule requested",
+          payment_reported: "Payment reported",
+          visitor_cancelled: "Booking cancelled",
+          guide_assigned: "Guide assigned",
+          assigned: "Guide assigned",
+          status_updated: "Booking status updated",
+          check_in: "Visitor checked in",
+          check_out: "Visitor checked out",
+          no_show: "Marked no-show",
+        };
+        events.push({
+          id: `activity-${activity.id}`,
+          type: activity.action,
+          title: actionTitleMap[activity.action] || activity.action.replace(/_/g, " "),
+          description: activity.description,
+          occurredAt: activity.createdAt,
+          status: activity.newStatus || activity.oldStatus,
+        });
+      }
+
+      if (booking.assignedGuideId && !events.some((event) => event.type === "guide_assigned" || event.type === "assigned")) {
+        events.push({
+          id: `guide-assigned-${booking.id}`,
+          type: "guide_assigned",
+          title: "Guide assigned",
+          description: "A guide has been assigned to your visit.",
+          occurredAt: booking.updatedAt || booking.createdAt,
+          status: booking.status,
+        });
+      }
+
+      if ((booking.paymentReference || booking.paymentStatus === "paid") && !events.some((event) => event.type === "payment_reported")) {
+        events.push({
+          id: `payment-reported-${booking.id}`,
+          type: "payment_reported",
+          title: "Payment reported",
+          description: booking.paymentReference ? `Reference ${booking.paymentReference}` : "Payment status updated",
+          occurredAt: booking.updatedAt || booking.createdAt,
+          status: booking.paymentStatus,
+        });
+      }
+
+      for (const email of emailLogs) {
+        events.push({
+          id: `email-${email.id}`,
+          type: "email_sent",
+          title: "Email sent",
+          description: email.subject,
+          occurredAt: email.lastEventAt || email.deliveredAt || email.createdAt,
+          status: email.status,
+        });
+      }
+
+      if (transportRequest) {
+        events.push({
+          id: `transport-created-${transportRequest.id}`,
+          type: "transport_request_created",
+          title: "Transport request created",
+          description: transportRequest.pickupLocation || transportRequest.route,
+          occurredAt: transportRequest.createdAt,
+          status: transportRequest.status,
+        });
+        if (transportRequest.quoteSentAt) {
+          events.push({
+            id: `transport-quote-${transportRequest.id}`,
+            type: "transport_quote_sent",
+            title: "Transport quote sent",
+            description: transportRequest.quotedAmount != null
+              ? `${transportRequest.currency || "MWK"} ${transportRequest.quotedAmount}`
+              : "Quote sent for review",
+            occurredAt: transportRequest.quoteSentAt,
+            status: transportRequest.status,
+          });
+        }
+        if (transportRequest.driverName || transportRequest.driverPhone || transportRequest.vehicleDetails) {
+          events.push({
+            id: `transport-driver-${transportRequest.id}`,
+            type: "transport_driver_assigned",
+            title: "Driver details added",
+            description: [transportRequest.driverName, transportRequest.driverPhone, transportRequest.vehicleDetails].filter(Boolean).join(" - "),
+            occurredAt: transportRequest.partnerRespondedAt || transportRequest.updatedAt,
+            status: transportRequest.status,
+          });
+        }
+        if (transportRequest.quoteDecisionAt) {
+          events.push({
+            id: `transport-decision-${transportRequest.id}`,
+            type: "transport_quote_decision",
+            title: transportRequest.quoteDecision === "approved" ? "Transport quote approved" : "Transport quote declined",
+            description: transportRequest.quoteDecisionNotes,
+            occurredAt: transportRequest.quoteDecisionAt,
+            status: transportRequest.status,
+          });
+        }
+      }
+
+      res.json(
+        events
+          .filter((event) => event.occurredAt)
+          .sort((a, b) => dateSortValue(b.occurredAt) - dateSortValue(a.occurredAt))
+      );
+    } catch (error) {
+      logError("Error fetching visitor booking timeline", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch booking timeline" });
+    }
+  });
+
+  app.post("/api/bookings/:id/message-contact", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const payload = bookingMessageContactSchema.parse(req.body);
+      const userId = req.session.userId!;
+      const booking = await storage.getBooking(id);
+      const currentUser = await storage.getUser(userId);
+      if (!booking || !currentUser) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      const canAccess = await userCanAccessBooking(userId, booking);
+      if (!canAccess || currentUser.role !== "visitor") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      let targetUser: User | undefined;
+      if (payload.target === "guide") {
+        const guide = await getAssignedGuide(booking);
+        if (!guide?.userId) {
+          return res.status(404).json({ message: "No assigned guide is available for messaging yet" });
+        }
+        targetUser = await storage.getUser(guide.userId);
+      } else {
+        const users = await storage.getUsers();
+        const activeAdmins = users.filter((user) => user.role === "admin" && user.isActive !== false);
+        targetUser = activeAdmins.find((user) => getUserPreferences(user).visitorMessageOwner === true)
+          || activeAdmins[0];
+      }
+
+      if (!targetUser) {
+        return res.status(404).json({ message: "No active admin is available for visitor messages" });
+      }
+
+      const room = await storage.getOrCreateDirectRoom(userId, targetUser.id);
+      res.json({
+        room,
+        target: {
+          id: targetUser.id,
+          firstName: targetUser.firstName,
+          lastName: targetUser.lastName,
+          email: targetUser.email,
+          role: targetUser.role,
+        },
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid message target", errors: error.errors });
+      }
+      logError("Error opening booking message contact", error, req.requestId);
+      res.status(500).json({ message: "Failed to open booking message contact" });
+    }
+  });
+
   app.post("/api/bookings/:id/resend-email", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
     try {
       const { id } = req.params;
@@ -7060,6 +7717,9 @@ export async function registerRoutes(
       const { id } = req.params;
       const { paymentStatus, paymentReference } = req.body;
       const userId = req.session?.userId;
+      if (paymentStatus === "paid" && !(await requireOperationApproval(req, res, "payment_mark_paid", "Marking payments as paid"))) {
+        return;
+      }
 
       const oldBooking = await storage.getBooking(id);
       let booking = await storage.updateBookingPaymentStatus(id, paymentStatus, userId);
@@ -7833,6 +8493,20 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/guide-profile-change-requests/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const request = await storage.getGuideProfileChangeRequest(req.params.id);
+      if (!request) {
+        return res.status(404).json({ message: "Guide profile change request not found" });
+      }
+
+      res.json(await enrichGuideProfileChangeRequest(request));
+    } catch (error) {
+      logError("Error fetching guide profile change request", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch guide profile review" });
+    }
+  });
+
   app.post("/api/admin/guide-profile-change-requests/:id/decision", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
     try {
       const payload = guideProfileReviewDecisionSchema.parse(req.body);
@@ -8224,6 +8898,21 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error fetching admin guide tour reports", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch guide tour reports" });
+    }
+  });
+
+  app.get("/api/admin/guide-tour-reports/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const reports = await storage.getGuideTourReports();
+      const report = reports.find((item) => item.id === req.params.id);
+      if (!report) {
+        return res.status(404).json({ message: "Guide tour report not found" });
+      }
+
+      res.json(await enrichGuideTourReport(report));
+    } catch (error) {
+      logError("Error fetching guide tour report", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch guide tour report" });
     }
   });
 
@@ -9340,6 +10029,64 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/operations-control", isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const usersList = await storage.getUsers();
+      const settings = getOperationsControlFromUsers(usersList);
+      const queueSummary = await getOperationsQueueSummary();
+      res.json({
+        settings,
+        workflowDefinitions: operationWorkflowDefinitions,
+        approvalDefinitions,
+        notificationDefinitions,
+        queueSummary,
+        users: usersList
+          .filter((user) => ["admin", "coordinator", "security"].includes(user.role || ""))
+          .map(buildOperationsUserSummary),
+      });
+    } catch (error) {
+      logError("Error fetching operations control settings", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch operations control settings" });
+    }
+  });
+
+  app.patch("/api/operations-control", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    try {
+      const usersList = await storage.getUsers();
+      const parsed = operationsControlSettingsSchema.parse(req.body);
+      const settings = normalizeOperationsControlSettings(parsed, usersList);
+      const visitorMessageOwnerId = settings.workflows.visitor_messages?.ownerUserId || null;
+
+      await Promise.all(
+        usersList
+          .filter((user) => user.role === "admin")
+          .map((adminUser) => {
+            const preferences = getUserPreferences(adminUser);
+            return storage.updateUser(adminUser.id, {
+              preferences: {
+                ...preferences,
+                visitorMessageOwner: Boolean(visitorMessageOwnerId && adminUser.id === visitorMessageOwnerId),
+                operationsControl: settings,
+              },
+            });
+          })
+      );
+
+      await createAuditLog(req.session.userId!, "update", "operations_control", "global", null, settings, req);
+
+      res.json({
+        settings,
+        queueSummary: await getOperationsQueueSummary(),
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid operations control settings", errors: error.errors });
+      }
+      logError("Error updating operations control settings", error, req.requestId);
+      res.status(500).json({ message: "Failed to update operations control settings" });
+    }
+  });
+
   // User management endpoints (Admin only)
   app.get("/api/users", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
@@ -9370,6 +10117,52 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error updating user role", error, req.requestId);
       res.status(500).json({ message: "Failed to update user role" });
+    }
+  });
+
+  app.patch("/api/users/:id/visitor-message-owner", isAuthenticated, requireRole("admin"), async (req: any, res) => {
+    try {
+      const targetUser = await storage.getUser(req.params.id);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      if (targetUser.role !== "admin") {
+        return res.status(400).json({ message: "Visitor messages can only be assigned to an admin account" });
+      }
+      if (targetUser.isActive === false) {
+        return res.status(400).json({ message: "Visitor messages cannot be assigned to an inactive admin" });
+      }
+
+      const usersList = await storage.getUsers();
+      const settings = getOperationsControlFromUsers(usersList);
+      settings.workflows.visitor_messages = {
+        ...settings.workflows.visitor_messages,
+        ownerUserId: targetUser.id,
+      };
+
+      await Promise.all(
+        usersList
+          .filter((user) => user.role === "admin")
+          .map((adminUser) => {
+            const preferences = getUserPreferences(adminUser);
+            return storage.updateUser(adminUser.id, {
+              preferences: {
+                ...preferences,
+                visitorMessageOwner: adminUser.id === targetUser.id,
+                operationsControl: settings,
+              },
+            });
+          })
+      );
+
+      await createAuditLog(req.session.userId!, "update", "user", targetUser.id, null, {
+        visitorMessageOwner: true,
+      }, req);
+
+      res.json({ message: "Visitor message owner updated", userId: targetUser.id });
+    } catch (error) {
+      logError("Error updating visitor message owner", error, req.requestId);
+      res.status(500).json({ message: "Failed to update visitor message owner" });
     }
   });
 
@@ -10120,7 +10913,13 @@ export async function registerRoutes(
 
   app.patch("/api/pricing", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
-      await storage.updatePricing(req.body);
+      if (!(await requireOperationApproval(req, res, "pricing_changes", "Pricing changes"))) {
+        return;
+      }
+      const { approvalConfirmed, ...pricingPayload } = req.body;
+      const existingPricing = await storage.getPricingConfigs();
+      await storage.updatePricing(pricingPayload);
+      await createAuditLog(req.session.userId!, "update", "pricing", "global", existingPricing, pricingPayload, req);
       res.json({ success: true });
     } catch (error) {
       logError("Error updating pricing", error, req.requestId);
@@ -11699,6 +12498,65 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error fetching visitor resources", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch resources" });
+    }
+  });
+
+  app.get("/api/visitor-resources/progress", isAuthenticated, requireRole("visitor"), async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const preferences = getUserPreferences(user);
+      res.json(preferences.visitorResourceProgress || {});
+    } catch (error) {
+      logError("Error fetching visitor resource progress", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch resource progress" });
+    }
+  });
+
+  app.patch("/api/visitor-resources/progress/:moduleId", isAuthenticated, requireRole("visitor"), async (req: any, res) => {
+    try {
+      const userId = req.session.userId!;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const module = await storage.getTrainingModule(req.params.moduleId);
+      if (!module || (module.targetAudience !== "visitor" && module.targetAudience !== "both")) {
+        return res.status(404).json({ message: "Visitor resource not found" });
+      }
+
+      const payload = visitorResourceProgressSchema.parse(req.body);
+      const preferences = getUserPreferences(user);
+      const currentProgress = preferences.visitorResourceProgress || {};
+      const updatedProgress = { ...currentProgress };
+
+      if (payload.status === "completed") {
+        updatedProgress[module.id] = {
+          status: "completed",
+          completedAt: new Date().toISOString(),
+        };
+      } else {
+        delete updatedProgress[module.id];
+      }
+
+      const updatedUser = await storage.updateUser(userId, {
+        preferences: {
+          ...preferences,
+          visitorResourceProgress: updatedProgress,
+        },
+      });
+
+      res.json(getUserPreferences(updatedUser).visitorResourceProgress || {});
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid resource progress", errors: error.errors });
+      }
+      logError("Error updating visitor resource progress", error, req.requestId);
+      res.status(500).json({ message: "Failed to update resource progress" });
     }
   });
 
@@ -14065,8 +14923,12 @@ export async function registerRoutes(
 
   app.post("/api/webhooks", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
+      if (!(await requireOperationApproval(req, res, "webhook_changes", "Webhook changes"))) {
+        return;
+      }
       const payload = webhookEndpointPayloadSchema.parse(req.body);
       const endpoint = await storage.createWebhookEndpoint(payload);
+      await createAuditLog(req.session.userId!, "create", "webhook_endpoint", endpoint.id, null, redactWebhookSecret(endpoint), req);
       res.status(201).json(endpoint);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -14079,11 +14941,27 @@ export async function registerRoutes(
 
   app.patch("/api/webhooks/:id", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
+      if (!(await requireOperationApproval(req, res, "webhook_changes", "Webhook changes"))) {
+        return;
+      }
+      const existingEndpoint = await storage.getWebhookEndpoint(req.params.id);
+      if (!existingEndpoint) {
+        return res.status(404).json({ message: "Webhook endpoint not found" });
+      }
       const payload = webhookEndpointPayloadSchema.partial().parse(req.body);
       const endpoint = await storage.updateWebhookEndpoint(req.params.id, payload);
       if (!endpoint) {
         return res.status(404).json({ message: "Webhook endpoint not found" });
       }
+      await createAuditLog(
+        req.session.userId!,
+        "update",
+        "webhook_endpoint",
+        endpoint.id,
+        redactWebhookSecret(existingEndpoint),
+        redactWebhookSecret(endpoint),
+        req,
+      );
       res.json(endpoint);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -14096,7 +14974,15 @@ export async function registerRoutes(
 
   app.delete("/api/webhooks/:id", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
+      if (!(await requireOperationApproval(req, res, "webhook_changes", "Webhook changes"))) {
+        return;
+      }
+      const existingEndpoint = await storage.getWebhookEndpoint(req.params.id);
+      if (!existingEndpoint) {
+        return res.status(404).json({ message: "Webhook endpoint not found" });
+      }
       await storage.deleteWebhookEndpoint(req.params.id);
+      await createAuditLog(req.session.userId!, "delete", "webhook_endpoint", req.params.id, redactWebhookSecret(existingEndpoint), null, req);
       res.status(204).send();
     } catch (error) {
       logError("Failed to delete webhook endpoint", error, req.requestId);

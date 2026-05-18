@@ -37,6 +37,7 @@ interface SendNotificationData {
     userIds?: string[];
     sendToAll?: boolean;
     role?: string;
+    approvalConfirmed?: boolean;
 }
 
 export function NotificationSender() {
@@ -104,7 +105,10 @@ export function NotificationSender() {
         };
 
         if (targetType === "all") {
+            const confirmed = window.confirm("Confirm bulk notification approval: this will send a notification to all active users.");
+            if (!confirmed) return;
             data.sendToAll = true;
+            data.approvalConfirmed = true;
         } else if (targetType === "role") {
             if (!selectedRole) {
                 toast({
@@ -114,7 +118,10 @@ export function NotificationSender() {
                 });
                 return;
             }
+            const confirmed = window.confirm(`Confirm bulk notification approval: this will send a notification to all active ${selectedRole} users.`);
+            if (!confirmed) return;
             data.role = selectedRole;
+            data.approvalConfirmed = true;
         } else if (targetType === "specific") {
             if (selectedUsers.length === 0) {
                 toast({

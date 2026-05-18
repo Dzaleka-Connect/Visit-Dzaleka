@@ -103,7 +103,7 @@ export default function Settings() {
   };
 
   const updatePricingMutation = useMutation({
-    mutationFn: async (data: typeof pricing) => {
+    mutationFn: async (data: typeof pricing & { approvalConfirmed?: boolean }) => {
       await apiRequest("PATCH", "/api/pricing", data);
     },
     onSuccess: () => {
@@ -154,7 +154,9 @@ export default function Settings() {
   });
 
   const handlePricingSave = () => {
-    updatePricingMutation.mutate(pricing);
+    const confirmed = window.confirm("Confirm pricing approval: this will change public tour prices used for future bookings.");
+    if (!confirmed) return;
+    updatePricingMutation.mutate({ ...pricing, approvalConfirmed: true });
   };
 
   const handlePasswordChange = () => {

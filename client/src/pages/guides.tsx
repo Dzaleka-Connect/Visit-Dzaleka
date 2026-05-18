@@ -579,8 +579,15 @@ export default function Guides() {
                         )}
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
+                        <Button size="sm" variant="secondary" className="min-h-11 sm:min-h-9" asChild>
+                          <Link href={`/admin/guide-profile-reviews/${request.id}`}>
+                            <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
+                            Open review
+                          </Link>
+                        </Button>
                         <Button
                           size="sm"
+                          className="min-h-11 sm:min-h-9"
                           onClick={() => reviewProfileChangeMutation.mutate({ id: request.id, decision: "approved" })}
                           disabled={reviewProfileChangeMutation.isPending}
                         >
@@ -590,7 +597,7 @@ export default function Guides() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
+                          className="min-h-11 border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30 sm:min-h-9"
                           onClick={() => {
                             const notes = window.prompt("Add a short reason for rejecting these profile changes:");
                             if (notes === null) return;
@@ -644,8 +651,15 @@ export default function Guides() {
                       </p>
                     )}
                     <div className="mt-3 flex flex-wrap gap-2">
+                      <Button size="sm" variant="secondary" className="min-h-11 sm:min-h-9" asChild>
+                        <Link href={`/admin/guide-tour-reports/${report.id}`}>
+                          <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
+                          Open report
+                        </Link>
+                      </Button>
                       <Button
                         size="sm"
+                        className="min-h-11 sm:min-h-9"
                         onClick={() => reviewTourReportMutation.mutate({ id: report.id, status: "reviewed" })}
                         disabled={reviewTourReportMutation.isPending}
                       >
@@ -655,6 +669,7 @@ export default function Guides() {
                       <Button
                         size="sm"
                         variant="outline"
+                        className="min-h-11 sm:min-h-9"
                         onClick={() => {
                           const notes = window.prompt("What needs action from this report?");
                           if (notes === null) return;

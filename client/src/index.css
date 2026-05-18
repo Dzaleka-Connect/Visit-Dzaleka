@@ -254,14 +254,69 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    min-width: 320px;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: color-mix(in oklch, var(--primary) 18%, transparent);
+    text-rendering: optimizeLegibility;
   }
 
   html {
     color-scheme: light;
+    scroll-padding-top: 5rem;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   html.dark {
     color-scheme: dark;
+  }
+
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  img,
+  picture,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
+  }
+
+  h1,
+  h2,
+  h3 {
+    scroll-margin-top: 5rem;
+    text-wrap: balance;
+  }
+
+  p,
+  li,
+  dd,
+  td,
+  th {
+    overflow-wrap: break-word;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
   }
 }
 

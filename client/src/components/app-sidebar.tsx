@@ -38,6 +38,7 @@ import {
   Star,
   Award,
   Car,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   Sidebar,
@@ -111,7 +112,7 @@ const mainNavigationItems: NavItem[] = [
     roles: ["visitor"],
   },
   {
-    title: "Learning Center",
+    title: "Before You Visit",
     url: "/resources",
     icon: BookOpen,
     roles: ["visitor"],
@@ -237,7 +238,7 @@ const mainNavigationItems: NavItem[] = [
     roles: ["visitor", "guide"],
   },
   {
-    title: "Community Hub",
+    title: "Community",
     url: "/community",
     icon: Globe,
     roles: ["admin", "coordinator", "guide", "security", "visitor", "transport_partner"],
@@ -260,6 +261,12 @@ const financeItems: NavItem[] = [
 ];
 
 const operationsItems: NavItem[] = [
+  {
+    title: "Operations Control",
+    url: "/operations-control",
+    icon: SlidersHorizontal,
+    roles: ["admin"],
+  },
   {
     title: "Operations Manual",
     url: "/operations-manual",

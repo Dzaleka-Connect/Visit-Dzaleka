@@ -14,19 +14,23 @@ import { Menu, X, HelpCircle } from "lucide-react";
 // FAQ Data
 const faqCategories = [
     {
-        title: "Tours & Packages",
+        title: "Tours & Experience",
         questions: [
             {
                 q: "What types of tours do you offer?",
-                a: "We offer guided walking tours of Dzaleka Refugee Camp, where visitors can explore key areas, learn about the camp's history, and engage with the community."
+                a: "We offer guided walking tours of Dzaleka Refugee Camp led by local guides. Visits can include camp history, daily life, community initiatives, markets, creative spaces, and selected zones depending on timing, access, and visitor interests."
             },
             {
-                q: "What activities can I experience during the visit?",
-                a: "Visitors can experience cultural exchanges, educational workshops, community initiatives, and during special events, the Tumaini Festival which showcases music, art, and performances. You can also engage with local entrepreneurs and artisans."
+                q: "Can I choose specific areas or interests for my visit?",
+                a: "Yes. During booking you can share interests such as arts, education, community projects, entrepreneurship, faith spaces, markets, sports, or youth initiatives. We use that information to shape the visit where possible."
             },
             {
                 q: "Are the tours family-friendly?",
-                a: "Yes, our tours are suitable for all ages and are designed to be family-friendly. We can adjust the tour content and pace to accommodate families with children."
+                a: "Yes. We can adjust the pace and content for families, school groups, and mixed-age groups. Please mention children, accessibility needs, or sensitive requirements when booking."
+            },
+            {
+                q: "Are visits guaranteed to include every listed place?",
+                a: "No. Dzaleka is a living community, so access can depend on timing, community availability, weather, security guidance, public holidays, and partner schedules. Your guide will adapt the route responsibly."
             }
         ]
     },
@@ -35,15 +39,78 @@ const faqCategories = [
         questions: [
             {
                 q: "How much do tours cost?",
-                a: "Tour prices range from MWK 15,000 for individuals to MWK 100,000 for groups of 10+ people. Additional hours are charged at MWK 10,000 per hour."
+                a: "Current prices are shown on the booking form before you submit your request. Pricing can vary by group size, tour type, custom duration, and any additional services requested."
             },
             {
-                q: "Do you offer group discounts?",
-                a: "Yes, we offer special rates for groups. Groups of 6-10 people pay MWK 80,000, while groups of 10+ people pay MWK 100,000 for a standard 2-hour tour."
+                q: "When is my booking confirmed?",
+                a: "After you submit a request, our team reviews guide availability, timing, meeting point, and any special notes. Your booking is confirmed only after you receive confirmation from Visit Dzaleka."
             },
             {
                 q: "What is your cancellation policy?",
-                a: "We understand that plans can change. Please inform us as soon as possible if you need to cancel or reschedule your tour, and we will do our best to accommodate your needs."
+                a: "Please contact us as early as possible if you need to cancel. If we need to cancel because of safety, guide availability, access restrictions, or local conditions, we will contact you and help with next steps."
+            },
+            {
+                q: "Can I reschedule my visit?",
+                a: "Yes, visitors can request a reschedule from their booking page. Rescheduling depends on guide availability, transport availability if requested, and operational conditions on the new date."
+            }
+        ]
+    },
+    {
+        title: "Transport",
+        questions: [
+            {
+                q: "Can Visit Dzaleka arrange transport?",
+                a: "You can request transport during booking. Transport depends on partner availability, route, date, pickup location, and the quote you receive. If no partner is available, you may need to arrange alternative transport outside our partner network."
+            },
+            {
+                q: "How does a transport quote work?",
+                a: "If a partner can assist, they provide a quote, pickup time, driver details, and vehicle details. You can review the quote before final confirmation."
+            },
+            {
+                q: "Will I receive driver details?",
+                a: "Yes. Once a partner accepts and driver details are assigned, you should receive the relevant pickup and driver information so you can coordinate clearly before travel."
+            }
+        ]
+    },
+    {
+        title: "Payments",
+        questions: [
+            {
+                q: "How can I pay?",
+                a: "Available payment methods are shown during booking or in your visitor booking page. Depending on configuration and your booking, this may include cash, local mobile money, bank or reference-based payment, or card payment."
+            },
+            {
+                q: "Can I pay by card?",
+                a: "Card payment is available only when enabled for your booking. If card payment is offered, the payment is processed through Stripe and your booking page will show the next step."
+            },
+            {
+                q: "How do I report a payment?",
+                a: "Visitors can report payment details from their booking page. Staff then verify the payment and update the booking status."
+            },
+            {
+                q: "Will I receive a receipt?",
+                a: "When a payment is verified and marked paid, the system can send a payment receipt email to the visitor."
+            }
+        ]
+    },
+    {
+        title: "Your Booking Account",
+        questions: [
+            {
+                q: "Do I need an account?",
+                a: "An account helps you manage bookings, view booking details, message Visit Dzaleka, track transport quote updates, and access visitor resources. Some booking emails may also invite you to create or access your account."
+            },
+            {
+                q: "Where can I view my booking?",
+                a: "After logging in, go to Your Bookings. Each booking has its own detail page that you can bookmark or share with your group."
+            },
+            {
+                q: "Who can I message?",
+                a: "Visitors can message Visit Dzaleka staff from their booking. Once a guide is assigned, booking-specific communication can also include the assigned guide where enabled."
+            },
+            {
+                q: "Can I update my visitor preferences?",
+                a: "Yes. Your profile can include country, phone, language preference, accessibility needs, dietary notes, and emergency contact information so the team can plan more responsibly."
             }
         ]
     },
@@ -52,45 +119,36 @@ const faqCategories = [
         questions: [
             {
                 q: "What are the tour timings?",
-                a: "Tours operate Monday through Friday, with standard start times at 10:00 AM and 2:00 PM. The standard tour duration is 2 hours, with options for extended tours."
+                a: "Tour times depend on the date, guide availability, and the type of visit. Common tour windows are during the day, and your confirmed booking will show the final date and time."
             },
             {
                 q: "Where do tours start from?",
-                a: "Tours can start from three recommended meeting points: the UNHCR Office, Appfactory, or JRS (Jesuit Refugee Service). The specific meeting point will be confirmed upon booking."
+                a: "Your confirmed booking will show the meeting point. Common meeting points may include well-known community or organization locations near Dzaleka, but the final point depends on the visit plan."
             },
             {
                 q: "What should I bring for the tour?",
-                a: "We recommend wearing comfortable walking shoes, bringing a hat, sunscreen, water, and a camera. The tours involve walking, so comfortable attire is essential."
+                a: "Wear comfortable walking shoes and bring water, sun protection, a charged phone, and any medication you may need. Please dress respectfully and ask before taking photos of people."
+            },
+            {
+                q: "Is it safe to visit Dzaleka?",
+                a: "Visits are planned with local guidance and community awareness. As with any community visit, follow your guide's instructions, stay with the group, and respect local privacy and security guidance."
             }
         ]
     },
     {
-        title: "Visitor Dashboard",
-        questions: [
-            {
-                q: "How do I access my visitor dashboard?",
-                a: "Once you have created an account and logged in, you will be automatically directed to your Visitor Dashboard. This is your central hub for managing your Dzaleka experience."
-            },
-            {
-                q: "What can I do on the dashboard?",
-                a: "Your dashboard allows you to: Book new tours ('Book'), view your upcoming and past itineraries ('Bookings'), communicate directly with us or your guide ('Messages'), and access helpful materials ('Resources')."
-            },
-            {
-                q: "How do I check my booking status?",
-                a: "Navigate to the 'Bookings' section on your dashboard. You will see a list of your requests with their current status (e.g., Pending, Confirmed). You can also view detailed itineraries here."
-            },
-            {
-                q: "Can I contact my guide before the tour?",
-                a: "Yes! Use the 'Messages' feature on your dashboard to send secure messages to your assigned guide or our coordination team regarding any specific needs or questions about your upcoming visit."
-            }
-        ]
-    },
-    {
-        title: "About Dzaleka",
+        title: "Events & Dzaleka",
         questions: [
             {
                 q: "What are the different zones in Dzaleka Refugee Camp?",
-                a: "Dzaleka Refugee Camp is divided into several distinct zones: Lisungwi, Kawale 1 & 2, Likuni 1 & 2, Zomba, Blantyre, Katubza, New Katubza, and Dzaleka Hill. Each zone has its own unique characteristics and community features."
+                a: "Dzaleka has multiple zones and neighborhoods, each with its own community life, history, and points of interest. A visit route may include selected areas depending on the purpose of the tour and what is appropriate on the day."
+            },
+            {
+                q: "Can I attend events in Dzaleka?",
+                a: "Visit the What's On page for upcoming events, festivals, performances, workshops, and community activities. Some events may have external links or organizers outside Visit Dzaleka."
+            },
+            {
+                q: "Do you work with partners?",
+                a: "Yes. Visit Dzaleka may work with guides, transport partners, community initiatives, event organizers, and other responsible partners to improve visitor experience and community benefit."
             }
         ]
     }
@@ -103,8 +161,8 @@ export default function FAQPage() {
         <div className="min-h-screen bg-background flex flex-col font-sans">
             <SEO
                 title="Frequently Asked Questions | Visit Dzaleka"
-                description="Find answers to common questions about visiting Dzaleka Refugee Camp, tour prices, meeting points, and what to expect."
-                keywords="Dzaleka FAQ, tour prices Dzaleka, visiting Dzaleka zones, Dzaleka tour timings"
+                description="Find answers about Visit Dzaleka tours, booking confirmation, transport requests, payment options, visitor accounts, meeting points, and what to expect."
+                keywords="Dzaleka FAQ, Visit Dzaleka booking, Dzaleka transport, Dzaleka tour prices, visiting Dzaleka zones, Dzaleka tour timings"
                 canonical="https://visit.dzaleka.com/faq"
             />
 
@@ -159,6 +217,7 @@ export default function FAQPage() {
                     {/* Mobile Menu Toggle */}
                     <button
                         className="md:hidden p-2"
+                        aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
                         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                     >
                         {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}

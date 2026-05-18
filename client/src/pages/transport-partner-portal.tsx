@@ -1320,7 +1320,7 @@ export default function TransportPartnerPortal() {
 
   const deletePartnerMutation = useMutation({
     mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/transport-partners/${id}`);
+      await apiRequest("DELETE", `/api/transport-partners/${id}`, { approvalConfirmed: true });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/me"] });

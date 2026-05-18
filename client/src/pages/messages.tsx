@@ -23,6 +23,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useLocation } from "wouter";
 
 // Nested user data from Supabase join
 interface ParticipantUser {
@@ -71,12 +72,53 @@ type ContactItem =
     | { type: 'room'; data: ChatRoom; otherUser?: ChatUser }
     | { type: 'user'; data: ChatUser };
 
+const getParticipants = (room: ChatRoom) =>
+    room.chat_participants || (room as any).chatParticipants || [];
+
+const getParticipantUserId = (participant: any) => participant.user_id || participant.userId;
+
+function getOtherUserForRoom(room: ChatRoom, users: ChatUser[], currentUserId?: string) {
+    if (!currentUserId || room.type !== 'direct') return undefined;
+
+    const userMap = new Map(users.map((item) => [item.id, item]));
+    const otherParticipant = getParticipants(room).find((participant: any) => getParticipantUserId(participant) !== currentUserId);
+    if (!otherParticipant) return undefined;
+
+    const participantUserId = getParticipantUserId(otherParticipant);
+    const listedUser = userMap.get(participantUserId);
+    if (listedUser) return listedUser;
+
+    if (otherParticipant.users) {
+        const participantUser = otherParticipant.users;
+        return {
+            id: participantUserId,
+            firstName: participantUser.first_name || participantUser.firstName,
+            lastName: participantUser.last_name || participantUser.lastName,
+            email: participantUser.email,
+            role: participantUser.role,
+            profileImageUrl: participantUser.profile_image_url || participantUser.profileImageUrl,
+        };
+    }
+
+    return undefined;
+}
+
 export default function Messages() {
     const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(null);
     const [activeOtherUser, setActiveOtherUser] = useState<ChatUser | undefined>(undefined);
     const [searchQuery, setSearchQuery] = useState("");
     const { user } = useAuth();
     const queryClient = useQueryClient();
+    const [location] = useLocation();
+    const bookingContext = useMemo(() => {
+        const search = typeof window !== "undefined" ? window.location.search : "";
+        const params = new URLSearchParams(search || (location.includes("?") ? location.split("?")[1] : ""));
+        return {
+            roomId: params.get("room"),
+            bookingReference: params.get("booking"),
+        };
+    }, [location]);
+    const canStartGenericChats = user?.role !== "visitor";
 
     // Fetch chat rooms
     const { data: rooms = [], isLoading: roomsLoading } = useQuery<ChatRoom[]>({
@@ -145,13 +187,6 @@ export default function Messages() {
 
         // Create a map of users for easy lookup
         const userMap = new Map(users.map(u => [u.id, u]));
-
-        // Helper to get participants from room (handles both camelCase and snake_case)
-        const getParticipants = (room: ChatRoom) =>
-            room.chat_participants || (room as any).chatParticipants || [];
-
-        // Helper to get user ID from participant (handles both formats)
-        const getParticipantUserId = (p: any) => p.user_id || p.userId;
 
         // 1. Process Users first to ensure everyone is listed
         users.forEach(targetUser => {
@@ -249,6 +284,16 @@ export default function Messages() {
 
     }, [rooms, users, user, searchQuery]);
 
+    useEffect(() => {
+        if (!bookingContext.roomId || !user || selectedRoom?.id === bookingContext.roomId) return;
+
+        const room = rooms.find((item) => item.id === bookingContext.roomId);
+        if (!room) return;
+
+        setSelectedRoom(room);
+        setActiveOtherUser(getOtherUserForRoom(room, users, user.id));
+    }, [bookingContext.roomId, rooms, selectedRoom?.id, user, users]);
+
     // Mobile: show chat view when room is selected
     const showChatOnMobile = selectedRoom !== null;
 
@@ -336,10 +381,14 @@ export default function Messages() {
                                         <div className="flex items-center justify-center py-8">
                                             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                                         </div>
-                                    ) : unifiedList.recentChats.length === 0 && unifiedList.newChatUsers.length === 0 ? (
+                                    ) : unifiedList.recentChats.length === 0 && (!canStartGenericChats || unifiedList.newChatUsers.length === 0) ? (
                                         <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
                                             <MessageCircle className="h-10 w-10 text-muted-foreground mb-2" />
-                                            <p className="text-muted-foreground text-sm">No contacts found</p>
+                                            <p className="text-muted-foreground text-sm">
+                                                {user?.role === "visitor"
+                                                    ? "Open a booking to message Visit Dzaleka or your assigned guide."
+                                                    : "No contacts found"}
+                                            </p>
                                         </div>
                                     ) : (
                                         <>
@@ -365,7 +414,7 @@ export default function Messages() {
                                             )}
 
                                             {/* Start New Chat Section */}
-                                            {unifiedList.newChatUsers.length > 0 && (
+                                            {canStartGenericChats && unifiedList.newChatUsers.length > 0 && (
                                                 <div>
                                                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-3 py-2">
                                                         Start New Chat
@@ -400,6 +449,7 @@ export default function Messages() {
                                 room={selectedRoom}
                                 otherUser={activeOtherUser}
                                 currentUserId={user?.id || ""}
+                                bookingReference={bookingContext.bookingReference}
                             />
                         ) : (
                             <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
@@ -421,10 +471,12 @@ function ChatView({
     room,
     otherUser,
     currentUserId,
+    bookingReference,
 }: {
     room: ChatRoom;
     otherUser?: ChatUser;
     currentUserId: string;
+    bookingReference?: string | null;
 }) {
     const [messageInput, setMessageInput] = useState("");
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -543,6 +595,13 @@ function ChatView({
                     <Trash2 className="h-4 w-4" />
                 </Button>
             </CardHeader>
+
+            {bookingReference && (
+                <div className="border-b bg-primary/5 px-4 py-2 text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">Booking:</span>{" "}
+                    <span className="break-all">{bookingReference}</span>
+                </div>
+            )}
 
             <CardContent className="flex-1 overflow-hidden p-0">
                 <ScrollArea ref={scrollRef} className="h-full p-4">

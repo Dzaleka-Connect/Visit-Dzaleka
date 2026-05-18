@@ -17,6 +17,7 @@ import {
   Mail,
   CheckCircle,
   Car,
+  MessageSquare,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -112,6 +113,16 @@ const roleDescriptions: Record<string, string> = {
 };
 
 const USER_ROLES: UserRole[] = ["admin", "coordinator", "guide", "security", "visitor", "transport_partner"];
+
+function isVisitorMessageOwner(user: User) {
+  const preferences = user.preferences;
+  return Boolean(
+    preferences &&
+    typeof preferences === "object" &&
+    !Array.isArray(preferences) &&
+    (preferences as Record<string, unknown>).visitorMessageOwner === true
+  );
+}
 
 function RoleBadge({ role }: { role: string }) {
   const config = roleColors[role] || roleColors.visitor;
@@ -304,6 +315,26 @@ export default function UsersPage() {
       toast({
         title: "Error",
         description: error.message || "Failed to verify email.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const setVisitorMessageOwnerMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      await apiRequest("PATCH", `/api/users/${userId}/visitor-message-owner`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({
+        title: "Visitor message owner updated",
+        description: "New booking messages from visitors will go to this admin.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update visitor message owner.",
         variant: "destructive",
       });
     },
@@ -611,6 +642,11 @@ export default function UsersPage() {
                             <p className="font-medium">
                               {user.firstName} {user.lastName}
                             </p>
+                            {isVisitorMessageOwner(user) && (
+                              <Badge variant="outline" className="mt-1 text-[10px]">
+                                Visitor messages
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       </TableCell>
@@ -674,6 +710,16 @@ export default function UsersPage() {
                             ))}
                             <DropdownMenuSeparator />
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            {user.role === "admin" && user.isActive !== false && (
+                              <DropdownMenuItem
+                                onClick={() => setVisitorMessageOwnerMutation.mutate(user.id)}
+                                disabled={isVisitorMessageOwner(user) || setVisitorMessageOwnerMutation.isPending}
+                                className="cursor-pointer"
+                              >
+                                <MessageSquare className="mr-2 h-4 w-4" />
+                                {isVisitorMessageOwner(user) ? "Visitor Message Owner" : "Make Visitor Message Owner"}
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem
                               onClick={() => toggleActiveMutation.mutate(user.id)}
                               className="cursor-pointer"
