@@ -335,7 +335,7 @@ export function SEO({
 
       {/* Language */}
       <meta httpEquiv="content-language" content="en" />
-      <link rel="alternate" hrefLang="en" href="https://services.dzaleka.com/visit/" />
+      <link rel="alternate" hrefLang="en" href={fullCanonical} />
 
       {/* Open Graph tags */}
       <meta property="og:type" content={type} />

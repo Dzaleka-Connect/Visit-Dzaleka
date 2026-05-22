@@ -1,1065 +1,1096 @@
-import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { SEO } from "@/components/seo";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyState } from "@/components/empty-state";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { useState } from "react";
+import { Link } from "wouter";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
 import {
-    Globe,
-    Calendar,
-    FileText,
-    Newspaper,
-    Image as ImageIcon,
-    Briefcase,
-    Search,
-    ExternalLink,
-    MapPin,
-    Clock,
-    Building,
-    CheckCircle2,
-    Users,
-    Star,
-    Mail,
-    Phone,
-    Facebook,
-    Instagram,
-    Twitter,
-    Linkedin,
-    Tag,
-    ChevronLeft,
-    ChevronRight,
-    Filter,
-    ShoppingCart,
-    Palette,
-    Music,
-    BarChart3,
-    Database,
-    ClipboardCheck,
-    FolderKanban,
-    Store,
-    Feather,
+  Building2,
+  CheckCircle2,
+  Compass,
+  HeartHandshake,
+  Info,
+  Loader2,
+  Mail,
+  MapPin,
+  MessageSquare,
+  Package,
+  PlusCircle,
+  Search,
+  Sparkles,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import {
+  insertCommunityExperienceRequestSchema,
+  insertCommunityListingSchema,
+  type CommunityListing,
+  type Booking,
+  type InsertCommunityExperienceRequest,
+  type InsertCommunityListing,
+} from "@shared/schema";
+import { SEO } from "@/components/seo";
+import { PublicHeader } from "@/components/public-header";
+import { SiteFooter } from "@/components/site-footer";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { apiRequest } from "@/lib/queryClient";
 
-interface ServiceItem {
-    id: string;
-    title: string;
-    slug?: string;
-    description?: string;
-    category?: string;
-    featured?: boolean;
-    verified?: boolean;
-    logo?: string;
-    contact?: {
-        email?: string;
-        phone?: string;
-        hours?: string;
-    };
-    location?: {
-        address?: string;
-        city?: string;
-    };
-    socialMedia?: {
-        website?: string;
-        facebook?: string;
-        instagram?: string;
-        twitter?: string;
-        linkedin?: string;
-    };
-    lastUpdated?: string;
-    status?: string;
-}
+const HERO_IMAGE =
+  "https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg";
 
-interface EventItem {
-    id: string;
-    title: string;
-    slug?: string;
-    date?: string;
-    endDate?: string;
-    location?: string;
-    category?: string;
-    description?: string;
-    featured?: boolean;
-    image?: string;
-    organizer?: string;
-    status?: string;
-    contact?: {
-        email?: string;
-        phone?: string;
-        whatsapp?: string;
-    };
-    registration?: {
-        required?: boolean;
-        url?: string;
-        deadline?: string;
-    };
-    tags?: string[];
-}
-
-interface ResourceItem {
-    id: string;
-    title: string;
-    slug?: string;
-    category?: string;
-    fileType?: string;
-    description?: string;
-}
-
-interface NewsItem {
-    id: string;
-    title: string;
-    slug?: string;
-    date?: string;
-    category?: string;
-    description?: string;
-    image?: string;
-    author?: string;
-}
-
-interface PhotoItem {
-    id: string;
-    title: string;
-    slug?: string;
-    date?: string;
-    image?: string;
-    category?: string;
-    description?: string;
-}
-
-interface JobItem {
-    id: string;
-    title: string;
-    slug?: string;
-    type?: string;
-    category?: string;
-    status?: string;
-    organization?: string;
-    location?: string;
-    deadline?: string;
-    posted?: string;
-    featured?: boolean;
-    skills?: string[];
-    description?: string;
-    contact?: {
-        email?: string;
-        phone?: string;
-        website?: string;
-    };
-}
-
-interface ApiResponse<T> {
-    status: string;
-    count: number;
-    data: { [key: string]: T[] };
-}
-
-const DZALEKA_BASE_URL = "https://services.dzaleka.com";
-
-// Helper to handle relative URLs from API
-const getImageUrl = (url?: string) => {
-    if (!url) return undefined;
-    if (url.startsWith("http")) return url;
-    if (url.startsWith("/")) return `${DZALEKA_BASE_URL}${url}`;
-    return `${DZALEKA_BASE_URL}/${url}`;
+const defaultListingValues: InsertCommunityListing = {
+  name: "",
+  type: "business",
+  category: "",
+  description: "",
+  contactName: "",
+  contactPhone: "",
+  contactEmail: "",
+  location: "",
+  imageUrl: "",
+  needs: "",
+  offersExperience: false,
+  experienceDetails: "",
 };
 
-function LoadingGrid() {
-    return (
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            {[...Array(6)].map((_, i) => (
-                <Card key={i}>
-                    <CardHeader className="pb-2">
-                        <div className="flex gap-3">
-                            <Skeleton className="h-12 w-12 rounded-lg shrink-0" />
-                            <div className="flex-1 space-y-2">
-                                <Skeleton className="h-5 w-3/4" />
-                                <Skeleton className="h-4 w-1/2" />
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <Skeleton className="h-12 w-full" />
-                    </CardContent>
-                </Card>
-            ))}
-        </div>
-    );
+const defaultExperienceRequestValues: InsertCommunityExperienceRequest = {
+  listingId: "",
+  visitorName: "",
+  visitorEmail: "",
+  visitorPhone: "",
+  preferredDate: "",
+  preferredTime: "",
+  groupSize: 1,
+  message: "",
+};
+
+const supportHighlights = [
+  {
+    icon: Sparkles,
+    title: "Handmade Art & Crafts",
+    description: "Find paintings, jewelry, tailoring, and other work made by Dzaleka creators.",
+  },
+  {
+    icon: Compass,
+    title: "Resident-Led Experiences",
+    description: "Discover workshops, cooking sessions, and hands-on activities hosted by local residents.",
+  },
+  {
+    icon: HeartHandshake,
+    title: "Community Needs",
+    description: "See vetted supply needs from community projects before you visit.",
+  },
+];
+
+const directoryGuideNotes = [
+  {
+    title: "For visitors",
+    description: "Browse listings, contact providers directly, and confirm prices, timing, meeting points, and availability before arriving.",
+  },
+  {
+    title: "For providers",
+    description: "Submit clear details for your business, project, workshop, or supply need. The Visit Dzaleka team reviews listings before publishing.",
+  },
+  {
+    title: "For hosted experiences",
+    description: "Requests are not instant bookings. They depend on provider availability, group size, date, time, and activity type.",
+  },
+];
+
+function trimSubmissionValues(values: InsertCommunityListing): InsertCommunityListing {
+  const offersExperience = Boolean(values.offersExperience);
+
+  return {
+    ...values,
+    name: values.name.trim(),
+    type: values.type.trim(),
+    category: values.category.trim(),
+    description: values.description.trim(),
+    contactName: values.contactName.trim(),
+    contactPhone: values.contactPhone.trim(),
+    contactEmail: values.contactEmail?.trim() || null,
+    location: values.location.trim(),
+    imageUrl: values.imageUrl?.trim() || null,
+    needs: values.needs?.trim() || null,
+    offersExperience,
+    experienceDetails: offersExperience ? values.experienceDetails?.trim() || null : null,
+  };
 }
 
-// Full detail Service Card
-function ServiceCard({ item }: { item: ServiceItem }) {
-    return (
-        <Card className="hover:shadow-md transition-shadow flex flex-col h-full">
-            <CardHeader className="pb-2">
-                <div className="flex gap-3">
-                    <Avatar className="h-12 w-12 rounded-lg shrink-0">
-                        <AvatarImage src={getImageUrl(item.logo)} alt={item.title} className="object-cover" />
-                        <AvatarFallback className="rounded-lg bg-primary/10 text-primary text-xs font-bold">
-                            {item.title?.substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                                <CardTitle className="text-base leading-tight">{item.title}</CardTitle>
-                                {item.verified && <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />}
-                                {item.featured && <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 shrink-0" />}
-                            </div>
-                            {item.status && (
-                                <Badge variant={item.status === 'active' ? 'default' : 'secondary'} className="shrink-0 text-xs capitalize">
-                                    {item.status}
-                                </Badge>
-                            )}
-                        </div>
-                        {item.category && (
-                            <Badge variant="outline" className="mt-1">
-                                <Tag className="h-3 w-3 mr-1" />
-                                {item.category}
-                            </Badge>
-                        )}
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent className="flex-1 space-y-3">
-                {/* Description */}
-                <p className="text-sm text-muted-foreground">{item.description || "No description available"}</p>
-
-                {/* Contact Details */}
-                <div className="space-y-1.5">
-                    {item.contact?.email && (
-                        <div className="flex items-center gap-2 text-sm">
-                            <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <a href={`mailto:${item.contact.email}`} className="text-primary hover:underline truncate">
-                                {item.contact.email}
-                            </a>
-                        </div>
-                    )}
-                    {item.contact?.phone && (
-                        <div className="flex items-center gap-2 text-sm">
-                            <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <a href={`tel:${item.contact.phone}`} className="hover:underline">
-                                {item.contact.phone}
-                            </a>
-                        </div>
-                    )}
-                    {item.location?.address && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <MapPin className="h-4 w-4 shrink-0" />
-                            <span className="truncate">{item.location.address}</span>
-                        </div>
-                    )}
-                    {item.contact?.hours && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Clock className="h-4 w-4 shrink-0" />
-                            <span>{item.contact.hours}</span>
-                        </div>
-                    )}
-                </div>
-
-                {/* Social Media Links */}
-                {item.socialMedia && (
-                    <div className="flex flex-wrap gap-2">
-                        {item.socialMedia.website && (
-                            <a href={item.socialMedia.website} target="_blank" rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded hover:bg-muted/80">
-                                <Globe className="h-3 w-3" /> Website
-                            </a>
-                        )}
-                        {item.socialMedia.facebook && (
-                            <a href={item.socialMedia.facebook} target="_blank" rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded hover:bg-blue-100">
-                                <Facebook className="h-3 w-3" /> Facebook
-                            </a>
-                        )}
-                        {item.socialMedia.instagram && (
-                            <a href={item.socialMedia.instagram} target="_blank" rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs bg-pink-50 text-pink-700 px-2 py-1 rounded hover:bg-pink-100">
-                                <Instagram className="h-3 w-3" /> Instagram
-                            </a>
-                        )}
-                        {item.socialMedia.twitter && (
-                            <a href={item.socialMedia.twitter} target="_blank" rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs bg-sky-50 text-sky-700 px-2 py-1 rounded hover:bg-sky-100">
-                                <Twitter className="h-3 w-3" /> Twitter
-                            </a>
-                        )}
-                        {item.socialMedia.linkedin && (
-                            <a href={item.socialMedia.linkedin} target="_blank" rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-800 px-2 py-1 rounded hover:bg-blue-100">
-                                <Linkedin className="h-3 w-3" /> LinkedIn
-                            </a>
-                        )}
-                    </div>
-                )}
-            </CardContent>
-            <CardFooter className="pt-2">
-                <Button variant="outline" size="sm" className="w-full" asChild>
-                    <a href={`${DZALEKA_BASE_URL}/services/${item.slug || item.id}`} target="_blank" rel="noopener noreferrer">
-                        View Full Details <ExternalLink className="h-3 w-3 ml-1" />
-                    </a>
-                </Button>
-            </CardFooter>
-        </Card>
-    );
+function listingIcon(type: string) {
+  return type === "business" ? (
+    <Building2 className="h-4 w-4 text-primary" aria-hidden="true" />
+  ) : (
+    <HeartHandshake className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+  );
 }
 
-// Full detail Event Card
-function EventCard({ item }: { item: EventItem }) {
-    const isUpcoming = item.status === "upcoming";
-    const eventDate = item.date ? new Date(item.date) : null;
-
-    return (
-        <Card className="hover:shadow-md transition-shadow flex flex-col h-full overflow-hidden">
-            {item.image && (
-                <div className="aspect-video bg-muted overflow-hidden">
-                    <img
-                        src={getImageUrl(item.image)}
-                        alt={item.title}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                            (e.target as HTMLImageElement).parentElement!.style.display = 'none';
-                        }}
-                    />
-                </div>
-            )}
-            <CardHeader className="pb-2">
-                <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-base leading-tight">{item.title}</CardTitle>
-                    <Badge variant={isUpcoming ? "default" : "secondary"} className="shrink-0">
-                        {isUpcoming ? "Upcoming" : "Past"}
-                    </Badge>
-                </div>
-                {item.category && <Badge variant="outline" className="w-fit mt-1">{item.category}</Badge>}
-            </CardHeader>
-            <CardContent className="flex-1 space-y-3">
-                {/* Description */}
-                <p className="text-sm text-muted-foreground">{item.description || "No description available"}</p>
-
-                {/* Event Details */}
-                <div className="space-y-1.5">
-                    {eventDate && (
-                        <div className="flex items-center gap-2 text-sm">
-                            <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span>{eventDate.toLocaleDateString("en-US", { weekday: "short", month: "long", day: "numeric", year: "numeric" })}</span>
-                        </div>
-                    )}
-                    {item.location && (
-                        <div className="flex items-center gap-2 text-sm">
-                            <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span>{item.location}</span>
-                        </div>
-                    )}
-                    {item.organizer && (
-                        <div className="flex items-center gap-2 text-sm">
-                            <Users className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span>Organized by: <strong>{item.organizer}</strong></span>
-                        </div>
-                    )}
-                </div>
-
-                {/* Contact Info */}
-                {item.contact && (
-                    <div className="space-y-1.5">
-                        {item.contact.email && (
-                            <div className="flex items-center gap-2 text-sm">
-                                <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                                <a href={`mailto:${item.contact.email}`} className="text-primary hover:underline truncate">
-                                    {item.contact.email}
-                                </a>
-                            </div>
-                        )}
-                        {item.contact.phone && (
-                            <div className="flex items-center gap-2 text-sm">
-                                <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
-                                <span>{item.contact.phone}</span>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Tags */}
-                {item.tags && item.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                        {item.tags.map((tag) => (
-                            <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
-                        ))}
-                    </div>
-                )}
-            </CardContent>
-            <CardFooter className="pt-2 gap-2 flex-col sm:flex-row">
-                {item.registration?.url && isUpcoming && (
-                    <Button size="sm" className="w-full sm:w-auto" asChild>
-                        <a href={item.registration.url} target="_blank" rel="noopener noreferrer">
-                            Register Now
-                        </a>
-                    </Button>
-                )}
-                <Button variant="outline" size="sm" className="w-full sm:flex-1" asChild>
-                    <a href={`${DZALEKA_BASE_URL}/events/${item.slug || item.id}`} target="_blank" rel="noopener noreferrer">
-                        View Details <ExternalLink className="h-3 w-3 ml-1" />
-                    </a>
-                </Button>
-            </CardFooter>
-        </Card>
-    );
+function listingTypeLabel(type: string) {
+  return type === "business" ? "Business / Artisan" : "Project / Initiative";
 }
 
-// Full detail Resource Card
-function ResourceCard({ item }: { item: ResourceItem }) {
-    return (
-        <Card className="hover:shadow-md transition-shadow flex flex-col h-full">
-            <CardHeader className="pb-2">
-                <div className="flex gap-3">
-                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                        <FileText className="h-6 w-6 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <CardTitle className="text-base leading-tight">{item.title}</CardTitle>
-                        <div className="flex gap-2 mt-1 flex-wrap">
-                            {item.category && <Badge variant="outline">{item.category}</Badge>}
-                            {item.fileType && <Badge variant="secondary">{item.fileType.toUpperCase()}</Badge>}
-                        </div>
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent className="flex-1">
-                <p className="text-sm text-muted-foreground">{item.description || "No description available"}</p>
-            </CardContent>
-            <CardFooter className="pt-2">
-                <Button variant="outline" size="sm" className="w-full" asChild>
-                    <a href={`${DZALEKA_BASE_URL}/resources/${item.slug || item.id}`} target="_blank" rel="noopener noreferrer">
-                        View Resource <ExternalLink className="h-3 w-3 ml-1" />
-                    </a>
-                </Button>
-            </CardFooter>
-        </Card>
-    );
+function formatExperiencePrice(listing: CommunityListing) {
+  if (!listing.experiencePrice) return "Price confirmed after request";
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: listing.experienceCurrency || "MWK",
+    maximumFractionDigits: 0,
+  }).format(listing.experiencePrice);
 }
 
-// Full detail News Card
-function NewsCard({ item }: { item: NewsItem }) {
-    return (
-        <Card className="hover:shadow-md transition-shadow flex flex-col h-full overflow-hidden">
-            {item.image && (
-                <div className="aspect-video bg-muted overflow-hidden">
-                    <img
-                        src={getImageUrl(item.image)}
-                        alt={item.title}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                            (e.target as HTMLImageElement).parentElement!.style.display = 'none';
-                        }}
-                    />
-                </div>
-            )}
-            <CardHeader className="pb-2">
-                <CardTitle className="text-base leading-tight">{item.title}</CardTitle>
-                <div className="flex gap-2 flex-wrap mt-1">
-                    {item.date && (
-                        <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Clock className="h-4 w-4" />
-                            {new Date(item.date).toLocaleDateString()}
-                        </span>
-                    )}
-                    {item.category && <Badge variant="outline">{item.category}</Badge>}
-                </div>
-            </CardHeader>
-            <CardContent className="flex-1">
-                <p className="text-sm text-muted-foreground">{item.description || "No description available"}</p>
-                {item.author && <p className="text-sm text-muted-foreground mt-2">By <strong>{item.author}</strong></p>}
-            </CardContent>
-            <CardFooter className="pt-2">
-                <Button variant="outline" size="sm" className="w-full" asChild>
-                    <a href={`${DZALEKA_BASE_URL}/news/${item.slug || item.id}`} target="_blank" rel="noopener noreferrer">
-                        Read More <ExternalLink className="h-3 w-3 ml-1" />
-                    </a>
-                </Button>
-            </CardFooter>
-        </Card>
-    );
+function formatDuration(minutes?: number | null) {
+  if (!minutes) return "Duration varies";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes ? `${hours} hr ${remainingMinutes} min` : `${hours} hr`;
 }
 
-// Photo Card
-function PhotoCard({ item }: { item: PhotoItem }) {
-    return (
-        <Card className="hover:shadow-md transition-shadow overflow-hidden flex flex-col h-full">
-            {item.image && (
-                <div className="aspect-square bg-muted">
-                    <img
-                        src={getImageUrl(item.image)}
-                        alt={item.title}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                            (e.target as HTMLImageElement).parentElement!.style.display = 'none';
-                        }}
-                    />
-                </div>
-            )}
-            <CardContent className="p-3 flex-1">
-                <p className="font-medium text-sm line-clamp-2">{item.title}</p>
-                <div className="flex gap-2 flex-wrap mt-1">
-                    {item.date && <span className="text-xs text-muted-foreground">{new Date(item.date).toLocaleDateString()}</span>}
-                    {item.category && <Badge variant="outline" className="text-xs">{item.category}</Badge>}
-                </div>
-                {item.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>}
-            </CardContent>
-            <CardFooter className="pt-0 px-3 pb-3">
-                <Button variant="outline" size="sm" className="w-full" asChild>
-                    <a href={`${DZALEKA_BASE_URL}/photos/${item.slug || item.id}`} target="_blank" rel="noopener noreferrer">
-                        View <ExternalLink className="h-3 w-3 ml-1" />
-                    </a>
-                </Button>
-            </CardFooter>
-        </Card>
-    );
+function whatsappHref(listing: CommunityListing) {
+  const phone = listing.contactPhone.replace(/[^\d]/g, "");
+  const message = `Hello ${listing.contactName}, I saw your listing on Visit Dzaleka.`;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
-// Full detail Job Card
-function JobCard({ item }: { item: JobItem }) {
-    const isOpen = item.status === "open";
-    const deadline = item.deadline ? new Date(item.deadline) : null;
-    const isExpired = deadline && deadline < new Date();
-
-    return (
-        <Card className="hover:shadow-md transition-shadow flex flex-col h-full">
-            <CardHeader className="pb-2">
-                <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                            <CardTitle className="text-base leading-tight">{item.title}</CardTitle>
-                            {item.featured && <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 shrink-0" />}
-                        </div>
-                        {item.organization && (
-                            <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                                <Building className="h-4 w-4" /> {item.organization}
-                            </p>
-                        )}
-                    </div>
-                </div>
-                <div className="flex gap-2 mt-2 flex-wrap">
-                    <Badge variant={isOpen && !isExpired ? "default" : "secondary"}>
-                        {isOpen && !isExpired ? "Open" : "Closed"}
-                    </Badge>
-                    {item.type && <Badge variant="outline">{item.type.replace("-", " ")}</Badge>}
-                    {item.category && <Badge variant="secondary">{item.category}</Badge>}
-                </div>
-            </CardHeader>
-            <CardContent className="flex-1 space-y-3">
-                {/* Description */}
-                <p className="text-sm text-muted-foreground">{item.description || "No description available"}</p>
-
-                {/* Job Details */}
-                <div className="space-y-1.5">
-                    {item.location && (
-                        <div className="flex items-center gap-2 text-sm">
-                            <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span>{item.location}</span>
-                        </div>
-                    )}
-                    {deadline && (
-                        <div className="flex items-center gap-2 text-sm">
-                            <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span>Deadline: <strong>{deadline.toLocaleDateString()}</strong></span>
-                        </div>
-                    )}
-                    {item.posted && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Calendar className="h-4 w-4 shrink-0" />
-                            <span>Posted: {new Date(item.posted).toLocaleDateString()}</span>
-                        </div>
-                    )}
-                </div>
-
-                {/* Contact */}
-                {item.contact?.email && (
-                    <div className="flex items-center gap-2 text-sm">
-                        <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <a href={`mailto:${item.contact.email}`} className="text-primary hover:underline truncate">
-                            {item.contact.email}
-                        </a>
-                    </div>
-                )}
-
-                {/* Skills */}
-                {item.skills && item.skills.length > 0 && (
-                    <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-1.5">Required Skills:</p>
-                        <div className="flex flex-wrap gap-1">
-                            {item.skills.map((skill) => (
-                                <Badge key={skill} variant="outline" className="text-xs">{skill}</Badge>
-                            ))}
-                        </div>
-                    </div>
-                )}
-            </CardContent>
-            <CardFooter className="pt-2 gap-2 flex-col sm:flex-row">
-                {item.contact?.email && isOpen && !isExpired && (
-                    <Button size="sm" className="w-full sm:w-auto" asChild>
-                        <a href={`mailto:${item.contact.email}?subject=Application for ${item.title}`}>
-                            Apply Now
-                        </a>
-                    </Button>
-                )}
-                <Button variant="outline" size="sm" className="w-full sm:flex-1" asChild>
-                    <a href={`${DZALEKA_BASE_URL}/jobs/${item.slug || item.id}`} target="_blank" rel="noopener noreferrer">
-                        View Details <ExternalLink className="h-3 w-3 ml-1" />
-                    </a>
-                </Button>
-            </CardFooter>
-        </Card>
-    );
+function findNearestUpcomingConfirmedBooking(bookings: Booking[] = []) {
+  const now = new Date();
+  return bookings
+    .filter((booking) => booking.status === "confirmed")
+    .filter((booking) => new Date(`${booking.visitDate}T${booking.visitTime || "00:00"}`).getTime() >= now.getTime())
+    .sort((a, b) =>
+      new Date(`${a.visitDate}T${a.visitTime || "00:00"}`).getTime() -
+      new Date(`${b.visitDate}T${b.visitTime || "00:00"}`).getTime()
+    )[0] || null;
 }
 
 export default function CommunityHub() {
-    const [searchQuery, setSearchQuery] = useState("");
-    const [activeTab, setActiveTab] = useState("services");
-    const [servicesPage, setServicesPage] = useState(1);
-    const [selectedCategory, setSelectedCategory] = useState<string | null>(null); // New state for category filter
-    const SERVICES_PER_PAGE = 12;
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSubmitOpen, setIsSubmitOpen] = useState(false);
+  const [requestListing, setRequestListing] = useState<CommunityListing | null>(null);
 
-    // Reset category filter and page when tab changes
-    const handleTabChange = (value: string) => {
-        setActiveTab(value);
-        setSelectedCategory(null);
-        setServicesPage(1);
-    };
+  const { data: listings = [], isLoading } = useQuery<CommunityListing[]>({
+    queryKey: ["/api/public/community-listings"],
+  });
 
-    const { data: servicesData, isLoading: servicesLoading } = useQuery<ApiResponse<ServiceItem>>({
-        queryKey: ["/api/community/services"],
-        staleTime: 5 * 60 * 1000,
-    });
+  const { data: myBookings = [] } = useQuery<Booking[]>({
+    queryKey: ["/api/bookings/my-bookings"],
+    enabled: user?.role === "visitor",
+  });
 
-    const { data: eventsData, isLoading: eventsLoading } = useQuery<ApiResponse<EventItem>>({
-        queryKey: ["/api/community/events"],
-        staleTime: 5 * 60 * 1000,
-    });
+  const form = useForm<InsertCommunityListing>({
+    resolver: zodResolver(insertCommunityListingSchema),
+    defaultValues: defaultListingValues,
+  });
 
-    const { data: resourcesData, isLoading: resourcesLoading } = useQuery<ApiResponse<ResourceItem>>({
-        queryKey: ["/api/community/resources"],
-        staleTime: 5 * 60 * 1000,
-    });
+  const watchOffersExperience = form.watch("offersExperience");
 
-    const { data: newsData, isLoading: newsLoading } = useQuery<ApiResponse<NewsItem>>({
-        queryKey: ["/api/community/news"],
-        staleTime: 5 * 60 * 1000,
-    });
+  const requestForm = useForm<InsertCommunityExperienceRequest>({
+    resolver: zodResolver(insertCommunityExperienceRequestSchema),
+    defaultValues: defaultExperienceRequestValues,
+  });
 
-    const { data: photosData, isLoading: photosLoading } = useQuery<ApiResponse<PhotoItem>>({
-        queryKey: ["/api/community/photos"],
-        staleTime: 5 * 60 * 1000,
-    });
+  const submitMutation = useMutation({
+    mutationFn: async (values: InsertCommunityListing) => {
+      const response = await fetch("/api/public/community-listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(trimSubmissionValues(values)),
+      });
 
-    const { data: jobsData, isLoading: jobsLoading } = useQuery<ApiResponse<JobItem>>({
-        queryKey: ["/api/community/jobs"],
-        staleTime: 5 * 60 * 1000,
-    });
+      if (!response.ok) {
+        const message = await response.json().catch(() => null);
+        throw new Error(message?.message || "Failed to submit listing");
+      }
 
-    const services = servicesData?.data?.services || [];
-    const events = eventsData?.data?.events || [];
-    const resources = resourcesData?.data?.resources || [];
-    const news = newsData?.data?.news || [];
-    const photos = photosData?.data?.photos || [];
-    const jobs = jobsData?.data?.jobs || [];
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Listing submitted",
+        description: "Thanks. The Visit Dzaleka team will review it before it appears publicly.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/public/community-listings"] });
+      form.reset(defaultListingValues);
+      setIsSubmitOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Submission failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
-    // Smart sort for events and jobs
-    // Smart sort for events and jobs
-    const { upcomingEvents, pastEvents } = useMemo(() => {
-        const now = new Date();
+  const requestMutation = useMutation({
+    mutationFn: async (values: InsertCommunityExperienceRequest) => {
+      const response = await fetch("/api/public/community-experience-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...values,
+          listingId: requestListing?.id || values.listingId,
+          visitorName: values.visitorName.trim(),
+          visitorEmail: values.visitorEmail.trim(),
+          visitorPhone: values.visitorPhone?.trim() || null,
+          preferredTime: values.preferredTime?.trim() || null,
+          groupSize: Number(values.groupSize) || 1,
+          message: values.message?.trim() || null,
+        }),
+      });
 
-        const upcoming = events.filter(e => {
-            const date = e.date ? new Date(e.date) : null;
-            // It is upcoming if date is in future OR today 
-            // We ignore status "past" if date is future (data correction), but if status is explicitly past we might trust it? 
-            // User requirement: "if an event has already passed dont list it as upcoming". So Date is Truth.
-            return date && date >= now;
-        }).sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime()); // Ascending (soonest first)
+      if (!response.ok) {
+        const message = await response.json().catch(() => null);
+        throw new Error(message?.message || "Failed to send experience request");
+      }
 
-        const past = events.filter(e => {
-            const date = e.date ? new Date(e.date) : null;
-            return !date || date < now;
-        }).sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime()); // Descending (most recent first)
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Request sent",
+        description: "We will check host availability and follow up with you.",
+      });
+      requestForm.reset(defaultExperienceRequestValues);
+      setRequestListing(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Request failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
-        return { upcomingEvents: upcoming, pastEvents: past };
-    }, [events]);
+  const addHighlightMutation = useMutation({
+    mutationFn: async ({ booking, listingId }: { booking: Booking; listingId: string }) => {
+      const currentIds = booking.selectedCommunityListings || [];
+      const selectedCommunityListings = currentIds.includes(listingId)
+        ? currentIds
+        : [...currentIds, listingId];
+      const response = await apiRequest("PATCH", `/api/bookings/${booking.id}/community-highlights`, {
+        selectedCommunityListings,
+      });
+      return response.json() as Promise<Booking>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings/my-bookings"] });
+      toast({
+        title: "Added to your tour highlights",
+        description: "Your guide will see this as a suggestion while preparing the tour.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Could not add highlight",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
-    const sortedJobs = useMemo(() => {
-        return [...jobs].sort((a, b) => {
-            if (a.status === "open" && b.status !== "open") return -1;
-            if (a.status !== "open" && b.status === "open") return 1;
-            return 0; // Keep API order for same status
-        });
-    }, [jobs]);
+	  const filteredListings = listings.filter((item) => {
+    const tabMatches =
+      activeTab === "all" ||
+      (activeTab === "business" && item.type === "business") ||
+      (activeTab === "initiative" && item.type === "initiative");
 
+    const term = searchQuery.trim().toLowerCase();
+    const searchMatches =
+      term.length === 0 ||
+      item.name.toLowerCase().includes(term) ||
+      item.description.toLowerCase().includes(term) ||
+      item.category.toLowerCase().includes(term) ||
+      item.location.toLowerCase().includes(term) ||
+      Boolean(item.needs?.toLowerCase().includes(term));
 
-    // Generic filter function
-    const filterItems = <T extends { title: string; description?: string; category?: string }>(items: T[]) => {
-        return items.filter((item) => {
-            const matchesSearch = !searchQuery.trim() ||
-                item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (item.description?.toLowerCase().includes(searchQuery.toLowerCase()));
+	    return tabMatches && searchMatches;
+	  });
 
-            const matchesCategory = !selectedCategory || item.category === selectedCategory;
+  const highlightTargetBooking = user?.role === "visitor"
+    ? findNearestUpcomingConfirmedBooking(myBookings)
+    : null;
 
-            return matchesSearch && matchesCategory;
-        });
-    };
+  return (
+    <div className="flex min-h-screen flex-col bg-background">
+      <SEO
+        title="Dzaleka Community Listings | Visit Dzaleka"
+        description="Browse refugee-led businesses, artisans, eateries, workshops, and community initiatives in Dzaleka."
+        canonical="https://visit.dzaleka.com/community-hub"
+        ogImage={HERO_IMAGE}
+        imageAlt="Dzaleka community entrepreneurship and innovation session"
+        keywords="Dzaleka community listings, refugee-led businesses, Dzaleka artisans, Malawi community tourism, Dzaleka workshops"
+      />
+      <PublicHeader activePath="/community-hub" />
 
-    // Extract categories for the current tab
-    const currentCategories = useMemo(() => {
-        let items: { category?: string }[] = [];
-        switch (activeTab) {
-            case "services": items = services; break;
-            case "events": items = events; break;
-            case "resources": items = resources; break;
-            case "news": items = news; break;
-            case "photos": items = photos; break;
-            case "jobs": items = jobs; break;
-        }
-        const categories = new Set(items.map(i => i.category).filter(Boolean) as string[]);
-        return Array.from(categories).sort();
-    }, [activeTab, services, events, resources, news, photos, jobs]);
+      <main className="flex-1">
+        <section className="relative overflow-hidden bg-slate-950 text-white">
+          <img
+            src={HERO_IMAGE}
+            alt="Dzaleka community entrepreneurship and innovation session"
+            className="absolute inset-0 h-full w-full object-cover opacity-45"
+            width={2048}
+            height={1536}
+            fetchPriority="high"
+          />
+          <div className="absolute inset-0 bg-slate-950/55" aria-hidden="true" />
+          <div className="container relative mx-auto px-4 py-10 sm:py-12 lg:py-16">
+            <div className="max-w-2xl">
+              <Badge className="mb-3 bg-white/15 text-white hover:bg-white/20">
+                Community listings
+              </Badge>
+              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+                Support Dzaleka makers, businesses, and projects
+              </h1>
+              <p className="mt-4 max-w-2xl text-sm leading-6 text-white/85 sm:text-base">
+                Browse resident-led shops, artisans, eateries, workshops, and vetted supply needs. Every direct connection helps local people earn, teach, build, and keep community projects moving.
+              </p>
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <Button asChild size="lg" variant="secondary" className="min-h-11">
+                  <a href="#community-directory">
+                    <Search className="mr-2 h-5 w-5" aria-hidden="true" />
+                    Browse Listings
+                  </a>
+                </Button>
+                <Button asChild size="lg" variant="outline" className="min-h-11 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white">
+                  <Link href="/community-hub/guide">
+                    <Info className="mr-2 h-5 w-5" aria-hidden="true" />
+                    How It Works
+                  </Link>
+                </Button>
+                <Dialog
+                  open={isSubmitOpen}
+                  onOpenChange={(open) => {
+                    setIsSubmitOpen(open);
+                    if (!open) form.reset(defaultListingValues);
+                  }}
+                >
+                  <DialogTrigger asChild>
+                    <Button size="lg" className="min-h-11">
+                      <PlusCircle className="mr-2 h-5 w-5" aria-hidden="true" />
+                      Submit a Listing
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Submit a Business or Initiative</DialogTitle>
+                      <DialogDescription>
+                        Share the details below. The Visit Dzaleka team reviews listings before they appear publicly.
+                      </DialogDescription>
+                    </DialogHeader>
 
-    return (
-        <div className="min-h-screen bg-background pb-12">
-            <SEO
-                title="Community Hub"
-                description="Explore services, events, resources, news, photos, and job opportunities from the Dzaleka community."
-            />
+                    <Form {...form}>
+                      <form onSubmit={form.handleSubmit((values) => submitMutation.mutate(values))} className="space-y-5">
+                        <FormField
+                          control={form.control}
+                          name="name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Business or Initiative Name</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Example: Sunrise Tailors…" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-            {/* Hero Section with Search and Gradient */}
-            <div className="relative bg-gradient-to-b from-primary/5 via-primary/5 to-background border-b mb-8 pb-8 pt-12 -mx-4 md:-mx-6 -mt-4 md:-mt-6">
-                <div className="w-full max-w-5xl mx-auto px-4 md:px-6 space-y-8 text-center flex flex-col items-center">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center shadow-inner">
-                            <Globe className="h-8 w-8 text-primary" />
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <FormField
+                            control={form.control}
+                            name="type"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Type</FormLabel>
+                                <Select value={field.value} onValueChange={field.onChange}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select type…" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="business">Local business / artisan</SelectItem>
+                                    <SelectItem value="initiative">Community project / initiative</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="category"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Category</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Tailoring, dining, education…" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                         </div>
-                        <div className="space-y-2">
-                            <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-foreground">Community Hub</h1>
-                            <p className="text-muted-foreground text-lg sm:text-xl max-w-2xl mx-auto leading-relaxed">
-                                Connect with essential services, stay informed on local news, and support the refugee-led initiatives driving economic empowerment and self-reliance in Dzaleka.
-                            </p>
-                        </div>
-                    </div>
 
-                    {/* Prominent Search Bar */}
-                    <div className="relative w-full max-w-xl mx-auto">
-                        <div className="relative group">
-                            <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-primary/10 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-                            <div className="relative">
-                                <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                                <Input
-                                    placeholder={`Search for services, events, jobs...`}
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-12 h-14 rounded-full border-muted-foreground/20 bg-background/80 backdrop-blur-xl shadow-sm text-base hover:bg-background/90 focus-visible:ring-primary/20 transition-all font-medium py-2"
+                        <FormField
+                          control={form.control}
+                          name="description"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Description</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Describe what you do, sell, teach, or support…"
+                                  className="min-h-24"
+                                  {...field}
                                 />
-                            </div>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <FormField
+                            control={form.control}
+                            name="contactName"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Contact Person</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Full name…" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="contactPhone"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>WhatsApp / Phone</FormLabel>
+                                <FormControl>
+                                  <Input type="tel" inputMode="tel" placeholder="+265 999 123 456…" {...field} />
+                                </FormControl>
+                                <FormDescription>Visitors may use this to contact you directly.</FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                         </div>
-                    </div>
-                </div>
+
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <FormField
+                            control={form.control}
+                            name="contactEmail"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Email</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="email"
+                                    inputMode="email"
+                                    placeholder="name@example.com…"
+                                    spellCheck={false}
+                                    {...field}
+                                    value={field.value ?? ""}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="location"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Location in Dzaleka</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Market area, Zone 2…" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        <FormField
+                          control={form.control}
+                          name="imageUrl"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Image URL</FormLabel>
+                              <FormControl>
+                                <Input placeholder="https://example.com/image.jpg…" {...field} value={field.value ?? ""} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="needs"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Supply or Volunteering Needs</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Books, notebooks, fabric, volunteer skills…"
+                                  className="min-h-20"
+                                  {...field}
+                                  value={field.value ?? ""}
+                                />
+                              </FormControl>
+                              <FormDescription>Use this for practical items visitors can pack, buy, or help source.</FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="offersExperience"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border bg-muted/40 p-4">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value ?? false}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <div className="space-y-1 leading-none">
+                                <FormLabel>Offers a visitor experience</FormLabel>
+                                <FormDescription>
+                                  Choose this for workshops, cooking classes, art lessons, or hosted sessions.
+                                </FormDescription>
+                              </div>
+                            </FormItem>
+                          )}
+                        />
+
+                        {watchOffersExperience && (
+                          <FormField
+                            control={form.control}
+                            name="experienceDetails"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Experience Details</FormLabel>
+                                <FormControl>
+                                  <Textarea
+                                    placeholder="Describe duration, capacity, expected cost, and what visitors will do…"
+                                    className="min-h-20"
+                                    {...field}
+                                    value={field.value ?? ""}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+
+                        <DialogFooter>
+                          <Button type="button" variant="outline" onClick={() => setIsSubmitOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button type="submit" disabled={submitMutation.isPending}>
+                            {submitMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+                            Submit Listing
+                          </Button>
+                        </DialogFooter>
+                      </form>
+                    </Form>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-b bg-muted/20">
+          <div className="container mx-auto grid gap-4 px-4 py-8 sm:grid-cols-3">
+            {supportHighlights.map((item) => (
+              <Card key={item.title}>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <item.icon className="h-5 w-5 text-primary" aria-hidden="true" />
+                    {item.title}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm leading-6 text-muted-foreground">{item.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        <section id="community-directory" className="container mx-auto scroll-mt-20 px-4 py-8 sm:py-12">
+          <div className="mb-6 flex flex-col gap-4 border-b pb-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Community Directory</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                Browse approved listings and contact hosts directly. Availability, prices, and supply needs may change, so confirm details before your visit.
+              </p>
             </div>
 
-            <div className="container space-y-10">
-                {/* Discover Dzaleka - External Services */}
-                <div className="space-y-4">
-                    <h2 className="text-2xl font-semibold tracking-tight">Discover Dzaleka</h2>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {[
-                            { title: "Marketplace", icon: ShoppingCart, url: "https://services.dzaleka.com/marketplace/", color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-900/20", border: "hover:border-blue-500/50" },
-                            { title: "Digital Stores", icon: Store, url: "https://services.dzaleka.com/marketplace/stores/", color: "text-indigo-500", bg: "bg-indigo-50 dark:bg-indigo-900/20", border: "hover:border-indigo-500/50" },
-                            { title: "Data & Stats", icon: BarChart3, url: "https://services.dzaleka.com/data/", color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-900/20", border: "hover:border-emerald-500/50" },
-                            { title: "Public Art", icon: Palette, url: "https://services.dzaleka.com/public-art-catalogue/", color: "text-pink-500", bg: "bg-pink-50 dark:bg-pink-900/20", border: "hover:border-pink-500/50" },
-                            { title: "Poets", icon: Feather, url: "https://services.dzaleka.com/poets/", color: "text-purple-500", bg: "bg-purple-50 dark:bg-purple-900/20", border: "hover:border-purple-500/50" },
-                            { title: "Dancers", icon: Music, url: "https://services.dzaleka.com/dancers/", color: "text-rose-500", bg: "bg-rose-50 dark:bg-rose-900/20", border: "hover:border-rose-500/50" },
-                            { title: "Projects", icon: FolderKanban, url: "https://services.dzaleka.com/projects/", color: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-900/20", border: "hover:border-orange-500/50" },
-                            { title: "Site Register", icon: ClipboardCheck, url: "https://services.dzaleka.com/site-register/", color: "text-cyan-500", bg: "bg-cyan-50 dark:bg-cyan-900/20", border: "hover:border-cyan-500/50" },
-                        ].map((link) => (
-                            <a
-                                key={link.title}
-                                href={link.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`group flex flex-col items-center justify-center p-4 rounded-xl border bg-card transition-all duration-300 hover:shadow-md ${link.border}`}
-                            >
-                                <div className={`h-12 w-12 rounded-full ${link.bg} flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300`}>
-                                    <link.icon className={`h-6 w-6 ${link.color}`} />
-                                </div>
-                                <span className="font-medium text-sm text-center">{link.title}</span>
-                                <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity mt-1" />
-                            </a>
-                        ))}
-                    </div>
+            <div className="flex w-full min-w-0 flex-col gap-3 lg:w-auto lg:min-w-[34rem]">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <div className="overflow-x-auto pb-1">
+                  <TabsList className="inline-grid min-w-max grid-cols-3">
+                    <TabsTrigger value="all" className="min-w-24">All</TabsTrigger>
+                    <TabsTrigger value="business" className="min-w-28">Businesses</TabsTrigger>
+                    <TabsTrigger value="initiative" className="min-w-28">Projects</TabsTrigger>
+                  </TabsList>
                 </div>
+              </Tabs>
 
-                {/* Navigation and Filters */}
-                <div className="flex flex-col gap-6">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
-                        {/* Tabs */}
-                        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                            <ScrollArea className="w-full">
-                                <TabsList className="inline-flex w-auto min-w-full md:w-auto p-1 bg-muted/50">
-                                    <TabsTrigger value="services" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                                        <Building className="h-4 w-4" /> Services
-                                    </TabsTrigger>
-                                    <TabsTrigger value="events" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                                        <Calendar className="h-4 w-4" /> Events
-                                    </TabsTrigger>
-                                    <TabsTrigger value="jobs" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                                        <Briefcase className="h-4 w-4" /> Jobs
-                                    </TabsTrigger>
-                                    <TabsTrigger value="news" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                                        <Newspaper className="h-4 w-4" /> News
-                                    </TabsTrigger>
-                                    <TabsTrigger value="resources" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                                        <FileText className="h-4 w-4" /> Resources
-                                    </TabsTrigger>
-                                    <TabsTrigger value="photos" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                                        <ImageIcon className="h-4 w-4" /> Photos
-                                    </TabsTrigger>
-                                </TabsList>
-                                <ScrollBar orientation="horizontal" className="invisible" />
-                            </ScrollArea>
-                        </Tabs>
-                    </div>
-
-                    {/* Category Filter Chips */}
-                    {currentCategories.length > 0 && (
-                        <ScrollArea className="w-full whitespace-nowrap">
-                            <div className="flex items-center gap-2 pb-2">
-                                <Filter className="h-4 w-4 text-muted-foreground mr-1" />
-                                <Button
-                                    variant={selectedCategory === null ? "secondary" : "ghost"}
-                                    size="sm"
-                                    className="rounded-full h-8"
-                                    onClick={() => setSelectedCategory(null)}
-                                >
-                                    All
-                                </Button>
-                                {currentCategories.map((category) => (
-                                    <Button
-                                        key={category}
-                                        variant={selectedCategory === category ? "secondary" : "ghost"}
-                                        size="sm"
-                                        className="rounded-full h-8 border border-transparent hover:border-input"
-                                        onClick={() => setSelectedCategory(category)}
-                                    >
-                                        {category}
-                                    </Button>
-                                ))}
-                            </div>
-                            <ScrollBar orientation="horizontal" />
-                        </ScrollArea>
-                    )}
-                </div>
-
-                {/* Content Area */}
-
-                <div className="min-h-[500px]">
-                    {activeTab === "services" && (
-                        <div className="space-y-6 animate-in fade-in duration-500">
-                            <div className="mb-4">
-                                <h2 className="text-xl font-semibold mb-1">Local Services Directory</h2>
-                                <p className="text-sm text-muted-foreground">Find organizations and businesses operating in Dzaleka.</p>
-                            </div>
-                            {servicesLoading ? (
-                                <LoadingGrid />
-                            ) : filterItems(services).length === 0 ? (
-                                <EmptyState icon={Building} title="No services found" description="Try adjusting your filters or search." />
-                            ) : (
-                                <>
-                                    <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                                        {filterItems(services)
-                                            .slice((servicesPage - 1) * SERVICES_PER_PAGE, servicesPage * SERVICES_PER_PAGE)
-                                            .map((item) => (
-                                                <ServiceCard key={item.id} item={item} />
-                                            ))}
-                                    </div>
-                                    {/* Pagination */}
-                                    {filterItems(services).length > SERVICES_PER_PAGE && (
-                                        <div className="mt-8 flex items-center justify-center gap-4">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => setServicesPage((p) => Math.max(1, p - 1))}
-                                                disabled={servicesPage === 1}
-                                            >
-                                                <ChevronLeft className="h-4 w-4 mr-1" /> Previous
-                                            </Button>
-                                            <span className="text-sm text-muted-foreground">
-                                                Page {servicesPage} of {Math.ceil(filterItems(services).length / SERVICES_PER_PAGE)}
-                                            </span>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => setServicesPage((p) => Math.min(Math.ceil(filterItems(services).length / SERVICES_PER_PAGE), p + 1))}
-                                                disabled={servicesPage >= Math.ceil(filterItems(services).length / SERVICES_PER_PAGE)}
-                                            >
-                                                Next <ChevronRight className="h-4 w-4 ml-1" />
-                                            </Button>
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === "events" && (
-                        <div className="space-y-8 animate-in fade-in duration-500">
-                            {eventsLoading ? (
-                                <LoadingGrid />
-                            ) : filterItems(events).length === 0 ? (
-                                <div className="space-y-4">
-                                    <div className="mb-4">
-                                        <h2 className="text-xl font-semibold mb-1">Community Events</h2>
-                                        <p className="text-sm text-muted-foreground">Upcoming workshops and gatherings.</p>
-                                    </div>
-                                    <EmptyState icon={Calendar} title="No events found" description="Try adjusting your filters or search." />
-                                </div>
-                            ) : (
-                                <>
-                                    {/* Upcoming Events */}
-                                    {filterItems(upcomingEvents).length > 0 && (
-                                        <div className="space-y-4">
-                                            <div className="mb-2">
-                                                <h2 className="text-xl font-semibold mb-1 flex items-center gap-2">
-                                                    <Calendar className="h-5 w-5 text-primary" />
-                                                    Upcoming Events
-                                                </h2>
-                                                <p className="text-sm text-muted-foreground">Don't miss out on these upcoming activities.</p>
-                                            </div>
-                                            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                                                {filterItems(upcomingEvents).slice(0, 12).map((item) => (
-                                                    <EventCard key={item.id} item={item} />
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Past Events */}
-                                    {filterItems(pastEvents).length > 0 && (
-                                        <div className="space-y-4 pt-4 border-t">
-                                            <div className="mb-2">
-                                                <h2 className="text-xl font-semibold mb-1 text-muted-foreground">Past Events</h2>
-                                                <p className="text-sm text-muted-foreground">Archive of previously held events.</p>
-                                            </div>
-                                            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 opacity-80">
-                                                {filterItems(pastEvents).slice(0, 12).map((item) => (
-                                                    <EventCard key={item.id} item={item} />
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === "resources" && (
-                        <div className="space-y-6 animate-in fade-in duration-500">
-                            <div className="mb-4">
-                                <h2 className="text-xl font-semibold mb-1">Documents & Resources</h2>
-                                <p className="text-sm text-muted-foreground">Important forms and educational materials.</p>
-                            </div>
-                            {resourcesLoading ? (
-                                <LoadingGrid />
-                            ) : filterItems(resources).length === 0 ? (
-                                <EmptyState icon={FileText} title="No resources found" description="Try adjusting your filters or search." />
-                            ) : (
-                                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                                    {filterItems(resources).slice(0, 12).map((item) => (
-                                        <ResourceCard key={item.id} item={item} />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === "news" && (
-                        <div className="space-y-6 animate-in fade-in duration-500">
-                            <div className="mb-4">
-                                <h2 className="text-xl font-semibold mb-1">Latest News</h2>
-                                <p className="text-sm text-muted-foreground">Updates and stories from the camp.</p>
-                            </div>
-                            {newsLoading ? (
-                                <LoadingGrid />
-                            ) : filterItems(news).length === 0 ? (
-                                <EmptyState icon={Newspaper} title="No news found" description="Try adjusting your filters or search." />
-                            ) : (
-                                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                                    {filterItems(news).slice(0, 12).map((item) => (
-                                        <NewsCard key={item.id} item={item} />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === "photos" && (
-                        <div className="space-y-6 animate-in fade-in duration-500">
-                            <div className="mb-4">
-                                <h2 className="text-xl font-semibold mb-1">Photo Gallery</h2>
-                                <p className="text-sm text-muted-foreground">Visual stories from community events.</p>
-                            </div>
-                            {photosLoading ? (
-                                <LoadingGrid />
-                            ) : filterItems(photos).length === 0 ? (
-                                <EmptyState icon={ImageIcon} title="No photos found" description="Try adjusting your filters or search." />
-                            ) : (
-                                <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
-                                    {filterItems(photos).slice(0, 20).map((item) => (
-                                        <PhotoCard key={item.id} item={item} />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === "jobs" && (
-                        <div className="space-y-6 animate-in fade-in duration-500">
-                            <div className="mb-4">
-                                <h2 className="text-xl font-semibold mb-1">Job Opportunities</h2>
-                                <p className="text-sm text-muted-foreground">Current vacancies and volunteer roles.</p>
-                            </div>
-                            {jobsLoading ? (
-                                <LoadingGrid />
-                            ) : filterItems(sortedJobs).length === 0 ? (
-                                <EmptyState icon={Briefcase} title="No jobs found" description="Try adjusting your filters or search." />
-                            ) : (
-                                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                                    {filterItems(sortedJobs).slice(0, 12).map((item) => (
-                                        <JobCard key={item.id} item={item} />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {/* Footer Attribution */}
-                <div className="text-center text-sm text-muted-foreground border-t pt-8 mt-12 pb-4">
-                    Data provided by{" "}
-                    <a
-                        href="https://services.dzaleka.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
-                    >
-                        Dzaleka Online Services
-                    </a>
-                </div>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                <Input
+                  type="search"
+                  name="community-search"
+                  placeholder="Search name, category, location, or needs…"
+                  className="pl-9"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                />
+              </div>
             </div>
-        </div >
-    );
+          </div>
+
+          {isLoading ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <Card key={index} className="overflow-hidden">
+                  <div className="aspect-[4/3] animate-pulse bg-muted" />
+                  <CardContent className="space-y-3 p-5">
+                    <div className="h-4 w-1/3 animate-pulse rounded bg-muted" />
+                    <div className="h-6 w-4/5 animate-pulse rounded bg-muted" />
+                    <div className="h-16 animate-pulse rounded bg-muted" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : filteredListings.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center px-6 py-14 text-center">
+                <Info className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
+                <h3 className="mt-4 text-lg font-semibold">No listings found</h3>
+                <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+                  Try a different search term or switch categories.
+                </p>
+              </CardContent>
+            </Card>
+	          ) : (
+	            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+	              {filteredListings.map((item) => (
+	                <Card key={item.id} id={`listing-${item.id}`} className="flex min-w-0 scroll-mt-24 flex-col overflow-hidden">
+                  <div className="aspect-[4/3] bg-muted">
+                    {item.imageUrl ? (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        width={640}
+                        height={480}
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-primary/5">
+                        {listingIcon(item.type)}
+                      </div>
+                    )}
+                  </div>
+
+                  <CardHeader className="space-y-3 p-5 pb-3">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <Badge variant="secondary" className="max-w-full">
+                        <span className="mr-1">{listingIcon(item.type)}</span>
+                        <span className="truncate">{item.category}</span>
+                      </Badge>
+                      <Badge variant="outline">{listingTypeLabel(item.type)}</Badge>
+                    </div>
+                    <div className="min-w-0">
+                      <CardTitle className="break-words text-xl">{item.name}</CardTitle>
+                      <p className="mt-2 flex min-w-0 items-start gap-2 break-words text-sm text-muted-foreground">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                        {item.location}
+                      </p>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="flex flex-1 flex-col gap-4 p-5 pt-0">
+                    <p className="line-clamp-4 break-words text-sm leading-6 text-muted-foreground">
+                      {item.description}
+                    </p>
+
+                    {item.needs && (
+                      <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-emerald-950 dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-100">
+                        <p className="flex items-center gap-2 text-xs font-semibold">
+                          <Package className="h-4 w-4" aria-hidden="true" />
+                          Supply Needs
+                        </p>
+                        <p className="mt-2 whitespace-pre-line break-words text-sm leading-6">{item.needs}</p>
+                      </div>
+                    )}
+
+                    {item.offersExperience && item.experienceDetails && (
+                      <div className="rounded-md border bg-muted/50 p-3">
+                        <p className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                          <Compass className="h-4 w-4 text-primary" aria-hidden="true" />
+                          Community Impact Experience
+                        </p>
+                        <p className="mt-2 break-words text-sm leading-6 text-muted-foreground">{item.experienceDetails}</p>
+                        <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                          <span>{formatExperiencePrice(item)}</span>
+                          <span>{formatDuration(item.experienceDurationMinutes)}</span>
+                          {item.experienceMaxGuests && (
+                            <span>
+                              {item.experienceMinGuests || 1}-{item.experienceMaxGuests} guests
+                            </span>
+                          )}
+                          {item.experienceBookingNotes && <span className="sm:col-span-2">{item.experienceBookingNotes}</span>}
+                        </div>
+                        {item.impactStatement && (
+                          <p className="mt-3 border-t pt-3 text-xs leading-5 text-muted-foreground">
+                            {item.impactStatement}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="mt-auto rounded-md border bg-muted/30 p-3">
+                      <p className="break-words text-sm font-medium">{item.contactName}</p>
+                      <p className="mt-1 flex items-start gap-2 break-words text-sm text-muted-foreground">
+                        <MessageSquare className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                        {item.contactPhone}
+                      </p>
+                      {item.contactEmail && (
+                        <p className="mt-1 flex items-start gap-2 break-all text-sm text-muted-foreground">
+                          <Mail className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                          {item.contactEmail}
+                        </p>
+                      )}
+                    </div>
+
+	                    <div className="grid gap-2 sm:grid-cols-2">
+                      {item.offersExperience ? (
+                        <Button
+                          className="min-h-11"
+                          onClick={() => {
+                            setRequestListing(item);
+                            requestForm.reset({
+                              ...defaultExperienceRequestValues,
+                              listingId: item.id,
+                              groupSize: item.experienceMinGuests || 1,
+                            });
+                          }}
+                        >
+                          <Compass className="mr-2 h-4 w-4" aria-hidden="true" />
+                          Request
+                        </Button>
+                      ) : (
+                        <Button asChild className="min-h-11">
+                          <a href={whatsappHref(item)} target="_blank" rel="noopener noreferrer">
+                            <MessageSquare className="mr-2 h-4 w-4" aria-hidden="true" />
+                            WhatsApp
+                          </a>
+                        </Button>
+                      )}
+                      {item.offersExperience ? (
+                        <Button asChild variant="outline" className="min-h-11">
+                          <a href={whatsappHref(item)} target="_blank" rel="noopener noreferrer">
+                            <MessageSquare className="mr-2 h-4 w-4" aria-hidden="true" />
+                            WhatsApp
+                          </a>
+                        </Button>
+                      ) : item.contactEmail ? (
+                        <Button asChild variant="outline" className="min-h-11">
+                          <a href={`mailto:${item.contactEmail}`}>
+                            <Mail className="mr-2 h-4 w-4" aria-hidden="true" />
+                            Email
+                          </a>
+                        </Button>
+                      ) : (
+                        <Button asChild variant="outline" className="min-h-11">
+                          <a href={`tel:${item.contactPhone}`}>
+                            <MessageSquare className="mr-2 h-4 w-4" aria-hidden="true" />
+                            Call
+                          </a>
+                        </Button>
+	                      )}
+	                    </div>
+	                    {highlightTargetBooking && (
+	                      <Button
+	                        type="button"
+	                        variant={(highlightTargetBooking.selectedCommunityListings || []).includes(item.id) ? "secondary" : "outline"}
+	                        className="min-h-10 w-full"
+	                        disabled={
+	                          addHighlightMutation.isPending ||
+	                          (highlightTargetBooking.selectedCommunityListings || []).includes(item.id)
+	                        }
+	                        onClick={() => addHighlightMutation.mutate({ booking: highlightTargetBooking, listingId: item.id })}
+	                      >
+	                        {(highlightTargetBooking.selectedCommunityListings || []).includes(item.id) ? (
+	                          <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
+	                        ) : addHighlightMutation.isPending && addHighlightMutation.variables?.listingId === item.id ? (
+	                          <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+	                        ) : (
+	                          <PlusCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+	                        )}
+	                        {(highlightTargetBooking.selectedCommunityListings || []).includes(item.id) ? "Added to tour highlights" : "Add to my tour"}
+	                      </Button>
+	                    )}
+	                  </CardContent>
+	                </Card>
+	              ))}
+            </div>
+          )}
+
+          <div className="mt-10 rounded-lg border bg-muted/25 p-5 sm:p-6">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 max-w-2xl">
+                <Badge variant="outline" className="mb-3">Using the directory</Badge>
+                <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Know what happens next</h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  The hub is a public directory, not an instant marketplace. Listings help visitors and providers connect, then details are confirmed directly or with support from Visit Dzaleka.
+                </p>
+              </div>
+              <Button asChild variant="outline" className="min-h-11 w-full shrink-0 sm:w-auto">
+                <Link href="/community-hub/guide">
+                  Read Full Guide
+                </Link>
+              </Button>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              {directoryGuideNotes.map((note) => (
+                <div key={note.title} className="min-w-0 rounded-md border bg-background p-4">
+                  <p className="break-words text-sm font-semibold">{note.title}</p>
+                  <p className="mt-2 break-words text-sm leading-6 text-muted-foreground">{note.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <Dialog
+        open={Boolean(requestListing)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRequestListing(null);
+            requestForm.reset(defaultExperienceRequestValues);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Request {requestListing?.name}</DialogTitle>
+            <DialogDescription>
+              Send your preferred date and group size. Visit Dzaleka will confirm host availability before anything is final.
+            </DialogDescription>
+          </DialogHeader>
+
+          {requestListing && (
+            <div className="rounded-md border bg-muted/40 p-3 text-sm">
+              <p className="font-medium">{formatExperiencePrice(requestListing)}</p>
+              <p className="mt-1 text-muted-foreground">
+                {formatDuration(requestListing.experienceDurationMinutes)}
+                {requestListing.experienceMaxGuests
+                  ? ` · ${requestListing.experienceMinGuests || 1}-${requestListing.experienceMaxGuests} guests`
+                  : ""}
+              </p>
+            </div>
+          )}
+
+          <Form {...requestForm}>
+            <form
+              className="space-y-4"
+              onSubmit={requestForm.handleSubmit((values) => requestMutation.mutate(values))}
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField
+                  control={requestForm.control}
+                  name="visitorName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Your Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Full name…" autoComplete="name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={requestForm.control}
+                  name="visitorEmail"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="email"
+                          inputMode="email"
+                          placeholder="name@example.com…"
+                          autoComplete="email"
+                          spellCheck={false}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <FormField
+                  control={requestForm.control}
+                  name="preferredDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={requestForm.control}
+                  name="preferredTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Time</FormLabel>
+                      <FormControl>
+                        <Input type="time" {...field} value={field.value || ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={requestForm.control}
+                  name="groupSize"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Guests</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={requestListing?.experienceMinGuests || 1}
+                          max={requestListing?.experienceMaxGuests || undefined}
+                          inputMode="numeric"
+                          {...field}
+                          value={field.value || 1}
+                          onChange={(event) => field.onChange(Number(event.target.value) || 1)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={requestForm.control}
+                name="visitorPhone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone / WhatsApp</FormLabel>
+                    <FormControl>
+                      <Input type="tel" inputMode="tel" placeholder="+265 999 123 456…" autoComplete="tel" {...field} value={field.value || ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={requestForm.control}
+                name="message"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Message</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Share your interests, questions, or timing flexibility…"
+                        className="min-h-24"
+                        {...field}
+                        value={field.value || ""}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Please avoid sharing sensitive personal information. The team will contact you to confirm details.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setRequestListing(null)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={requestMutation.isPending}>
+                  {requestMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+                  Send Request
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <SiteFooter />
+    </div>
+  );
 }

@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+const PARTNER_OG_IMAGE = "https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg";
+
 const benefits = [
     {
         icon: Users,
@@ -92,6 +94,8 @@ export default function PartnerWithUs() {
                 description="Join us in creating meaningful connections. Partner with Visit Dzaleka to offer authentic cultural experiences and support the refugee community."
                 keywords="partner with Dzaleka, tourism partnership Malawi, refugee camp tours collaboration, sustainable tourism partners"
                 canonical="https://visit.dzaleka.com/partner-with-us"
+                ogImage={PARTNER_OG_IMAGE}
+                imageAlt="Community-led cultural experience in Dzaleka"
             />
 
             {/* Header - Reused from Landing/Blog */}

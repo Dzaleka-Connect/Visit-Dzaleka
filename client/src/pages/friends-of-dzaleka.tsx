@@ -26,8 +26,11 @@ import {
     Twitter,
     Facebook,
     Youtube,
+    Linkedin,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    BookOpen,
+    ShieldCheck
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { friends } from "@/data/friends";
@@ -68,6 +71,8 @@ const whoAreThey = [
     "Care about ethical, community-led tourism"
 ];
 
+const FRIENDS_OG_IMAGE = "https://services.dzaleka.com/images/dzaleka-hero.jpeg";
+
 export default function FriendsOfDzaleka() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -75,20 +80,64 @@ export default function FriendsOfDzaleka() {
 
     // Form state for validation
     const [formData, setFormData] = useState({
+        firstName: "",
+        lastName: "",
+        email: "",
+        location: "",
         role: "",
         bio: "",
         connection: "",
-        contribution: ""
+        contribution: "",
+        social: ""
     });
 
-    const isFormValid =
-        formData.bio.length >= 150 &&
-        formData.connection.length >= 100 &&
-        formData.contribution.length >= 100;
+    const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+        // Clear error when user types
+        if (errors[name]) {
+            setErrors(prev => {
+                const next = { ...prev };
+                delete next[name];
+                return next;
+            });
+        }
+    };
+
+    const validateForm = () => {
+        const newErrors: { [key: string]: string } = {};
+
+        if (!formData.firstName.trim()) {
+            newErrors.firstName = "First name is required";
+        }
+        if (!formData.lastName.trim()) {
+            newErrors.lastName = "Last name is required";
+        }
+        if (!formData.email.trim()) {
+            newErrors.email = "Email address is required";
+        } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+            newErrors.email = "Please enter a valid email address";
+        }
+        if (!formData.location.trim()) {
+            newErrors.location = "Location is required";
+        }
+        if (!formData.role.trim()) {
+            newErrors.role = "Role is required";
+        }
+        if (formData.bio.trim().length < 150) {
+            newErrors.bio = `Bio must be at least 150 characters (currently ${formData.bio.trim().length})`;
+        }
+        if (formData.connection.trim().length < 100) {
+            newErrors.connection = `Connection details must be at least 100 characters (currently ${formData.connection.trim().length})`;
+        }
+        if (formData.contribution.trim().length < 100) {
+            newErrors.contribution = `Contribution plan must be at least 100 characters (currently ${formData.contribution.trim().length})`;
+        }
+
+        setErrors(newErrors);
+        return newErrors;
     };
 
     // Handle hash scrolling on mount
@@ -123,10 +172,22 @@ export default function FriendsOfDzaleka() {
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        setIsSubmitting(true);
 
+        const newErrors = validateForm();
+        const firstErrorKey = Object.keys(newErrors)[0];
+
+        if (firstErrorKey) {
+            const element = document.getElementById(firstErrorKey);
+            if (element) {
+                element.focus();
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            return;
+        }
+
+        setIsSubmitting(true);
         const form = e.currentTarget;
-        const formData = new FormData(form);
+        const submitData = new FormData(form);
 
         try {
             const response = await fetch("https://formspree.io/f/xqaaajae", {
@@ -134,7 +195,7 @@ export default function FriendsOfDzaleka() {
                 headers: {
                     'Accept': 'application/json'
                 },
-                body: formData
+                body: submitData
             });
 
             if (response.ok) {
@@ -144,6 +205,18 @@ export default function FriendsOfDzaleka() {
                     variant: "default",
                 });
                 form.reset();
+                setFormData({
+                    firstName: "",
+                    lastName: "",
+                    email: "",
+                    location: "",
+                    role: "",
+                    bio: "",
+                    connection: "",
+                    contribution: "",
+                    social: ""
+                });
+                setErrors({});
             } else {
                 throw new Error("Failed to send application");
             }
@@ -165,6 +238,8 @@ export default function FriendsOfDzaleka() {
                 description="Join Friends of Dzaleka – help share the real story of Dzaleka Refugee Camp through authentic, community-led storytelling."
                 keywords="Friends of Dzaleka, Dzaleka ambassador, community storytelling, refugee camp stories, ethical tourism"
                 canonical="https://visit.dzaleka.com/friends-of-dzaleka"
+                ogImage={FRIENDS_OG_IMAGE}
+                imageAlt="Friends of Dzaleka community storytelling"
             />
 
             {/* Header */}
@@ -231,113 +306,127 @@ export default function FriendsOfDzaleka() {
                         <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6 text-foreground">
                             Friends of Dzaleka
                         </h1>
-                        <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-4">
-                            Help share the real story of Dzaleka.
-                        </p>
-                        <p className="text-base text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-                            Stories shared by people who know the community.
+                        <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed animate-in fade-in slide-in-from-bottom-3 duration-500">
+                            Help share the real story of Dzaleka Refugee Camp through authentic, community-led storytelling and digital heritage preservation.
                         </p>
                     </div>
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-primary/5 blur-3xl -z-10" />
                 </section>
 
-                {/* About Friends of Dzaleka */}
-                <section className="py-16 bg-background">
-                    <div className="container mx-auto px-4 max-w-4xl">
-                        <div className="prose prose-lg max-w-none text-muted-foreground">
-                            <p className="leading-relaxed">
-                                Dzaleka Refugee Camp is a living community shaped by culture, creativity, and everyday life. People here are artists, teachers, students, parents, and business owners.
-                            </p>
-                            <p className="leading-relaxed">
-                                <strong className="text-foreground">Friends of Dzaleka</strong> brings together people who have a genuine connection to the camp and want to help share its story in a respectful and honest way.
-                            </p>
+                {/* Mission & Impact Grid */}
+                <section className="py-16 md:py-24 bg-background">
+                    <div className="container mx-auto px-4 max-w-6xl">
+                        <div className="grid gap-12 md:grid-cols-12 items-center">
+                            {/* Mission Description */}
+                            <div className="md:col-span-7 space-y-6">
+                                <Badge variant="secondary" className="px-3 py-1 text-xs text-primary bg-primary/10 rounded-full font-semibold uppercase tracking-wider">
+                                    Our Mission
+                                </Badge>
+                                <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+                                    A Community-Led Initiative
+                                </h2>
+                                <p className="text-lg text-muted-foreground leading-relaxed">
+                                    Dzaleka Refugee Camp is a living community shaped by culture, creativity, and everyday life. People here are artists, teachers, students, parents, and business owners.
+                                </p>
+                                <p className="text-muted-foreground leading-relaxed">
+                                    <strong>Friends of Dzaleka</strong> brings together people who have a genuine connection to the camp and want to help share its story in a respectful, ethical, and community-led way.
+                                </p>
+                            </div>
+
+                            {/* Why It Matters Glass Card */}
+                            <div className="md:col-span-5">
+                                <Card className="border border-primary/10 bg-card/40 shadow-lg backdrop-blur-md relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl" />
+                                    <CardHeader className="pb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                                                <Globe className="h-5 w-5" />
+                                            </div>
+                                            <CardTitle className="text-lg font-bold">Why It Matters</CardTitle>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <p className="text-sm text-muted-foreground leading-relaxed">
+                                            Many people only hear about Dzaleka through brief news headlines. Friends of Dzaleka helps showcase everyday life, fostering:
+                                        </p>
+                                        <ul className="space-y-3">
+                                            <li className="flex items-start gap-3 text-sm">
+                                                <div className="p-1 rounded-full bg-primary/10 text-primary shrink-0 mt-0.5">
+                                                    <BookOpen className="h-3.5 w-3.5" />
+                                                </div>
+                                                <span>Broadened cultural understanding</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm">
+                                                <div className="p-1 rounded-full bg-primary/10 text-primary shrink-0 mt-0.5">
+                                                    <HandHeart className="h-3.5 w-3.5" />
+                                                </div>
+                                                <span>Direct support for local livelihoods</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm">
+                                                <div className="p-1 rounded-full bg-primary/10 text-primary shrink-0 mt-0.5">
+                                                    <Users className="h-3.5 w-3.5" />
+                                                </div>
+                                                <span>Respectful, ethical visitor engagement</span>
+                                            </li>
+                                            <li className="flex items-start gap-3 text-sm">
+                                                <div className="p-1 rounded-full bg-primary/10 text-primary shrink-0 mt-0.5">
+                                                    <ShieldCheck className="h-3.5 w-3.5" />
+                                                </div>
+                                                <span>Stories rooted in lived experiences</span>
+                                            </li>
+                                        </ul>
+                                    </CardContent>
+                                </Card>
+                            </div>
                         </div>
                     </div>
                 </section>
 
-                {/* Who Are Friends of Dzaleka */}
-                <section className="py-16 bg-muted/30">
-                    <div className="container mx-auto px-4 max-w-4xl">
-                        <div className="flex items-center gap-3 mb-6">
-                            <Users className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Who Are Friends of Dzaleka?</h2>
+                {/* Program Details & Involvement Grid */}
+                <section className="py-16 md:py-20 bg-muted/30 border-y border-muted/50">
+                    <div className="container mx-auto px-4 max-w-5xl">
+                        <div className="text-center max-w-2xl mx-auto mb-12">
+                            <Badge variant="outline" className="mb-3 px-3 py-1 text-xs text-primary border-primary/20 bg-primary/5 rounded-full font-semibold uppercase tracking-wider">
+                                Getting Involved
+                            </Badge>
+                            <h2 className="text-3xl font-bold tracking-tight mb-4">What the Program Involves</h2>
+                            <p className="text-muted-foreground leading-relaxed">
+                                Share Dzaleka's narrative in your own way. There is no rigid script; you control the story you want to share.
+                            </p>
                         </div>
-                        <p className="text-muted-foreground mb-6">Friends of Dzaleka include people who:</p>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            {whoAreThey.map((item, index) => (
-                                <div key={index} className="flex items-start gap-3 p-4 bg-background rounded-lg border">
-                                    <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-                                    <span className="text-sm">{item}</span>
-                                </div>
-                            ))}
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-6">
-                            You don't need a large following. What matters is your connection and your respect for the community.
-                        </p>
-                    </div>
-                </section>
 
-                {/* What Being a Friend Involves */}
-                <section className="py-16 bg-background">
-                    <div className="container mx-auto px-4 max-w-4xl">
-                        <div className="flex items-center gap-3 mb-6">
-                            <Sparkles className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">What Being a Friend Involves</h2>
-                        </div>
-                        <p className="text-muted-foreground mb-8">As a Friend of Dzaleka, you may:</p>
-                        <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="grid gap-6 md:grid-cols-2">
                             {whatInvolves.map((item, index) => (
-                                <Card key={index} className="border-none shadow-sm">
+                                <Card key={index} className="border border-muted/60 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
                                     <CardContent className="p-6">
                                         <div className="flex items-start gap-4">
-                                            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                                                <item.icon className="h-5 w-5" />
+                                            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                                                <item.icon className="h-6 w-6" />
                                             </div>
                                             <div>
-                                                <h3 className="font-semibold mb-1">{item.title}</h3>
-                                                <p className="text-sm text-muted-foreground">{item.description}</p>
+                                                <h3 className="font-bold text-lg mb-1">{item.title}</h3>
+                                                <p className="text-sm text-muted-foreground leading-relaxed">{item.description}</p>
                                             </div>
                                         </div>
                                     </CardContent>
                                 </Card>
                             ))}
                         </div>
-                        <p className="text-sm text-muted-foreground mt-6 italic">
-                            There is no script. You choose what and how you share.
-                        </p>
-                    </div>
-                </section>
 
-                {/* Why It Matters */}
-                <section className="py-16 bg-primary/5">
-                    <div className="container mx-auto px-4 max-w-4xl">
-                        <div className="flex items-center gap-3 mb-6">
-                            <Globe className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Why Friends of Dzaleka Matters</h2>
-                        </div>
-                        <p className="text-muted-foreground mb-6">
-                            Many people only hear about Dzaleka through news stories. Friends of Dzaleka helps show everyday life — the culture, the work, and the people behind the headlines.
-                        </p>
-                        <div className="bg-background p-6 rounded-xl border">
-                            <p className="font-semibold mb-4">Your involvement helps:</p>
-                            <ul className="grid gap-3 sm:grid-cols-2">
-                                <li className="flex items-center gap-2 text-sm">
-                                    <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                                    Broaden how Dzaleka is understood
-                                </li>
-                                <li className="flex items-center gap-2 text-sm">
-                                    <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                                    Support local livelihoods
-                                </li>
-                                <li className="flex items-center gap-2 text-sm">
-                                    <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                                    Encourage respectful visits
-                                </li>
-                                <li className="flex items-center gap-2 text-sm">
-                                    <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                                    Keep stories rooted in lived experience
-                                </li>
-                            </ul>
+                        <div className="mt-12 p-6 rounded-xl border border-dashed border-muted-foreground/30 bg-background text-center max-w-3xl mx-auto">
+                            <h4 className="font-bold text-foreground mb-2 flex items-center justify-center gap-2">
+                                <Users className="h-5 w-5 text-primary" /> Who can become a Friend?
+                            </h4>
+                            <p className="text-sm text-muted-foreground mb-4">
+                                We welcome anyone who has a real connection to Dzaleka, respects the community's privacy, and is committed to ethical tourism. You don't need a large following to make an impact.
+                            </p>
+                            <div className="flex flex-wrap justify-center gap-3">
+                                {whoCanApply.map((item, index) => (
+                                    <Badge key={index} variant="outline" className="px-3 py-1 bg-muted/40 text-xs rounded-full border-muted/80">
+                                        {item}
+                                    </Badge>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -352,9 +441,9 @@ export default function FriendsOfDzaleka() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                             {currentFriends.map((friend, index) => (
-                                <Card key={friend.slug || index} className="overflow-hidden border-none shadow-md bg-background flex flex-col h-full hover:shadow-lg transition-shadow">
-                                    <div className="h-48 relative bg-muted">
-                                        <div className="absolute inset-0 bg-primary/10 flex items-center justify-center text-primary text-4xl font-bold">
+                                <Card key={friend.slug || index} className="group overflow-hidden border border-muted/60 shadow-sm hover:border-primary/20 transition-all duration-300 bg-background flex flex-col h-full">
+                                    <div className="h-48 relative overflow-hidden bg-muted">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-primary/5 to-background flex items-center justify-center text-primary text-4xl font-bold tracking-tight">
                                             {friend.name.split(' ').map(n => n[0]).join('')}
                                         </div>
                                         {friend.image && (
@@ -364,13 +453,15 @@ export default function FriendsOfDzaleka() {
                                                 className="absolute inset-0 w-full h-full object-cover"
                                             />
                                         )}
+                                        <Badge className="absolute top-3 left-3 bg-background/80 hover:bg-background/90 text-foreground text-[10px] font-semibold border backdrop-blur-sm px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
+                                            {friend.role}
+                                        </Badge>
                                     </div>
                                     <CardContent className="p-5 flex flex-col flex-1">
                                         <div className="mb-3">
-                                            <h3 className="text-lg font-bold text-foreground mb-1 line-clamp-1">{friend.name}</h3>
-                                            <p className="text-xs font-medium text-primary mb-2 line-clamp-1">{friend.role}</p>
-                                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                <MapPin className="h-3 w-3" />
+                                            <h3 className="text-lg font-bold text-foreground mb-1 line-clamp-1 group-hover:text-primary transition-colors">{friend.name}</h3>
+                                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                                <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
                                                 {friend.location}
                                             </div>
                                         </div>
@@ -379,21 +470,41 @@ export default function FriendsOfDzaleka() {
                                             {friend.shortBio}
                                         </p>
 
-                                        <div className="mt-auto pt-4 flex items-center justify-between border-t">
-                                            <div className="flex gap-2">
+                                        <div className="mt-auto pt-4 flex items-center justify-between border-t border-muted/50">
+                                            <div className="flex gap-2.5">
+                                                {friend.social.website && (
+                                                    <a href={friend.social.website} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" aria-label="Website">
+                                                        <Globe className="h-3.5 w-3.5" />
+                                                    </a>
+                                                )}
                                                 {friend.social.instagram && (
-                                                    <a href={friend.social.instagram} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
+                                                    <a href={friend.social.instagram} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" aria-label="Instagram">
                                                         <Instagram className="h-3.5 w-3.5" />
                                                     </a>
                                                 )}
                                                 {friend.social.twitter && (
-                                                    <a href={friend.social.twitter} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
+                                                    <a href={friend.social.twitter} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" aria-label="Twitter">
                                                         <Twitter className="h-3.5 w-3.5" />
+                                                    </a>
+                                                )}
+                                                {friend.social.facebook && (
+                                                    <a href={friend.social.facebook} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" aria-label="Facebook">
+                                                        <Facebook className="h-3.5 w-3.5" />
+                                                    </a>
+                                                )}
+                                                {friend.social.linkedin && (
+                                                    <a href={friend.social.linkedin} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" aria-label="LinkedIn">
+                                                        <Linkedin className="h-3.5 w-3.5" />
+                                                    </a>
+                                                )}
+                                                {friend.social.youtube && (
+                                                    <a href={friend.social.youtube} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" aria-label="YouTube">
+                                                        <Youtube className="h-3.5 w-3.5" />
                                                     </a>
                                                 )}
                                             </div>
                                             <Link href={`/friends-of-dzaleka/${friend.slug}`}>
-                                                <Button variant="link" className="p-0 h-auto text-xs font-semibold">
+                                                <Button variant="link" className="p-0 h-auto text-xs font-semibold text-primary hover:text-primary/80 transition-colors">
                                                     Read Story <ArrowRight className="ml-1 h-3 w-3" />
                                                 </Button>
                                             </Link>
@@ -446,27 +557,6 @@ export default function FriendsOfDzaleka() {
                     </div>
                 </section>
 
-                {/* Who Can Apply */}
-                <section className="py-16 bg-background">
-                    <div className="container mx-auto px-4 max-w-4xl">
-                        <div className="flex items-center gap-3 mb-6">
-                            <MapPin className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Who Can Apply</h2>
-                        </div>
-                        <p className="text-muted-foreground mb-6">You can apply if you:</p>
-                        <ul className="space-y-3 mb-6">
-                            {whoCanApply.map((item, index) => (
-                                <li key={index} className="flex items-center gap-3">
-                                    <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
-                                    <span>{item}</span>
-                                </li>
-                            ))}
-                        </ul>
-                        <p className="text-sm text-muted-foreground">
-                            Applications are reviewed to make sure they align with Visit Dzaleka's approach.
-                        </p>
-                    </div>
-                </section>
 
                 {/* Application Form */}
                 <section className="py-16 bg-muted/30" id="apply-form">
@@ -491,22 +581,73 @@ export default function FriendsOfDzaleka() {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <label htmlFor="firstName" className="text-sm font-medium">First Name</label>
-                                            <Input id="firstName" name="firstName" placeholder="Your first name" required />
+                                            <Input
+                                                id="firstName"
+                                                name="firstName"
+                                                placeholder="e.g. Jane…"
+                                                value={formData.firstName}
+                                                onChange={handleInputChange}
+                                                aria-invalid={!!errors.firstName}
+                                            />
+                                            {errors.firstName && (
+                                                <p className="text-xs text-destructive mt-1" role="alert">
+                                                    {errors.firstName}
+                                                </p>
+                                            )}
                                         </div>
                                         <div className="space-y-2">
                                             <label htmlFor="lastName" className="text-sm font-medium">Last Name</label>
-                                            <Input id="lastName" name="lastName" placeholder="Your last name" required />
+                                            <Input
+                                                id="lastName"
+                                                name="lastName"
+                                                placeholder="e.g. Doe…"
+                                                value={formData.lastName}
+                                                onChange={handleInputChange}
+                                                aria-invalid={!!errors.lastName}
+                                            />
+                                            {errors.lastName && (
+                                                <p className="text-xs text-destructive mt-1" role="alert">
+                                                    {errors.lastName}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
 
                                     <div className="space-y-2">
                                         <label htmlFor="email" className="text-sm font-medium">Email Address</label>
-                                        <Input id="email" name="email" type="email" placeholder="you@example.com" required />
+                                        <Input
+                                            id="email"
+                                            name="email"
+                                            type="email"
+                                            placeholder="e.g. you@example.com…"
+                                            autoComplete="email"
+                                            spellCheck={false}
+                                            value={formData.email}
+                                            onChange={handleInputChange}
+                                            aria-invalid={!!errors.email}
+                                        />
+                                        {errors.email && (
+                                            <p className="text-xs text-destructive mt-1" role="alert">
+                                                {errors.email}
+                                            </p>
+                                        )}
                                     </div>
 
                                     <div className="space-y-2">
                                         <label htmlFor="location" className="text-sm font-medium">Where are you based?</label>
-                                        <Input id="location" name="location" placeholder="e.g., Lilongwe, Malawi or London, UK" required />
+                                        <Input
+                                            id="location"
+                                            name="location"
+                                            placeholder="e.g. Lilongwe, Malawi…"
+                                            value={formData.location}
+                                            onChange={handleInputChange}
+                                            aria-invalid={!!errors.location}
+                                        />
+                                        {errors.location && (
+                                            <p className="text-xs text-destructive mt-1" role="alert">
+                                                {errors.location}
+                                            </p>
+                                        )}
                                     </div>
 
                                     <div className="space-y-2">
@@ -514,11 +655,16 @@ export default function FriendsOfDzaleka() {
                                         <Input
                                             id="role"
                                             name="role"
-                                            placeholder="e.g., Former Resident, Artist, Supporter, Researcher"
+                                            placeholder="e.g. Artist…"
                                             value={formData.role}
                                             onChange={handleInputChange}
-                                            required
+                                            aria-invalid={!!errors.role}
                                         />
+                                        {errors.role && (
+                                            <p className="text-xs text-destructive mt-1" role="alert">
+                                                {errors.role}
+                                            </p>
+                                        )}
                                     </div>
 
                                     <div className="space-y-2">
@@ -526,15 +672,24 @@ export default function FriendsOfDzaleka() {
                                         <Textarea
                                             id="bio"
                                             name="bio"
-                                            placeholder="Tell us a bit about yourself. Where were you born? Where did you grow up? What do you do now?"
+                                            placeholder="Tell us a bit about yourself…"
                                             className="min-h-[120px]"
                                             value={formData.bio}
                                             onChange={handleInputChange}
-                                            required
+                                            aria-invalid={!!errors.bio}
                                         />
-                                        <p className={`text-xs text-right ${formData.bio.length < 150 ? 'text-primary' : 'text-muted-foreground'}`}>
-                                            {formData.bio.length}/150 characters min
-                                        </p>
+                                        <div className="flex justify-between items-center mt-1">
+                                            {errors.bio ? (
+                                                <p className="text-xs text-destructive font-medium" role="alert">
+                                                    {errors.bio}
+                                                </p>
+                                            ) : (
+                                                <div />
+                                            )}
+                                            <p className={`text-xs ${formData.bio.trim().length < 150 ? 'text-primary' : 'text-muted-foreground'}`}>
+                                                {formData.bio.trim().length}/150 characters min
+                                            </p>
+                                        </div>
                                     </div>
 
                                     <div className="space-y-2">
@@ -542,15 +697,24 @@ export default function FriendsOfDzaleka() {
                                         <Textarea
                                             id="connection"
                                             name="connection"
-                                            placeholder="Please describe your relationship with Dzaleka in detail."
+                                            placeholder="Describe your relationship with Dzaleka in detail…"
                                             className="min-h-[100px]"
                                             value={formData.connection}
                                             onChange={handleInputChange}
-                                            required
+                                            aria-invalid={!!errors.connection}
                                         />
-                                        <p className={`text-xs text-right ${formData.connection.length < 100 ? 'text-primary' : 'text-muted-foreground'}`}>
-                                            {formData.connection.length}/100 characters min
-                                        </p>
+                                        <div className="flex justify-between items-center mt-1">
+                                            {errors.connection ? (
+                                                <p className="text-xs text-destructive font-medium" role="alert">
+                                                    {errors.connection}
+                                                </p>
+                                            ) : (
+                                                <div />
+                                            )}
+                                            <p className={`text-xs ${formData.connection.trim().length < 100 ? 'text-primary' : 'text-muted-foreground'}`}>
+                                                {formData.connection.trim().length}/100 characters min
+                                            </p>
+                                        </div>
                                     </div>
 
                                     <div className="space-y-2">
@@ -558,23 +722,38 @@ export default function FriendsOfDzaleka() {
                                         <Textarea
                                             id="contribution"
                                             name="contribution"
-                                            placeholder="How do you plan to help share Dzaleka's story? Be specific about channels and content."
+                                            placeholder="How you plan to share Dzaleka's story…"
                                             className="min-h-[100px]"
                                             value={formData.contribution}
                                             onChange={handleInputChange}
-                                            required
+                                            aria-invalid={!!errors.contribution}
                                         />
-                                        <p className={`text-xs text-right ${formData.contribution.length < 100 ? 'text-primary' : 'text-muted-foreground'}`}>
-                                            {formData.contribution.length}/100 characters min
-                                        </p>
+                                        <div className="flex justify-between items-center mt-1">
+                                            {errors.contribution ? (
+                                                <p className="text-xs text-destructive font-medium" role="alert">
+                                                    {errors.contribution}
+                                                </p>
+                                            ) : (
+                                                <div />
+                                            )}
+                                            <p className={`text-xs ${formData.contribution.trim().length < 100 ? 'text-primary' : 'text-muted-foreground'}`}>
+                                                {formData.contribution.trim().length}/100 characters min
+                                            </p>
+                                        </div>
                                     </div>
 
                                     <div className="space-y-2">
                                         <label htmlFor="social" className="text-sm font-medium">Social Media / Website (optional)</label>
-                                        <Input id="social" name="social" placeholder="@yourhandle or https://..." />
+                                        <Input
+                                            id="social"
+                                            name="social"
+                                            placeholder="e.g. @yourhandle or https://…"
+                                            value={formData.social}
+                                            onChange={handleInputChange}
+                                        />
                                     </div>
 
-                                    <Button type="submit" className="w-full" disabled={isSubmitting || !isFormValid}>
+                                    <Button type="submit" className="w-full" disabled={isSubmitting}>
                                         {isSubmitting ? (
                                             <>
                                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

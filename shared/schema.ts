@@ -362,6 +362,7 @@ export const bookings = pgTable("bookings", {
   cancelledBy: varchar("cancelled_by"),
   selectedZones: text("selected_zones").array().default(sql`ARRAY[]::text[]`),
   selectedInterests: text("selected_interests").array().default(sql`ARRAY[]::text[]`),
+  selectedCommunityListings: text("selected_community_listings").array().default(sql`ARRAY[]::text[]`),
   specialRequests: text("special_requests"),
   accessibilityNeeds: text("accessibility_needs"),
   referralSource: varchar("referral_source"),
@@ -2169,3 +2170,77 @@ export const insertWebhookDeliverySchema = createInsertSchema(webhookDeliveries)
 });
 export type WebhookDelivery = typeof webhookDeliveries.$inferSelect;
 export type InsertWebhookDelivery = z.infer<typeof insertWebhookDeliverySchema>;
+
+// Community Listings table (hybrid: businesses, artisans, and projects)
+export const communityListings = pgTable("community_listings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  type: varchar("type").notNull(), // "business" | "initiative"
+  category: varchar("category").notNull(), // e.g. "tailoring", "dining", "artisan", "education", "health", "agriculture", etc.
+  description: text("description").notNull(),
+  contactName: varchar("contact_name").notNull(),
+  contactPhone: varchar("contact_phone").notNull(),
+  contactEmail: varchar("contact_email"),
+  location: varchar("location").notNull(),
+  imageUrl: text("image_url"),
+  needs: text("needs"), // Specific materials or items sought (for vetting needs)
+  offersExperience: boolean("offers_experience").default(false),
+  experienceDetails: text("experience_details"), // Details of the hosted social impact experience
+  experiencePrice: integer("experience_price"),
+  experienceCurrency: varchar("experience_currency").default("MWK"),
+  experienceDurationMinutes: integer("experience_duration_minutes"),
+  experienceMinGuests: integer("experience_min_guests").default(1),
+  experienceMaxGuests: integer("experience_max_guests"),
+  experienceBookingNotes: text("experience_booking_notes"),
+  impactStatement: text("impact_statement"),
+  status: varchar("status").default("pending"), // "pending" | "approved" | "rejected"
+  moderationNotes: text("moderation_notes"),
+  submittedBy: varchar("submitted_by"), // User ID of user who submitted, if applicable
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+  deletedAt: timestamp("deleted_at"),
+});
+
+export const communityExperienceRequests = pgTable(
+  "community_experience_requests",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    listingId: varchar("listing_id").notNull().references(() => communityListings.id),
+    visitorName: varchar("visitor_name").notNull(),
+    visitorEmail: varchar("visitor_email").notNull(),
+    visitorPhone: varchar("visitor_phone"),
+    preferredDate: date("preferred_date").notNull(),
+    preferredTime: varchar("preferred_time"),
+    groupSize: integer("group_size").default(1).notNull(),
+    message: text("message"),
+    status: varchar("status").default("submitted").notNull(), // "submitted" | "contacted" | "confirmed" | "declined" | "cancelled"
+    adminNotes: text("admin_notes"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at"),
+  },
+  (table) => [
+    index("IDX_community_experience_requests_listing").on(table.listingId),
+    index("IDX_community_experience_requests_status").on(table.status),
+    index("IDX_community_experience_requests_created").on(table.createdAt),
+  ]
+);
+
+export const insertCommunityListingSchema = createInsertSchema(communityListings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+});
+
+export const insertCommunityExperienceRequestSchema = createInsertSchema(communityExperienceRequests).omit({
+  id: true,
+  status: true,
+  adminNotes: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type CommunityListing = typeof communityListings.$inferSelect;
+export type InsertCommunityListing = z.infer<typeof insertCommunityListingSchema>;
+export type CommunityExperienceRequest = typeof communityExperienceRequests.$inferSelect;
+export type InsertCommunityExperienceRequest = z.infer<typeof insertCommunityExperienceRequestSchema>;

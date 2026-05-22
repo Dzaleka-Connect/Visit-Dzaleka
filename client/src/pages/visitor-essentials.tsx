@@ -133,6 +133,10 @@ const structuredData = {
                 }
             },
             "isAccessibleForFree": true,
+            "performer": {
+                "@type": "PerformingGroup",
+                "name": "Various Local and International Artists"
+            },
             "offers": {
                 "@type": "Offer",
                 "price": "0",

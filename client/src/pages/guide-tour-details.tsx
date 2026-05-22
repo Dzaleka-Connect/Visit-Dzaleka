@@ -34,8 +34,9 @@ import {
   Users,
 } from "lucide-react";
 import type {
-  Booking,
-  Guide,
+	  Booking,
+	  CommunityListing,
+	  Guide,
   MeetingPoint,
   PointOfInterest,
   TransportPartner,
@@ -148,6 +149,34 @@ function BadgeList({ values, getLabel }: { values?: string[] | null; getLabel: (
   );
 }
 
+function CommunityListingLinkList({
+  values,
+  listings,
+}: {
+  values?: string[] | null;
+  listings: CommunityListing[];
+}) {
+  if (!values || values.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {values.map((listingId) => {
+        const listing = listings.find((item) => item.id === listingId);
+        return (
+          <Link
+            key={listingId}
+            href={`/community-hub#listing-${listingId}`}
+            className="inline-flex max-w-full items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          >
+            <span className="truncate">{listing?.name || humanize(listingId)}</span>
+            {listing?.category && <span className="text-muted-foreground">- {listing.category}</span>}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function GuideTourDetails() {
   const [, params] = useRoute("/my-tours/:bookingId");
   const bookingId = params?.bookingId;
@@ -169,6 +198,10 @@ export default function GuideTourDetails() {
 
   const { data: pointsOfInterest = [] } = useQuery<PointOfInterest[]>({
     queryKey: ["/api/points-of-interest"],
+  });
+
+  const { data: communityListings = [] } = useQuery<CommunityListing[]>({
+    queryKey: ["/api/public/community-listings"],
   });
 
   const invalidateBooking = () => {
@@ -266,7 +299,10 @@ export default function GuideTourDetails() {
 
   const transport = booking.transportRequest;
   const peopleCount = booking.numberOfPeople || 1;
-  const hasPreferences = (booking.selectedZones?.length || 0) > 0 || (booking.selectedInterests?.length || 0) > 0;
+  const hasPreferences =
+    (booking.selectedZones?.length || 0) > 0 ||
+    (booking.selectedInterests?.length || 0) > 0 ||
+    (booking.selectedCommunityListings?.length || 0) > 0;
 
   return (
     <PageContainer className="page-spacing overflow-x-hidden">
@@ -436,15 +472,27 @@ export default function GuideTourDetails() {
                       value={<BadgeList values={booking.selectedZones} getLabel={getZoneName} />}
                     />
                   )}
-                  {(booking.selectedInterests?.length || 0) > 0 && (
-                    <DetailItem
-                      label="Selected interests"
-                      icon={MapPin}
-                      value={<BadgeList values={booking.selectedInterests} getLabel={getInterestName} />}
-                    />
-                  )}
-                </>
-              )}
+	                  {(booking.selectedInterests?.length || 0) > 0 && (
+	                    <DetailItem
+	                      label="Selected interests"
+	                      icon={MapPin}
+	                      value={<BadgeList values={booking.selectedInterests} getLabel={getInterestName} />}
+	                    />
+	                  )}
+	                  {(booking.selectedCommunityListings?.length || 0) > 0 && (
+	                    <DetailItem
+	                      label="Community Hub highlights"
+	                      icon={MapPin}
+	                      value={
+	                        <CommunityListingLinkList
+	                          values={booking.selectedCommunityListings}
+	                          listings={communityListings}
+	                        />
+	                      }
+	                    />
+	                  )}
+	                </>
+	              )}
               <DetailItem label="Special requests" icon={MessageSquare} value={booking.specialRequests || "None shared"} />
               <DetailItem label="Accessibility needs" icon={Accessibility} value={booking.accessibilityNeeds || "None shared"} />
             </dl>

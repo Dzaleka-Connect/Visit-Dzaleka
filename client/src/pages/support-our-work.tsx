@@ -19,6 +19,8 @@ import {
     Phone
 } from "lucide-react";
 
+const SUPPORT_OG_IMAGE = "https://services.dzaleka.com/images/dzaleka-digital-heritage.png";
+
 export default function SupportOurWork() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -28,7 +30,9 @@ export default function SupportOurWork() {
                 title="Support Our Work | Visit Dzaleka"
                 description="Support Dzaleka Online Services to preserve and promote Dzaleka's cultural heritage. Donate now to help digitize history, empower refugees, and amplify community voices."
                 keywords="donate Dzaleka, support refugees Malawi, Dzaleka Online Services, digital inclusion refugees, in-kind donations Dzaleka"
-                canonical="https://services.dzaleka.com/support-our-work"
+                canonical="https://visit.dzaleka.com/support-our-work"
+                ogImage={SUPPORT_OG_IMAGE}
+                imageAlt="Support Visit Dzaleka and Dzaleka Online Services"
             />
 
             {/* Header */}

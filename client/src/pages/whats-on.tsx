@@ -157,6 +157,10 @@ function eventStructuredData(event: Event) {
             "name": event.organizer || "Dzaleka Online Services",
             "url": externalUrl || SITE_URL,
         },
+        "performer": {
+            "@type": "Organization",
+            "name": event.organizer || "Dzaleka Online Services"
+        },
         ...(offerUrl && {
             "offers": {
                 "@type": "Offer",
@@ -252,15 +256,19 @@ export default function WhatsOn() {
                         "position": index + 1,
                             "item": {
                                 "@type": "Event",
-                            "@id": `${eventCanonicalUrl(event)}#event`,
-                            "name": event.title,
-                            "url": eventCanonicalUrl(event),
-                            "startDate": event.date,
-                            "location": {
-                                "@type": "Place",
-                                "name": event.location
+                                "@id": `${eventCanonicalUrl(event)}#event`,
+                                "name": event.title,
+                                "url": eventCanonicalUrl(event),
+                                "startDate": event.date,
+                                "location": {
+                                    "@type": "Place",
+                                    "name": event.location
+                                },
+                                "performer": {
+                                    "@type": "Organization",
+                                    "name": event.organizer || "Dzaleka Online Services"
+                                }
                             }
-                        }
                     }))
                 }] : []),
                 // All individual events

@@ -18,6 +18,7 @@ import {
     Edit,
     GraduationCap,
     BookOpen,
+    MessageSquare,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,7 @@ import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { SEO } from "@/components/seo";
 import { formatCurrency } from "@/lib/constants";
-import type { Guide, Booking } from "@shared/schema";
+import type { Guide, Booking, TourReview } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 
 interface GuideWithBookings extends Guide {
@@ -47,6 +48,11 @@ export default function GuideProfile() {
 
     const { data: guideBookings } = useQuery<Booking[]>({
         queryKey: [`/api/guides/${guide?.id}/bookings`],
+        enabled: !!guide?.id,
+    });
+
+    const { data: guideReviews } = useQuery<TourReview[]>({
+        queryKey: [`/api/guides/${guide?.id}/reviews`],
         enabled: !!guide?.id,
     });
 
@@ -82,6 +88,15 @@ export default function GuideProfile() {
             </div>
         );
     }
+
+    const formatDate = (dateString?: string | Date | null) => {
+        if (!dateString) return "N/A";
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return "N/A";
+        return new Intl.DateTimeFormat(undefined, {
+            dateStyle: "medium",
+        }).format(date);
+    };
 
     const completionRate = guide.totalTours && guide.totalTours > 0
         ? Math.round(((guide.completedTours || 0) / guide.totalTours) * 100)
@@ -301,6 +316,95 @@ export default function GuideProfile() {
                                     <div className="text-2xl font-bold text-green-600">{completedBookings}</div>
                                 </div>
                             </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Visitor Reviews Card */}
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <div className="space-y-1">
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                    <MessageSquare className="h-5 w-5 text-amber-500" />
+                                    Visitor Feedback
+                                </CardTitle>
+                                <CardDescription>Reviews and testimonials from completed tours</CardDescription>
+                            </div>
+                            {guideReviews && guideReviews.length > 0 && (
+                                <Badge variant="secondary" className="font-variant-numeric: tabular-nums">
+                                    {guideReviews.length} {guideReviews.length === 1 ? 'Review' : 'Reviews'}
+                                </Badge>
+                            )}
+                        </CardHeader>
+                        <CardContent>
+                            {!guideReviews || guideReviews.length === 0 ? (
+                                <div className="text-center py-8 text-muted-foreground">
+                                    <MessageSquare className="mx-auto h-8 w-8 opacity-40 mb-2" />
+                                    <p className="text-sm">No verified reviews found for this guide.</p>
+                                    <p className="text-xs mt-1">Completed bookings will display visitor feedback here.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-6 mt-4">
+                                    {guideReviews.map((review, idx) => (
+                                        <div key={review.id} className="space-y-2">
+                                            {idx > 0 && <Separator className="my-4" />}
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-semibold text-sm">
+                                                            {review.tourGuideName || "Visitor"}
+                                                        </span>
+                                                        {isAdmin && (
+                                                            <Badge 
+                                                                variant={
+                                                                    review.status === "published" 
+                                                                        ? "default" 
+                                                                        : review.status === "rejected" 
+                                                                            ? "destructive" 
+                                                                            : "secondary"
+                                                                } 
+                                                                className="text-[10px] px-1.5 py-0 capitalize"
+                                                            >
+                                                                {review.status}
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <div className="flex items-center gap-0.5">
+                                                            {Array.from({ length: 5 }).map((_, i) => (
+                                                                <Star
+                                                                    key={i}
+                                                                    className={`h-3 w-3 ${
+                                                                        i < (review.rating || 0)
+                                                                            ? "fill-amber-400 text-amber-400"
+                                                                            : "text-muted-foreground/30"
+                                                                    }`}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                        <span className="text-xs text-muted-foreground ml-1">
+                                                            {formatDate(review.submittedAt)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {review.title && (
+                                                <h5 className="text-sm font-medium mt-1">{review.title}</h5>
+                                            )}
+                                            {review.comment && (
+                                                <p className="text-sm text-muted-foreground leading-relaxed italic">
+                                                    "{review.comment}"
+                                                </p>
+                                            )}
+                                            {review.responseText && (
+                                                <div className="mt-2 p-3 bg-muted/50 rounded-lg border-l-2 border-primary/30 text-xs">
+                                                    <span className="font-semibold block mb-0.5 text-foreground">Response from Dzaleka Visit:</span>
+                                                    <p className="text-muted-foreground leading-relaxed">{review.responseText}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </div>

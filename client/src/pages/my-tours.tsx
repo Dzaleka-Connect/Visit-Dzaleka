@@ -359,6 +359,101 @@ export default function MyTours() {
         );
     };
 
+    const renderReportCard = (report: GuideTourReport) => {
+        const booking = tours.find(t => t.id === report.bookingId);
+        
+        return (
+            <Card key={report.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                            <h3 className="font-semibold truncate">
+                                {booking?.visitorName || "Visitor"}
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                                {booking?.bookingReference || "Reference N/A"} · {booking ? formatDate(booking.visitDate) : (report.createdAt ? formatDate(report.createdAt) : "N/A")}
+                            </p>
+                        </div>
+                        <div className="shrink-0 flex flex-col items-end gap-1.5">
+                            {report.status === "submitted" ? (
+                                <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                                    Pending Review
+                                </Badge>
+                            ) : report.status === "reviewed" ? (
+                                <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                                    Reviewed
+                                </Badge>
+                            ) : (
+                                <Badge variant="destructive">
+                                    Action Required
+                                </Badge>
+                            )}
+                            {report.followUpNeeded && (
+                                <Badge variant="outline" className="text-xs text-amber-600 border-amber-300 dark:text-amber-400 dark:border-amber-700">
+                                    Follow-up
+                                </Badge>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="space-y-2 border-t pt-3">
+                        <div>
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Summary</span>
+                            <p className="mt-0.5 text-sm text-foreground line-clamp-3 break-words">{report.summary}</p>
+                        </div>
+
+                        {report.visitorNeeds && (
+                            <div>
+                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Visitor Needs</span>
+                                <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2 break-words">{report.visitorNeeds}</p>
+                            </div>
+                        )}
+
+                        {report.incidents && (
+                            <div className="rounded-md border border-amber-200 bg-amber-50 p-2 dark:border-amber-900/50 dark:bg-amber-950/20 text-xs">
+                                <span className="font-semibold text-amber-800 dark:text-amber-300">Incidents/Concerns:</span>
+                                <p className="mt-0.5 text-amber-900 dark:text-amber-200 break-words line-clamp-2">{report.incidents}</p>
+                            </div>
+                        )}
+
+                        {report.privateNotes && (
+                            <div className="rounded-md border p-2 bg-muted/40 text-xs">
+                                <span className="font-semibold text-muted-foreground">Private Notes (Admin only):</span>
+                                <p className="mt-0.5 text-muted-foreground break-words line-clamp-2">{report.privateNotes}</p>
+                            </div>
+                        )}
+
+                        {report.adminReviewNotes && (
+                            <div className="rounded-md border border-primary/20 bg-primary/5 p-2 text-xs">
+                                <span className="font-semibold text-primary">Admin Feedback:</span>
+                                <p className="mt-0.5 text-foreground italic break-words line-clamp-2">{report.adminReviewNotes}</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {booking && (
+                        <div className="flex items-center gap-2 pt-3 border-t">
+                            <Button size="sm" variant="outline" className="h-8 flex-1" asChild>
+                                <Link href={`/my-tours/${booking.id}`}>
+                                    Visitor details
+                                </Link>
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 flex-1"
+                                onClick={() => openReportDialog(booking)}
+                            >
+                                <FileText className="mr-1.5 h-3.5 w-3.5" />
+                                Edit report
+                            </Button>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        );
+    };
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
@@ -392,7 +487,7 @@ export default function MyTours() {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-4">
                 <Card>
                     <CardContent className="p-4 text-center">
                         <div className="text-3xl font-bold text-primary">{upcomingTours.length}</div>
@@ -411,6 +506,12 @@ export default function MyTours() {
                         <div className="text-sm text-muted-foreground">Completed</div>
                     </CardContent>
                 </Card>
+                <Card>
+                    <CardContent className="p-4 text-center">
+                        <div className="text-3xl font-bold text-blue-500">{tourReports.length}</div>
+                        <div className="text-sm text-muted-foreground">Reports Submitted</div>
+                    </CardContent>
+                </Card>
             </div>
 
             {/* Tabs */}
@@ -424,6 +525,9 @@ export default function MyTours() {
                     </TabsTrigger>
                     <TabsTrigger value="completed">
                         Completed ({completedTours.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="reports">
+                        Reports History ({tourReports.length})
                     </TabsTrigger>
                 </TabsList>
 
@@ -468,6 +572,21 @@ export default function MyTours() {
                     ) : (
                         <div className="grid gap-4 md:grid-cols-2">
                             {completedTours.map(renderTourCard)}
+                        </div>
+                    )}
+                </TabsContent>
+
+                <TabsContent value="reports" className="mt-4">
+                    {tourReports.length === 0 ? (
+                        <EmptyState
+                            icon={FileText}
+                            title="No reports submitted"
+                            description="You haven't submitted any post-tour reports yet."
+                            className="py-12"
+                        />
+                    ) : (
+                        <div className="grid gap-4 md:grid-cols-2">
+                            {tourReports.map(renderReportCard)}
                         </div>
                     )}
                 </TabsContent>

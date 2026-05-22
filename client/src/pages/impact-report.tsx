@@ -70,6 +70,8 @@ const impactCategories = [
     { name: "Grants", count: 0, color: "bg-orange-500" },
 ];
 
+const IMPACT_OG_IMAGE = "https://services.dzaleka.com/images/Visit_Dzaleka.png";
+
 export default function ImpactReport() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -80,6 +82,8 @@ export default function ImpactReport() {
                 description="See the impact of Visit Dzaleka – tours completed, guides supported, and community growth through refugee-led tourism."
                 keywords="Visit Dzaleka impact, refugee tourism impact, community tourism results, Dzaleka KPIs"
                 canonical="https://visit.dzaleka.com/impact-report"
+                ogImage={IMPACT_OG_IMAGE}
+                imageAlt="Visit Dzaleka impact reports and community tourism results"
             />
 
             {/* Header */}

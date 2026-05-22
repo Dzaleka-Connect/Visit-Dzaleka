@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/accordion";
 import { Menu, X, HelpCircle } from "lucide-react";
 
+const FAQ_OG_IMAGE = "https://services.dzaleka.com/images/Visit_Dzaleka.png";
+
 // FAQ Data
 const faqCategories = [
     {
@@ -164,6 +166,8 @@ export default function FAQPage() {
                 description="Find answers about Visit Dzaleka tours, booking confirmation, transport requests, payment options, visitor accounts, meeting points, and what to expect."
                 keywords="Dzaleka FAQ, Visit Dzaleka booking, Dzaleka transport, Dzaleka tour prices, visiting Dzaleka zones, Dzaleka tour timings"
                 canonical="https://visit.dzaleka.com/faq"
+                ogImage={FAQ_OG_IMAGE}
+                imageAlt="Visit Dzaleka frequently asked questions"
             />
 
             {/* FAQPage Structured Data for Google Rich Results */}

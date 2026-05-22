@@ -4,9 +4,12 @@ import { fileURLToPath } from "url";
 import fs from "fs/promises";
 import { createApp } from "../server/app";
 import { serveStatic } from "../server/static";
+import { friends } from "../client/src/data/friends";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+const FRIEND_ROUTES = friends.map((friend) => `/friends-of-dzaleka/${encodeURIComponent(friend.slug)}`);
 
 // Static routes to prerender
 const STATIC_ROUTES = [
@@ -24,7 +27,10 @@ const STATIC_ROUTES = [
     "/whats-on",
     "/plan-your-trip",
     "/partner-with-us",
+    "/community-hub",
+    "/community-hub/guide",
     "/friends-of-dzaleka",
+    ...FRIEND_ROUTES,
     "/support-our-work",
     "/contact",
     "/faq",
@@ -32,6 +38,7 @@ const STATIC_ROUTES = [
     "/destinations",
     "/plan-your-trip/visitor-essentials",
     "/impact-report",
+    "/impact-report/2025",
     "/cookie-notice",
     "/disclaimer",
 ];
@@ -40,15 +47,22 @@ function sitemapEntry(route: string) {
     const url = route === "/" ? "https://visit.dzaleka.com/" : `https://visit.dzaleka.com${route}`;
     const today = new Date().toISOString().slice(0, 10);
     const isDynamic = route.startsWith("/blog/") || route.startsWith("/whats-on/");
+    const priority = route === "/"
+        ? "1.0"
+        : route === "/blog" || route === "/whats-on" || route === "/things-to-do"
+            ? "0.8"
+            : route.startsWith("/blog/") || route.startsWith("/whats-on/") || route.startsWith("/friends-of-dzaleka/")
+                ? "0.7"
+                : "0.6";
     return `  <url>
     <loc>${url}</loc>
     <lastmod>${today}</lastmod>
     <changefreq>${isDynamic ? "weekly" : "monthly"}</changefreq>
-    <priority>${route.startsWith("/whats-on/") ? "0.7" : "0.6"}</priority>
+    <priority>${priority}</priority>
   </url>`;
 }
 
-async function appendDynamicRoutesToSitemap(publicDir: string, routes: string[]) {
+async function appendRoutesToSitemap(publicDir: string, routes: string[]) {
     if (routes.length === 0) return;
 
     const sitemapPath = join(publicDir, "sitemap.xml");
@@ -70,9 +84,9 @@ async function appendDynamicRoutesToSitemap(publicDir: string, routes: string[])
             sitemapPath,
             current.replace("</urlset>", `${entries.join("\n")}\n</urlset>`)
         );
-        console.log(`Added ${entries.length} dynamic route(s) to sitemap.xml`);
+        console.log(`Added ${entries.length} route(s) to sitemap.xml`);
     } catch (error) {
-        console.warn("Could not update sitemap with dynamic routes:", error);
+        console.warn("Could not update sitemap with pre-rendered routes:", error);
     }
 }
 
@@ -144,11 +158,16 @@ async function prerender() {
 
             console.log(`Crawling ${route}...`);
             await page.goto(`${baseUrl}${route}`, {
-                waitUntil: "networkidle0",
-                timeout: 45000,
+                waitUntil: "domcontentloaded",
+                timeout: 30000,
             });
 
-            await page.waitForSelector("#root", { timeout: 10000 });
+            await page.waitForFunction(() => {
+                const root = document.querySelector("#root");
+                return document.readyState !== "loading" && !!root;
+            }, { timeout: 10000 }).catch(() => {
+                console.log(`  Note: App root was not confirmed for ${route}`);
+            });
 
             // Wait for react-helmet to update the head tags
             // This ensures SEO meta tags are properly captured
@@ -159,7 +178,7 @@ async function prerender() {
                 return (title && !title.textContent?.includes('Visit Dzaleka - Cultural Tours & Experiences') && !!ogUrl) ||
                     // Or if it's the landing page, the default is fine
                     window.location.pathname === '/' || window.location.pathname === '/landing';
-            }, { timeout: 5000 }).catch(() => {
+            }, { timeout: 10000 }).catch(() => {
                 console.log(`  Note: Using default SEO for ${route}`);
             });
 
@@ -200,7 +219,7 @@ async function prerender() {
         process.exit(1);
     }
 
-    await appendDynamicRoutesToSitemap(publicDir, dynamicRoutes);
+    await appendRoutesToSitemap(publicDir, allRoutes);
 
     console.log("Pre-rendering complete.");
     process.exit(0);

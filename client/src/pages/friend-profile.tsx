@@ -5,8 +5,9 @@ import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { friends } from "@/data/friends";
-import { ArrowLeft, MapPin, Share2, Quote, Instagram, Twitter, Facebook, Youtube, Menu, X } from "lucide-react";
+import { ArrowLeft, MapPin, Share2, Quote, Globe, Instagram, Twitter, Facebook, Youtube, Linkedin, Menu, X } from "lucide-react";
 import NotFound from "@/pages/not-found";
 
 export default function FriendProfile() {
@@ -21,6 +22,10 @@ export default function FriendProfile() {
     }
 
     const initials = friend.name.split(' ').map(n => n[0]).join('');
+    const imageUrl = friend.image
+        ? (friend.image.startsWith('http') ? friend.image : `https://visit.dzaleka.com${friend.image}`)
+        : undefined;
+    const profileDescription = `${friend.shortBio} Learn about ${friend.name}'s connection to Dzaleka and contribution to community-led storytelling.`;
 
     const schemaData = {
         "@context": "https://schema.org",
@@ -28,7 +33,7 @@ export default function FriendProfile() {
         "name": friend.name,
         "jobTitle": friend.role,
         "description": friend.shortBio,
-        "image": friend.image || undefined,
+        "image": imageUrl,
         "url": `https://visit.dzaleka.com/friends-of-dzaleka/${friend.slug}`,
         "affiliation": {
             "@type": "Organization",
@@ -45,21 +50,17 @@ export default function FriendProfile() {
         ].filter(Boolean)
     };
 
-    const imageUrl = friend.image
-        ? (friend.image.startsWith('http') ? friend.image : `https://visit.dzaleka.com${friend.image}`)
-        : undefined;
-
     return (
         <div className="min-h-screen bg-background flex flex-col font-sans">
             <SEO
                 title={`${friend.name} - Friend of Dzaleka`}
-                description={`Meet ${friend.name}, a ${friend.role} and Friend of Dzaleka.`}
+                description={profileDescription}
                 canonical={`https://visit.dzaleka.com/friends-of-dzaleka/${friend.slug}`}
                 ogImage={imageUrl}
-            />
-            <script
-                type="application/ld+json"
-                dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaData) }}
+                imageAlt={`${friend.name}, ${friend.role}`}
+                type="profile"
+                keywords={`${friend.name}, Friends of Dzaleka, Dzaleka community storytelling, refugee advocacy, Visit Dzaleka`}
+                structuredData={schemaData}
             />
 
             {/* Header */}
@@ -117,10 +118,11 @@ export default function FriendProfile() {
 
             <main className="flex-1">
                 {/* Hero / Header */}
-                <section className="bg-muted/30 pt-10 pb-12">
-                    <div className="container mx-auto px-4">
+                <section className="relative bg-muted/20 pt-10 pb-12 border-b border-muted/40 overflow-hidden">
+                    <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl -z-10" />
+                    <div className="container mx-auto px-4 relative z-10">
                         <Link href="/friends-of-dzaleka">
-                            <Button variant="ghost" size="sm" className="mb-6 pl-0 hover:bg-transparent hover:text-primary">
+                            <Button variant="ghost" size="sm" className="mb-6 pl-0 hover:bg-transparent hover:text-primary transition-colors">
                                 <ArrowLeft className="h-4 w-4 mr-2" />
                                 Back to Friends of Dzaleka
                             </Button>
@@ -128,8 +130,8 @@ export default function FriendProfile() {
 
                         <div className="max-w-5xl mx-auto grid md:grid-cols-[300px_1fr] gap-8 items-start">
                             {/* Image Column */}
-                            <div className="aspect-[4/5] bg-background rounded-xl overflow-hidden shadow-lg relative">
-                                <div className="absolute inset-0 flex items-center justify-center bg-primary/10 text-primary text-8xl font-bold">
+                            <div className="aspect-[4/5] bg-background rounded-2xl overflow-hidden border border-muted/60 shadow-xl relative">
+                                <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-primary/5 to-background flex items-center justify-center text-primary text-8xl font-bold tracking-tight">
                                     {initials}
                                 </div>
                                 {friend.image && (
@@ -143,41 +145,51 @@ export default function FriendProfile() {
 
                             {/* Header Info */}
                             <div className="space-y-6 pt-4">
-                                <div>
-                                    <Badge variant="outline" className="mb-3 border-primary/20 bg-primary/5 text-primary">
+                                <div className="space-y-2">
+                                    <Badge variant="outline" className="px-3 py-1 border-primary/20 bg-primary/5 text-primary text-[11px] font-semibold tracking-wider rounded-full uppercase">
                                         Friend of Dzaleka
                                     </Badge>
-                                    <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-2 text-foreground">
+                                    <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-foreground">
                                         {friend.name}
                                     </h1>
-                                    <p className="text-xl text-muted-foreground font-medium">
+                                    <p className="text-xl text-primary font-semibold">
                                         {friend.role}
                                     </p>
                                 </div>
 
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                    <MapPin className="h-4 w-4" />
+                                <div className="flex items-center gap-2 text-muted-foreground text-sm font-medium">
+                                    <MapPin className="h-4 w-4 text-primary" />
                                     <span>Based in {friend.location}</span>
                                 </div>
 
-                                <div className="flex gap-3 pt-2">
+                                <div className="flex flex-wrap gap-3 pt-2">
+                                    {friend.social.website && (
+                                        <a href={friend.social.website} target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-full bg-background border border-muted/80 hover:border-primary/50 hover:text-primary transition-colors" aria-label="Website">
+                                            <Globe className="h-5 w-5" />
+                                        </a>
+                                    )}
                                     {friend.social.instagram && (
-                                        <a href={friend.social.instagram} target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-full bg-background border hover:border-primary/50 hover:text-primary transition-all">
+                                        <a href={friend.social.instagram} target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-full bg-background border border-muted/80 hover:border-primary/50 hover:text-primary transition-colors" aria-label="Instagram">
                                             <Instagram className="h-5 w-5" />
                                         </a>
                                     )}
                                     {friend.social.twitter && (
-                                        <a href={friend.social.twitter} target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-full bg-background border hover:border-primary/50 hover:text-primary transition-all">
+                                        <a href={friend.social.twitter} target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-full bg-background border border-muted/80 hover:border-primary/50 hover:text-primary transition-colors" aria-label="Twitter">
                                             <Twitter className="h-5 w-5" />
                                         </a>
                                     )}
                                     {friend.social.facebook && (
-                                        <a href={friend.social.facebook} target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-full bg-background border hover:border-primary/50 hover:text-primary transition-all">
+                                        <a href={friend.social.facebook} target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-full bg-background border border-muted/80 hover:border-primary/50 hover:text-primary transition-colors" aria-label="Facebook">
                                             <Facebook className="h-5 w-5" />
                                         </a>
                                     )}
+                                    {friend.social.linkedin && (
+                                        <a href={friend.social.linkedin} target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-full bg-background border border-muted/80 hover:border-primary/50 hover:text-primary transition-colors" aria-label="LinkedIn">
+                                            <Linkedin className="h-5 w-5" />
+                                        </a>
+                                    )}
                                     {friend.social.youtube && (
-                                        <a href={friend.social.youtube} target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-full bg-background border hover:border-primary/50 hover:text-primary transition-all">
+                                        <a href={friend.social.youtube} target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-full bg-background border border-muted/80 hover:border-primary/50 hover:text-primary transition-colors" aria-label="YouTube">
                                             <Youtube className="h-5 w-5" />
                                         </a>
                                     )}
@@ -221,23 +233,27 @@ export default function FriendProfile() {
                                 </div>
 
                                 {/* Connection & Contribution */}
-                                <div className="grid sm:grid-cols-2 gap-8">
-                                    <div className="bg-muted/30 p-6 rounded-xl border border-muted/60">
-                                        <h3 className="font-semibold text-sm uppercase tracking-wide text-primary mb-4 flex items-center gap-2">
-                                            <Share2 className="h-4 w-4" /> Connection to Dzaleka
-                                        </h3>
-                                        <p className="text-muted-foreground leading-relaxed">
-                                            {friend.connection}
-                                        </p>
-                                    </div>
-                                    <div className="bg-muted/30 p-6 rounded-xl border border-muted/60">
-                                        <h3 className="font-semibold text-sm uppercase tracking-wide text-primary mb-4 flex items-center gap-2">
-                                            <Quote className="h-4 w-4" /> Contribution
-                                        </h3>
-                                        <p className="text-muted-foreground leading-relaxed">
-                                            {friend.contribution}
-                                        </p>
-                                    </div>
+                                <div className="grid sm:grid-cols-2 gap-6">
+                                    <Card className="border border-muted/60 bg-muted/10 shadow-sm relative overflow-hidden">
+                                        <CardContent className="p-6 space-y-4">
+                                            <h3 className="font-bold text-sm uppercase tracking-wider text-primary flex items-center gap-2">
+                                                <Share2 className="h-4.5 w-4.5" /> Connection to Dzaleka
+                                            </h3>
+                                            <p className="text-sm text-muted-foreground leading-relaxed">
+                                                {friend.connection}
+                                            </p>
+                                        </CardContent>
+                                    </Card>
+                                    <Card className="border border-muted/60 bg-muted/10 shadow-sm relative overflow-hidden">
+                                        <CardContent className="p-6 space-y-4">
+                                            <h3 className="font-bold text-sm uppercase tracking-wider text-primary flex items-center gap-2">
+                                                <Quote className="h-4.5 w-4.5" /> Contribution
+                                            </h3>
+                                            <p className="text-sm text-muted-foreground leading-relaxed">
+                                                {friend.contribution}
+                                            </p>
+                                        </CardContent>
+                                    </Card>
                                 </div>
                             </div>
                         </div>

@@ -7,6 +7,8 @@ import { ArrowLeft, MapPin, Mountain, Home, Building2, Users, Tent, ArrowRight, 
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 
+const DESTINATIONS_OG_IMAGE = "https://services.dzaleka.com/images/20241023_205851_3.jpg";
+
 const destinations = [
     {
         name: "Kawale 1",
@@ -129,6 +131,8 @@ export default function Destinations() {
                 description="Discover the different zones and neighborhoods of Dzaleka Refugee Camp. From the bustling Kawale area to the scenic Dzaleka Hill viewpoint."
                 canonical="https://visit.dzaleka.com/destinations"
                 keywords="Dzaleka zones, Kawale, Katudza, Dzaleka Hill, refugee camp areas, Dzaleka neighborhoods"
+                ogImage={DESTINATIONS_OG_IMAGE}
+                imageAlt="Dzaleka Refugee Camp destinations and community zones"
             />
 
             <script

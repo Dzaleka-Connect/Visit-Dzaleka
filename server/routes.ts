@@ -33,6 +33,8 @@ import {
   type TransportRequestStatus,
   type PartnerReferralStatus,
   type PartnerTourReferral,
+  insertCommunityListingSchema,
+  insertCommunityExperienceRequestSchema,
 } from "@shared/schema";
 import { generateIcalFeed, parseIcalFeed } from "./lib/ical";
 import { z } from "zod";
@@ -122,6 +124,47 @@ async function getAssignedGuide(booking: Pick<Booking, "assignedGuideId">) {
   if (directGuide) return directGuide;
   return storage.getGuideByUserId(booking.assignedGuideId);
 }
+
+const recalculateGuideRating = async (guideId: string, requestId?: string) => {
+  try {
+    const [reviews, bookings] = await Promise.all([
+      storage.getTourReviews(),
+      storage.getBookings()
+    ]);
+    
+    // Filter reviews for this guide that are published
+    const guideReviews = reviews.filter(r => r.guideId === guideId && r.status === "published" && r.rating !== null && r.rating !== undefined);
+    
+    // Find booking IDs that have reviews
+    const reviewedBookingIds = new Set(reviews.map(r => r.bookingId));
+    
+    // Filter bookings for this guide that have a rating but no review
+    const directBookings = bookings.filter(b => 
+      b.assignedGuideId === guideId && 
+      b.visitorRating !== null && 
+      b.visitorRating !== undefined && 
+      !reviewedBookingIds.has(b.id)
+    );
+    
+    const allRatings: number[] = [
+      ...guideReviews.map(r => r.rating!),
+      ...directBookings.map(b => b.visitorRating!)
+    ];
+    
+    const totalRatings = allRatings.length;
+    const rating = totalRatings > 0 
+      ? Math.round(allRatings.reduce((sum, r) => sum + r, 0) / totalRatings)
+      : 0;
+      
+    await storage.updateGuide(guideId, {
+      rating,
+      totalRatings
+    });
+  } catch (error) {
+    logError(`Error recalculating rating for guide ${guideId}`, error, requestId);
+  }
+};
+
 
 const PUBLIC_APP_URL = (process.env.APP_URL || "https://visit.dzaleka.com").replace(/\/$/, "");
 
@@ -1256,6 +1299,10 @@ const bookingMessageContactSchema = z.object({
   target: z.enum(["admin", "guide"]),
 });
 
+const communityHighlightsSchema = z.object({
+  selectedCommunityListings: z.array(z.string().trim().min(1)).max(50).default([]),
+});
+
 const VALID_USER_ROLES: UserRole[] = ["admin", "coordinator", "guide", "security", "visitor", "transport_partner"];
 const OPERATIONS_WORKFLOW_KEYS = [
   "payments",
@@ -1633,9 +1680,10 @@ function buildSafeBookingForRole(booking: Booking, role?: UserRole | null) {
     cancellationReason: booking.cancellationReason,
     cancellationNote: booking.cancellationNote,
     cancelledAt: booking.cancelledAt,
-    selectedZones: booking.selectedZones,
-    selectedInterests: booking.selectedInterests,
-    specialRequests: booking.specialRequests,
+	    selectedZones: booking.selectedZones,
+	    selectedInterests: booking.selectedInterests,
+	    selectedCommunityListings: booking.selectedCommunityListings,
+	    specialRequests: booking.specialRequests,
     accessibilityNeeds: booking.accessibilityNeeds,
     referralSource: booking.referralSource,
     assignedGuideId: booking.assignedGuideId,
@@ -5465,19 +5513,81 @@ export async function registerRoutes(
           : buildVisitorTransportRequestSummary(transportRequest, transportPartner)
         : null;
 
-      res.json({
-        ...bookingForResponse,
-        guide: isAdminOrCoord ? guide : buildAssignedGuideSummary(guide),
-        meetingPoint,
-        transportRequest: transportRequestPayload,
-      });
-    } catch (error) {
-      logError("Error fetching booking details", error, req.requestId);
-      res.status(500).json({ message: "Failed to fetch booking details" });
-    }
-  });
+	      res.json({
+	        ...bookingForResponse,
+	        guide: isAdminOrCoord ? guide : buildAssignedGuideSummary(guide),
+	        meetingPoint,
+	        transportRequest: transportRequestPayload,
+	      });
+	    } catch (error) {
+	      logError("Error fetching booking details", error, req.requestId);
+	      res.status(500).json({ message: "Failed to fetch booking details" });
+	    }
+	  });
 
-  app.post("/api/bookings", async (req, res) => {
+	  app.patch("/api/bookings/:id/community-highlights", isAuthenticated, async (req: any, res) => {
+	    try {
+	      const { id } = req.params;
+	      const payload = communityHighlightsSchema.parse(req.body);
+	      const booking = await storage.getBooking(id);
+	      const user = await storage.getUser(req.session.userId!);
+
+	      if (!booking) {
+	        return res.status(404).json({ message: "Booking not found" });
+	      }
+	      if (!user) {
+	        return res.status(401).json({ message: "Unauthorized" });
+	      }
+
+	      const isOwner = user.role === "visitor" && (booking.visitorUserId === user.id || booking.visitorEmail === user.email);
+	      const canManage = user.role === "admin" || user.role === "coordinator";
+	      if (!isOwner && !canManage) {
+	        return res.status(403).json({ message: "Only the booking visitor or staff can update community highlights" });
+	      }
+
+	      const selectedCommunityListings = Array.from(new Set(payload.selectedCommunityListings));
+	      if (selectedCommunityListings.length > 0) {
+	        const approvedListings = await storage.getCommunityListings({ status: "approved" });
+	        const approvedIds = new Set(approvedListings.map((listing) => listing.id));
+	        const invalidIds = selectedCommunityListings.filter((listingId) => !approvedIds.has(listingId));
+	        if (invalidIds.length > 0) {
+	          return res.status(400).json({ message: "One or more community listings are not available" });
+	        }
+	      }
+
+	      const updated = await storage.updateBooking(id, { selectedCommunityListings });
+	      if (!updated) {
+	        return res.status(500).json({ message: "Failed to update community highlights" });
+	      }
+
+	      await storage.createBookingActivityLog({
+	        bookingId: id,
+	        userId: user.id,
+	        action: "community_highlights_updated",
+	        description: `${user.role === "visitor" ? "Visitor" : "Staff"} updated Community Hub highlights.`,
+	      });
+
+	      await createAuditLog(
+	        user.id,
+	        "update",
+	        "booking",
+	        id,
+	        { selectedCommunityListings: booking.selectedCommunityListings || [] },
+	        { selectedCommunityListings },
+	        req
+	      );
+
+	      res.json(updated);
+	    } catch (error) {
+	      if (error instanceof z.ZodError) {
+	        return res.status(400).json({ message: "Invalid community highlights", errors: error.errors });
+	      }
+	      logError("Error updating community highlights", error, req.requestId);
+	      res.status(500).json({ message: "Failed to update community highlights" });
+	    }
+	  });
+
+	  app.post("/api/bookings", async (req, res) => {
     try {
       const transportPayload = transportRequestPayloadSchema.parse(req.body);
       const bookingData = insertBookingSchema.parse(req.body);
@@ -7971,22 +8081,14 @@ export async function registerRoutes(
         return res.status(400).json({ message: "You have already rated this tour" });
       }
 
+      // Save rating on booking
+      await storage.updateBookingRating(id, rating);
+
       // Update guide rating
       const guide = buildGuideLookup(await storage.getGuides()).get(booking.assignedGuideId);
       if (guide) {
-        // Calculate new average rating
-        const currentTotal = (guide.rating || 0) * (guide.totalRatings || 0);
-        const newTotalRatings = (guide.totalRatings || 0) + 1;
-        const newRating = Math.round((currentTotal + rating) / newTotalRatings);
-
-        await storage.updateGuide(guide.id, {
-          rating: newRating,
-          totalRatings: newTotalRatings
-        });
+        await recalculateGuideRating(guide.id, req.requestId);
       }
-
-      // Save rating on booking
-      await storage.updateBookingRating(id, rating);
 
       // Create audit log
       await createAuditLog(userId, "create", "guide_rating", guide?.id || booking.assignedGuideId,
@@ -9106,6 +9208,40 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error fetching guide bookings", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch guide bookings" });
+    }
+  });
+
+  // Get reviews for a specific guide
+  app.get("/api/guides/:id/reviews", isAuthenticated, requireRole("admin", "coordinator", "guide", "security"), async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const reviews = await storage.getTourReviews();
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const user = await storage.getUser(userId);
+      
+      const isStaff = user?.role === "admin" || user?.role === "coordinator";
+      let isOwnProfile = false;
+      if (user?.role === "guide") {
+        const guide = await storage.getGuideByUserId(user.id);
+        if (guide && guide.id === id) {
+          isOwnProfile = true;
+        }
+      }
+      
+      let guideReviews = reviews.filter(r => r.guideId === id);
+      
+      // If not staff and not their own profile, only show published reviews
+      if (!isStaff && !isOwnProfile) {
+        guideReviews = guideReviews.filter(r => r.status === "published");
+      }
+      
+      res.json(guideReviews);
+    } catch (error) {
+      logError("Error fetching guide reviews", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch guide reviews" });
     }
   });
 
@@ -10935,6 +11071,370 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error fetching public special offers", error);
       res.status(500).json({ message: "Failed to fetch special offers" });
+    }
+  });
+
+  // Google Things to Do JSON Feed
+  app.get("/api/public/feeds/things-to-do", async (_req, res) => {
+    try {
+      const configs = await storage.getPricingConfigs();
+      const pricing = {
+        individual: configs.find(c => c.groupSize === "individual")?.basePrice || 15000,
+        small_group: configs.find(c => c.groupSize === "small_group")?.basePrice || 50000,
+        large_group: configs.find(c => c.groupSize === "large_group")?.basePrice || 80000,
+        custom: configs.find(c => c.groupSize === "custom")?.basePrice || 100000,
+      };
+
+      const feed = {
+        feed_metadata: {
+          shard_id: 0,
+          total_shards_count: 1,
+          processing_instruction: "PROCESS_AS_SNAPSHOT",
+          nonce: Date.now()
+        },
+        products: [
+          {
+            id: "dzaleka-guided-walking-tour",
+            title: {
+              localized_texts: [
+                { language_code: "en", text: "Dzaleka Refugee Camp Guided Walking Tour" }
+              ]
+            },
+            description: {
+              localized_texts: [
+                { 
+                  language_code: "en", 
+                  text: "A resident-led cultural walking tour through Kawale, Katudza, Dzaleka Hill, community markets, and local organizations or project spaces when active. Book with transparent group tier pricing." 
+                }
+              ]
+            },
+            brand_name: {
+              localized_texts: [
+                { language_code: "en", text: "Visit Dzaleka" }
+              ]
+            },
+            images: [
+              {
+                url: "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhQC52NEfamRlqaUT7uLWcP8ZKNUDp3_opelPFqoO6E5hyphenhyphen09lp-zxRXXig5aEnaH3PbRsia1ciM8y-vOdzDe9RMvbQApON7rdM0SrBmtVVWAPIzmiId-jvcwSa46-Y-qRApCBTmozhIbWhNZWxcLFY3bp6Q4uNk_LFB5MpYFlXywwX7vYlUQeRoirJWm50/s16000-rw/533061219_1079243081018233_5344782622295089839_n.jpg"
+              }
+            ],
+            category: "TOURS_AND_SIGHTSEEING",
+            related_locations: [
+              {
+                location: {
+                  address: {
+                    localized_address: {
+                      language_code: "en",
+                      text: "UNHCR/Plan International Compound, Dzaleka Refugee Camp, Dowa, Malawi"
+                    }
+                  },
+                  coordinates: {
+                    latitude: -13.6896,
+                    longitude: 33.9376
+                  }
+                },
+                relation_type: "DEPARTURE_POINT"
+              }
+            ],
+            options: [
+              {
+                id: "option-individual",
+                title: "Individual Tour (1 person)",
+                landing_page: {
+                  url: "https://visit.dzaleka.com/things-to-do/dzaleka-refugee-camp-guided-walking-tour"
+                },
+                price_options: [
+                  {
+                    id: "price-individual-adult",
+                    title: "Individual",
+                    price: {
+                      currency_code: "MWK",
+                      units: pricing.individual
+                    }
+                  }
+                ]
+              },
+              {
+                id: "option-small-group",
+                title: "Small Group Tour (2-5 people)",
+                landing_page: {
+                  url: "https://visit.dzaleka.com/things-to-do/dzaleka-refugee-camp-guided-walking-tour"
+                },
+                price_options: [
+                  {
+                    id: "price-small-group-adult",
+                    title: "Small Group",
+                    price: {
+                      currency_code: "MWK",
+                      units: pricing.small_group
+                    }
+                  }
+                ]
+              },
+              {
+                id: "option-medium-group",
+                title: "Medium Group Tour (6-10 people)",
+                landing_page: {
+                  url: "https://visit.dzaleka.com/things-to-do/dzaleka-refugee-camp-guided-walking-tour"
+                },
+                price_options: [
+                  {
+                    id: "price-medium-group-adult",
+                    title: "Medium Group",
+                    price: {
+                      currency_code: "MWK",
+                      units: pricing.large_group
+                    }
+                  }
+                ]
+              },
+              {
+                id: "option-large-group",
+                title: "Large Group Tour (10+ people or organizations)",
+                landing_page: {
+                  url: "https://visit.dzaleka.com/things-to-do/dzaleka-refugee-camp-guided-walking-tour"
+                },
+                price_options: [
+                  {
+                    id: "price-large-group-adult",
+                    title: "Large Group",
+                    price: {
+                      currency_code: "MWK",
+                      units: pricing.custom
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      };
+
+      res.setHeader("Content-Type", "application/json");
+      res.json(feed);
+    } catch (error) {
+      logError("Error generating Google Things to Do feed", error);
+      res.status(500).json({ message: "Failed to generate feed" });
+    }
+  });
+
+  // Public Community Listings
+  app.get("/api/public/community-listings", async (req, res) => {
+    try {
+      const type = req.query.type as string | undefined;
+      const listings = await storage.getCommunityListings({ 
+        status: "approved", 
+        type 
+      });
+      res.json(listings);
+    } catch (error) {
+      logError("Error fetching public community listings", error);
+      res.status(500).json({ message: "Failed to fetch community listings" });
+    }
+  });
+
+  app.post("/api/public/community-listings", async (req: any, res) => {
+    try {
+      const parsed = insertCommunityListingSchema.parse(req.body);
+      // Force status to pending for moderation
+      const listing = await storage.createCommunityListing({
+        ...parsed,
+        status: "pending",
+        submittedBy: req.user?.id || req.session?.userId || null,
+      });
+      res.status(201).json(listing);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid listing submission", errors: error.errors });
+      }
+      logError("Error creating community listing", error);
+      res.status(500).json({ message: "Failed to submit community listing" });
+    }
+  });
+
+  const communityExperienceRequestUpdateSchema = z.object({
+    status: z.enum(["submitted", "contacted", "confirmed", "declined", "cancelled"]).optional(),
+    adminNotes: z.string().nullable().optional(),
+  });
+
+  async function enrichCommunityExperienceRequest(request: any) {
+    const listing = await storage.getCommunityListing(request.listingId);
+    return { ...request, listing: listing || null };
+  }
+
+  app.post("/api/public/community-experience-requests", async (req, res) => {
+    try {
+      const parsed = insertCommunityExperienceRequestSchema.parse(req.body);
+      const listing = await storage.getCommunityListing(parsed.listingId);
+      if (!listing || listing.status !== "approved" || !listing.offersExperience) {
+        return res.status(404).json({ message: "Experience is not available for requests" });
+      }
+
+      const request = await storage.createCommunityExperienceRequest(parsed);
+      const detailUrl = `${PUBLIC_APP_URL}/community-hub`;
+
+      await sendCustomEmailDetailed({
+        recipientName: parsed.visitorName,
+        recipientEmail: parsed.visitorEmail,
+        subject: `Community experience request received - ${listing.name}`,
+        message: [
+          `Hello ${parsed.visitorName},`,
+          "",
+          `We received your request for ${listing.name}.`,
+          `Preferred date: ${parsed.preferredDate}`,
+          parsed.preferredTime ? `Preferred time: ${parsed.preferredTime}` : "",
+          `Group size: ${parsed.groupSize}`,
+          "",
+          "The Visit Dzaleka team will check host availability and follow up with next steps.",
+          "",
+          `Community Hub: ${detailUrl}`,
+        ].filter(Boolean).join("\n"),
+        senderName: "Visit Dzaleka Team",
+      }).catch((error) => logError("Failed to send community experience visitor email", error, req.requestId));
+
+      const recipients = await getInternalEmailRecipients(["admin", "coordinator"]);
+      await Promise.all(recipients.map((recipient) => sendCustomEmailDetailed({
+        recipientName: getDisplayName(recipient),
+        recipientEmail: recipient.email!,
+        subject: `New community experience request - ${listing.name}`,
+        message: [
+          `A visitor requested a community impact experience.`,
+          "",
+          `Experience: ${listing.name}`,
+          `Visitor: ${parsed.visitorName}`,
+          `Email: ${parsed.visitorEmail}`,
+          parsed.visitorPhone ? `Phone: ${parsed.visitorPhone}` : "",
+          `Preferred date: ${parsed.preferredDate}`,
+          parsed.preferredTime ? `Preferred time: ${parsed.preferredTime}` : "",
+          `Group size: ${parsed.groupSize}`,
+          parsed.message ? `Message: ${parsed.message}` : "",
+          "",
+          `Manage requests: ${PUBLIC_APP_URL}/admin/community-listings`,
+        ].filter(Boolean).join("\n"),
+        senderName: "Visit Dzaleka System",
+      }).catch((error) => logError("Failed to send community experience admin email", error, req.requestId))));
+
+      res.status(201).json(await enrichCommunityExperienceRequest(request));
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid experience request", errors: error.errors });
+      }
+      logError("Error creating community experience request", error, req.requestId);
+      res.status(500).json({ message: "Failed to submit experience request" });
+    }
+  });
+
+  // Admin/Coordinator Moderation Routes
+  app.get("/api/admin/community-listings", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const type = req.query.type as string | undefined;
+      const status = req.query.status as string | undefined;
+      const listings = await storage.getCommunityListings({ type, status });
+      res.json(listings);
+    } catch (error) {
+      logError("Error fetching admin community listings", error);
+      res.status(500).json({ message: "Failed to fetch community listings for moderation" });
+    }
+  });
+
+  app.post("/api/admin/community-listings", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
+    try {
+      const parsed = insertCommunityListingSchema.parse(req.body);
+      const status = parsed.status || "approved";
+      if (!["pending", "approved", "rejected"].includes(status)) {
+        return res.status(400).json({ message: "Invalid listing status" });
+      }
+
+      const listing = await storage.createCommunityListing({
+        ...parsed,
+        status,
+        submittedBy: parsed.submittedBy || req.session?.userId || null,
+      });
+
+      if (req.session?.userId) {
+        await createAuditLog(req.session.userId, "create", "community_listing", listing.id, null, listing, req);
+      }
+
+      res.status(201).json(listing);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid listing", errors: error.errors });
+      }
+      logError("Error creating admin community listing", error, req.requestId);
+      res.status(500).json({ message: "Failed to create community listing" });
+    }
+  });
+
+  app.get("/api/admin/community-experience-requests", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const status = req.query.status as string | undefined;
+      const listingId = req.query.listingId as string | undefined;
+      const requests = await storage.getCommunityExperienceRequests({ status, listingId });
+      res.json(await Promise.all(requests.map(enrichCommunityExperienceRequest)));
+    } catch (error) {
+      logError("Error fetching community experience requests", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch community experience requests" });
+    }
+  });
+
+  app.patch("/api/admin/community-experience-requests/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const payload = communityExperienceRequestUpdateSchema.parse(req.body);
+      const current = await storage.getCommunityExperienceRequest(req.params.id);
+      if (!current) {
+        return res.status(404).json({ message: "Experience request not found" });
+      }
+
+      const updated = await storage.updateCommunityExperienceRequest(req.params.id, payload);
+      if (!updated) {
+        return res.status(404).json({ message: "Experience request not found" });
+      }
+
+      if (req.session?.userId) {
+        await createAuditLog(req.session.userId, "update", "community_experience_request", updated.id, current, payload, req);
+      }
+
+      res.json(await enrichCommunityExperienceRequest(updated));
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid experience request update", errors: error.errors });
+      }
+      logError("Error updating community experience request", error, req.requestId);
+      res.status(500).json({ message: "Failed to update community experience request" });
+    }
+  });
+
+  app.patch("/api/admin/community-listings/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const existing = await storage.getCommunityListing(id);
+      if (!existing) {
+        return res.status(404).json({ message: "Listing not found" });
+      }
+
+      // Allow updating status, moderation notes, and basic details during review
+      const updateData = req.body;
+      const updated = await storage.updateCommunityListing(id, updateData);
+      res.json(updated);
+    } catch (error) {
+      logError("Error updating community listing", error);
+      res.status(500).json({ message: "Failed to update community listing" });
+    }
+  });
+
+  app.delete("/api/admin/community-listings/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const existing = await storage.getCommunityListing(id);
+      if (!existing) {
+        return res.status(404).json({ message: "Listing not found" });
+      }
+
+      await storage.deleteCommunityListing(id);
+      res.json({ success: true });
+    } catch (error) {
+      logError("Error deleting community listing", error);
+      res.status(500).json({ message: "Failed to delete community listing" });
     }
   });
 
@@ -13697,6 +14197,9 @@ export async function registerRoutes(
       });
 
       await storage.updateBookingRating(booking.id, payload.rating);
+      if (booking.assignedGuideId) {
+        await recalculateGuideRating(booking.assignedGuideId, req.requestId);
+      }
       if (payload.country && !booking.visitorCountry) {
         await storage.updateBooking(booking.id, { visitorCountry: payload.country });
       }
@@ -13975,6 +14478,9 @@ export async function registerRoutes(
         respondedAt: payload.responseText ? new Date() : existing.respondedAt || undefined,
         publishedAt: nextStatus === "published" && !existing.publishedAt ? new Date() : existing.publishedAt || undefined,
       });
+      if (review && review.guideId) {
+        await recalculateGuideRating(review.guideId, req.requestId);
+      }
       res.json(review);
     } catch (error) {
       if (error instanceof z.ZodError) {

@@ -20,6 +20,7 @@ import {
     UserPlus,
     Ban,
     ClipboardCheck,
+    Compass,
     Play,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -44,6 +45,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge, PaymentStatusBadge } from "@/components/status-badge";
 import { SEO } from "@/components/seo";
 import {
@@ -55,7 +57,7 @@ import {
 } from "@/lib/constants";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { Booking, Guide, Zone, PointOfInterest, AnalyticsSetting, Itinerary, EmailLog } from "@shared/schema";
+import type { Booking, CommunityListing, Guide, Zone, PointOfInterest, AnalyticsSetting, Itinerary, EmailLog } from "@shared/schema";
 import { useEffect, useState } from "react";
 import { jsPDF } from "jspdf";
 
@@ -503,6 +505,7 @@ export default function BookingDetails() {
     const [emailSubject, setEmailSubject] = useState("");
     const [emailMessage, setEmailMessage] = useState("");
     const [isCancelOpen, setIsCancelOpen] = useState(false);
+    const [isCommunityHighlightsOpen, setIsCommunityHighlightsOpen] = useState(false);
     const [cancellationReason, setCancellationReason] = useState("customer_requested");
     const [cancellationNote, setCancellationNote] = useState("");
 
@@ -532,6 +535,10 @@ export default function BookingDetails() {
 
     const { data: pointsOfInterest } = useQuery<PointOfInterest[]>({
         queryKey: ["/api/points-of-interest"],
+    });
+
+    const { data: communityListings = [] } = useQuery<CommunityListing[]>({
+        queryKey: ["/api/public/community-listings"],
     });
 
     useEffect(() => {
@@ -777,6 +784,28 @@ export default function BookingDetails() {
         },
     });
 
+    const updateCommunityHighlightsMutation = useMutation({
+        mutationFn: async (selectedCommunityListings: string[]) => {
+            await apiRequest("PATCH", `/api/bookings/${id}/community-highlights`, {
+                selectedCommunityListings,
+            });
+        },
+        onSuccess: () => {
+            invalidateBookingRecord();
+            toast({
+                title: "Community highlights updated",
+                description: "The visitor's Community Hub suggestions have been saved.",
+            });
+        },
+        onError: (error: Error) => {
+            toast({
+                title: "Failed to update highlights",
+                description: error.message,
+                variant: "destructive",
+            });
+        },
+    });
+
     const getMeetingPointName = (mpId: string | null) => {
         if (!mpId) return "Not specified";
         if (meetingPoints) {
@@ -804,6 +833,8 @@ export default function BookingDetails() {
         return poiId.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
     };
 
+    const getCommunityListing = (listingId: string) => communityListings.find((listing) => listing.id === listingId);
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -812,7 +843,7 @@ export default function BookingDetails() {
         );
     }
 
-    if (error || !booking) {
+	    if (error || !booking) {
         return (
             <div className="flex flex-col items-center justify-center h-64 space-y-4">
                 <SEO
@@ -831,9 +862,17 @@ export default function BookingDetails() {
                 </Button>
             </div>
         );
-    }
+	    }
 
-    const voucherChecklist = [
+    const selectedCommunityListingIds = booking.selectedCommunityListings || [];
+    const toggleCommunityListing = (listingId: string) => {
+        const nextIds = selectedCommunityListingIds.includes(listingId)
+            ? selectedCommunityListingIds.filter((selectedId) => selectedId !== listingId)
+            : [...selectedCommunityListingIds, listingId];
+        updateCommunityHighlightsMutation.mutate(nextIds);
+    };
+
+	    const voucherChecklist = [
         {
             label: "Tour title",
             done: Boolean(booking.tourType),
@@ -1219,12 +1258,26 @@ export default function BookingDetails() {
                     </Card>
 
                     {/* Selected Areas Card */}
-                    {((booking.selectedZones && booking.selectedZones.length > 0) || (booking.selectedInterests && booking.selectedInterests.length > 0)) && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Areas of Interest</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
+	                    {((booking.selectedZones && booking.selectedZones.length > 0) || (booking.selectedInterests && booking.selectedInterests.length > 0) || selectedCommunityListingIds.length > 0 || canManageBooking) && (
+	                        <Card>
+	                            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+	                                <div>
+	                                    <CardTitle>Areas of Interest</CardTitle>
+	                                    <CardDescription>Visitor preferences and Community Hub suggestions for planning.</CardDescription>
+	                                </div>
+	                                {canManageBooking && (
+	                                    <Button
+	                                        type="button"
+	                                        variant="outline"
+	                                        size="sm"
+	                                        onClick={() => setIsCommunityHighlightsOpen(true)}
+	                                    >
+	                                        <Compass className="mr-2 h-4 w-4" />
+	                                        Manage Highlights
+	                                    </Button>
+	                                )}
+	                            </CardHeader>
+	                            <CardContent className="space-y-4">
                                 {booking.selectedZones && booking.selectedZones.length > 0 && (
                                     <div>
                                         <Label className="text-xs text-muted-foreground">Camp Zones</Label>
@@ -1235,19 +1288,43 @@ export default function BookingDetails() {
                                         </div>
                                     </div>
                                 )}
-                                {booking.selectedInterests && booking.selectedInterests.length > 0 && (
-                                    <div>
-                                        <Label className="text-xs text-muted-foreground">Points of Interest</Label>
-                                        <div className="flex flex-wrap gap-2 mt-2">
-                                            {(booking.selectedInterests as string[]).map((poiId) => (
-                                                <Badge key={poiId} variant="outline">{getPoiName(poiId)}</Badge>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    )}
+	                                {booking.selectedInterests && booking.selectedInterests.length > 0 && (
+	                                    <div>
+	                                        <Label className="text-xs text-muted-foreground">Points of Interest</Label>
+	                                        <div className="flex flex-wrap gap-2 mt-2">
+	                                            {(booking.selectedInterests as string[]).map((poiId) => (
+	                                                <Badge key={poiId} variant="outline">{getPoiName(poiId)}</Badge>
+	                                            ))}
+	                                        </div>
+	                                    </div>
+	                                )}
+	                                {selectedCommunityListingIds.length > 0 ? (
+	                                    <div>
+	                                        <Label className="text-xs text-muted-foreground">Community Hub Highlights</Label>
+	                                        <div className="mt-2 flex flex-wrap gap-2">
+	                                            {selectedCommunityListingIds.map((listingId) => {
+	                                                const listing = getCommunityListing(listingId);
+	                                                return (
+	                                                    <Link
+	                                                        key={listingId}
+	                                                        href={`/community-hub#listing-${listingId}`}
+	                                                        className="inline-flex max-w-full items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+	                                                    >
+	                                                        <span className="truncate">{listing?.name || getPoiName(listingId)}</span>
+	                                                        {listing?.category && <span className="text-muted-foreground">- {listing.category}</span>}
+	                                                    </Link>
+	                                                );
+	                                            })}
+	                                        </div>
+	                                    </div>
+	                                ) : canManageBooking ? (
+	                                    <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+	                                        No Community Hub highlights selected yet.
+	                                    </div>
+	                                ) : null}
+	                            </CardContent>
+	                        </Card>
+	                    )}
 
                     {booking.guide ? (
                         <Card>
@@ -1889,6 +1966,51 @@ export default function BookingDetails() {
                             Cancel Booking
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isCommunityHighlightsOpen} onOpenChange={setIsCommunityHighlightsOpen}>
+                <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Manage Community Hub Highlights</DialogTitle>
+                        <DialogDescription>
+                            Choose listings the visitor is interested in. These stay as suggestions for the guide, not confirmed stops.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {communityListings.length === 0 ? (
+                        <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
+                            No approved Community Hub listings are available yet.
+                        </div>
+                    ) : (
+                        <div className="grid gap-3">
+                            {communityListings.map((listing) => {
+                                const checked = selectedCommunityListingIds.includes(listing.id);
+                                return (
+                                    <label
+                                        key={listing.id}
+                                        className="flex min-w-0 cursor-pointer items-start gap-3 rounded-md border p-4 transition-colors hover:bg-muted/40"
+                                    >
+                                        <Checkbox
+                                            checked={checked}
+                                            disabled={updateCommunityHighlightsMutation.isPending}
+                                            onCheckedChange={() => toggleCommunityListing(listing.id)}
+                                            aria-label={`${checked ? "Remove" : "Add"} ${listing.name}`}
+                                        />
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block break-words text-sm font-semibold">{listing.name}</span>
+                                            <span className="mt-1 block break-words text-xs text-muted-foreground">
+                                                {listing.category} - {listing.location}
+                                            </span>
+                                            <span className="mt-2 line-clamp-2 break-words text-sm leading-6 text-muted-foreground">
+                                                {listing.description}
+                                            </span>
+                                        </span>
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    )}
                 </DialogContent>
             </Dialog>
         </div>

@@ -55,7 +55,22 @@ DECLARE
     'user_invites',
     'events',
     'guide_payments',
-    'meeting_points'
+    'meeting_points',
+    'partner_tour_referrals',
+    'transport_partners',
+    'transport_requests',
+    'guide_profile_change_requests',
+    'transport_partner_blackouts',
+    'transport_partner_drivers',
+    'transport_partner_pricing',
+    'transport_partner_vehicles',
+    'guide_tour_reports',
+    'transport_request_activity',
+    'special_offers',
+    'tour_reviews',
+    'scheduled_reports',
+    'webhook_endpoints',
+    'webhook_deliveries'
   ];
 BEGIN
   FOREACH table_name IN ARRAY exposed_tables LOOP

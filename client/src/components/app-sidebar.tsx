@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
+  Building2,
   CalendarDays,
   Users,
   BookOpen,
@@ -169,6 +170,24 @@ const mainNavigationItems: NavItem[] = [
     title: "Reviews + Opportunities",
     url: "/reviews-performance",
     icon: Star,
+    roles: ["admin", "coordinator"],
+  },
+  {
+    title: "Post-Tour Reports",
+    url: "/admin/post-tour-reports",
+    icon: ClipboardList,
+    roles: ["admin", "coordinator"],
+  },
+  {
+    title: "Profile Reviews",
+    url: "/admin/guide-profile-reviews",
+    icon: UserCog,
+    roles: ["admin", "coordinator"],
+  },
+  {
+    title: "Community Listings",
+    url: "/admin/community-listings",
+    icon: Building2,
     roles: ["admin", "coordinator"],
   },
   {

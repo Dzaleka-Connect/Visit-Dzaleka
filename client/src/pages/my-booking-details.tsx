@@ -1,6 +1,6 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { Link, useLocation, useRoute } from "wouter";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SEO } from "@/components/seo";
 import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
@@ -22,6 +22,7 @@ import {
   Car,
   CheckCircle2,
   Clock,
+  Compass,
   CreditCard,
   FileText,
   Globe2,
@@ -37,7 +38,15 @@ import {
   Users,
   Utensils,
 } from "lucide-react";
-import type { Booking, MeetingPoint, PointOfInterest, Zone } from "@shared/schema";
+import type { Booking, CommunityListing, MeetingPoint, PointOfInterest, Zone } from "@shared/schema";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type VisitorGuideSummary = {
   id: string;
@@ -185,6 +194,34 @@ function BadgeList({ values, getLabel }: { values?: string[] | null; getLabel: (
   );
 }
 
+function CommunityListingBadgeList({
+  values,
+  listings,
+}: {
+  values?: string[] | null;
+  listings: CommunityListing[];
+}) {
+  if (!values || values.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {values.map((listingId) => {
+        const listing = listings.find((item) => item.id === listingId);
+        return (
+          <Link
+            key={listingId}
+            href={`/community-hub#listing-${listingId}`}
+            className="inline-flex max-w-full items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          >
+            <span className="truncate">{listing?.name || humanize(listingId)}</span>
+            {listing?.category && <span className="text-muted-foreground">- {listing.category}</span>}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
 function getTimelineIcon(type: string) {
   if (type.includes("email")) return MailCheck;
   if (type.includes("transport")) return Car;
@@ -200,6 +237,8 @@ export default function MyBookingDetails() {
   const bookingId = params?.bookingId;
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isCommunityHighlightsOpen, setIsCommunityHighlightsOpen] = useState(false);
 
   const {
     data: booking,
@@ -221,6 +260,34 @@ export default function MyBookingDetails() {
 
   const { data: pointsOfInterest = [] } = useQuery<PointOfInterest[]>({
     queryKey: ["/api/public/points-of-interest"],
+  });
+
+  const { data: communityListings = [] } = useQuery<CommunityListing[]>({
+    queryKey: ["/api/public/community-listings"],
+  });
+
+  const updateCommunityHighlightsMutation = useMutation({
+    mutationFn: async (selectedCommunityListings: string[]) => {
+      const response = await apiRequest("PATCH", `/api/bookings/${bookingId}/community-highlights`, {
+        selectedCommunityListings,
+      });
+      return response.json() as Promise<Booking>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/bookings/${bookingId || ""}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings/my-bookings"] });
+      toast({
+        title: "Community highlights updated",
+        description: "Your guide will see these as suggestions when preparing the tour.",
+      });
+    },
+    onError: (mutationError: Error) => {
+      toast({
+        title: "Could not update highlights",
+        description: mutationError.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const openMessageMutation = useMutation({
@@ -287,10 +354,17 @@ export default function MyBookingDetails() {
   const transport = booking.transportRequest;
   const meetingPointName = booking.meetingPoint?.name || humanize(booking.meetingPointId);
   const peopleCount = booking.numberOfPeople || 1;
-  const hasNeeds =
-    Boolean(booking.accessibilityNeeds) ||
-    Boolean(booking.specialRequests) ||
-    Boolean((booking as any).dietaryNotes);
+	  const hasNeeds =
+	    Boolean(booking.accessibilityNeeds) ||
+	    Boolean(booking.specialRequests) ||
+	    Boolean((booking as any).dietaryNotes);
+  const selectedCommunityListingIds = booking.selectedCommunityListings || [];
+  const toggleCommunityListing = (listingId: string) => {
+    const nextIds = selectedCommunityListingIds.includes(listingId)
+      ? selectedCommunityListingIds.filter((id) => id !== listingId)
+      : [...selectedCommunityListingIds, listingId];
+    updateCommunityHighlightsMutation.mutate(nextIds);
+  };
 
   return (
     <PageContainer className="page-spacing overflow-x-hidden">
@@ -401,10 +475,39 @@ export default function MyBookingDetails() {
                   </div>
                 </div>
               ) : null}
-            </CardContent>
-          </Card>
+	            </CardContent>
+	          </Card>
 
-          <Card>
+	          <Card>
+	            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+	              <div className="min-w-0">
+	                <CardTitle className="text-lg">Community Highlights</CardTitle>
+	                <CardDescription>
+	                  These are suggestions for your guide. The final route depends on logistics, timing, and availability.
+	                </CardDescription>
+	              </div>
+	              <Button
+	                type="button"
+	                variant="outline"
+	                className="min-h-11 w-full shrink-0 sm:w-auto"
+	                onClick={() => setIsCommunityHighlightsOpen(true)}
+	              >
+	                <Compass className="mr-2 h-4 w-4" />
+	                Browse & Add
+	              </Button>
+	            </CardHeader>
+	            <CardContent>
+	              {selectedCommunityListingIds.length > 0 ? (
+	                <CommunityListingBadgeList values={selectedCommunityListingIds} listings={communityListings} />
+	              ) : (
+	                <div className="rounded-md border border-dashed p-4 text-sm leading-6 text-muted-foreground">
+	                  No Community Hub listings selected yet. Add places that interest you so your guide can consider them while planning.
+	                </div>
+	              )}
+	            </CardContent>
+	          </Card>
+	
+	          <Card>
             <CardHeader>
               <CardTitle className="text-lg">Guide</CardTitle>
               <CardDescription>Your assigned guide appears here once confirmed.</CardDescription>
@@ -545,6 +648,51 @@ export default function MyBookingDetails() {
           </Card>
         </aside>
       </div>
+
+      <Dialog open={isCommunityHighlightsOpen} onOpenChange={setIsCommunityHighlightsOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Community Hub Highlights</DialogTitle>
+            <DialogDescription>
+              Choose listings you are interested in. Your guide will see them as suggestions, not fixed stops.
+            </DialogDescription>
+          </DialogHeader>
+
+          {communityListings.length === 0 ? (
+            <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
+              No approved Community Hub listings are available yet.
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {communityListings.map((listing) => {
+                const checked = selectedCommunityListingIds.includes(listing.id);
+                return (
+                  <label
+                    key={listing.id}
+                    className="flex min-w-0 cursor-pointer items-start gap-3 rounded-md border p-4 transition-colors hover:bg-muted/40"
+                  >
+                    <Checkbox
+                      checked={checked}
+                      disabled={updateCommunityHighlightsMutation.isPending}
+                      onCheckedChange={() => toggleCommunityListing(listing.id)}
+                      aria-label={`${checked ? "Remove" : "Add"} ${listing.name}`}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block break-words text-sm font-semibold">{listing.name}</span>
+                      <span className="mt-1 block break-words text-xs text-muted-foreground">
+                        {listing.category} - {listing.location}
+                      </span>
+                      <span className="mt-2 line-clamp-2 break-words text-sm leading-6 text-muted-foreground">
+                        {listing.description}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   );
 }

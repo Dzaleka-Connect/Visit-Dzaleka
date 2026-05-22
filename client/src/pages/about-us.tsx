@@ -10,6 +10,8 @@ import {
 import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
 
+const ABOUT_US_OG_IMAGE = "https://services.dzaleka.com/images/dzaleka-hero.jpeg";
+
 export default function AboutUs() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -20,6 +22,8 @@ export default function AboutUs() {
                 description="Learn about Visit Dzaleka – a refugee-led tourism initiative connecting visitors with authentic cultural experiences in Malawi's Dzaleka Refugee Camp."
                 keywords="Visit Dzaleka, about us, refugee tourism, community tourism, Dzaleka guides, Malawi"
                 canonical="https://visit.dzaleka.com/about-us"
+                ogImage={ABOUT_US_OG_IMAGE}
+                imageAlt="Visit Dzaleka refugee-led cultural tours in Malawi"
             />
 
             {/* Header */}

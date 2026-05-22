@@ -34,6 +34,8 @@ const navItems: NavItem[] = [
       { label: "Sports & Recreation", href: "/things-to-do/sports-recreation", description: "Sports and outdoor activities" },
       { label: "Host Community", href: "/things-to-do/host-community", description: "Connect with locals" },
       { label: "What's On", href: "/whats-on", description: "Events and festivals" },
+      { label: "Community Hub", href: "/community-hub", description: "Support local makers and initiatives" },
+      { label: "Community Hub Guide", href: "/community-hub/guide", description: "How visitors and providers use the directory" },
       { label: "Blog", href: "/blog", description: "Stories and updates" },
     ],
   },
@@ -148,6 +150,12 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
                   <ListItem href="/whats-on" title="What's On">
                     Events and festivals
                   </ListItem>
+                  <ListItem href="/community-hub" title="Community Hub">
+                    Support local makers and initiatives
+                  </ListItem>
+                  <ListItem href="/community-hub/guide" title="Community Hub Guide">
+                    How visitors and providers use the directory
+                  </ListItem>
                 </ul>
               </NavigationMenuContent>
             </NavigationMenuItem>
@@ -256,6 +264,12 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
             </MobileNavLink>
             <MobileNavLink href="/whats-on" onClick={() => setMobileMenuOpen(false)} active={isActive("/whats-on")}>
               What's On
+            </MobileNavLink>
+            <MobileNavLink href="/community-hub" onClick={() => setMobileMenuOpen(false)} active={currentPath === "/community-hub"}>
+              Community Hub
+            </MobileNavLink>
+            <MobileNavLink href="/community-hub/guide" onClick={() => setMobileMenuOpen(false)} active={isActive("/community-hub/guide")}>
+              Community Hub Guide
             </MobileNavLink>
             <MobileNavLink href="/blog" onClick={() => setMobileMenuOpen(false)} active={isActive("/blog")}>
               Blog

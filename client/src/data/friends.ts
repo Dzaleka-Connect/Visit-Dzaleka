@@ -52,5 +52,23 @@ export const friends: Friend[] = [
         social: {
             facebook: "https://www.facebook.com/profile.php?id=61581206906022"
         }
+    },
+    {
+        id: "austin-madinga",
+        slug: "austin-madinga",
+        name: "Austin Madinga",
+        role: "Blogger",
+        location: "Lilongwe, Malawi",
+        image: "https://www.austinmadinga.com/storage/2022/03/austin-am-banner.jpg",
+        shortBio: "Visual storyteller and passionate advocate for the African narrative, showcasing Malawi's destinations, culture, and communities.",
+        fullBio: "I am a visual storyteller and passionate advocate for the African narrative. I showcase Malawi’s incredible destinations, culture, and communities while contributing to a richer African narrative around tourism, conservation, and travel.",
+        connection: "I discovered Dzaleka through the Tumaini Festival and have loved the vibe, atmosphere and culture of the event and its people.",
+        contribution: "Primarily, through articles and features on my website - www.austinmadinga.com - and social media platforms.",
+        social: {
+            website: "https://www.austinmadinga.com",
+            linkedin: "https://www.linkedin.com/in/madinga/",
+            instagram: "https://instagram.com/austinmadinga",
+            facebook: "https://www.facebook.com/MadingaAustin/"
+        }
     }
 ];

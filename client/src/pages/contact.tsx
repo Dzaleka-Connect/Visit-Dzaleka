@@ -22,6 +22,8 @@ import {
 import { FaFacebook, FaInstagram, FaTwitter, FaWhatsapp, FaLinkedin, FaTiktok } from "react-icons/fa";
 import { useToast } from "@/hooks/use-toast";
 
+const CONTACT_OG_IMAGE = "https://services.dzaleka.com/images/dzaleka-digital-heritage.png";
+
 const contactInfo = [
     {
         icon: Mail,
@@ -101,6 +103,8 @@ export default function ContactUs() {
                 description="Get in touch with Visit Dzaleka. Contact us for tour inquiries, partnership opportunities, or general questions about refugee-led tourism."
                 keywords="contact Visit Dzaleka, Dzaleka tourism contact, book tour Dzaleka, partnership inquiry"
                 canonical="https://visit.dzaleka.com/contact"
+                ogImage={CONTACT_OG_IMAGE}
+                imageAlt="Visit Dzaleka contact and tour support"
             />
 
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">

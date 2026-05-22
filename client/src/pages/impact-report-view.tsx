@@ -94,6 +94,7 @@ const reportsData: Record<string, {
     }
 };
 
+const IMPACT_OG_IMAGE = "https://services.dzaleka.com/images/Visit_Dzaleka.png";
 
 export default function ImpactReportView() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -129,6 +130,9 @@ export default function ImpactReportView() {
                 description={report.summary}
                 keywords="Visit Dzaleka impact report, refugee tourism impact, community tourism results"
                 canonical={`https://visit.dzaleka.com/impact-report/${report.id}`}
+                ogImage={IMPACT_OG_IMAGE}
+                imageAlt={`${report.title} impact summary`}
+                type="article"
             />
 
             {/* Header */}

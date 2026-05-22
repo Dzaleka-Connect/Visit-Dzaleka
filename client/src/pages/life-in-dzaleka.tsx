@@ -42,7 +42,11 @@ const structuredData = {
                     "name": "Tumaini Festival",
                     "description": "The world's only arts and culture festival held within a refugee camp.",
                     "startDate": "2014",
-                    "organizer": { "@type": "Person", "name": "Menes La Plume" }
+                    "organizer": { "@type": "Person", "name": "Menes La Plume" },
+                    "performer": {
+                        "@type": "PerformingGroup",
+                        "name": "Various Local and International Artists"
+                    }
                 },
                 {
                     "@type": "Organization",

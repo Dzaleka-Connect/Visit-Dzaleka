@@ -121,6 +121,10 @@ import {
   type InsertWebhookEndpoint,
   type WebhookDelivery,
   type InsertWebhookDelivery,
+  type CommunityListing,
+  type InsertCommunityListing,
+  type CommunityExperienceRequest,
+  type InsertCommunityExperienceRequest,
 } from "@shared/schema";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import crypto from "crypto";
@@ -608,6 +612,17 @@ export interface IStorage {
   getWebhookDeliveries(endpointId?: string): Promise<WebhookDelivery[]>;
   getWebhookDelivery(id: string): Promise<WebhookDelivery | undefined>;
   createWebhookDelivery(delivery: InsertWebhookDelivery): Promise<WebhookDelivery>;
+
+  // Community Listings
+  getCommunityListings(filters?: { type?: string; status?: string; submittedBy?: string }): Promise<CommunityListing[]>;
+  getCommunityListing(id: string): Promise<CommunityListing | undefined>;
+  createCommunityListing(listing: InsertCommunityListing): Promise<CommunityListing>;
+  updateCommunityListing(id: string, listing: Partial<CommunityListing>): Promise<CommunityListing | undefined>;
+  deleteCommunityListing(id: string): Promise<void>;
+  getCommunityExperienceRequests(filters?: { listingId?: string; status?: string }): Promise<CommunityExperienceRequest[]>;
+  getCommunityExperienceRequest(id: string): Promise<CommunityExperienceRequest | undefined>;
+  createCommunityExperienceRequest(request: InsertCommunityExperienceRequest): Promise<CommunityExperienceRequest>;
+  updateCommunityExperienceRequest(id: string, request: Partial<CommunityExperienceRequest>): Promise<CommunityExperienceRequest | undefined>;
 }
 
 export class SupabaseStorage implements IStorage {
@@ -1265,6 +1280,7 @@ export class SupabaseStorage implements IStorage {
     if (updates.paymentVerifiedBy !== undefined) dbUpdates.payment_verified_by = updates.paymentVerifiedBy;
     if (updates.paymentVerifiedAt) dbUpdates.payment_verified_at = updates.paymentVerifiedAt;
     if (updates.visitorCountry !== undefined) dbUpdates.visitor_country = updates.visitorCountry;
+    if (updates.selectedCommunityListings !== undefined) dbUpdates.selected_community_listings = updates.selectedCommunityListings;
     if (updates.guidePayment !== undefined) dbUpdates.guide_payment = updates.guidePayment;
     if (updates.cancellationCategory !== undefined) dbUpdates.cancellation_category = updates.cancellationCategory;
     if (updates.cancellationReason !== undefined) dbUpdates.cancellation_reason = updates.cancellationReason;
@@ -4566,6 +4582,116 @@ export class SupabaseStorage implements IStorage {
       .select()
       .single();
     return this.handleResponse(data, error);
+  }
+
+  // Community Listings operations
+  async getCommunityListings(filters?: { type?: string; status?: string; submittedBy?: string }): Promise<CommunityListing[]> {
+    let query = this.supabase
+      .from("community_listings")
+      .select("*")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
+
+    if (filters?.type) {
+      query = query.eq("type", filters.type);
+    }
+    if (filters?.status) {
+      query = query.eq("status", filters.status);
+    }
+    if (filters?.submittedBy) {
+      query = query.eq("submitted_by", filters.submittedBy);
+    }
+
+    const { data, error } = await query;
+    return this.handleResponse(data, error);
+  }
+
+  async getCommunityListing(id: string): Promise<CommunityListing | undefined> {
+    const { data, error } = await this.supabase
+      .from("community_listings")
+      .select("*")
+      .eq("id", id)
+      .is("deleted_at", null)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async createCommunityListing(listing: InsertCommunityListing): Promise<CommunityListing> {
+    const snakeData = transformToSnake(listing);
+    const { data, error } = await this.supabase
+      .from("community_listings")
+      .insert({ ...snakeData, status: snakeData.status || "pending", created_at: new Date() })
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async updateCommunityListing(id: string, listing: Partial<CommunityListing>): Promise<CommunityListing | undefined> {
+    const snakeData = transformToSnake(listing);
+    const { data, error } = await this.supabase
+      .from("community_listings")
+      .update({ ...snakeData, updated_at: new Date() })
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async deleteCommunityListing(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("community_listings")
+      .update({ deleted_at: new Date() })
+      .eq("id", id);
+    if (error) throw error;
+  }
+
+  async getCommunityExperienceRequests(filters?: { listingId?: string; status?: string }): Promise<CommunityExperienceRequest[]> {
+    let query = this.supabase
+      .from("community_experience_requests")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (filters?.listingId) {
+      query = query.eq("listing_id", filters.listingId);
+    }
+    if (filters?.status) {
+      query = query.eq("status", filters.status);
+    }
+
+    const { data, error } = await query;
+    return this.handleResponse(data, error);
+  }
+
+  async createCommunityExperienceRequest(request: InsertCommunityExperienceRequest): Promise<CommunityExperienceRequest> {
+    const snakeData = transformToSnake(request);
+    const { data, error } = await this.supabase
+      .from("community_experience_requests")
+      .insert({ ...snakeData, status: "submitted", created_at: new Date() })
+      .select()
+      .single();
+    return this.handleResponse(data, error);
+  }
+
+  async getCommunityExperienceRequest(id: string): Promise<CommunityExperienceRequest | undefined> {
+    const { data, error } = await this.supabase
+      .from("community_experience_requests")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
+  async updateCommunityExperienceRequest(id: string, request: Partial<CommunityExperienceRequest>): Promise<CommunityExperienceRequest | undefined> {
+    const snakeData = transformToSnake(request);
+    const { data, error } = await this.supabase
+      .from("community_experience_requests")
+      .update({ ...snakeData, updated_at: new Date() })
+      .eq("id", id)
+      .select()
+      .single();
+    return this.handleOptionalResponse(data, error);
   }
 }
 
