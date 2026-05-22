@@ -35,6 +35,7 @@ import PostTourReports from "@/pages/admin-post-tour-reports";
 import GuideProfileReviews from "@/pages/admin-guide-profile-reviews";
 import GuideCertificates from "@/pages/guide-certificates";
 import ReviewsPerformance from "@/pages/reviews-performance";
+import ReviewDetails from "@/pages/review-details";
 import Zones from "@/pages/zones";
 import Security from "@/pages/security";
 import UsersPage from "@/pages/users";
@@ -110,7 +111,10 @@ import DeveloperSettings from "@/pages/developer-settings";
 import EmbedBooking from "@/pages/embed-booking";
 import CommunityHub from "@/pages/community-hub";
 import CommunityHubGuide from "@/pages/community-hub-guide";
+import CommunityListingDetails from "@/pages/community-listing-details";
 import AdminCommunityListings from "@/pages/admin-community-listings";
+import AdminCommunityListingDetails from "@/pages/admin-community-listing-details";
+import AdminCommunityExperienceRequestDetails from "@/pages/admin-community-experience-request-details";
 import BlogList from "@/pages/blog";
 import BlogPostPage from "@/pages/blog-post";
 import AdminBlog from "@/pages/admin-blog";
@@ -225,6 +229,7 @@ function Router() {
         <Route path="/blog" component={BlogList} />
         <Route path="/blog/:slug" component={BlogPostPage} />
         <Route path="/community-hub/guide" component={CommunityHubGuide} />
+        <Route path="/community-hub/:listingId" component={CommunityListingDetails} />
         <Route path="/community-hub" component={CommunityHub} />
         <Route path="/things-to-do/dzaleka-refugee-camp-guided-walking-tour" component={DzalekaGuidedWalkingTour} />
         <Route path="/things-to-do" component={ThingsToDo} />
@@ -337,8 +342,11 @@ function Router() {
         <ProtectedRoute path="/admin/guide-profile-reviews" component={GuideProfileReviews} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/admin/guide-tour-reports/:id" component={GuideTourReportDetails} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/admin/post-tour-reports" component={PostTourReports} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/admin/community-listings/requests/:requestId" component={AdminCommunityExperienceRequestDetails} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/admin/community-listings/:listingId" component={AdminCommunityListingDetails} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/admin/community-listings" component={AdminCommunityListings} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/guide-certificates" component={GuideCertificates} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/reviews-performance/:reviewId" component={ReviewDetails} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/reviews-performance" component={ReviewsPerformance} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/guides" component={Guides} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/guide/:slug" component={GuideProfile} allowedRoles={["admin", "coordinator", "guide", "security"]} />
@@ -395,6 +403,7 @@ function Router() {
         <ProtectedRoute path="/admin/visitors/:id" component={VisitorDetailsPage} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/developer" component={DeveloperSettings} allowedRoles={["admin"]} />
         <Route path="/community/guide" component={CommunityHubGuide} />
+        <Route path="/community/:listingId" component={CommunityListingDetails} />
         <Route path="/community" component={CommunityHub} />
         <Route path="/landing" component={Landing} />
         <ProtectedRoute path="/admin/blog" component={AdminBlog} allowedRoles={["admin", "coordinator"]} />

@@ -37,6 +37,7 @@ import {
   ScanLine,
   UserX,
   Car,
+  Compass,
 } from "lucide-react";
 import {
   Card,
@@ -76,7 +77,7 @@ import { DashboardSkeleton } from "@/components/loading-skeleton";
 import { formatDate, formatTime, formatCurrency } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
 import { WeeklyBookingTrends, PopularZonesChart, GuidePerformanceChart, BookingTimeHeatmap, SeasonalTrendsChart, GuideComparisonChart, RevenueByChannelChart, ReferralSourceChart, ConversionRateChart } from "@/components/dashboard-charts";
-import type { Booking, Guide, Incident } from "@shared/schema";
+import type { Booking, CommunityExperienceRequest, CommunityListing, Guide, Incident } from "@shared/schema";
 import { SEO } from "@/components/seo";
 import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
@@ -122,6 +123,10 @@ interface VisitorTransportRequestSummary {
 interface RecentBooking extends Booking {
   guide?: Guide;
   transportRequest?: VisitorTransportRequestSummary | null;
+}
+
+interface DashboardCommunityExperienceRequest extends CommunityExperienceRequest {
+  listing?: CommunityListing | null;
 }
 
 interface GuideAvailabilitySummary {
@@ -206,6 +211,11 @@ function AdminDashboard() {
     queryKey: ["/api/stats/visitor-countries"],
   });
 
+  const { data: communityExperienceRequests = [] } = useQuery<DashboardCommunityExperienceRequest[]>({
+    queryKey: ["/api/admin/community-experience-requests"],
+    enabled: user?.role === "admin",
+  });
+
   const sendEmailMutation = useMutation({
     mutationFn: async (data: typeof emailForm) => {
       const response = await apiRequest("POST", "/api/send-email", data);
@@ -268,6 +278,9 @@ function AdminDashboard() {
 
   // Check if there are any tours currently in progress
   const hasActiveTours = todaysTours?.some(t => t.status === "in_progress") || false;
+  const openCommunityExperienceRequests = communityExperienceRequests.filter((request) =>
+    request.status === "submitted" || request.status === "contacted"
+  );
 
   return (
     <PageContainer className="page-spacing overflow-x-hidden">
@@ -318,6 +331,17 @@ function AdminDashboard() {
               <Button variant="secondary" size="sm" className={quickActionButtonClass}>
                 <Car className={quickActionIconClass} />
                 <span>Transport ops</span>
+              </Button>
+            </Link>
+            <Link href="/admin/community-listings">
+              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+                <Compass className={quickActionIconClass} />
+                <span>Community requests</span>
+                {openCommunityExperienceRequests.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 tabular-nums">
+                    {openCommunityExperienceRequests.length}
+                  </Badge>
+                )}
               </Button>
             </Link>
           </>
@@ -418,6 +442,32 @@ function AdminDashboard() {
           pulse={hasActiveTours}
         />
       </div>
+
+      {user?.role === "admin" && openCommunityExperienceRequests.length > 0 && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary" className="tabular-nums">
+                  {openCommunityExperienceRequests.length} open
+                </Badge>
+                <span className="text-sm font-semibold">Community Hub experience requests</span>
+              </div>
+              <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
+                Latest: {openCommunityExperienceRequests.slice(0, 3).map((request) =>
+                  `${request.visitorName} for ${request.listing?.name || "a community experience"}`
+                ).join("; ")}
+              </p>
+            </div>
+            <Button asChild className="min-h-10 shrink-0">
+              <Link href="/admin/community-listings">
+                Open request queue
+                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Analytics Charts */}
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 items-stretch [&>*]:h-full">

@@ -614,7 +614,7 @@ export interface IStorage {
   createWebhookDelivery(delivery: InsertWebhookDelivery): Promise<WebhookDelivery>;
 
   // Community Listings
-  getCommunityListings(filters?: { type?: string; status?: string; submittedBy?: string }): Promise<CommunityListing[]>;
+  getCommunityListings(filters?: { type?: string; status?: string | string[]; submittedBy?: string }): Promise<CommunityListing[]>;
   getCommunityListing(id: string): Promise<CommunityListing | undefined>;
   createCommunityListing(listing: InsertCommunityListing): Promise<CommunityListing>;
   updateCommunityListing(id: string, listing: Partial<CommunityListing>): Promise<CommunityListing | undefined>;
@@ -4585,7 +4585,7 @@ export class SupabaseStorage implements IStorage {
   }
 
   // Community Listings operations
-  async getCommunityListings(filters?: { type?: string; status?: string; submittedBy?: string }): Promise<CommunityListing[]> {
+  async getCommunityListings(filters?: { type?: string; status?: string | string[]; submittedBy?: string }): Promise<CommunityListing[]> {
     let query = this.supabase
       .from("community_listings")
       .select("*")
@@ -4595,7 +4595,9 @@ export class SupabaseStorage implements IStorage {
     if (filters?.type) {
       query = query.eq("type", filters.type);
     }
-    if (filters?.status) {
+    if (Array.isArray(filters?.status)) {
+      query = query.in("status", filters.status);
+    } else if (filters?.status) {
       query = query.eq("status", filters.status);
     }
     if (filters?.submittedBy) {

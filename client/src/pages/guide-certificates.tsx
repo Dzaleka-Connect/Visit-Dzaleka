@@ -159,6 +159,7 @@ export default function GuideCertificates() {
   const [theme, setTheme] = useState<CertificateTheme>("heritage");
   const [layout, setLayout] = useState<CertificateLayout>("official");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [recipientError, setRecipientError] = useState(false);
 
   const selectedGuide = activeGuides.find((guide) => guide.id === selectedGuideId);
   const themeConfig = certificateThemes[theme];
@@ -170,11 +171,17 @@ export default function GuideCertificates() {
   useEffect(() => {
     if (selectedGuide) {
       setRecipientName(fullGuideName(selectedGuide));
+      setRecipientError(false);
     }
   }, [selectedGuide]);
 
   const generatePdf = async () => {
     if (!recipientName.trim()) {
+      setRecipientError(true);
+      const recipientInput = document.getElementById("recipient");
+      if (recipientInput) {
+        recipientInput.focus();
+      }
       toast({
         title: "Recipient needed",
         description: "Choose a guide or enter a certificate recipient name.",
@@ -182,6 +189,7 @@ export default function GuideCertificates() {
       });
       return;
     }
+    setRecipientError(false);
 
     setIsGenerating(true);
     try {
@@ -203,8 +211,39 @@ export default function GuideCertificates() {
       const issuerText = issuedBy.trim() || "Bakari Mustafa";
       const issuerTitleText = issuerTitle.trim() || "Founder, Visit Dzaleka";
       const certificateIdText = certificateId.trim();
-      const bodyLines = splitPdfText(doc, body, 165, 2);
+
+      // Dynamic recipient name font size
+      let recipientFontSize = 30;
+      if (recipientText.length > 25) {
+        recipientFontSize = 20;
+      } else if (recipientText.length > 18) {
+        recipientFontSize = 24;
+      }
+
+      // Dynamic body text font size
+      let bodyFontSize = 11;
+      if (body.length > 280) {
+        bodyFontSize = 8.5;
+      } else if (body.length > 200) {
+        bodyFontSize = 9.2;
+      } else if (body.length > 130) {
+        bodyFontSize = 10;
+      }
+
+      // Set temporarily to split text accurately
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(bodyFontSize);
+      const bodyLines = splitPdfText(doc, body, 175, 5);
+
       const recognitionText = truncatePdfText(doc, completionLabel.trim(), 86);
+
+      const getCenteredBaselineY = (topY: number, bottomY: number, linesCount: number, fontSize: number, lineHeight: number = 1.35) => {
+        const charHeight = fontSize * 0.3527; // pt to mm
+        const textHeight = (linesCount - 1) * (charHeight * lineHeight) + charHeight;
+        const spaceHeight = bottomY - topY;
+        return topY + (spaceHeight - textHeight) / 2 + charHeight;
+      };
+
 
       const drawLogo = (x: number, y: number, size: number, shape: "circle" | "square" = "square") => {
         if (logoDataUrl) {
@@ -260,22 +299,23 @@ export default function GuideCertificates() {
         doc.setTextColor(100, 116, 139);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(11);
-        doc.text(truncatePdfText(doc, subtitleText, 120), pageWidth / 2, 82, { align: "center" });
+        doc.text(truncatePdfText(doc, subtitleText, 120), pageWidth / 2, 78, { align: "center" });
         doc.setTextColor(17, 24, 39);
         doc.setFont("times", "bolditalic");
-        doc.setFontSize(30);
-        doc.text(truncatePdfText(doc, recipientText, 180), pageWidth / 2, 102, { align: "center" });
+        doc.setFontSize(recipientFontSize);
+        doc.text(truncatePdfText(doc, recipientText, 220), pageWidth / 2, 96, { align: "center" });
         doc.setDrawColor(accentR, accentG, accentB);
         doc.setLineWidth(0.8);
-        doc.line(88, 110, 209, 110);
+        doc.line(88, 104, 209, 104);
         doc.setTextColor(55, 65, 81);
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(11);
-        doc.text(bodyLines, pageWidth / 2, 125, { align: "center", lineHeightFactor: 1.35 });
+        doc.setFontSize(bodyFontSize);
+        const bodyY = getCenteredBaselineY(106, 145, bodyLines.length, bodyFontSize, 1.35);
+        doc.text(bodyLines, pageWidth / 2, bodyY, { align: "center", lineHeightFactor: 1.35 });
         doc.setTextColor(primaryR, primaryG, primaryB);
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
-        doc.text(recognitionText, pageWidth / 2, 146, { align: "center" });
+        doc.text(recognitionText, pageWidth / 2, 148, { align: "center" });
         drawSignatureBlock(168, 175, 180, 155);
         doc.setTextColor(100, 116, 139);
         doc.setFont("helvetica", "normal");
@@ -311,14 +351,15 @@ export default function GuideCertificates() {
         doc.text(truncatePdfText(doc, subtitleText, 120), pageWidth / 2, 86, { align: "center" });
         doc.setTextColor(17, 24, 39);
         doc.setFont("times", "bold");
-        doc.setFontSize(30);
+        doc.setFontSize(recipientFontSize);
         doc.text(truncatePdfText(doc, recipientText, 185), pageWidth / 2, 105, { align: "center" });
         doc.setFillColor(accentR, accentG, accentB);
         doc.roundedRect(pageWidth / 2 - 43, 113, 86, 2, 1, 1, "F");
         doc.setTextColor(55, 65, 81);
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(11);
-        doc.text(bodyLines, pageWidth / 2, 128, { align: "center", lineHeightFactor: 1.35 });
+        doc.setFontSize(bodyFontSize);
+        const bodyY = getCenteredBaselineY(116, 145, bodyLines.length, bodyFontSize, 1.35);
+        doc.text(bodyLines, pageWidth / 2, bodyY, { align: "center", lineHeightFactor: 1.35 });
         doc.setFillColor(softR, softG, softB);
         doc.roundedRect(pageWidth / 2 - 48, 148, 96, 11, 2.5, 2.5, "F");
         doc.setTextColor(primaryR, primaryG, primaryB);
@@ -373,15 +414,16 @@ export default function GuideCertificates() {
         doc.text(truncatePdfText(doc, subtitleText, 120), pageWidth / 2, 94, { align: "center" });
         doc.setTextColor(17, 24, 39);
         doc.setFont("times", "bold");
-        doc.setFontSize(30);
+        doc.setFontSize(recipientFontSize);
         doc.text(truncatePdfText(doc, recipientText, 185), pageWidth / 2, 111, { align: "center" });
         doc.setDrawColor(accentR, accentG, accentB);
         doc.setLineWidth(0.8);
         doc.line(90, 118, 207, 118);
         doc.setTextColor(55, 65, 81);
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(11);
-        doc.text(bodyLines, pageWidth / 2, 131, { align: "center", lineHeightFactor: 1.35 });
+        doc.setFontSize(bodyFontSize);
+        const bodyY = getCenteredBaselineY(120, 146, bodyLines.length, bodyFontSize, 1.35);
+        doc.text(bodyLines, pageWidth / 2, bodyY, { align: "center", lineHeightFactor: 1.35 });
         doc.setFillColor(softR, softG, softB);
         doc.roundedRect(pageWidth / 2 - 48, 149, 96, 11, 2.5, 2.5, "F");
         doc.setTextColor(primaryR, primaryG, primaryB);
@@ -405,6 +447,9 @@ export default function GuideCertificates() {
       </div>
     );
   }
+
+  const previewRecipientFontSizeClass = recipientName.length > 25 ? "text-xl" : recipientName.length > 18 ? "text-2xl" : "text-3xl";
+  const previewBodyFontSizeClass = body.length > 280 ? "text-[11px] leading-tight" : body.length > 200 ? "text-xs leading-snug" : body.length > 130 ? "text-[13px] leading-snug" : "text-sm leading-relaxed";
 
   return (
     <div className="space-y-6">
@@ -476,15 +521,25 @@ export default function GuideCertificates() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="recipient">Name on certificate</Label>
+                <Label htmlFor="recipient" className={recipientError ? "text-destructive" : ""}>Name on certificate</Label>
                 <Input
                   id="recipient"
                   name="recipientName"
                   value={recipientName}
-                  onChange={(event) => setRecipientName(event.target.value)}
+                  onChange={(event) => {
+                    setRecipientName(event.target.value);
+                    if (event.target.value.trim()) setRecipientError(false);
+                  }}
                   placeholder="Guide name…"
-                  className="text-base"
+                  className={`text-base ${recipientError ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                  aria-invalid={recipientError}
+                  aria-describedby={recipientError ? "recipient-error" : undefined}
                 />
+                {recipientError && (
+                  <p id="recipient-error" className="text-xs font-medium text-destructive" role="alert">
+                    Please choose a guide or enter a recipient name.
+                  </p>
+                )}
               </div>
             </section>
 
@@ -707,11 +762,11 @@ export default function GuideCertificates() {
                         {certificateTitle}
                       </div>
                       <div className="mt-3 truncate text-sm text-slate-500">{subtitle}</div>
-                      <div className="mt-2 truncate font-serif text-3xl font-bold italic text-slate-900">
+                      <div className={`mt-2 truncate font-serif font-bold italic text-slate-900 ${previewRecipientFontSizeClass}`}>
                         {recipientName || "Guide Name"}
                       </div>
                       <div className="mx-auto mt-2 h-px w-44" style={{ backgroundColor: themeConfig.accent }} />
-                      <p className="mx-auto mt-3 line-clamp-2 max-w-2xl text-sm leading-relaxed text-slate-600">{body}</p>
+                      <p className={`mx-auto mt-3 line-clamp-5 max-w-2xl text-slate-600 ${previewBodyFontSizeClass}`}>{body}</p>
                       <div className="mx-auto mt-3 max-w-[440px] truncate text-xs font-bold" style={{ color: themeConfig.primary }}>
                         {completionLabel}
                       </div>
@@ -756,11 +811,11 @@ export default function GuideCertificates() {
                           {certificateTitle}
                         </div>
                         <div className="mt-3 truncate text-sm text-slate-500">{subtitle}</div>
-                        <div className="mt-2 truncate font-serif text-3xl font-bold text-slate-900">
+                        <div className={`mt-2 truncate font-serif font-bold text-slate-900 ${previewRecipientFontSizeClass}`}>
                           {recipientName || "Guide Name"}
                         </div>
                         <div className="mx-auto mt-2 h-1 w-36 rounded" style={{ backgroundColor: themeConfig.accent }} />
-                        <p className="mx-auto mt-3 line-clamp-2 max-w-2xl text-sm leading-relaxed text-slate-600">{body}</p>
+                        <p className={`mx-auto mt-3 line-clamp-5 max-w-2xl text-slate-600 ${previewBodyFontSizeClass}`}>{body}</p>
                         <div
                           className="mx-auto mt-3 max-w-[440px] truncate rounded px-4 py-2 text-xs font-bold"
                           style={{ backgroundColor: themeConfig.soft, color: themeConfig.primary }}
@@ -809,7 +864,7 @@ export default function GuideCertificates() {
                           <div className="max-w-48 truncate text-xs font-semibold text-slate-900 tabular-nums">{certificateId}</div>
                         </div>
                       </div>
-                      <div className="absolute inset-x-12 top-[26%] text-center">
+                      <div className="absolute inset-x-12 top-[20%] text-center">
                         <div
                           className="mx-auto inline-flex max-w-[320px] rounded px-4 py-1 text-[10px] font-bold uppercase tracking-wide"
                           style={{ backgroundColor: themeConfig.soft, color: themeConfig.primary }}
@@ -820,11 +875,11 @@ export default function GuideCertificates() {
                           {certificateTitle}
                         </div>
                         <div className="mt-3 truncate text-sm text-slate-500">{subtitle}</div>
-                        <div className="mt-2 truncate font-serif text-3xl font-bold text-slate-900">
+                        <div className={`mt-2 truncate font-serif font-bold text-slate-900 ${previewRecipientFontSizeClass}`}>
                           {recipientName || "Guide Name"}
                         </div>
                         <div className="mx-auto mt-2 h-px w-44" style={{ backgroundColor: themeConfig.accent }} />
-                        <p className="mx-auto mt-3 line-clamp-2 max-w-2xl text-sm leading-relaxed text-slate-600">{body}</p>
+                        <p className={`mx-auto mt-3 line-clamp-5 max-w-2xl text-slate-600 ${previewBodyFontSizeClass}`}>{body}</p>
                         <div
                           className="mx-auto mt-3 max-w-[440px] truncate rounded px-4 py-2 text-xs font-bold"
                           style={{ backgroundColor: themeConfig.soft, color: themeConfig.primary }}

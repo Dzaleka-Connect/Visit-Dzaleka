@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
+  ArrowUpRight,
   Building2,
   CheckCircle2,
   Compass,
@@ -727,22 +728,24 @@ export default function CommunityHub() {
 	            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
 	              {filteredListings.map((item) => (
 	                <Card key={item.id} id={`listing-${item.id}`} className="flex min-w-0 scroll-mt-24 flex-col overflow-hidden">
-                  <div className="aspect-[4/3] bg-muted">
-                    {item.imageUrl ? (
-                      <img
-                        src={item.imageUrl}
-                        alt={item.name}
-                        width={640}
-                        height={480}
-                        loading="lazy"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-primary/5">
-                        {listingIcon(item.type)}
-                      </div>
-                    )}
-                  </div>
+                  <Link href={`/community-hub/${item.id}`} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                    <div className="aspect-[4/3] bg-muted">
+                      {item.imageUrl ? (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          width={640}
+                          height={480}
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-primary/5">
+                          {listingIcon(item.type)}
+                        </div>
+                      )}
+                    </div>
+                  </Link>
 
                   <CardHeader className="space-y-3 p-5 pb-3">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -753,7 +756,11 @@ export default function CommunityHub() {
                       <Badge variant="outline">{listingTypeLabel(item.type)}</Badge>
                     </div>
                     <div className="min-w-0">
-                      <CardTitle className="break-words text-xl">{item.name}</CardTitle>
+                      <CardTitle className="break-words text-xl">
+                        <Link href={`/community-hub/${item.id}`} className="hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                          {item.name}
+                        </Link>
+                      </CardTitle>
                       <p className="mt-2 flex min-w-0 items-start gap-2 break-words text-sm text-muted-foreground">
                         <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                         {item.location}
@@ -762,106 +769,32 @@ export default function CommunityHub() {
                   </CardHeader>
 
                   <CardContent className="flex flex-1 flex-col gap-4 p-5 pt-0">
-                    <p className="line-clamp-4 break-words text-sm leading-6 text-muted-foreground">
+                    <p className="line-clamp-3 break-words text-sm leading-6 text-muted-foreground">
                       {item.description}
                     </p>
 
-                    {item.needs && (
-                      <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-emerald-950 dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-100">
-                        <p className="flex items-center gap-2 text-xs font-semibold">
-                          <Package className="h-4 w-4" aria-hidden="true" />
-                          Supply Needs
-                        </p>
-                        <p className="mt-2 whitespace-pre-line break-words text-sm leading-6">{item.needs}</p>
-                      </div>
-                    )}
-
-                    {item.offersExperience && item.experienceDetails && (
-                      <div className="rounded-md border bg-muted/50 p-3">
-                        <p className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                          <Compass className="h-4 w-4 text-primary" aria-hidden="true" />
-                          Community Impact Experience
-                        </p>
-                        <p className="mt-2 break-words text-sm leading-6 text-muted-foreground">{item.experienceDetails}</p>
-                        <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-                          <span>{formatExperiencePrice(item)}</span>
-                          <span>{formatDuration(item.experienceDurationMinutes)}</span>
-                          {item.experienceMaxGuests && (
-                            <span>
-                              {item.experienceMinGuests || 1}-{item.experienceMaxGuests} guests
-                            </span>
-                          )}
-                          {item.experienceBookingNotes && <span className="sm:col-span-2">{item.experienceBookingNotes}</span>}
-                        </div>
-                        {item.impactStatement && (
-                          <p className="mt-3 border-t pt-3 text-xs leading-5 text-muted-foreground">
-                            {item.impactStatement}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="mt-auto rounded-md border bg-muted/30 p-3">
-                      <p className="break-words text-sm font-medium">{item.contactName}</p>
-                      <p className="mt-1 flex items-start gap-2 break-words text-sm text-muted-foreground">
-                        <MessageSquare className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                        {item.contactPhone}
-                      </p>
-                      {item.contactEmail && (
-                        <p className="mt-1 flex items-start gap-2 break-all text-sm text-muted-foreground">
-                          <Mail className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                          {item.contactEmail}
-                        </p>
+                    <div className="flex flex-wrap gap-2">
+                      {item.offersExperience && (
+                        <Badge variant="outline" className="max-w-full">
+                          <Compass className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                          Visitor experience
+                        </Badge>
+                      )}
+                      {item.needs && (
+                        <Badge variant="outline" className="max-w-full">
+                          <Package className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                          Needs listed
+                        </Badge>
                       )}
                     </div>
 
-	                    <div className="grid gap-2 sm:grid-cols-2">
-                      {item.offersExperience ? (
-                        <Button
-                          className="min-h-11"
-                          onClick={() => {
-                            setRequestListing(item);
-                            requestForm.reset({
-                              ...defaultExperienceRequestValues,
-                              listingId: item.id,
-                              groupSize: item.experienceMinGuests || 1,
-                            });
-                          }}
-                        >
-                          <Compass className="mr-2 h-4 w-4" aria-hidden="true" />
-                          Request
-                        </Button>
-                      ) : (
-                        <Button asChild className="min-h-11">
-                          <a href={whatsappHref(item)} target="_blank" rel="noopener noreferrer">
-                            <MessageSquare className="mr-2 h-4 w-4" aria-hidden="true" />
-                            WhatsApp
-                          </a>
-                        </Button>
-                      )}
-                      {item.offersExperience ? (
-                        <Button asChild variant="outline" className="min-h-11">
-                          <a href={whatsappHref(item)} target="_blank" rel="noopener noreferrer">
-                            <MessageSquare className="mr-2 h-4 w-4" aria-hidden="true" />
-                            WhatsApp
-                          </a>
-                        </Button>
-                      ) : item.contactEmail ? (
-                        <Button asChild variant="outline" className="min-h-11">
-                          <a href={`mailto:${item.contactEmail}`}>
-                            <Mail className="mr-2 h-4 w-4" aria-hidden="true" />
-                            Email
-                          </a>
-                        </Button>
-                      ) : (
-                        <Button asChild variant="outline" className="min-h-11">
-                          <a href={`tel:${item.contactPhone}`}>
-                            <MessageSquare className="mr-2 h-4 w-4" aria-hidden="true" />
-                            Call
-                          </a>
-                        </Button>
-	                      )}
-	                    </div>
+                    <div className={`mt-auto grid gap-2 ${highlightTargetBooking ? "sm:grid-cols-2" : ""}`}>
+                      <Button asChild className="min-h-11">
+                        <Link href={`/community-hub/${item.id}`}>
+                          View details
+                          <ArrowUpRight className="ml-2 h-4 w-4" aria-hidden="true" />
+                        </Link>
+                      </Button>
 	                    {highlightTargetBooking && (
 	                      <Button
 	                        type="button"
@@ -883,6 +816,7 @@ export default function CommunityHub() {
 	                        {(highlightTargetBooking.selectedCommunityListings || []).includes(item.id) ? "Added to tour highlights" : "Add to my tour"}
 	                      </Button>
 	                    )}
+                    </div>
 	                  </CardContent>
 	                </Card>
 	              ))}

@@ -210,7 +210,7 @@ function CommunityListingBadgeList({
         return (
           <Link
             key={listingId}
-            href={`/community-hub#listing-${listingId}`}
+            href={`/community-hub/${listingId}`}
             className="inline-flex max-w-full items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
           >
             <span className="truncate">{listing?.name || humanize(listingId)}</span>

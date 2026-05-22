@@ -1,21 +1,17 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Search,
   Plus,
   Building2,
   HeartHandshake,
-  MapPin,
-  Phone,
-  Mail,
   CheckCircle2,
   XCircle,
   Trash2,
   Edit,
   AlertTriangle,
   Loader2,
-  MessageSquare,
-  Package,
   Compass,
   ArrowUpRight
 } from "lucide-react";
@@ -26,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -88,6 +85,8 @@ const defaultListingValues: InsertCommunityListing = {
   moderationNotes: "",
 };
 
+const PAGE_SIZE = 20;
+
 function trimListingValues(values: InsertCommunityListing): InsertCommunityListing {
   const offersExperience = Boolean(values.offersExperience);
   return {
@@ -116,6 +115,26 @@ function trimListingValues(values: InsertCommunityListing): InsertCommunityListi
   };
 }
 
+const publicListingStatuses = new Set(["approved", "live", "published"]);
+
+function isLiveListing(listing: Pick<CommunityListing, "status">) {
+  return publicListingStatuses.has(String(listing.status || ""));
+}
+
+function listingTypeLabel(type?: string | null) {
+  return type === "initiative" ? "Project or initiative" : "Business or artisan";
+}
+
+function formatAdminDate(date?: string | Date | null) {
+  if (!date) return "No date";
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(date));
+}
+
+function formatRequestDateTime(date?: string | Date | null, time?: string | null) {
+  const dateText = formatAdminDate(date);
+  return time ? `${dateText} at ${time}` : dateText;
+}
+
 interface AdminCommunityExperienceRequest extends CommunityExperienceRequest {
   listing?: CommunityListing | null;
 }
@@ -123,7 +142,9 @@ interface AdminCommunityExperienceRequest extends CommunityExperienceRequest {
 export default function AdminCommunityListings() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("pending");
+  const [activeTab, setActiveTab] = useState("requests");
+  const [listingPage, setListingPage] = useState(1);
+  const [requestPage, setRequestPage] = useState(1);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingListing, setEditingListing] = useState<CommunityListing | null>(null);
   const [rejectingListing, setRejectingListing] = useState<CommunityListing | null>(null);
@@ -159,7 +180,7 @@ export default function AdminCommunityListings() {
       });
       createForm.reset(defaultListingValues);
       setIsAddOpen(false);
-      setActiveTab(variables.status || "approved");
+      setActiveTab(publicListingStatuses.has(String(variables.status || "")) ? "live" : variables.status || "live");
     },
     onError: (error: Error) => {
       toast({
@@ -223,8 +244,10 @@ export default function AdminCommunityListings() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/community-listings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/public/community-listings"] });
       toast({
-        title: variables.status === "approved" ? "Listing Approved" : "Listing Rejected",
-        description: `The listing has been successfully marked as ${variables.status}.`,
+        title: variables.status === "approved" ? "Listing is live" : "Listing rejected",
+        description: variables.status === "approved"
+          ? "This listing can now appear on the public Community Hub."
+          : "The listing has been moved to the rejected queue.",
       });
       setRejectingListing(null);
       setRejectionNotes("");
@@ -285,11 +308,16 @@ export default function AdminCommunityListings() {
     },
   });
 
+  useEffect(() => {
+    setListingPage(1);
+    setRequestPage(1);
+  }, [activeTab, searchTerm]);
+
   // Filter listings by tab and search query
   const filteredListings = listings.filter((item) => {
     // 1. Filter by Tab status
     if (activeTab === "pending" && item.status !== "pending") return false;
-    if (activeTab === "approved" && item.status !== "approved") return false;
+    if (activeTab === "live" && !isLiveListing(item)) return false;
     if (activeTab === "rejected" && item.status !== "rejected") return false;
 
     // 2. Filter by Search Query
@@ -304,23 +332,34 @@ export default function AdminCommunityListings() {
     );
   });
 
+  const filteredExperienceRequests = experienceRequests.filter((request) => {
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      request.visitorName.toLowerCase().includes(term) ||
+      request.visitorEmail.toLowerCase().includes(term) ||
+      Boolean(request.visitorPhone?.toLowerCase().includes(term)) ||
+      Boolean(request.listing?.name?.toLowerCase().includes(term)) ||
+      Boolean(request.message?.toLowerCase().includes(term))
+    );
+  });
+
   const getListingIcon = (type: string) => {
     return type === "business" ? (
-      <Building2 className="h-5 w-5 text-indigo-500" />
+      <Building2 className="h-4 w-4 text-primary" aria-hidden="true" />
     ) : (
-      <HeartHandshake className="h-5 w-5 text-emerald-500" />
+      <HeartHandshake className="h-4 w-4 text-emerald-600" aria-hidden="true" />
     );
   };
 
   const getStatusBadge = (status: string | null) => {
-    switch (status) {
-      case "approved":
-        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Approved</Badge>;
-      case "rejected":
-        return <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">Rejected</Badge>;
-      default:
-        return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">Pending Review</Badge>;
+    if (publicListingStatuses.has(String(status || ""))) {
+      return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">Live</Badge>;
     }
+    if (status === "rejected") {
+      return <Badge className="bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200">Rejected</Badge>;
+    }
+    return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">Needs review</Badge>;
   };
 
   const formatRequestDate = (date: string | Date | null) => {
@@ -331,14 +370,29 @@ export default function AdminCommunityListings() {
   const openExperienceRequests = experienceRequests.filter((request) =>
     request.status === "submitted" || request.status === "contacted"
   );
+  const requestCounts = useMemo(() => ({
+    open: openExperienceRequests.length,
+    total: experienceRequests.length,
+  }), [experienceRequests, openExperienceRequests.length]);
+  const pendingCount = listings.filter((item) => item.status === "pending").length;
+  const liveCount = listings.filter(isLiveListing).length;
+  const rejectedCount = listings.filter((item) => item.status === "rejected").length;
+  const listingTotalPages = Math.max(1, Math.ceil(filteredListings.length / PAGE_SIZE));
+  const requestTotalPages = Math.max(1, Math.ceil(filteredExperienceRequests.length / PAGE_SIZE));
+  const paginatedListings = filteredListings.slice((listingPage - 1) * PAGE_SIZE, listingPage * PAGE_SIZE);
+  const paginatedRequests = filteredExperienceRequests.slice((requestPage - 1) * PAGE_SIZE, requestPage * PAGE_SIZE);
+  const showingListingsFrom = filteredListings.length === 0 ? 0 : (listingPage - 1) * PAGE_SIZE + 1;
+  const showingListingsTo = Math.min(listingPage * PAGE_SIZE, filteredListings.length);
+  const showingRequestsFrom = filteredExperienceRequests.length === 0 ? 0 : (requestPage - 1) * PAGE_SIZE + 1;
+  const showingRequestsTo = Math.min(requestPage * PAGE_SIZE, filteredExperienceRequests.length);
 
   return (
     <PageContainer>
-      <SEO title="Community Listings Moderation | Visit Dzaleka Admin" />
+      <SEO title="Community Listings | Visit Dzaleka Admin" />
 
       <PageHeader
-        title="Community Listings Moderation"
-        description="Moderate and vet local business directories, craft makers, local eateries, and community projects/supply lists."
+        title="Community Listings"
+        description="Review provider submissions, publish listings, and keep contact, needs, and experience details accurate."
       >
         <Button onClick={() => setIsAddOpen(true)}>
           <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -346,86 +400,49 @@ export default function AdminCommunityListings() {
         </Button>
       </PageHeader>
 
-      {openExperienceRequests.length > 0 && (
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Compass className="h-5 w-5 text-primary" aria-hidden="true" />
-              Community Impact Experience Requests
-            </CardTitle>
-            <CardDescription>
-              New visitor requests that need host availability checked before confirmation.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3 lg:grid-cols-2">
-            {openExperienceRequests.slice(0, 6).map((request) => (
-              <div key={request.id} className="rounded-lg border p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="break-words font-medium">{request.listing?.name || "Community experience"}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {request.visitorName} · {formatRequestDate(request.preferredDate)}{request.preferredTime ? ` at ${request.preferredTime}` : ""}
-                    </p>
-                  </div>
-                  <Badge variant="secondary" className="capitalize">{request.status}</Badge>
-                </div>
-                <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
-                  <span className="break-words">{request.visitorEmail}</span>
-                  <span>{request.visitorPhone || "No phone"}</span>
-                  <span>{request.groupSize} guest{request.groupSize === 1 ? "" : "s"}</span>
-                </div>
-                {request.message && (
-                  <p className="mt-3 line-clamp-3 break-words rounded-md bg-muted/50 p-2 text-sm text-muted-foreground">
-                    {request.message}
-                  </p>
-                )}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => requestStatusMutation.mutate({ id: request.id, status: "contacted" })}
-                    disabled={requestStatusMutation.isPending}
-                  >
-                    Mark contacted
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => requestStatusMutation.mutate({ id: request.id, status: "confirmed" })}
-                    disabled={requestStatusMutation.isPending}
-                  >
-                    Confirm
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
-                    onClick={() => requestStatusMutation.mutate({ id: request.id, status: "declined" })}
-                    disabled={requestStatusMutation.isPending}
-                  >
-                    Decline
-                  </Button>
-                </div>
-              </div>
-            ))}
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Open visitor requests</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">{requestCounts.open}</p>
           </CardContent>
         </Card>
-      )}
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Listings to review</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">{pendingCount}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Live listings</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">{liveCount}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">All requests</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">{requestCounts.total}</p>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="space-y-6">
         {/* Filter Controls */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full md:w-auto">
             <TabsList>
-              <TabsTrigger value="pending">Pending Queue</TabsTrigger>
-              <TabsTrigger value="approved">Approved Listings</TabsTrigger>
-              <TabsTrigger value="rejected">Rejected</TabsTrigger>
+              <TabsTrigger value="requests">Experience requests ({requestCounts.open})</TabsTrigger>
+              <TabsTrigger value="pending">Review queue ({pendingCount})</TabsTrigger>
+              <TabsTrigger value="live">Live ({liveCount})</TabsTrigger>
+              <TabsTrigger value="rejected">Rejected ({rejectedCount})</TabsTrigger>
             </TabsList>
           </Tabs>
 
           <div className="relative w-full md:w-80">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search name, category, contact…"
+              placeholder="Search listings or requests…"
               className="pl-9"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -445,163 +462,303 @@ export default function AdminCommunityListings() {
               <p>Failed to load community listings. Please check connection and try again.</p>
             </CardContent>
           </Card>
+        ) : activeTab === "requests" ? (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Compass className="h-5 w-5 text-primary" aria-hidden="true" />
+                Experience requests
+              </CardTitle>
+              <CardDescription>
+                Visitor requests from Community Hub listing detail pages. Check host availability before confirming.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              {filteredExperienceRequests.length === 0 ? (
+                <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
+                  <Compass className="h-10 w-10 text-muted-foreground/50" aria-hidden="true" />
+                  <h3 className="mt-4 text-lg font-semibold">No requests found</h3>
+                  <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+                    New visitor experience requests from the public directory will appear here.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Experience</TableHead>
+                        <TableHead>Visitor</TableHead>
+                        <TableHead className="hidden md:table-cell">Preferred time</TableHead>
+                        <TableHead className="hidden lg:table-cell">Guests</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedRequests.map((request) => (
+                        <TableRow key={request.id}>
+                          <TableCell>
+                            <div className="min-w-0">
+                              <Link
+                                href={`/admin/community-listings/requests/${request.id}`}
+                                className="line-clamp-1 font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              >
+                                {request.listing?.name || "Community experience"}
+                              </Link>
+                              {request.message && (
+                                <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{request.message}</p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="min-w-0 text-sm">
+                              <p className="line-clamp-1 font-medium">{request.visitorName}</p>
+                              <p className="line-clamp-1 text-xs text-muted-foreground">{request.visitorEmail}</p>
+                              {request.visitorPhone && (
+                                <p className="line-clamp-1 text-xs text-muted-foreground">{request.visitorPhone}</p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell text-sm">
+                            {formatRequestDateTime(request.preferredDate, request.preferredTime)}
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell tabular-nums">
+                            {request.groupSize}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="capitalize">{request.status}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <Button asChild size="sm" variant="outline">
+                                <Link href={`/admin/community-listings/requests/${request.id}`}>Details</Link>
+                              </Button>
+                              {(request.status === "submitted" || request.status === "contacted") && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => requestStatusMutation.mutate({ id: request.id, status: "contacted" })}
+                                    disabled={requestStatusMutation.isPending}
+                                  >
+                                    Contacted
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => requestStatusMutation.mutate({ id: request.id, status: "confirmed" })}
+                                    disabled={requestStatusMutation.isPending}
+                                  >
+                                    Confirm
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
+                                    onClick={() => requestStatusMutation.mutate({ id: request.id, status: "declined" })}
+                                    disabled={requestStatusMutation.isPending}
+                                  >
+                                    Decline
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  </div>
+                  <div className="flex flex-col gap-3 border-t p-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                    <span>
+                      Showing {showingRequestsFrom}-{showingRequestsTo} of {filteredExperienceRequests.length} requests
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setRequestPage((page) => Math.max(1, page - 1))}
+                        disabled={requestPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setRequestPage((page) => Math.min(requestTotalPages, page + 1))}
+                        disabled={requestPage === requestTotalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
         ) : filteredListings.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-12 text-center">
               <Building2 className="h-12 w-12 text-muted-foreground/50" />
               <h3 className="mt-4 text-lg font-semibold">No listings found</h3>
               <p className="mt-2 text-sm text-muted-foreground max-w-sm">
-                There are no listings in the "{activeTab}" state matching your parameters.
+                No {activeTab === "live" ? "live" : activeTab} listings match the current search.
               </p>
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-6 sm:grid-cols-2">
-            {filteredListings.map((item) => (
-              <Card key={item.id} className="flex flex-col justify-between border shadow-sm">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        {getListingIcon(item.type)}
-                        {item.category}
-                      </span>
-                      <CardTitle className="text-lg font-bold mt-1">{item.name}</CardTitle>
-                      <CardDescription className="flex items-center gap-1 text-xs">
-                        <MapPin className="h-3 w-3 text-slate-400" />
-                        {item.location}
-                      </CardDescription>
-                    </div>
-                    <div>{getStatusBadge(item.status)}</div>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="space-y-4 pb-4">
-                  <p className="text-sm text-muted-foreground">{item.description}</p>
-
-                  {item.needs && (
-                    <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-2.5">
-                      <span className="flex items-center gap-1 text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                        <Package className="h-3.5 w-3.5" />
-                        Requested Supplies / Needs:
-                      </span>
-                      <p className="mt-1 text-xs text-muted-foreground whitespace-pre-line">{item.needs}</p>
-                    </div>
-                  )}
-
-                  {item.offersExperience && item.experienceDetails && (
-                    <div className="bg-indigo-500/5 border border-indigo-500/10 rounded-lg p-2.5">
-                      <span className="flex items-center gap-1 text-xs font-bold text-indigo-800 dark:text-indigo-300">
-                        <Compass className="h-3.5 w-3.5" />
-                        Community Impact Experience:
-                      </span>
-                      <p className="mt-1 text-xs text-muted-foreground">{item.experienceDetails}</p>
-                      <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-                        {item.experiencePrice && (
-                          <span>
-                            {new Intl.NumberFormat(undefined, {
-                              style: "currency",
-                              currency: item.experienceCurrency || "MWK",
-                              maximumFractionDigits: 0,
-                            }).format(item.experiencePrice)}
-                          </span>
-                        )}
-                        {item.experienceDurationMinutes && <span>{item.experienceDurationMinutes} minutes</span>}
-                        {item.experienceMaxGuests && (
-                          <span>
-                            {item.experienceMinGuests || 1}-{item.experienceMaxGuests} guests
-                          </span>
-                        )}
-                      </div>
-                      {item.impactStatement && (
-                        <p className="mt-2 border-t pt-2 text-xs text-muted-foreground">{item.impactStatement}</p>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground bg-muted/40 p-2.5 rounded-lg border">
-                    <div>
-                      <span className="font-semibold block text-slate-500">Contact Person</span>
-                      {item.contactName}
-                    </div>
-                    <div>
-                      <span className="font-semibold block text-slate-500">Phone / WhatsApp</span>
-                      <span className="flex items-center gap-1">
-                        <Phone className="h-3 w-3" />
-                        {item.contactPhone}
-                      </span>
-                    </div>
-                    {item.contactEmail && (
-                      <div className="col-span-2 mt-1">
-                        <span className="font-semibold block text-slate-500">Email</span>
-                        <span className="flex items-center gap-1">
-                          <Mail className="h-3 w-3" />
-                          {item.contactEmail}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {item.moderationNotes && (
-                    <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 p-2.5 rounded-lg text-xs">
-                      <span className="font-semibold text-amber-800 dark:text-amber-300">Moderator Feedback:</span>
-                      <p className="mt-0.5 text-muted-foreground">{item.moderationNotes}</p>
-                    </div>
-                  )}
-
-                  {/* Actions Bar */}
-                  <div className="flex flex-wrap items-center gap-2 pt-3 border-t">
-                    {item.status === "pending" && (
-                      <>
-                        <Button
-                          size="sm"
-                          className="bg-green-600 text-white hover:bg-green-500 flex-1 min-w-[100px]"
-                          onClick={() => moderateMutation.mutate({ id: item.id, status: "approved" })}
-                          disabled={moderateMutation.isPending}
-                        >
-                          <CheckCircle2 className="mr-1.5 h-4 w-4" />
-                          Approve
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-red-200 text-red-600 hover:bg-red-50 flex-1 min-w-[100px]"
-                          onClick={() => setRejectingListing(item)}
-                          disabled={moderateMutation.isPending}
-                        >
-                          <XCircle className="mr-1.5 h-4 w-4" />
-                          Reject
-                        </Button>
-                      </>
-                    )}
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setEditingListing(item)}
-                      disabled={editMutation.isPending}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-red-500 hover:text-red-600 border-red-100 hover:bg-red-50"
-                      onClick={() => {
-                        if (confirm("Are you sure you want to delete this listing?")) {
-                          deleteMutation.mutate(item.id);
-                        }
-                      }}
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Listing</TableHead>
+                    <TableHead className="hidden md:table-cell">Type</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="hidden lg:table-cell">Contact</TableHead>
+                    <TableHead className="hidden xl:table-cell">Updated</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedListings.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md border bg-muted">
+                            {item.imageUrl ? (
+                              <img
+                                src={item.imageUrl}
+                                alt={item.name}
+                                width={96}
+                                height={96}
+                                loading="lazy"
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center bg-muted/60">
+                                {getListingIcon(item.type)}
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <Link
+                              href={`/admin/community-listings/${item.id}`}
+                              className="line-clamp-1 font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            >
+                              {item.name}
+                            </Link>
+                            <p className="line-clamp-1 text-xs text-muted-foreground">{item.category}</p>
+                            <p className="line-clamp-1 text-xs text-muted-foreground">{item.location}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <Badge variant="outline" className="max-w-full">
+                          <span className="mr-1 shrink-0">{getListingIcon(item.type)}</span>
+                          <span className="truncate">{listingTypeLabel(item.type)}</span>
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(item.status)}</TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <div className="min-w-0 text-sm">
+                          <p className="line-clamp-1">{item.contactName}</p>
+                          <p className="line-clamp-1 text-xs text-muted-foreground">{item.contactPhone}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
+                        {formatAdminDate(item.updatedAt || item.createdAt)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/admin/community-listings/${item.id}`}>Details</Link>
+                          </Button>
+                          {item.status === "pending" && (
+                            <>
+                              <Button
+                                size="sm"
+                                onClick={() => moderateMutation.mutate({ id: item.id, status: "approved" })}
+                                disabled={moderateMutation.isPending}
+                              >
+                                Publish
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
+                                onClick={() => setRejectingListing(item)}
+                                disabled={moderateMutation.isPending}
+                              >
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                          {isLiveListing(item) && (
+                            <Button asChild size="sm" variant="outline">
+                              <a href={`/community-hub/${item.id}`} target="_blank" rel="noopener noreferrer">
+                                <ArrowUpRight className="mr-1 h-4 w-4" aria-hidden="true" />
+                                Public
+                              </a>
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setEditingListing(item)}
+                            disabled={editMutation.isPending}
+                          >
+                            <Edit className="mr-1 h-4 w-4" aria-hidden="true" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
+                            onClick={() => {
+                              if (confirm("Delete this listing? It will be removed from the public Community Hub.")) {
+                                deleteMutation.mutate(item.id);
+                              }
+                            }}
+                            disabled={deleteMutation.isPending}
+                            aria-label={`Delete ${item.name}`}
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              </div>
+              <div className="flex flex-col gap-3 border-t p-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                <span>
+                  Showing {showingListingsFrom}-{showingListingsTo} of {filteredListings.length} listings
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setListingPage((page) => Math.max(1, page - 1))}
+                    disabled={listingPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setListingPage((page) => Math.min(listingTotalPages, page + 1))}
+                    disabled={listingPage === listingTotalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
 
@@ -615,9 +772,9 @@ export default function AdminCommunityListings() {
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Add Community Listing</DialogTitle>
+            <DialogTitle>Add listing</DialogTitle>
             <DialogDescription>
-              Add a local business, artisan, project, or experience directly from the admin dashboard.
+              Create a public listing or save it to the review queue.
             </DialogDescription>
           </DialogHeader>
 
@@ -632,7 +789,7 @@ export default function AdminCommunityListings() {
                   name="type"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Listing Type</FormLabel>
+                      <FormLabel>Listing type</FormLabel>
                       <Select value={field.value} onValueChange={field.onChange}>
                         <FormControl>
                           <SelectTrigger>
@@ -654,7 +811,7 @@ export default function AdminCommunityListings() {
                   name="status"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Publishing Status</FormLabel>
+                      <FormLabel>Visibility</FormLabel>
                       <Select value={field.value || "approved"} onValueChange={field.onChange}>
                         <FormControl>
                           <SelectTrigger>
@@ -662,7 +819,7 @@ export default function AdminCommunityListings() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="approved">Publish now</SelectItem>
+                          <SelectItem value="approved">Live on Community Hub</SelectItem>
                           <SelectItem value="pending">Save for review</SelectItem>
                           <SelectItem value="rejected">Save as rejected</SelectItem>
                         </SelectContent>
@@ -1082,32 +1239,66 @@ export default function AdminCommunityListings() {
       <Dialog open={!!editingListing} onOpenChange={(open) => !open && setEditingListing(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Edit Listing: {editingListing?.name}</DialogTitle>
+            <DialogTitle>Edit listing</DialogTitle>
             <DialogDescription>
-              Make direct administrative corrections to listing details.
+              Update the public listing details and visibility.
             </DialogDescription>
           </DialogHeader>
 
           {editingListing && (
             <div className="space-y-4 py-4">
               <div>
-                <label className="text-sm font-semibold block mb-1">Name</label>
+                <label className="mb-1 block text-sm font-semibold">Name</label>
                 <Input
                   value={editingListing.name}
                   onChange={(e) => setEditingListing({ ...editingListing, name: e.target.value })}
                 />
               </div>
 
-              <div className="grid gap-4 grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="text-sm font-semibold block mb-1">Category</label>
+                  <label className="mb-1 block text-sm font-semibold">Listing type</label>
+                  <Select
+                    value={editingListing.type || "business"}
+                    onValueChange={(value) => setEditingListing({ ...editingListing, type: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose type…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="business">Business or artisan</SelectItem>
+                      <SelectItem value="initiative">Project or initiative</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-semibold">Visibility</label>
+                  <Select
+                    value={isLiveListing(editingListing) ? "approved" : editingListing.status || "pending"}
+                    onValueChange={(value) => setEditingListing({ ...editingListing, status: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose visibility…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="approved">Live on Community Hub</SelectItem>
+                      <SelectItem value="pending">Needs review</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-semibold">Category</label>
                   <Input
                     value={editingListing.category}
                     onChange={(e) => setEditingListing({ ...editingListing, category: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-semibold block mb-1">Location</label>
+                  <label className="mb-1 block text-sm font-semibold">Location</label>
                   <Input
                     value={editingListing.location}
                     onChange={(e) => setEditingListing({ ...editingListing, location: e.target.value })}
@@ -1116,7 +1307,7 @@ export default function AdminCommunityListings() {
               </div>
 
               <div>
-                <label className="text-sm font-semibold block mb-1">Description</label>
+                <label className="mb-1 block text-sm font-semibold">Description</label>
                 <Textarea
                   value={editingListing.description}
                   onChange={(e) => setEditingListing({ ...editingListing, description: e.target.value })}
@@ -1124,16 +1315,16 @@ export default function AdminCommunityListings() {
                 />
               </div>
 
-              <div className="grid gap-4 grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="text-sm font-semibold block mb-1">Contact Name</label>
+                  <label className="mb-1 block text-sm font-semibold">Contact name</label>
                   <Input
                     value={editingListing.contactName}
                     onChange={(e) => setEditingListing({ ...editingListing, contactName: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-semibold block mb-1">Contact Phone</label>
+                  <label className="mb-1 block text-sm font-semibold">Phone / WhatsApp</label>
                   <Input
                     value={editingListing.contactPhone}
                     onChange={(e) => setEditingListing({ ...editingListing, contactPhone: e.target.value })}
@@ -1142,7 +1333,7 @@ export default function AdminCommunityListings() {
               </div>
 
               <div>
-                <label className="text-sm font-semibold block mb-1">Needs / Material Support</label>
+                <label className="mb-1 block text-sm font-semibold">Needs / material support</label>
                 <Textarea
                   value={editingListing.needs || ""}
                   onChange={(e) => setEditingListing({ ...editingListing, needs: e.target.value })}
@@ -1162,7 +1353,7 @@ export default function AdminCommunityListings() {
               </label>
 
               <div>
-                <label className="text-sm font-semibold block mb-1">Experience Details</label>
+                <label className="mb-1 block text-sm font-semibold">Experience details</label>
                 <Textarea
                   value={editingListing.experienceDetails || ""}
                   onChange={(e) => setEditingListing({ ...editingListing, experienceDetails: e.target.value })}
@@ -1170,9 +1361,9 @@ export default function AdminCommunityListings() {
                 />
               </div>
 
-              <div className="grid gap-4 grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="text-sm font-semibold block mb-1">Experience Price</label>
+                  <label className="mb-1 block text-sm font-semibold">Experience price</label>
                   <Input
                     type="number"
                     min={0}
@@ -1182,14 +1373,14 @@ export default function AdminCommunityListings() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-semibold block mb-1">Currency</label>
+                  <label className="mb-1 block text-sm font-semibold">Currency</label>
                   <Input
                     value={editingListing.experienceCurrency || "MWK"}
                     onChange={(e) => setEditingListing({ ...editingListing, experienceCurrency: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-semibold block mb-1">Duration Minutes</label>
+                  <label className="mb-1 block text-sm font-semibold">Duration minutes</label>
                   <Input
                     type="number"
                     min={0}
@@ -1199,7 +1390,7 @@ export default function AdminCommunityListings() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-semibold block mb-1">Max Guests</label>
+                  <label className="mb-1 block text-sm font-semibold">Max guests</label>
                   <Input
                     type="number"
                     min={1}
@@ -1211,7 +1402,7 @@ export default function AdminCommunityListings() {
               </div>
 
               <div>
-                <label className="text-sm font-semibold block mb-1">Impact Statement</label>
+                <label className="mb-1 block text-sm font-semibold">Impact statement</label>
                 <Textarea
                   value={editingListing.impactStatement || ""}
                   onChange={(e) => setEditingListing({ ...editingListing, impactStatement: e.target.value })}
@@ -1220,7 +1411,7 @@ export default function AdminCommunityListings() {
               </div>
 
               <div>
-                <label className="text-sm font-semibold block mb-1">Experience Booking Notes</label>
+                <label className="mb-1 block text-sm font-semibold">Experience booking notes</label>
                 <Textarea
                   value={editingListing.experienceBookingNotes || ""}
                   onChange={(e) => setEditingListing({ ...editingListing, experienceBookingNotes: e.target.value })}
@@ -1229,7 +1420,7 @@ export default function AdminCommunityListings() {
               </div>
 
               <div>
-                <label className="text-sm font-semibold block mb-1">Image URL</label>
+                <label className="mb-1 block text-sm font-semibold">Image URL</label>
                 <Input
                   value={editingListing.imageUrl || ""}
                   onChange={(e) => setEditingListing({ ...editingListing, imageUrl: e.target.value })}
@@ -1250,7 +1441,8 @@ export default function AdminCommunityListings() {
               }}
               disabled={editMutation.isPending}
             >
-              Save Changes
+              {editMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+              Save changes
             </Button>
           </DialogFooter>
         </DialogContent>

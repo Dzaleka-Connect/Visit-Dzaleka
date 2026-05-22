@@ -146,9 +146,9 @@ export default function GuideTourReportDetails() {
               <p className="mt-1 text-sm text-muted-foreground">This post-tour report may have been removed or you may not have access.</p>
             </div>
             <Button asChild>
-              <Link href="/guides">
+              <Link href="/admin/post-tour-reports">
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Guides
+                Back to Reports
               </Link>
             </Button>
           </CardContent>
@@ -175,9 +175,9 @@ export default function GuideTourReportDetails() {
         description={`${bookingReference} · ${guideName}`}
       >
         <Button variant="outline" asChild>
-          <Link href="/guides">
+          <Link href="/admin/post-tour-reports">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Guides
+            Back to Reports
           </Link>
         </Button>
       </PageHeader>

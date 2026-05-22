@@ -33,6 +33,7 @@ import {
   type TransportRequestStatus,
   type PartnerReferralStatus,
   type PartnerTourReferral,
+  type CommunityListing,
   insertCommunityListingSchema,
   insertCommunityExperienceRequestSchema,
 } from "@shared/schema";
@@ -1302,6 +1303,11 @@ const bookingMessageContactSchema = z.object({
 const communityHighlightsSchema = z.object({
   selectedCommunityListings: z.array(z.string().trim().min(1)).max(50).default([]),
 });
+const publicCommunityListingStatuses = ["approved", "live", "published"];
+const normalizeCommunityListingStatus = (status?: string | null) =>
+  publicCommunityListingStatuses.includes(String(status || "")) ? "approved" : status;
+const isPublicCommunityListing = (listing: Pick<CommunityListing, "status">) =>
+  publicCommunityListingStatuses.includes(String(listing.status || ""));
 
 const VALID_USER_ROLES: UserRole[] = ["admin", "coordinator", "guide", "security", "visitor", "transport_partner"];
 const OPERATIONS_WORKFLOW_KEYS = [
@@ -5547,7 +5553,7 @@ export async function registerRoutes(
 
 	      const selectedCommunityListings = Array.from(new Set(payload.selectedCommunityListings));
 	      if (selectedCommunityListings.length > 0) {
-	        const approvedListings = await storage.getCommunityListings({ status: "approved" });
+	        const approvedListings = await storage.getCommunityListings({ status: publicCommunityListingStatuses });
 	        const approvedIds = new Set(approvedListings.map((listing) => listing.id));
 	        const invalidIds = selectedCommunityListings.filter((listingId) => !approvedIds.has(listingId));
 	        if (invalidIds.length > 0) {
@@ -11223,13 +11229,27 @@ export async function registerRoutes(
     try {
       const type = req.query.type as string | undefined;
       const listings = await storage.getCommunityListings({ 
-        status: "approved", 
+        status: publicCommunityListingStatuses,
         type 
       });
       res.json(listings);
     } catch (error) {
       logError("Error fetching public community listings", error);
       res.status(500).json({ message: "Failed to fetch community listings" });
+    }
+  });
+
+  app.get("/api/public/community-listings/:id", async (req, res) => {
+    try {
+      const listing = await storage.getCommunityListing(req.params.id);
+      if (!listing || !isPublicCommunityListing(listing)) {
+        return res.status(404).json({ message: "Community listing not found" });
+      }
+
+      res.json(listing);
+    } catch (error) {
+      logError("Error fetching public community listing", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch community listing" });
     }
   });
 
@@ -11266,7 +11286,7 @@ export async function registerRoutes(
     try {
       const parsed = insertCommunityExperienceRequestSchema.parse(req.body);
       const listing = await storage.getCommunityListing(parsed.listingId);
-      if (!listing || listing.status !== "approved" || !listing.offersExperience) {
+      if (!listing || !isPublicCommunityListing(listing) || !listing.offersExperience) {
         return res.status(404).json({ message: "Experience is not available for requests" });
       }
 
@@ -11337,10 +11357,24 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/community-listings/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const listing = await storage.getCommunityListing(req.params.id);
+      if (!listing) {
+        return res.status(404).json({ message: "Listing not found" });
+      }
+
+      res.json(listing);
+    } catch (error) {
+      logError("Error fetching admin community listing", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch community listing" });
+    }
+  });
+
   app.post("/api/admin/community-listings", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
     try {
       const parsed = insertCommunityListingSchema.parse(req.body);
-      const status = parsed.status || "approved";
+      const status = normalizeCommunityListingStatus(parsed.status || "approved") || "approved";
       if (!["pending", "approved", "rejected"].includes(status)) {
         return res.status(400).json({ message: "Invalid listing status" });
       }
@@ -11374,6 +11408,20 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error fetching community experience requests", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch community experience requests" });
+    }
+  });
+
+  app.get("/api/admin/community-experience-requests/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+    try {
+      const request = await storage.getCommunityExperienceRequest(req.params.id);
+      if (!request) {
+        return res.status(404).json({ message: "Experience request not found" });
+      }
+
+      res.json(await enrichCommunityExperienceRequest(request));
+    } catch (error) {
+      logError("Error fetching community experience request", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch community experience request" });
     }
   });
 
@@ -11413,7 +11461,14 @@ export async function registerRoutes(
       }
 
       // Allow updating status, moderation notes, and basic details during review
-      const updateData = req.body;
+      const updateData = { ...req.body };
+      if ("status" in updateData) {
+        const status = normalizeCommunityListingStatus(updateData.status);
+        if (!status || !["pending", "approved", "rejected"].includes(status)) {
+          return res.status(400).json({ message: "Invalid listing status" });
+        }
+        updateData.status = status;
+      }
       const updated = await storage.updateCommunityListing(id, updateData);
       res.json(updated);
     } catch (error) {
@@ -14455,6 +14510,20 @@ export async function registerRoutes(
     } catch (error) {
       logError("Error sending review request", error, req.requestId);
       res.status(500).json({ message: "Failed to send review request" });
+    }
+  });
+
+  app.get("/api/reviews/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req: Request, res: Response) => {
+    try {
+      const review = await storage.getTourReview(req.params.id);
+      if (!review) {
+        return res.status(404).json({ message: "Review not found" });
+      }
+
+      res.json(review);
+    } catch (error) {
+      logError("Error fetching review", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch review" });
     }
   });
 
