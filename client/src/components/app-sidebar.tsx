@@ -1,4 +1,4 @@
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
@@ -32,6 +32,7 @@ import {
   PieChart,
   Wallet,
   ClipboardList,
+  Send,
   Heart,
   Map,
   CreditCard,
@@ -39,6 +40,7 @@ import {
   Star,
   Award,
   Car,
+  CalendarOff,
   SlidersHorizontal,
 } from "lucide-react";
 import {
@@ -67,6 +69,7 @@ interface NavItem {
   url: string;
   icon: LucideIcon;
   roles: UserRole[];
+  external?: boolean;
 }
 
 const mainNavigationItems: NavItem[] = [
@@ -74,12 +77,54 @@ const mainNavigationItems: NavItem[] = [
     title: "Dashboard",
     url: "/",
     icon: LayoutDashboard,
-    roles: ["admin", "coordinator", "guide", "security", "visitor", "transport_partner"],
+    roles: ["admin", "coordinator", "guide", "security", "visitor"],
   },
   {
-    title: "Partner Portal",
-    url: "/transport-partner",
-    icon: Car,
+    title: "Dashboard",
+    url: "/transport-partner/dashboard",
+    icon: LayoutDashboard,
+    roles: ["transport_partner"],
+  },
+  {
+    title: "Transport Requests",
+    url: "/transport-partner/requests",
+    icon: ClipboardList,
+    roles: ["transport_partner"],
+  },
+  {
+    title: "Tour Referrals",
+    url: "/transport-partner/referrals",
+    icon: Send,
+    roles: ["transport_partner"],
+  },
+  {
+    title: "Roster",
+    url: "/transport-partner/roster",
+    icon: Users,
+    roles: ["transport_partner"],
+  },
+  {
+    title: "Availability",
+    url: "/transport-partner/availability",
+    icon: CalendarOff,
+    roles: ["transport_partner"],
+  },
+  {
+    title: "Pricing",
+    url: "/transport-partner/pricing",
+    icon: DollarSign,
+    roles: ["transport_partner"],
+  },
+  {
+    title: "Profile",
+    url: "/transport-partner/profile",
+    icon: User,
+    roles: ["transport_partner"],
+  },
+  {
+    title: "Help Center",
+    url: "/transport-partner/help",
+    icon: HelpCircle,
     roles: ["transport_partner"],
   },
   {
@@ -257,10 +302,11 @@ const mainNavigationItems: NavItem[] = [
     roles: ["visitor", "guide"],
   },
   {
-    title: "Community",
-    url: "/community",
+    title: "Dzaleka Online Services",
+    url: "https://services.dzaleka.com",
     icon: Globe,
     roles: ["admin", "coordinator", "guide", "security", "visitor", "transport_partner"],
+    external: true,
   },
 ];
 
@@ -431,6 +477,7 @@ const adminItems: NavItem[] = [
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const search = useSearch();
   const { user, logout, isLoggingOut, isImpersonating } = useAuth();
 
   // Fetch pending task count for badge
@@ -471,11 +518,29 @@ export function AppSidebar() {
   const filteredFinanceItems = filterByRole(financeItems);
   const filteredOperationsItems = filterByRole(operationsItems);
   const filteredAdminItems = filterByRole(adminItems);
-  const isActiveItem = (url: string) =>
+  const isActiveUrl = (url: string) =>
     location === url ||
+    (url === "/transport-partner/dashboard" && location === "/transport-partner") ||
     (url !== "/" && location.startsWith(`${url}/`)) ||
     (url === "/guides" && location.startsWith("/guide/")) ||
     (url === "/my-bookings" && location.startsWith("/bookings/"));
+  const isActiveItem = (item: NavItem) => {
+    if (item.external) return false;
+    const [path, query = ""] = item.url.split("?");
+
+    if (!query) return isActiveUrl(path);
+    if (location !== path) return false;
+
+    const targetParams = new URLSearchParams(query);
+    const currentParams = new URLSearchParams(search);
+    let matches = true;
+
+    targetParams.forEach((value, key) => {
+      if (currentParams.get(key) !== value) matches = false;
+    });
+
+    return matches || (path === "/transport-partner" && targetParams.get("tab") === "dashboard" && !currentParams.get("tab"));
+  };
 
   const roleColors: Record<string, string> = {
     admin: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
@@ -510,7 +575,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {filteredMainItems.map((item) => {
-                const isActive = isActiveItem(item.url);
+                const isActive = isActiveItem(item);
                 const showTaskBadge = item.title === "My Tasks" && pendingTaskCount > 0;
                 const showBookingBadge = item.title === "Bookings" && pendingBookingCount > 0;
                 const showChatBadge = item.title === "Messages" && unreadChatCount > 0;
@@ -527,18 +592,30 @@ export function AppSidebar() {
                       data-active={isActive}
                       className={isActive ? "bg-sidebar-accent" : ""}
                     >
-                      <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
-                        <item.icon className="h-4 w-4" />
-                        <span className="flex-1">{item.title}</span>
-                        {(showTaskBadge || showBookingBadge || showChatBadge) && (
-                          <Badge
-                            variant="default"
-                            className={`ml-auto h-5 min-w-5 shrink-0 rounded-full px-1.5 flex items-center justify-center text-[10px] font-bold ${showBookingBadge ? "bg-orange-500 hover:bg-orange-600" : "bg-primary hover:bg-primary/90"}`}
-                          >
-                            {badgeCount > 9 ? "9+" : badgeCount}
-                          </Badge>
-                        )}
-                      </Link>
+                      {item.external ? (
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span className="flex-1">{item.title}</span>
+                        </a>
+                      ) : (
+                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
+                          <item.icon className="h-4 w-4" />
+                          <span className="flex-1">{item.title}</span>
+                          {(showTaskBadge || showBookingBadge || showChatBadge) && (
+                            <Badge
+                              variant="default"
+                              className={`ml-auto h-5 min-w-5 shrink-0 rounded-full px-1.5 flex items-center justify-center text-[10px] font-bold ${showBookingBadge ? "bg-orange-500 hover:bg-orange-600" : "bg-primary hover:bg-primary/90"}`}
+                            >
+                              {badgeCount > 9 ? "9+" : badgeCount}
+                            </Badge>
+                          )}
+                        </Link>
+                      )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
@@ -553,7 +630,7 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {filteredFinanceItems.map((item) => {
-                  const isActive = isActiveItem(item.url);
+                  const isActive = isActiveItem(item);
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton
@@ -580,7 +657,7 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {filteredOperationsItems.map((item) => {
-                  const isActive = isActiveItem(item.url);
+                  const isActive = isActiveItem(item);
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton
@@ -607,7 +684,7 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {filteredAdminItems.map((item) => {
-                  const isActive = isActiveItem(item.url);
+                  const isActive = isActiveItem(item);
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton

@@ -1,4 +1,5 @@
 import { Switch, Route, useLocation } from "wouter";
+import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { HelmetProvider } from "react-helmet-async";
@@ -184,6 +185,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
 const PUBLIC_ROUTES = [
   "/embed/",
   "/blog",
+  "/community",
   "/community-hub",
   "/things-to-do",
   "/whats-on",
@@ -214,6 +216,18 @@ function isPublicRoute(path: string): boolean {
   );
 }
 
+function ExternalCommunityRedirect() {
+  useEffect(() => {
+    window.location.replace("https://services.dzaleka.com");
+  }, []);
+
+  return (
+    <div className="flex h-dvh items-center justify-center">
+      <p className="text-sm text-muted-foreground">Opening Dzaleka Online Services…</p>
+    </div>
+  );
+}
+
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
   const [location] = useLocation();
@@ -228,6 +242,8 @@ function Router() {
         <Route path="/embed/booking" component={EmbedBooking} />
         <Route path="/blog" component={BlogList} />
         <Route path="/blog/:slug" component={BlogPostPage} />
+        <Route path="/community" component={ExternalCommunityRedirect} />
+        <Route path="/community/:path" component={ExternalCommunityRedirect} />
         <Route path="/community-hub/guide" component={CommunityHubGuide} />
         <Route path="/community-hub/:listingId" component={CommunityListingDetails} />
         <Route path="/community-hub" component={CommunityHub} />
@@ -380,6 +396,7 @@ function Router() {
         <ProtectedRoute path="/revenue" component={Revenue} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/payments" component={PaymentsPage} allowedRoles={["admin"]} />
         <ProtectedRoute path="/transport-partner/partners/:partnerId" component={TransportPartnerRecordPage} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/transport-partner/:section" component={TransportPartnerPortal} allowedRoles={["admin", "coordinator", "transport_partner"]} />
         <ProtectedRoute path="/transport-partner" component={TransportPartnerPortal} allowedRoles={["admin", "coordinator", "transport_partner"]} />
         <ProtectedRoute path="/audit-logs" component={AuditLogs} allowedRoles={["admin"]} />
         <ProtectedRoute path="/analytics" component={Analytics} allowedRoles={["admin", "coordinator"]} />
@@ -402,9 +419,6 @@ function Router() {
         <ProtectedRoute path="/admin/visitors" component={VisitorsPage} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/admin/visitors/:id" component={VisitorDetailsPage} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/developer" component={DeveloperSettings} allowedRoles={["admin"]} />
-        <Route path="/community/guide" component={CommunityHubGuide} />
-        <Route path="/community/:listingId" component={CommunityListingDetails} />
-        <Route path="/community" component={CommunityHub} />
         <Route path="/landing" component={Landing} />
         <ProtectedRoute path="/admin/blog" component={AdminBlog} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/admin/blog/new" component={AdminBlogEditor} allowedRoles={["admin", "coordinator"]} />

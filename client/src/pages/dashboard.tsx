@@ -1,7 +1,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { Link } from "wouter";
+import { Link, Redirect } from "wouter";
 import { useState } from "react";
 import {
   CalendarDays,
@@ -2023,7 +2023,7 @@ function VisitorDashboard() {
         </Card>
       )}
 
-      {/* Community promotion */}
+      {/* Dzaleka Online Services promotion */}
       <Card>
         <CardContent className="flex flex-col items-center justify-between gap-4 p-6 sm:flex-row">
           <div className="flex min-w-0 flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
@@ -2031,16 +2031,16 @@ function VisitorDashboard() {
               <Globe className="h-6 w-6 text-primary" />
             </div>
             <div className="min-w-0 space-y-1">
-              <h3 className="break-words text-base font-semibold">Community</h3>
+              <h3 className="break-words text-base font-semibold">Dzaleka Online Services</h3>
               <p className="max-w-lg break-words text-sm text-muted-foreground">
                 Find local services, news, events, and community-led projects in one place.
               </p>
             </div>
           </div>
           <Button asChild size="default" className="shrink-0 w-full sm:w-auto">
-            <Link href="/community">
-              Open community <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
+            <a href="https://services.dzaleka.com" target="_blank" rel="noopener noreferrer">
+              Open services <ExternalLink className="ml-2 h-4 w-4" />
+            </a>
           </Button>
         </CardContent>
       </Card>
@@ -2631,6 +2631,8 @@ export default function Dashboard() {
       return <GuideDashboard />;
     case "security":
       return <SecurityDashboard />;
+    case "transport_partner":
+      return <Redirect to="/transport-partner/dashboard" />;
     case "visitor":
     default:
       return <VisitorDashboard />;

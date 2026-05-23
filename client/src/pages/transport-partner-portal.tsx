@@ -38,6 +38,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/empty-state";
 import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
@@ -308,6 +323,11 @@ function humanizeStatus(status?: string | null) {
   return (status || "pending").replace(/_/g, " ");
 }
 
+function transportPartnerSectionHref(section: string, isAdmin: boolean) {
+  if (isAdmin) return `/transport-partner?tab=${section}`;
+  return section === "dashboard" ? "/transport-partner/dashboard" : `/transport-partner/${section}`;
+}
+
 function getGroupSizeLabel(groupSize: string) {
   return GROUP_SIZES.find((size) => size.id === groupSize)?.name || humanizeStatus(groupSize);
 }
@@ -369,6 +389,60 @@ function partnerFormPayload(form: PartnerForm) {
 
 function formatMaybeTime(time?: string | null) {
   return time ? formatTime(time) : "Not set";
+}
+
+function isOpenTransportRequest(request: Pick<TransportRequest, "status">) {
+  return !["completed", "cancelled"].includes(request.status || "");
+}
+
+function transportRequestTimestamp(
+  request: Pick<TransportRequest, "visitDate" | "visitTime" | "createdAt">
+) {
+  const fallbackTimestamp = request.createdAt ? new Date(request.createdAt).getTime() : Number.MAX_SAFE_INTEGER;
+  if (!request.visitDate) return Number.isNaN(fallbackTimestamp) ? Number.MAX_SAFE_INTEGER : fallbackTimestamp;
+
+  const dateValue = String(request.visitDate).slice(0, 10);
+  const timeValue = request.visitTime ? String(request.visitTime).slice(0, 5) : "00:00";
+  const timestamp = new Date(`${dateValue}T${timeValue}`).getTime();
+
+  return Number.isNaN(timestamp) ? fallbackTimestamp : timestamp;
+}
+
+function formatRequestSchedule(request: Pick<TransportRequest, "visitDate" | "visitTime">) {
+  if (!request.visitDate) return "Date pending";
+  return `${formatDate(request.visitDate)}${request.visitTime ? ` at ${formatTime(request.visitTime)}` : ""}`;
+}
+
+function requestNeedsQuote(request: TransportRequest) {
+  const status = request.status || "pending";
+  return ["pending", "sent_to_partner"].includes(status) || (status === "accepted" && request.quotedAmount == null);
+}
+
+function getPartnerRequestAction(request: TransportRequest) {
+  const status = request.status || "pending";
+  if (status === "reschedule_requested") return "Review reschedule";
+  if (status === "visitor_declined") return "Review declined quote";
+  if (status === "visitor_approved") return "Confirm pickup";
+  if (status === "confirmed") return "Prepare driver";
+  if (requestNeedsQuote(request)) return "Add quote";
+  if (["quote_sent", "accepted"].includes(status)) return "Await visitor";
+  return "Review request";
+}
+
+function requestDateKey(request: Pick<TransportRequest, "visitDate" | "createdAt">) {
+  const value = request.visitDate || request.createdAt;
+  if (value) {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, 10);
+  }
+  return "unscheduled";
+}
+
+function formatShortDateLabel(dateKey: string) {
+  if (dateKey === "unscheduled") return "Date pending";
+  const date = new Date(`${dateKey}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "Date pending";
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date);
 }
 
 function PartnerProfileFields({
@@ -827,8 +901,90 @@ function PartnerRecordOverview({
   );
 }
 
+function PartnerScopePanel({
+  title,
+  description,
+  partners,
+  selectedPartnerId,
+  onPartnerChange,
+  children,
+}: {
+  title: string;
+  description: string;
+  partners: TransportPartner[];
+  selectedPartnerId: string;
+  onPartnerChange: (partnerId: string) => void;
+  children?: ReactNode;
+}) {
+  const selectedPartner = partners.find((partner) => partner.id === selectedPartnerId) || null;
+  const selectedContact = selectedPartner
+    ? [selectedPartner.contactName, selectedPartner.phone || selectedPartner.whatsapp || selectedPartner.email]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
+
+  return (
+    <Card className="border-primary/20 bg-primary/5">
+      <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary" aria-hidden="true" />
+            <CardTitle>{title}</CardTitle>
+          </div>
+          <CardDescription>{description}</CardDescription>
+        </div>
+        <div className="w-full lg:w-80">
+          <Label htmlFor="admin-transport-partner-scope">Partner workspace</Label>
+          <Select
+            value={selectedPartnerId || SELECT_PARTNER_PLACEHOLDER}
+            onValueChange={(partnerId) => {
+              if (partnerId !== SELECT_PARTNER_PLACEHOLDER) onPartnerChange(partnerId);
+            }}
+            disabled={partners.length === 0}
+          >
+            <SelectTrigger id="admin-transport-partner-scope" className="mt-2">
+              <SelectValue placeholder="Select partner…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={SELECT_PARTNER_PLACEHOLDER} disabled>
+                Select a transport partner
+              </SelectItem>
+              {partners.map((partner) => (
+                <SelectItem key={partner.id} value={partner.id}>
+                  {partner.companyName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {partners.length === 0 ? (
+          <EmptyState
+            icon={Car}
+            title="No transport partners configured"
+            description="Create a transport partner profile before managing fleet, availability, pricing, or requests."
+          />
+        ) : (
+          <>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <InfoBlock label="Selected partner" value={selectedPartner?.companyName || "No partner selected"} />
+              <InfoBlock label="Contact" value={selectedContact || "Contact not recorded"} />
+              <InfoBlock label="Base" value={selectedPartner?.baseLocation || "Base not recorded"} />
+              <InfoBlock label="Status">
+                <StatusBadge status={selectedPartner?.status || "active"} />
+              </InfoBlock>
+            </div>
+            {children}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function HelpCenterPanel({ isAdmin }: { isAdmin: boolean }) {
-  const guides = isAdmin
+  const workflowGuides = isAdmin
     ? [
         {
           icon: ShieldCheck,
@@ -860,8 +1016,17 @@ function HelpCenterPanel({ isAdmin }: { isAdmin: boolean }) {
       ]
     : [
         {
+          icon: ShieldCheck,
+          title: "Use the dashboard first",
+          steps: [
+            "Start with Today's transport desk to see open work, exceptions, next best action, and quick actions.",
+            "Use the metric tiles to jump into quotes to send, visitor decisions, confirmed pickups, or pricing.",
+            "Check Attention queue and Readiness checklist before the next pickup so driver, phone, vehicle, and pricing details are complete.",
+          ],
+        },
+        {
           icon: ClipboardList,
-          title: "Respond to a transport request",
+          title: "Quote and confirm a request",
           steps: [
             "Open Transport Requests and review the visitor route, pickup location, visit date, and requested time.",
             "Add your quote amount, pickup time, driver, driver phone, and vehicle details.",
@@ -888,6 +1053,129 @@ function HelpCenterPanel({ isAdmin }: { isAdmin: boolean }) {
         },
       ];
 
+  const dashboardCards = [
+    {
+      icon: ClipboardList,
+      title: "Metric tiles",
+      detail: "Shows quotes to send, visitor decisions, confirmed pickups, and quoted value. Each tile opens the matching work area.",
+    },
+    {
+      icon: Send,
+      title: "Quick actions",
+      detail: "One-tap shortcuts for requests, referrals, drivers, vehicles, availability blocks, and pricing updates.",
+    },
+    {
+      icon: Clock,
+      title: "Request pipeline",
+      detail: "Tracks requests from requested to quoted, approved, confirmed, and completed so workload is easy to scan.",
+    },
+    {
+      icon: HelpCircle,
+      title: "Attention queue",
+      detail: "Highlights stale quote requests, missing fleet details, and exceptions that need follow-up.",
+    },
+    {
+      icon: MapPin,
+      title: "Route and date charts",
+      detail: "Shows popular routes and upcoming visit-date volume to help plan driver and vehicle coverage.",
+    },
+    {
+      icon: CheckCircle2,
+      title: "Readiness checklist",
+      detail: "Confirms profile contacts, active drivers, active vehicles, and route pricing are ready for bookings.",
+    },
+  ];
+
+  const partnerPages = isAdmin
+    ? [
+        {
+          icon: ClipboardList,
+          title: "Request Queue",
+          detail: "Assign transport partners, review quote details, monitor visitor approval, and handle exceptions.",
+          href: transportPartnerSectionHref("requests", true),
+        },
+        {
+          icon: Send,
+          title: "Referral Intake",
+          detail: "Create or review tour referrals that came through transport partners.",
+          href: transportPartnerSectionHref("referrals", true),
+        },
+        {
+          icon: Car,
+          title: "Fleet Records",
+          detail: "Check saved drivers and vehicles before urgent transport assignment.",
+          href: transportPartnerSectionHref("roster", true),
+        },
+        {
+          icon: CalendarOff,
+          title: "Blackout Controls",
+          detail: "Review unavailable dates so requests are assigned to partners who can actually operate.",
+          href: transportPartnerSectionHref("availability", true),
+        },
+        {
+          icon: DollarSign,
+          title: "Partner Prices",
+          detail: "Review partner-maintained route prices separately from visitor-specific quotes.",
+          href: transportPartnerSectionHref("pricing", true),
+        },
+        {
+          icon: Users,
+          title: "Partner Records",
+          detail: "Create, pause, edit, invite, unlink, or delete transport partner records.",
+          href: transportPartnerSectionHref("partners", true),
+        },
+      ]
+    : [
+        {
+          icon: ShieldCheck,
+          title: "Dashboard",
+          detail: "Your operations desk for stats, next best action, pipeline, attention items, charts, and priority requests.",
+          href: transportPartnerSectionHref("dashboard", false),
+        },
+        {
+          icon: ClipboardList,
+          title: "Transport Requests",
+          detail: "Quote visitor transport, add pickup time, assign driver and vehicle details, and track approval status.",
+          href: transportPartnerSectionHref("requests", false),
+        },
+        {
+          icon: Send,
+          title: "Tour Referrals",
+          detail: "Send guests to Visit Dzaleka for guided tour booking and follow the submitted referral list.",
+          href: transportPartnerSectionHref("referrals", false),
+        },
+        {
+          icon: Car,
+          title: "Roster",
+          detail: "Save regular drivers and vehicles so request handling is faster and visitor details stay consistent.",
+          href: transportPartnerSectionHref("roster", false),
+        },
+        {
+          icon: CalendarOff,
+          title: "Availability",
+          detail: "Block dates when the team, vehicle, or driver roster cannot accept new transport requests.",
+          href: transportPartnerSectionHref("availability", false),
+        },
+        {
+          icon: DollarSign,
+          title: "Pricing",
+          detail: "Maintain route price references. Request-specific quotes are still saved on each transport request.",
+          href: transportPartnerSectionHref("pricing", false),
+        },
+        {
+          icon: Settings,
+          title: "Profile",
+          detail: "Keep company contact, WhatsApp, service areas, and operating notes current for staff.",
+          href: transportPartnerSectionHref("profile", false),
+        },
+        {
+          icon: HelpCircle,
+          title: "Help Center",
+          detail: "Use this page when you need the map of dashboard sections, statuses, and partner workflows.",
+          href: transportPartnerSectionHref("help", false),
+        },
+      ];
+
   const quickRules = isAdmin
     ? [
         "Transport partners set their own transport prices; Visit Dzaleka guiding fees stay separate.",
@@ -902,99 +1190,252 @@ function HelpCenterPanel({ isAdmin }: { isAdmin: boolean }) {
         "Visitor tour fees are shown in Tour Referrals; transport is quoted separately by you.",
       ];
 
-  return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
-            <CardTitle>{isAdmin ? "Admin Help Center" : "Partner Help Center"}</CardTitle>
-          </div>
-          <CardDescription>
-            {isAdmin
-              ? "Operational guidance for controlling partner assignments, pricing references, request exceptions, and visitor quote decisions."
-              : "How to manage transport requests, route pricing, availability, and visitor tour referrals from this portal."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {guides.map((guide) => {
-            const Icon = guide.icon;
-            return (
-              <section key={guide.title} className="border-b pb-5 last:border-b-0 last:pb-0">
-                <div className="flex items-center gap-2">
-                  <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
-                  <h2 className="text-sm font-semibold">{guide.title}</h2>
-                </div>
-                <ol className="mt-3 space-y-2 text-sm text-muted-foreground">
-                  {guide.steps.map((step, index) => (
-                    <li key={step} className="flex gap-2">
-                      <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary tabular-nums">
-                        {index + 1}
-                      </span>
-                      <span className="min-w-0 break-words">{step}</span>
-                    </li>
-                  ))}
-                </ol>
-              </section>
-            );
-          })}
-        </CardContent>
-      </Card>
+  const statusGuide = [
+    {
+      status: "pending / sent to partner",
+      meaning: isAdmin ? "Partner assignment or quote follow-up is needed." : "Open the request and send a quote or acceptance details.",
+    },
+    {
+      status: "quote sent / accepted",
+      meaning: "The visitor has pricing and needs to approve or decline the quote.",
+    },
+    {
+      status: "visitor approved",
+      meaning: "Final pickup details should be confirmed with driver and vehicle information.",
+    },
+    {
+      status: "confirmed",
+      meaning: "Transport is scheduled and should be prepared for the travel day.",
+    },
+    {
+      status: "visitor declined / reschedule requested",
+      meaning: "The request needs follow-up before it can move forward.",
+    },
+    {
+      status: "completed / cancelled",
+      meaning: "The request is closed and no longer counted as open operational work.",
+    },
+  ];
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <HelpCircle className="h-5 w-5 text-primary" aria-hidden="true" />
-            <CardTitle>Quick Reference</CardTitle>
+  return (
+    <div className="space-y-6">
+      <section className="rounded-lg border bg-card p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
+              <h2 className="text-xl font-semibold">{isAdmin ? "Admin Help Center" : "Partner Help Center"}</h2>
+            </div>
+            <p className="mt-2 max-w-3xl break-words text-sm text-muted-foreground">
+              {isAdmin
+                ? "Operational guidance for assignments, partner records, pricing references, request exceptions, and visitor quote decisions."
+                : "Reference for the transport partner dashboard, sidebar pages, transport request statuses, and daily partner workflows."}
+            </p>
           </div>
-          <CardDescription>
-            {isAdmin ? "Rules to keep admin handling consistent." : "Details to keep bookings clear for visitors."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
-            {quickRules.map((rule) => (
-              <div key={rule} className="flex gap-2 text-sm text-muted-foreground">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                <span className="min-w-0 break-words">{rule}</span>
-              </div>
-            ))}
-          </div>
-          <div className="grid gap-2">
-            <Button variant="outline" className="h-auto min-h-9 justify-start whitespace-normal text-left leading-snug" asChild>
-              <Link href="/transport-partner?tab=requests">
+          <div className="grid gap-2 sm:grid-cols-2 lg:w-[360px] lg:grid-cols-1">
+            <Button variant="outline" className="h-auto min-h-10 justify-start whitespace-normal text-left leading-snug" asChild>
+              <Link href={transportPartnerSectionHref(isAdmin ? "requests" : "dashboard", isAdmin)}>
                 <ClipboardList className="h-4 w-4" aria-hidden="true" />
-                <span className="min-w-0 break-words">Open request queue</span>
+                <span className="min-w-0 break-words">{isAdmin ? "Open request queue" : "Open dashboard"}</span>
               </Link>
             </Button>
-            <Button variant="outline" className="h-auto min-h-9 justify-start whitespace-normal text-left leading-snug" asChild>
-              <Link href="/transport-partner?tab=pricing">
-                <DollarSign className="h-4 w-4" aria-hidden="true" />
-                <span className="min-w-0 break-words">Open pricing</span>
-              </Link>
-            </Button>
-            <Button variant="outline" className="h-auto min-h-9 justify-start whitespace-normal text-left leading-snug" asChild>
-              <Link href={isAdmin ? "/transport-partner?tab=partners" : "/transport-partner?tab=profile"}>
-                <Settings className="h-4 w-4" aria-hidden="true" />
-                <span className="min-w-0 break-words">{isAdmin ? "Open partner records" : "Open profile"}</span>
+            <Button variant="outline" className="h-auto min-h-10 justify-start whitespace-normal text-left leading-snug" asChild>
+              <Link href={transportPartnerSectionHref("requests", isAdmin)}>
+                <Car className="h-4 w-4" aria-hidden="true" />
+                <span className="min-w-0 break-words">Open transport requests</span>
               </Link>
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
+
+      {!isAdmin && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
+              <CardTitle>Dashboard Map</CardTitle>
+            </div>
+            <CardDescription>
+              What each dashboard section is showing and where it sends you.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {dashboardCards.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.title} className="rounded-md border bg-background p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0">
+                        <h3 className="break-words text-sm font-semibold">{item.title}</h3>
+                        <p className="mt-1 break-words text-sm text-muted-foreground">{item.detail}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Settings className="h-5 w-5 text-primary" aria-hidden="true" />
+              <CardTitle>{isAdmin ? "Admin Pages" : "Partner Sidebar Pages"}</CardTitle>
+            </div>
+            <CardDescription>
+              {isAdmin ? "What each transport operations page controls." : "What each transport partner page is for."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 md:grid-cols-2">
+              {partnerPages.map((page) => {
+                const Icon = page.icon;
+                return (
+                  <Button
+                    key={page.title}
+                    variant="outline"
+                    className="h-auto min-h-24 justify-start whitespace-normal p-4 text-left leading-snug"
+                    asChild
+                  >
+                    <Link href={page.href}>
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block break-words text-sm font-semibold">{page.title}</span>
+                        <span className="mt-1 block break-words text-xs font-normal text-muted-foreground">{page.detail}</span>
+                      </span>
+                    </Link>
+                  </Button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <HelpCircle className="h-5 w-5 text-primary" aria-hidden="true" />
+              <CardTitle>Quick Reference</CardTitle>
+            </div>
+            <CardDescription>
+              {isAdmin ? "Rules to keep admin handling consistent." : "Details to keep bookings clear for visitors."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              {quickRules.map((rule) => (
+                <div key={rule} className="flex gap-2 text-sm text-muted-foreground">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                  <span className="min-w-0 break-words">{rule}</span>
+                </div>
+              ))}
+            </div>
+            <div className="grid gap-2">
+              {(isAdmin ? partnerPages.slice(0, 3) : partnerPages.filter((page) => ["Dashboard", "Transport Requests", "Pricing"].includes(page.title))).map((page) => {
+                const Icon = page.icon;
+                return (
+                  <Button key={page.title} variant="outline" className="h-auto min-h-9 justify-start whitespace-normal text-left leading-snug" asChild>
+                    <Link href={page.href}>
+                      <Icon className="h-4 w-4" aria-hidden="true" />
+                      <span className="min-w-0 break-words">Open {page.title.toLowerCase()}</span>
+                    </Link>
+                  </Button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <History className="h-5 w-5 text-primary" aria-hidden="true" />
+              <CardTitle>Common Workflows</CardTitle>
+            </div>
+            <CardDescription>
+              {isAdmin ? "Recommended order for admin transport handling." : "Recommended order for partner transport handling."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {workflowGuides.map((guide) => {
+              const Icon = guide.icon;
+              return (
+                <section key={guide.title} className="border-b pb-5 last:border-b-0 last:pb-0">
+                  <div className="flex items-center gap-2">
+                    <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
+                    <h3 className="text-sm font-semibold">{guide.title}</h3>
+                  </div>
+                  <ol className="mt-3 space-y-2 text-sm text-muted-foreground">
+                    {guide.steps.map((step, index) => (
+                      <li key={step} className="flex gap-2">
+                        <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary tabular-nums">
+                          {index + 1}
+                        </span>
+                        <span className="min-w-0 break-words">{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-primary" aria-hidden="true" />
+              <CardTitle>Status Guide</CardTitle>
+            </div>
+            <CardDescription>
+              How request status connects to the dashboard pipeline and attention queue.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="divide-y rounded-md border">
+              {statusGuide.map((item) => (
+                <div key={item.status} className="grid gap-2 p-4 sm:grid-cols-[180px_minmax(0,1fr)]">
+                  <div className="min-w-0">
+                    <StatusBadge status={item.status} />
+                  </div>
+                  <p className="min-w-0 break-words text-sm text-muted-foreground">{item.meaning}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
 
 export default function TransportPartnerPortal() {
   const { toast } = useToast();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const search = useSearch();
   const params = new URLSearchParams(search);
-  const requestedTab = params.get("tab");
+  const pathSection = location.match(/^\/transport-partner\/([^/?#]+)/)?.[1] || "";
+  const requestedTab = pathSection || params.get("tab");
   const requestedPartnerId = params.get("partner");
   const [referralForm, setReferralForm] = useState(initialReferralForm);
   const [requestDrafts, setRequestDrafts] = useState<Record<string, RequestDraft>>({});
+  const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
+  const [isDriverDialogOpen, setIsDriverDialogOpen] = useState(false);
+  const [isVehicleDialogOpen, setIsVehicleDialogOpen] = useState(false);
+  const [isBlackoutDialogOpen, setIsBlackoutDialogOpen] = useState(false);
+  const [isPricingDialogOpen, setIsPricingDialogOpen] = useState(false);
   const [selectedActivityRequestId, setSelectedActivityRequestId] = useState<string>("");
   const [driverForm, setDriverForm] = useState(initialDriverForm);
   const [vehicleForm, setVehicleForm] = useState(initialVehicleForm);
@@ -1005,6 +1446,7 @@ export default function TransportPartnerPortal() {
   const [editingBlackoutId, setEditingBlackoutId] = useState<string | null>(null);
   const [editingPricingId, setEditingPricingId] = useState<string | null>(null);
   const [adminPartnerId, setAdminPartnerId] = useState<string>("new");
+  const [adminOperationsPartnerId, setAdminOperationsPartnerId] = useState<string>("");
   const [adminPartnerForm, setAdminPartnerForm] = useState<PartnerForm>(initialPartnerForm);
   const [selfProfileForm, setSelfProfileForm] = useState<PartnerForm>(initialPartnerForm);
 
@@ -1050,8 +1492,9 @@ export default function TransportPartnerPortal() {
   const canDeletePartners = userRole === "admin";
   const availableTabs = isAdminView
     ? ["requests", "referrals", "roster", "availability", "pricing", "partners", "help"]
-    : ["requests", "referrals", "roster", "availability", "pricing", "profile", "help"];
-  const activeTab = availableTabs.includes(requestedTab || "") ? requestedTab! : "requests";
+    : ["dashboard", "requests", "referrals", "roster", "availability", "pricing", "profile", "help"];
+  const activeTab = availableTabs.includes(requestedTab || "") ? requestedTab! : isAdminView ? "requests" : "dashboard";
+  const navigateToSection = (section: string) => navigate(transportPartnerSectionHref(section, isAdminView));
   const partners = useMemo(() => (
     profile?.partners?.length
       ? profile.partners
@@ -1064,17 +1507,48 @@ export default function TransportPartnerPortal() {
     ? referralForm.partnerId
     : referralForm.partnerId || profile?.partner?.id || "";
   const rosterPartnerId = isAdminView
-    ? (adminPartnerId !== "new" ? adminPartnerId : partners[0]?.id || "")
+    ? adminOperationsPartnerId || partners[0]?.id || ""
     : profile?.partner?.id || "";
   const selectedAdminPartner = adminPartnerId === "new"
     ? null
     : partners.find((partner) => partner.id === adminPartnerId) || null;
+  const selectedOperationsPartner = partners.find((partner) => partner.id === rosterPartnerId) || null;
+  const partnerNameFor = (partnerId?: string | null) => {
+    if (!partnerId) return "Unassigned";
+    return partners.find((partner) => partner.id === partnerId)?.companyName || "Unknown partner";
+  };
+  const partnerContactFor = (partnerId?: string | null) => {
+    const partner = partners.find((item) => item.id === partnerId);
+    if (!partner) return partnerId ? "Partner record not found" : "Needs assignment";
+    return partner.phone || partner.whatsapp || partner.email || "Contact not recorded";
+  };
+  const scopedDrivers = drivers.filter((driver) => !rosterPartnerId || driver.partnerId === rosterPartnerId);
+  const scopedVehicles = vehicles.filter((vehicle) => !rosterPartnerId || vehicle.partnerId === rosterPartnerId);
+  const scopedBlackouts = blackouts.filter((blackout) => !rosterPartnerId || blackout.partnerId === rosterPartnerId);
+  const scopedPartnerPricing = partnerPricing.filter((price) => !rosterPartnerId || price.partnerId === rosterPartnerId);
+  const scopedTransportRequests = transportRequests.filter((request) => !rosterPartnerId || request.partnerId === rosterPartnerId);
+  const scopedReferrals = referrals.filter((referral) => !rosterPartnerId || referral.partnerId === rosterPartnerId);
 
   useEffect(() => {
     if (!isAdminView && profile?.partner) {
       setSelfProfileForm(partnerToForm(profile.partner));
     }
   }, [isAdminView, profile?.partner]);
+
+  useEffect(() => {
+    if (!isAdminView) return;
+    if (requestedPartnerId && partners.some((partner) => partner.id === requestedPartnerId)) {
+      setAdminOperationsPartnerId(requestedPartnerId);
+      return;
+    }
+    if (!adminOperationsPartnerId && partners[0]) {
+      setAdminOperationsPartnerId(partners[0].id);
+      return;
+    }
+    if (adminOperationsPartnerId && !partners.some((partner) => partner.id === adminOperationsPartnerId)) {
+      setAdminOperationsPartnerId(partners[0]?.id || "");
+    }
+  }, [adminOperationsPartnerId, isAdminView, partners, requestedPartnerId]);
 
   useEffect(() => {
     if (!isAdminView) return;
@@ -1145,47 +1619,253 @@ export default function TransportPartnerPortal() {
     };
   }, [transportRequests, referrals, partnerPricing, blackouts]);
 
+  const partnerOperations = useMemo(() => {
+    if (isAdminView) {
+      return {
+        activeDrivers: 0,
+        activeVehicles: 0,
+        activePrices: 0,
+        activeBlackouts: 0,
+        awaitingVisitor: 0,
+        needsQuote: 0,
+        issueRequests: 0,
+        completedRequests: 0,
+        quotedRevenue: 0,
+        quoteCurrency: "MWK",
+        missingFleetDetails: 0,
+        staleQuoteRequests: 0,
+        openRequests: [] as TransportRequest[],
+        priorityRequests: [] as TransportRequest[],
+        nextPickup: null as TransportRequest | null,
+        pipelineStages: [] as Array<{ label: string; value: number; detail: string }>,
+        routeVolume: [] as Array<{ label: string; value: number }>,
+        visitVolume: [] as Array<{ label: string; value: number }>,
+        readiness: [] as Array<{ label: string; detail: string; complete: boolean; tab: string; icon: typeof CheckCircle2 }>,
+      };
+    }
+
+    const partnerId = profile?.partner?.id;
+    const partnerDrivers = drivers.filter((driver) => !partnerId || driver.partnerId === partnerId);
+    const partnerVehicles = vehicles.filter((vehicle) => !partnerId || vehicle.partnerId === partnerId);
+    const partnerPrices = partnerPricing.filter((price) => !partnerId || price.partnerId === partnerId);
+    const partnerBlackouts = blackouts.filter((blackout) => !partnerId || blackout.partnerId === partnerId);
+    const openRequests = transportRequests.filter(isOpenTransportRequest);
+    const statusRank = (request: TransportRequest) => {
+      const status = request.status || "pending";
+      if (["visitor_declined", "reschedule_requested"].includes(status)) return 0;
+      if (requestNeedsQuote(request)) return 1;
+      if (status === "visitor_approved") return 2;
+      if (status === "confirmed") return 3;
+      if (["quote_sent", "accepted"].includes(status)) return 4;
+      return 5;
+    };
+    const priorityRequests = [...openRequests]
+      .sort((a, b) => statusRank(a) - statusRank(b) || transportRequestTimestamp(a) - transportRequestTimestamp(b))
+      .slice(0, 3);
+    const nextPickup = [...openRequests]
+      .filter((request) => ["visitor_approved", "confirmed"].includes(request.status || ""))
+      .sort((a, b) => transportRequestTimestamp(a) - transportRequestTimestamp(b))[0] || null;
+    const activeDrivers = partnerDrivers.filter((driver) => driver.status !== "inactive").length;
+    const activeVehicles = partnerVehicles.filter((vehicle) => vehicle.status !== "inactive").length;
+    const activePrices = partnerPrices.filter((price) => price.status !== "inactive").length;
+    const activeBlackouts = partnerBlackouts.filter((blackout) => blackout.status !== "cancelled").length;
+    const completedRequests = transportRequests.filter((request) => request.status === "completed").length;
+    const quoteCurrency = profile?.partner?.defaultCurrency || transportRequests.find((request) => request.currency)?.currency || "MWK";
+    const quotedRevenue = transportRequests
+      .filter((request) => !["cancelled", "visitor_declined"].includes(request.status || "") && request.quotedAmount != null)
+      .reduce((total, request) => total + (request.quotedAmount || 0), 0);
+    const missingFleetDetails = openRequests.filter((request) =>
+      ["visitor_approved", "confirmed"].includes(request.status || "")
+      && (!request.driverName || !request.driverPhone || !request.vehicleDetails)
+    ).length;
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const staleQuoteRequests = openRequests.filter((request) => {
+      const status = request.status || "pending";
+      if (!["pending", "sent_to_partner"].includes(status)) return false;
+      const createdAt = request.createdAt ? new Date(request.createdAt).getTime() : Date.now();
+      return !Number.isNaN(createdAt) && createdAt < oneDayAgo;
+    }).length;
+    const pipelineStages = [
+      {
+        label: "Requested",
+        value: openRequests.filter((request) => ["pending", "sent_to_partner"].includes(request.status || "pending")).length,
+        detail: "Needs partner quote",
+      },
+      {
+        label: "Quoted",
+        value: openRequests.filter((request) => ["quote_sent", "accepted"].includes(request.status || "") && !request.quoteDecision).length,
+        detail: "Visitor deciding",
+      },
+      {
+        label: "Approved",
+        value: openRequests.filter((request) => request.status === "visitor_approved").length,
+        detail: "Ready to confirm",
+      },
+      {
+        label: "Confirmed",
+        value: openRequests.filter((request) => request.status === "confirmed").length,
+        detail: "Pickup scheduled",
+      },
+      {
+        label: "Completed",
+        value: completedRequests,
+        detail: "Trips finished",
+      },
+    ];
+    const routeCounts = new Map<string, number>();
+    transportRequests.forEach((request) => {
+      const routeLabel = getTransportRoute(request.route).shortLabel;
+      routeCounts.set(routeLabel, (routeCounts.get(routeLabel) || 0) + 1);
+    });
+    const routeVolume = Array.from(routeCounts, ([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+    const visitCounts = new Map<string, number>();
+    transportRequests.forEach((request) => {
+      const key = requestDateKey(request);
+      visitCounts.set(key, (visitCounts.get(key) || 0) + 1);
+    });
+    const visitVolume = Array.from(visitCounts, ([key, value]) => ({ key, label: formatShortDateLabel(key), value }))
+      .sort((a, b) => {
+        if (a.key === "unscheduled") return 1;
+        if (b.key === "unscheduled") return -1;
+        return a.key.localeCompare(b.key);
+      })
+      .slice(0, 6)
+      .map(({ label, value }) => ({ label, value }));
+    const profileReady = !!profile?.partner?.companyName
+      && !!profile.partner.email
+      && (!!profile.partner.phone || !!profile.partner.whatsapp);
+
+    return {
+      activeDrivers,
+      activeVehicles,
+      activePrices,
+      activeBlackouts,
+      completedRequests,
+      quotedRevenue,
+      quoteCurrency,
+      missingFleetDetails,
+      staleQuoteRequests,
+      awaitingVisitor: openRequests.filter((request) =>
+        ["quote_sent", "accepted"].includes(request.status || "") && !request.quoteDecision
+      ).length,
+      needsQuote: openRequests.filter(requestNeedsQuote).length,
+      issueRequests: openRequests.filter((request) =>
+        ["visitor_declined", "reschedule_requested"].includes(request.status || "")
+      ).length,
+      openRequests,
+      priorityRequests,
+      nextPickup,
+      pipelineStages,
+      routeVolume,
+      visitVolume,
+      readiness: [
+        {
+          label: "Profile contacts",
+          detail: profileReady ? "Company, email, and phone or WhatsApp are saved." : "Add company, email, and phone or WhatsApp.",
+          complete: profileReady,
+          tab: "profile",
+          icon: Settings,
+        },
+        {
+          label: "Driver roster",
+          detail: activeDrivers > 0 ? `${activeDrivers} active driver${activeDrivers === 1 ? "" : "s"} ready.` : "Add at least one active driver.",
+          complete: activeDrivers > 0,
+          tab: "roster",
+          icon: Users,
+        },
+        {
+          label: "Vehicle roster",
+          detail: activeVehicles > 0 ? `${activeVehicles} active vehicle${activeVehicles === 1 ? "" : "s"} ready.` : "Add at least one active vehicle.",
+          complete: activeVehicles > 0,
+          tab: "roster",
+          icon: Car,
+        },
+        {
+          label: "Route pricing",
+          detail: activePrices > 0 ? `${activePrices} active route price${activePrices === 1 ? "" : "s"} saved.` : "Set your regular route pricing.",
+          complete: activePrices > 0,
+          tab: "pricing",
+          icon: DollarSign,
+        },
+      ],
+    };
+  }, [blackouts, drivers, isAdminView, partnerPricing, profile?.partner, transportRequests, vehicles]);
+
   const editDriver = (driver: TransportPartnerDriver) => {
-    if (isAdminView) setAdminPartnerId(driver.partnerId);
+    if (isAdminView) {
+      setAdminPartnerId(driver.partnerId);
+      setAdminOperationsPartnerId(driver.partnerId);
+    }
     setEditingDriverId(driver.id);
     setDriverForm(driverToForm(driver));
+    setIsDriverDialogOpen(true);
   };
 
   const cancelDriverEdit = () => {
     setEditingDriverId(null);
     setDriverForm(initialDriverForm);
+    setIsDriverDialogOpen(false);
   };
 
   const editVehicle = (vehicle: TransportPartnerVehicle) => {
-    if (isAdminView) setAdminPartnerId(vehicle.partnerId);
+    if (isAdminView) {
+      setAdminPartnerId(vehicle.partnerId);
+      setAdminOperationsPartnerId(vehicle.partnerId);
+    }
     setEditingVehicleId(vehicle.id);
     setVehicleForm(vehicleToForm(vehicle));
+    setIsVehicleDialogOpen(true);
   };
 
   const cancelVehicleEdit = () => {
     setEditingVehicleId(null);
     setVehicleForm(initialVehicleForm);
+    setIsVehicleDialogOpen(false);
   };
 
   const editBlackout = (blackout: TransportPartnerBlackout) => {
-    if (isAdminView) setAdminPartnerId(blackout.partnerId);
+    if (isAdminView) {
+      setAdminPartnerId(blackout.partnerId);
+      setAdminOperationsPartnerId(blackout.partnerId);
+    }
     setEditingBlackoutId(blackout.id);
     setBlackoutForm(blackoutToForm(blackout));
+    setIsBlackoutDialogOpen(true);
   };
 
   const cancelBlackoutEdit = () => {
     setEditingBlackoutId(null);
     setBlackoutForm(initialBlackoutForm);
+    setIsBlackoutDialogOpen(false);
   };
 
   const editPricing = (price: TransportPartnerPricing) => {
-    if (isAdminView) setAdminPartnerId(price.partnerId);
+    if (isAdminView) {
+      setAdminPartnerId(price.partnerId);
+      setAdminOperationsPartnerId(price.partnerId);
+    }
     setEditingPricingId(price.id);
     setPricingForm(pricingToForm(price));
+    setIsPricingDialogOpen(true);
   };
 
   const cancelPricingEdit = () => {
     setEditingPricingId(null);
+    setPricingForm(initialPricingForm);
+    setIsPricingDialogOpen(false);
+  };
+
+  const changeOperationsPartner = (partnerId: string) => {
+    setAdminOperationsPartnerId(partnerId);
+    setEditingDriverId(null);
+    setEditingVehicleId(null);
+    setEditingBlackoutId(null);
+    setEditingPricingId(null);
+    setDriverForm(initialDriverForm);
+    setVehicleForm(initialVehicleForm);
+    setBlackoutForm(initialBlackoutForm);
     setPricingForm(initialPricingForm);
   };
 
@@ -1204,6 +1884,7 @@ export default function TransportPartnerPortal() {
         return next;
       });
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/requests"] });
+      setActiveRequestId(null);
       toast({
         title: "Transport request saved",
         description: data?.driverDetailsEmail?.sent
@@ -1233,6 +1914,7 @@ export default function TransportPartnerPortal() {
     onSuccess: (partner) => {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/me"] });
       setAdminPartnerId(partner.id);
+      setAdminOperationsPartnerId(partner.id);
       toast({ title: "Transport partner saved" });
     },
     onError: (error: Error) => {
@@ -1381,6 +2063,7 @@ export default function TransportPartnerPortal() {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/drivers"] });
       setDriverForm(initialDriverForm);
       setEditingDriverId(null);
+      setIsDriverDialogOpen(false);
       toast({ title: "Driver saved" });
     },
     onError: (error: Error) => {
@@ -1400,6 +2083,7 @@ export default function TransportPartnerPortal() {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/drivers"] });
       setDriverForm(initialDriverForm);
       setEditingDriverId(null);
+      setIsDriverDialogOpen(false);
       toast({ title: "Driver updated" });
     },
     onError: (error: Error) => {
@@ -1434,6 +2118,7 @@ export default function TransportPartnerPortal() {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/vehicles"] });
       setVehicleForm(initialVehicleForm);
       setEditingVehicleId(null);
+      setIsVehicleDialogOpen(false);
       toast({ title: "Vehicle saved" });
     },
     onError: (error: Error) => {
@@ -1454,6 +2139,7 @@ export default function TransportPartnerPortal() {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/vehicles"] });
       setVehicleForm(initialVehicleForm);
       setEditingVehicleId(null);
+      setIsVehicleDialogOpen(false);
       toast({ title: "Vehicle updated" });
     },
     onError: (error: Error) => {
@@ -1487,6 +2173,7 @@ export default function TransportPartnerPortal() {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/blackouts"] });
       setBlackoutForm(initialBlackoutForm);
       setEditingBlackoutId(null);
+      setIsBlackoutDialogOpen(false);
       toast({ title: "Availability block saved" });
     },
     onError: (error: Error) => {
@@ -1506,6 +2193,7 @@ export default function TransportPartnerPortal() {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/blackouts"] });
       setBlackoutForm(initialBlackoutForm);
       setEditingBlackoutId(null);
+      setIsBlackoutDialogOpen(false);
       toast({ title: "Availability block updated" });
     },
     onError: (error: Error) => {
@@ -1541,6 +2229,7 @@ export default function TransportPartnerPortal() {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/pricing"] });
       setPricingForm(initialPricingForm);
       setEditingPricingId(null);
+      setIsPricingDialogOpen(false);
       toast({ title: "Transport price saved" });
     },
     onError: (error: Error) => {
@@ -1562,6 +2251,7 @@ export default function TransportPartnerPortal() {
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/pricing"] });
       setPricingForm(initialPricingForm);
       setEditingPricingId(null);
+      setIsPricingDialogOpen(false);
       toast({ title: "Transport price updated" });
     },
     onError: (error: Error) => {
@@ -1598,10 +2288,110 @@ export default function TransportPartnerPortal() {
   });
 
   const partnerName = profile?.partner?.companyName || "Transport Partner";
-  const pageTitle = isAdminView ? "Transport Operations" : "Transport Partner Portal";
+  const partnerSectionMeta: Record<string, { title: string; description: string }> = {
+    dashboard: {
+      title: "Transport Partner Dashboard",
+      description: "Stats, priority requests, next pickup, readiness checks, and quick actions.",
+    },
+    requests: {
+      title: "Transport Requests",
+      description: "Quote visitor pickup requests, assign drivers and vehicles, and track approval status.",
+    },
+    referrals: {
+      title: "Tour Referrals",
+      description: "Send visitors to Visit Dzaleka for guided tour booking and follow referral status.",
+    },
+    roster: {
+      title: "Roster",
+      description: "Manage saved drivers and vehicles so request handling is faster and clearer.",
+    },
+    availability: {
+      title: "Availability",
+      description: "Block dates when your team cannot accept transport requests.",
+    },
+    pricing: {
+      title: "Pricing",
+      description: "Maintain route prices and quote references for common transport journeys.",
+    },
+    profile: {
+      title: "Profile",
+      description: "Keep company, contact, service area, and operating notes current.",
+    },
+    help: {
+      title: "Help Center",
+      description: "Use partner guidance for requests, referrals, pricing, availability, and profile setup.",
+    },
+  };
+  const currentPartnerSection = partnerSectionMeta[activeTab] || partnerSectionMeta.dashboard;
+  const pageTitle = isAdminView ? "Transport Operations" : currentPartnerSection.title;
   const pageDescription = isAdminView
     ? "Manage transport requests, partner records, route pricing, fleet readiness, and transport exceptions."
-    : "Manage visitor transport requests and refer your own guests for guided Dzaleka experiences.";
+    : currentPartnerSection.description;
+  const dashboardMetrics = [
+    {
+      label: "Quotes to send",
+      value: partnerOperations.needsQuote,
+      detail: "Requests waiting for your price",
+      icon: ClipboardList,
+      action: "Quote requests",
+      section: "requests",
+    },
+    {
+      label: "Awaiting visitor",
+      value: partnerOperations.awaitingVisitor,
+      detail: "Quotes sent, decision pending",
+      icon: Clock,
+      action: "View queue",
+      section: "requests",
+    },
+    {
+      label: "Confirmed pickups",
+      value: stats.confirmedRequests,
+      detail: "Ready for transport team",
+      icon: CheckCircle2,
+      action: "Review pickups",
+      section: "requests",
+    },
+    {
+      label: "Quoted value",
+      value: formatCurrency(partnerOperations.quotedRevenue, partnerOperations.quoteCurrency),
+      detail: "Active non-cancelled quotes",
+      icon: DollarSign,
+      action: "Open pricing",
+      section: "pricing",
+    },
+  ];
+  const dashboardActions = [
+    { label: "Open requests", section: "requests", icon: ClipboardList },
+    { label: "Refer visitor", section: "referrals", icon: Send },
+    { label: "Add driver", section: "roster", icon: Users },
+    { label: "Add vehicle", section: "roster", icon: Car },
+    { label: "Block date", section: "availability", icon: CalendarOff },
+    { label: "Update pricing", section: "pricing", icon: DollarSign },
+  ];
+  const attentionItems = [
+    {
+      label: "Quote requests over 24h",
+      value: partnerOperations.staleQuoteRequests,
+      detail: "Older requests can delay visitor decisions.",
+      icon: Clock,
+      section: "requests",
+    },
+    {
+      label: "Missing driver or vehicle",
+      value: partnerOperations.missingFleetDetails,
+      detail: "Confirmed trips should include driver phone and vehicle details.",
+      icon: Car,
+      section: "requests",
+    },
+    {
+      label: "Open exceptions",
+      value: partnerOperations.issueRequests,
+      detail: "Declined quotes or reschedule requests need follow-up.",
+      icon: HelpCircle,
+      section: "requests",
+    },
+  ];
 
   return (
     <PageContainer maxWidth="2xl">
@@ -1630,43 +2420,45 @@ export default function TransportPartnerPortal() {
         ) : undefined}
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatCard
-          title={isAdminView ? "Partner records" : "Partner account"}
-          value={profileLoading ? "Loading…" : isAdminView ? activePartners.length : "Active"}
-          subtitle={isAdminView ? "Active transport companies" : partnerName}
-          icon={Car}
-          compactNumbers={isAdminView}
-        />
-        <StatCard
-          title={isAdminView ? "Needs admin review" : "Open transport requests"}
-          value={isAdminView ? stats.needsAdminReview : stats.openRequests}
-          subtitle={isAdminView ? "Unassigned, declined, or reschedule" : "Awaiting transport partner follow-up"}
-          icon={isAdminView ? ShieldCheck : MapPin}
-          highlight={isAdminView ? stats.needsAdminReview > 0 : stats.openRequests > 0}
-        />
-        <StatCard
-          title={isAdminView ? "Unassigned requests" : "Submitted tour referrals"}
-          value={isAdminView ? stats.unassignedRequests : stats.submittedReferrals}
-          subtitle={isAdminView ? "Needs partner assignment" : "New partner visitor referrals"}
-          icon={isAdminView ? ClipboardList : Send}
-          highlight={isAdminView ? stats.unassignedRequests > 0 : stats.submittedReferrals > 0}
-        />
-        <StatCard
-          title={isAdminView ? "Awaiting visitor decision" : "Confirmed transport"}
-          value={isAdminView ? stats.awaitingVisitorDecision : stats.confirmedRequests}
-          subtitle={isAdminView ? "Quote sent, waiting response" : "Accepted and ready for visitors"}
-          icon={isAdminView ? Clock : CheckCircle2}
-          highlight={isAdminView ? stats.awaitingVisitorDecision > 0 : false}
-        />
-        <StatCard
-          title="Active route prices"
-          value={stats.activePrices}
-          subtitle="Set by transport partners"
-          icon={DollarSign}
-          compactNumbers
-        />
-      </div>
+      {isAdminView && (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <StatCard
+            title={isAdminView ? "Partner records" : "Partner account"}
+            value={profileLoading ? "Loading…" : isAdminView ? activePartners.length : "Active"}
+            subtitle={isAdminView ? "Active transport companies" : partnerName}
+            icon={Car}
+            compactNumbers={isAdminView}
+          />
+          <StatCard
+            title={isAdminView ? "Needs admin review" : "Open transport requests"}
+            value={isAdminView ? stats.needsAdminReview : stats.openRequests}
+            subtitle={isAdminView ? "Unassigned, declined, or reschedule" : "Awaiting transport partner follow-up"}
+            icon={isAdminView ? ShieldCheck : MapPin}
+            highlight={isAdminView ? stats.needsAdminReview > 0 : stats.openRequests > 0}
+          />
+          <StatCard
+            title={isAdminView ? "Unassigned requests" : "Submitted tour referrals"}
+            value={isAdminView ? stats.unassignedRequests : stats.submittedReferrals}
+            subtitle={isAdminView ? "Needs partner assignment" : "New partner visitor referrals"}
+            icon={isAdminView ? ClipboardList : Send}
+            highlight={isAdminView ? stats.unassignedRequests > 0 : stats.submittedReferrals > 0}
+          />
+          <StatCard
+            title={isAdminView ? "Awaiting visitor decision" : "Confirmed transport"}
+            value={isAdminView ? stats.awaitingVisitorDecision : stats.confirmedRequests}
+            subtitle={isAdminView ? "Quote sent, waiting response" : "Accepted and ready for visitors"}
+            icon={isAdminView ? Clock : CheckCircle2}
+            highlight={isAdminView ? stats.awaitingVisitorDecision > 0 : false}
+          />
+          <StatCard
+            title="Active route prices"
+            value={stats.activePrices}
+            subtitle="Set by transport partners"
+            icon={DollarSign}
+            compactNumbers
+          />
+        </div>
+      )}
 
       {isAdminView && (
         <Card>
@@ -1723,7 +2515,7 @@ export default function TransportPartnerPortal() {
                       key={queue.label}
                       type="button"
                       className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition-[background-color] hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      onClick={() => navigate(`/transport-partner?tab=${queue.tab}`)}
+                      onClick={() => navigateToSection(queue.tab)}
                     >
                       <span className="min-w-0">
                         <span className="block break-words text-sm font-medium">{queue.label}</span>
@@ -1754,7 +2546,7 @@ export default function TransportPartnerPortal() {
                         type="button"
                         variant="outline"
                         className="h-auto min-h-9 justify-start whitespace-normal text-left leading-snug"
-                        onClick={() => navigate(`/transport-partner?tab=${action.tab}`)}
+                        onClick={() => navigateToSection(action.tab)}
                       >
                         <Icon className="h-4 w-4" aria-hidden="true" />
                         <span className="min-w-0 break-words">{action.label}</span>
@@ -1780,40 +2572,68 @@ export default function TransportPartnerPortal() {
                 <div className="mt-3 overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Partner</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Action</TableHead>
-                      </TableRow>
+	                      <TableRow>
+	                        <TableHead>Partner</TableHead>
+	                        <TableHead>Contact</TableHead>
+	                        <TableHead>Operations</TableHead>
+	                        <TableHead>Status</TableHead>
+	                        <TableHead className="text-right">Action</TableHead>
+	                      </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {partners.slice(0, 5).map((partner) => (
-                        <TableRow key={partner.id}>
-                          <TableCell>
-                            <p className="font-medium">{partner.companyName}</p>
-                            <p className="text-xs text-muted-foreground">{partner.baseLocation || "Base not set"}</p>
-                          </TableCell>
-                          <TableCell>
-                            <p className="text-sm">{partner.contactName || partner.email}</p>
-                            <p className="text-xs text-muted-foreground">{partner.phone || partner.whatsapp || "No phone saved"}</p>
-                          </TableCell>
-                          <TableCell><StatusBadge status={partner.status || "active"} /></TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setAdminPartnerId(partner.id);
-                                navigate("/transport-partner?tab=partners");
-                              }}
-                            >
-                              Open
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+	                      {partners.slice(0, 5).map((partner) => {
+	                        const partnerRequestCount = transportRequests.filter((request) => request.partnerId === partner.id && isOpenTransportRequest(request)).length;
+	                        const partnerFleetCount = drivers.filter((driver) => driver.partnerId === partner.id).length
+	                          + vehicles.filter((vehicle) => vehicle.partnerId === partner.id).length;
+	                        const partnerPriceCount = partnerPricing.filter((price) => price.partnerId === partner.id && price.status !== "inactive").length;
+
+	                        return (
+	                          <TableRow key={partner.id}>
+	                            <TableCell>
+	                              <p className="font-medium">{partner.companyName}</p>
+	                              <p className="text-xs text-muted-foreground">{partner.baseLocation || "Base not set"}</p>
+	                            </TableCell>
+	                            <TableCell>
+	                              <p className="text-sm">{partner.contactName || partner.email}</p>
+	                              <p className="text-xs text-muted-foreground">{partner.phone || partner.whatsapp || "No phone saved"}</p>
+	                            </TableCell>
+	                            <TableCell>
+	                              <div className="flex flex-wrap gap-1">
+	                                <Badge variant="outline">{partnerRequestCount} open</Badge>
+	                                <Badge variant="outline">{partnerFleetCount} fleet</Badge>
+	                                <Badge variant="outline">{partnerPriceCount} prices</Badge>
+	                              </div>
+	                            </TableCell>
+	                            <TableCell><StatusBadge status={partner.status || "active"} /></TableCell>
+	                            <TableCell className="text-right">
+	                              <div className="flex justify-end gap-1">
+	                                <Button
+	                                  type="button"
+	                                  variant="ghost"
+	                                  size="sm"
+	                                  onClick={() => {
+	                                    setAdminPartnerId(partner.id);
+	                                    setAdminOperationsPartnerId(partner.id);
+	                                    navigateToSection("partners");
+	                                  }}
+	                                >
+	                                  Edit
+	                                </Button>
+	                                <Button
+	                                  type="button"
+	                                  variant="ghost"
+	                                  size="sm"
+	                                  asChild
+	                                >
+	                                  <Link href={`/transport-partner/partners/${partner.id}`}>
+	                                    Profile
+	                                  </Link>
+	                                </Button>
+	                              </div>
+	                            </TableCell>
+	                          </TableRow>
+	                        );
+	                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -1823,46 +2643,445 @@ export default function TransportPartnerPortal() {
         </Card>
       )}
 
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => navigate(`/transport-partner?tab=${value}`)}
-        className="mt-6"
-      >
-        <TabsList className="flex h-auto w-full max-w-full flex-wrap justify-start gap-1">
-          <TabsTrigger className="h-auto whitespace-normal text-center leading-tight" value="requests">
-            {isAdminView ? "Request Queue" : "Transport Requests"}
-          </TabsTrigger>
-          <TabsTrigger className="h-auto whitespace-normal text-center leading-tight" value="referrals">
-            {isAdminView ? "Referral Intake" : "Tour Referrals"}
-          </TabsTrigger>
-          <TabsTrigger className="h-auto whitespace-normal text-center leading-tight" value="roster">
-            {isAdminView ? "Fleet Records" : "Roster"}
-          </TabsTrigger>
-          <TabsTrigger className="h-auto whitespace-normal text-center leading-tight" value="availability">
-            {isAdminView ? "Blackout Controls" : "Availability"}
-          </TabsTrigger>
-          <TabsTrigger className="h-auto whitespace-normal text-center leading-tight" value="pricing">
-            {isAdminView ? "Partner Prices" : "Pricing"}
-          </TabsTrigger>
-          {isAdminView ? (
-            <TabsTrigger className="h-auto whitespace-normal text-center leading-tight" value="partners">
-              Partner Records
-            </TabsTrigger>
-          ) : (
-            <TabsTrigger className="h-auto whitespace-normal text-center leading-tight" value="profile">
-              Profile
-            </TabsTrigger>
-          )}
-          <TabsTrigger className="h-auto whitespace-normal text-center leading-tight" value="help">
-            Help Center
-          </TabsTrigger>
-        </TabsList>
+      {!isAdminView && !profileLoading && activeTab === "dashboard" && (
+        <div className="space-y-6">
+          <section className="rounded-lg border bg-card p-5 shadow-sm sm:p-6">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline">{partnerName}</Badge>
+                  <Badge variant={partnerOperations.openRequests.length > 0 ? "default" : "secondary"}>
+                    {partnerOperations.openRequests.length} open
+                  </Badge>
+                  <Badge variant={partnerOperations.issueRequests > 0 ? "destructive" : "outline"}>
+                    {partnerOperations.issueRequests} exceptions
+                  </Badge>
+                </div>
+                <h2 className="mt-4 text-2xl font-semibold tracking-tight">Today&apos;s transport desk</h2>
+                <p className="mt-2 max-w-2xl break-words text-sm text-muted-foreground">
+                  Quote new requests, prepare confirmed pickups, and keep fleet readiness visible for Visit Dzaleka.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {dashboardActions.slice(0, 3).map((action) => {
+                    const Icon = action.icon;
+                    return (
+                      <Button
+                        key={action.label}
+                        type="button"
+                        variant={action.section === "requests" ? "default" : "outline"}
+                        onClick={() => navigateToSection(action.section)}
+                      >
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                        {action.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="rounded-md border bg-muted/20 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Next best action</p>
+                <p className="mt-2 break-words text-base font-semibold">
+                  {partnerOperations.needsQuote > 0
+                    ? `${partnerOperations.needsQuote} quote${partnerOperations.needsQuote === 1 ? "" : "s"} need pricing`
+                    : partnerOperations.missingFleetDetails > 0
+                      ? `${partnerOperations.missingFleetDetails} pickup${partnerOperations.missingFleetDetails === 1 ? "" : "s"} need fleet details`
+                      : partnerOperations.awaitingVisitor > 0
+                        ? `${partnerOperations.awaitingVisitor} quote${partnerOperations.awaitingVisitor === 1 ? "" : "s"} awaiting visitor approval`
+                        : "No urgent transport action right now"}
+                </p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {partnerOperations.nextPickup
+                    ? `Next pickup: ${partnerOperations.nextPickup.visitorName}, ${formatRequestSchedule(partnerOperations.nextPickup)}.`
+                    : "Confirmed pickups will appear here when visitors approve transport."}
+                </p>
+              </div>
+            </div>
+          </section>
 
-        <TabsContent value="requests" className="mt-4">
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" aria-label="Transport dashboard metrics">
+            {dashboardMetrics.map((metric) => {
+              const Icon = metric.icon;
+              return (
+                <button
+                  key={metric.label}
+                  type="button"
+                  className="group rounded-lg border bg-card p-4 text-left shadow-sm transition-[border-color,background-color] hover:border-primary/50 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => navigateToSection(metric.section)}
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-muted-foreground">{metric.label}</span>
+                      <span className="mt-2 block break-words text-2xl font-semibold tabular-nums">{metric.value}</span>
+                    </span>
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <Icon className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                  </span>
+                  <span className="mt-3 block break-words text-sm text-muted-foreground">{metric.detail}</span>
+                  <span className="mt-4 block text-xs font-semibold text-primary">{metric.action}</span>
+                </button>
+              );
+            })}
+          </section>
+
+          <section className="rounded-lg border bg-card p-4 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-sm font-semibold">Quick actions</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Jump straight into the work partners handle most often.</p>
+              </div>
+              <Badge variant="outline">{partnerOperations.activeDrivers + partnerOperations.activeVehicles} fleet records</Badge>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {dashboardActions.map((action) => {
+                const Icon = action.icon;
+                return (
+                  <Button
+                    key={action.label}
+                    type="button"
+                    variant="outline"
+                    className="h-auto min-h-11 justify-start whitespace-normal text-left leading-snug"
+                    onClick={() => navigateToSection(action.section)}
+                  >
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                    <span className="min-w-0 break-words">{action.label}</span>
+                  </Button>
+                );
+              })}
+            </div>
+          </section>
+
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <CardTitle>Request pipeline</CardTitle>
+                    <CardDescription>Where current transport work sits from first request to completed trip.</CardDescription>
+                  </div>
+                  <Badge variant="outline">{transportRequests.length} total requests</Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 lg:grid-cols-5">
+                  {partnerOperations.pipelineStages.map((stage) => {
+                    const maxValue = Math.max(...partnerOperations.pipelineStages.map((item) => item.value), 1);
+                    const width = stage.value > 0 ? `${Math.max(12, (stage.value / maxValue) * 100)}%` : "0%";
+
+                    return (
+                      <button
+                        key={stage.label}
+                        type="button"
+                        className="rounded-md border bg-background p-3 text-left transition-[border-color,background-color] hover:border-primary/50 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        onClick={() => navigateToSection("requests")}
+                      >
+                        <span className="flex items-start justify-between gap-3">
+                          <span className="min-w-0">
+                            <span className="block break-words text-sm font-medium">{stage.label}</span>
+                            <span className="mt-1 block break-words text-xs text-muted-foreground">{stage.detail}</span>
+                          </span>
+                          <span className="shrink-0 text-lg font-semibold tabular-nums">{stage.value}</span>
+                        </span>
+                        <span className="mt-3 block h-2 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                          <span className="block h-full rounded-full bg-primary" style={{ width }} />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <HelpCircle className="h-5 w-5 text-primary" aria-hidden="true" />
+                  <CardTitle>Attention queue</CardTitle>
+                </div>
+                <CardDescription>Items that can slow down visitor confirmation or pickup readiness.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="divide-y rounded-md border">
+                  {attentionItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.label}
+                        type="button"
+                        className="flex w-full items-start gap-3 px-4 py-3 text-left transition-[background-color] hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        onClick={() => navigateToSection(item.section)}
+                      >
+                        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                          <Icon className="h-4 w-4" aria-hidden="true" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-start justify-between gap-3">
+                            <span className="break-words text-sm font-medium">{item.label}</span>
+                            <span className="shrink-0 font-semibold tabular-nums">{item.value}</span>
+                          </span>
+                          <span className="mt-1 block break-words text-xs text-muted-foreground">{item.detail}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <CardTitle>Popular routes</CardTitle>
+                    <CardDescription>Route demand based on assigned transport requests.</CardDescription>
+                  </div>
+                  <Badge variant="outline">{partnerOperations.routeVolume.length} routes</Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {partnerOperations.routeVolume.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Route activity will appear after transport requests are assigned.</p>
+                  ) : (
+                    partnerOperations.routeVolume.map((route) => {
+                      const maxValue = Math.max(...partnerOperations.routeVolume.map((item) => item.value), 1);
+                      const width = `${Math.max(10, (route.value / maxValue) * 100)}%`;
+
+                      return (
+                        <div key={route.label} className="space-y-1">
+                          <div className="flex items-center justify-between gap-3 text-sm">
+                            <span className="min-w-0 break-words">{route.label}</span>
+                            <span className="shrink-0 font-medium tabular-nums">{route.value}</span>
+                          </div>
+                          <div className="h-2 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                            <div className="h-full rounded-full bg-primary/80" style={{ width }} />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <CardTitle>Visit-date volume</CardTitle>
+                    <CardDescription>Upcoming workload by visitor date.</CardDescription>
+                  </div>
+                  <Badge variant="outline">{partnerOperations.visitVolume.length} dates</Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {partnerOperations.visitVolume.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Upcoming visit volume will appear when requests include visit dates.</p>
+                  ) : (
+                    partnerOperations.visitVolume.map((day) => {
+                      const maxValue = Math.max(...partnerOperations.visitVolume.map((item) => item.value), 1);
+                      const width = `${Math.max(10, (day.value / maxValue) * 100)}%`;
+
+                      return (
+                        <div key={day.label} className="space-y-1">
+                          <div className="flex items-center justify-between gap-3 text-sm">
+                            <span className="min-w-0 break-words">{day.label}</span>
+                            <span className="shrink-0 font-medium tabular-nums">{day.value}</span>
+                          </div>
+                          <div className="h-2 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                            <div className="h-full rounded-full bg-emerald-500" style={{ width }} />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <CardTitle>Next pickup</CardTitle>
+                    <CardDescription>The next visitor-approved or confirmed transport job.</CardDescription>
+                  </div>
+                  {partnerOperations.activeBlackouts > 0 && (
+                    <Badge variant="outline">
+                      {partnerOperations.activeBlackouts} blackout{partnerOperations.activeBlackouts === 1 ? "" : "s"}
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border bg-background p-4">
+                  {partnerOperations.nextPickup ? (
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="break-words text-base font-semibold">{partnerOperations.nextPickup.visitorName}</p>
+                        <StatusBadge status={partnerOperations.nextPickup.status} />
+                      </div>
+                      <div className="grid gap-3 text-sm sm:grid-cols-2">
+                        <InfoBlock label="Schedule" value={formatRequestSchedule(partnerOperations.nextPickup)} />
+                        <InfoBlock label="Route" value={getTransportRoute(partnerOperations.nextPickup.route).shortLabel} />
+                        <InfoBlock label="Pickup" value={partnerOperations.nextPickup.pickupLocation} />
+                        <InfoBlock
+                          label="Quote"
+                          value={partnerOperations.nextPickup.quotedAmount != null
+                            ? formatCurrency(partnerOperations.nextPickup.quotedAmount, partnerOperations.nextPickup.currency || "MWK")
+                            : "Not quoted"}
+                        />
+                      </div>
+                      <Button type="button" variant="outline" onClick={() => navigateToSection("requests")}>
+                        <ClipboardList className="h-4 w-4" aria-hidden="true" />
+                        Review pickup details
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-medium">No confirmed pickup is queued.</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          New approved or confirmed transport requests will appear here.
+                        </p>
+                      </div>
+                      <Button type="button" variant="outline" onClick={() => navigateToSection("requests")}>
+                        View requests
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
+                  <CardTitle>Readiness checklist</CardTitle>
+                </div>
+                <CardDescription>Profile, roster, vehicle, and pricing details that keep bookings clear.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="divide-y rounded-md border bg-background">
+                  {partnerOperations.readiness.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.label}
+                        type="button"
+                        className="flex w-full items-start gap-3 px-4 py-3 text-left transition-[background-color] hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        onClick={() => navigateToSection(item.tab)}
+                      >
+                        <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${item.complete ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"}`}>
+                          {item.complete ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <Icon className="h-4 w-4" aria-hidden="true" />}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block break-words text-sm font-medium">{item.label}</span>
+                          <span className="mt-1 block break-words text-xs text-muted-foreground">{item.detail}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           <Card>
             <CardHeader>
-              <CardTitle>{isAdminView ? "Transport Request Queue" : "Visitor Transport Requests"}</CardTitle>
-              <CardDescription>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <CardTitle>Priority requests</CardTitle>
+                  <CardDescription>Requests sorted by urgency: exceptions, new quotes, approvals, and confirmed pickups.</CardDescription>
+                </div>
+                <Badge variant="outline">{partnerOperations.openRequests.length} open</Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {requestsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  Loading priority requests…
+                </div>
+              ) : partnerOperations.priorityRequests.length === 0 ? (
+                <div className="rounded-md border bg-background p-4 text-sm text-muted-foreground">
+                  No transport requests need attention right now.
+                </div>
+              ) : (
+                <div className="grid gap-3 lg:grid-cols-3">
+                  {partnerOperations.priorityRequests.map((request) => (
+                    <button
+                      key={request.id}
+                      type="button"
+                      className="min-w-0 rounded-md border bg-background p-4 text-left transition-[border-color,background-color] hover:border-primary/50 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => navigateToSection("requests")}
+                    >
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="break-words font-medium">{request.visitorName}</span>
+                        <StatusBadge status={request.status} />
+                      </span>
+                      <span className="mt-3 block text-xs font-semibold uppercase tracking-wide text-primary">
+                        {getPartnerRequestAction(request)}
+                      </span>
+                      <span className="mt-2 block break-words text-sm text-muted-foreground">
+                        {formatRequestSchedule(request)}
+                      </span>
+                      <span className="mt-1 block break-words text-sm text-muted-foreground">
+                        {getTransportRoute(request.route).shortLabel}
+                        {request.pickupLocation ? ` · ${request.pickupLocation}` : ""}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {(isAdminView || activeTab !== "dashboard") && (
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => navigateToSection(value)}
+          className={isAdminView ? "mt-6" : ""}
+        >
+          {isAdminView && (
+            <TabsList className="flex h-auto w-full max-w-full flex-wrap justify-start gap-1">
+              <TabsTrigger className="h-auto whitespace-normal text-center leading-tight" value="requests">
+                Request Queue
+              </TabsTrigger>
+              <TabsTrigger className="h-auto whitespace-normal text-center leading-tight" value="referrals">
+                Referral Intake
+              </TabsTrigger>
+              <TabsTrigger className="h-auto whitespace-normal text-center leading-tight" value="roster">
+                Fleet Records
+              </TabsTrigger>
+              <TabsTrigger className="h-auto whitespace-normal text-center leading-tight" value="availability">
+                Blackout Controls
+              </TabsTrigger>
+              <TabsTrigger className="h-auto whitespace-normal text-center leading-tight" value="pricing">
+                Partner Prices
+              </TabsTrigger>
+              <TabsTrigger className="h-auto whitespace-normal text-center leading-tight" value="partners">
+                Partner Records
+              </TabsTrigger>
+              <TabsTrigger className="h-auto whitespace-normal text-center leading-tight" value="help">
+                Help Center
+              </TabsTrigger>
+            </TabsList>
+          )}
+
+        <TabsContent value="requests" className="mt-4">
+          <Card className="bg-gradient-to-br from-card/85 via-card to-card/95 backdrop-blur-md border-muted/30 shadow-xl shadow-black/5">
+            <CardHeader>
+              <CardTitle className="text-xl font-bold bg-gradient-to-r from-primary to-primary/75 bg-clip-text text-transparent">{isAdminView ? "Transport Request Queue" : "Visitor Transport Requests"}</CardTitle>
+              <CardDescription className="text-muted-foreground/80">
                 {isAdminView
                   ? "Assign partners, review quotes, manage internal notes, and track visitor quote decisions before final confirmation."
                   : "Manage assigned visitor requests, quotes, pickup time, driver details, vehicle details, and partner notes."}
@@ -1870,9 +3089,9 @@ export default function TransportPartnerPortal() {
             </CardHeader>
             <CardContent>
               {requestsLoading ? (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading requests…
+                <div className="flex items-center gap-2 text-muted-foreground py-6 justify-center">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  <span>Loading requests…</span>
                 </div>
               ) : transportRequests.length === 0 ? (
                 <EmptyState
@@ -1882,388 +3101,135 @@ export default function TransportPartnerPortal() {
                 />
               ) : (
                 <div className="space-y-4">
-                  {transportRequests.map((request) => {
-                    const route = getTransportRoute(request.route);
-                    const draft = requestDrafts[request.id] || {};
-                    const currentPartnerId = draft.partnerId ?? request.partnerId ?? "unassigned";
-                    const assignedPartnerId = currentPartnerId === "unassigned" ? null : currentPartnerId;
-                    const partnerDrivers = drivers.filter((driver) => !assignedPartnerId || driver.partnerId === assignedPartnerId);
-                    const partnerVehicles = vehicles.filter((vehicle) => !assignedPartnerId || vehicle.partnerId === assignedPartnerId);
-                    const currentStatus = draft.status || request.status || "pending";
-                    const quotedAmount = draft.quotedAmount ?? (request.quotedAmount != null ? String(request.quotedAmount) : "");
+                  <div className="hidden md:block overflow-x-auto rounded-lg border border-muted/30 bg-background/50">
+                    <Table>
+                      <TableHeader className="bg-muted/30">
+                        <TableRow>
+                          <TableHead className="font-semibold">Visitor & Route</TableHead>
+                          {isAdminView && <TableHead className="font-semibold">Partner</TableHead>}
+                          <TableHead className="font-semibold">Schedule</TableHead>
+                          <TableHead className="font-semibold">Driver & Vehicle</TableHead>
+                          <TableHead className="font-semibold">Price</TableHead>
+                          <TableHead className="font-semibold">Status</TableHead>
+                          <TableHead className="text-right font-semibold">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {transportRequests.map((request) => {
+                          const route = getTransportRoute(request.route);
+                          const driverName = request.driverName || (request.driverId && drivers.find(d => d.id === request.driverId)?.name) || null;
+                          const vehicleLabel = request.vehicleDetails || (request.vehicleId && vehicles.find(v => v.id === request.vehicleId)?.label) || null;
+                          const priceDisplay = request.quotedAmount != null ? formatCurrency(request.quotedAmount, request.currency || "MWK") : "Quote pending";
+                          const requestPartnerName = partnerNameFor(request.partnerId);
+                          const requestPartnerContact = partnerContactFor(request.partnerId);
 
-                    return (
-                      <div key={request.id} className="rounded-lg border p-4">
-                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h2 className="text-base font-semibold">{request.visitorName}</h2>
-                              <StatusBadge status={currentStatus} />
-                            </div>
-                            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                              <span className="inline-flex min-w-0 items-center gap-1">
-                                <Mail className="h-3.5 w-3.5" aria-hidden="true" />
-                                <span className="truncate">{request.visitorEmail}</span>
-                              </span>
-                              {request.visitorPhone && (
-                                <span className="inline-flex items-center gap-1">
-                                  <Phone className="h-3.5 w-3.5" aria-hidden="true" />
-                                  {request.visitorPhone}
-                                </span>
-                              )}
-                              <span>{request.visitDate ? formatDate(request.visitDate) : "Date pending"}</span>
-                              {request.visitTime && <span>{formatTime(request.visitTime)}</span>}
-                            </div>
-                          </div>
-                          <Button
-                            type="button"
-                            size="sm"
-                            disabled={updateRequestMutation.isPending}
-                            onClick={() => updateRequestMutation.mutate({ id: request.id, updates: requestDrafts[request.id] || {} })}
-                          >
-                            {updateRequestMutation.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Save className="h-4 w-4" />
-                            )}
-                            Save
-                          </Button>
-                        </div>
-
-                        <div className="mt-4 grid gap-4 lg:grid-cols-3">
-                          <div className="space-y-2">
-                            <Label htmlFor={`request-status-${request.id}`}>Status</Label>
-                            <Select
-                              value={currentStatus}
-                              onValueChange={(status: TransportRequestStatus) =>
-                                setRequestDrafts((current) => ({
-                                  ...current,
-                                  [request.id]: { ...current[request.id], status },
-                                }))
-                              }
-                            >
-                              <SelectTrigger id={`request-status-${request.id}`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {transportStatuses.map((status) => (
-                                  <SelectItem key={status} value={status}>
-                                    {humanizeStatus(status)}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {isAdminView && (
-                            <div className="space-y-2">
-                              <Label htmlFor={`request-partner-${request.id}`}>Assigned partner</Label>
-                              <Select
-                                value={currentPartnerId}
-                                onValueChange={(partnerId) =>
-                                  setRequestDrafts((current) => ({
-                                    ...current,
-                                    [request.id]: { ...current[request.id], partnerId: partnerId === "unassigned" ? null : partnerId },
-                                  }))
-                                }
-                              >
-                                <SelectTrigger id={`request-partner-${request.id}`}>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="unassigned">Unassigned</SelectItem>
-                                  {partners.map((partner) => (
-                                    <SelectItem key={partner.id} value={partner.id}>
-                                      {partner.companyName}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
-
-                          <div className="space-y-2">
-                            <Label htmlFor={`request-quote-${request.id}`}>Transport quote</Label>
-                            <Input
-                              id={`request-quote-${request.id}`}
-                              type="number"
-                              min="0"
-                              inputMode="numeric"
-                              placeholder="MWK amount…"
-                              value={quotedAmount}
-                              onChange={(event) =>
-                                setRequestDrafts((current) => ({
-                                  ...current,
-                                  [request.id]: { ...current[request.id], quotedAmount: event.target.value },
-                                }))
-                              }
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor={`request-pickup-time-${request.id}`}>Pickup time</Label>
-                            <Input
-                              id={`request-pickup-time-${request.id}`}
-                              type="time"
-                              value={draft.estimatedPickupTime ?? request.estimatedPickupTime ?? ""}
-                              onChange={(event) =>
-                                setRequestDrafts((current) => ({
-                                  ...current,
-                                  [request.id]: { ...current[request.id], estimatedPickupTime: event.target.value },
-                                }))
-                              }
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor={`request-driver-roster-${request.id}`}>Saved driver</Label>
-                            <Select
-                              value={draft.driverId ?? request.driverId ?? "manual"}
-                              onValueChange={(driverId) =>
-                                setRequestDrafts((current) => ({
-                                  ...current,
-                                  [request.id]: { ...current[request.id], driverId: driverId === "manual" ? null : driverId },
-                                }))
-                              }
-                            >
-                              <SelectTrigger id={`request-driver-roster-${request.id}`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="manual">Manual entry</SelectItem>
-                                {partnerDrivers.map((driver) => (
-                                  <SelectItem key={driver.id} value={driver.id}>
-                                    {driver.name}{driver.phone ? ` · ${driver.phone}` : ""}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor={`request-driver-${request.id}`}>Driver</Label>
-                            <Input
-                              id={`request-driver-${request.id}`}
-                              placeholder="Driver name…"
-                              value={draft.driverName ?? request.driverName ?? ""}
-                              onChange={(event) =>
-                                setRequestDrafts((current) => ({
-                                  ...current,
-                                  [request.id]: { ...current[request.id], driverName: event.target.value },
-                                }))
-                              }
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor={`request-driver-phone-${request.id}`}>Driver phone</Label>
-                            <Input
-                              id={`request-driver-phone-${request.id}`}
-                              inputMode="tel"
-                              placeholder="+265…"
-                              value={draft.driverPhone ?? request.driverPhone ?? ""}
-                              onChange={(event) =>
-                                setRequestDrafts((current) => ({
-                                  ...current,
-                                  [request.id]: { ...current[request.id], driverPhone: event.target.value },
-                                }))
-                              }
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor={`request-vehicle-roster-${request.id}`}>Saved vehicle</Label>
-                            <Select
-                              value={draft.vehicleId ?? request.vehicleId ?? "manual"}
-                              onValueChange={(vehicleId) =>
-                                setRequestDrafts((current) => ({
-                                  ...current,
-                                  [request.id]: { ...current[request.id], vehicleId: vehicleId === "manual" ? null : vehicleId },
-                                }))
-                              }
-                            >
-                              <SelectTrigger id={`request-vehicle-roster-${request.id}`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="manual">Manual entry</SelectItem>
-                                {partnerVehicles.map((vehicle) => (
-                                  <SelectItem key={vehicle.id} value={vehicle.id}>
-                                    {vehicle.label}{vehicle.plateNumber ? ` · ${vehicle.plateNumber}` : ""}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-
-                        <div className="mt-4 grid gap-4 lg:grid-cols-3">
-                          <div className="space-y-2">
-                            <Label>Route</Label>
-                            <p className="rounded-md border bg-muted/30 px-3 py-2 text-sm">{route.shortLabel}</p>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Pickup</Label>
-                            <p className="rounded-md border bg-muted/30 px-3 py-2 text-sm">{request.pickupLocation || "Not specified"}</p>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Pickup time status</Label>
-                            <p className="rounded-md border bg-muted/30 px-3 py-2 text-sm">{formatMaybeTime(draft.estimatedPickupTime ?? request.estimatedPickupTime)}</p>
-                          </div>
-                        </div>
-
-                        {(request.quoteDecision || request.quoteDecisionAt) && (
-                          <div className="mt-4 rounded-md border bg-muted/30 px-3 py-2 text-sm">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-medium">Visitor quote decision</span>
-                              <StatusBadge status={request.quoteDecision || request.status} />
-                              {request.quoteDecisionAt && (
-                                <span className="text-xs text-muted-foreground">{formatDate(request.quoteDecisionAt)}</span>
-                              )}
-                            </div>
-                            {request.quoteDecisionNotes && (
-                              <p className="mt-1 text-muted-foreground">{request.quoteDecisionNotes}</p>
-                            )}
-                          </div>
-                        )}
-
-                        <div className="mt-4 grid gap-4 lg:grid-cols-3">
-                          <div className="space-y-2">
-                            <Label htmlFor={`request-new-date-${request.id}`}>Requested new date</Label>
-                            <Input
-                              id={`request-new-date-${request.id}`}
-                              type="date"
-                              value={draft.requestedVisitDate ?? request.requestedVisitDate ?? ""}
-                              onChange={(event) =>
-                                setRequestDrafts((current) => ({
-                                  ...current,
-                                  [request.id]: { ...current[request.id], requestedVisitDate: event.target.value },
-                                }))
-                              }
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor={`request-new-pickup-${request.id}`}>Requested new pickup</Label>
-                            <Input
-                              id={`request-new-pickup-${request.id}`}
-                              type="time"
-                              value={draft.requestedPickupTime ?? request.requestedPickupTime ?? ""}
-                              onChange={(event) =>
-                                setRequestDrafts((current) => ({
-                                  ...current,
-                                  [request.id]: { ...current[request.id], requestedPickupTime: event.target.value },
-                                }))
-                              }
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor={`request-cancel-reason-${request.id}`}>Cancellation reason</Label>
-                            <Input
-                              id={`request-cancel-reason-${request.id}`}
-                              placeholder="Reason if cancelled…"
-                              value={draft.cancellationReason ?? request.cancellationReason ?? ""}
-                              onChange={(event) =>
-                                setRequestDrafts((current) => ({
-                                  ...current,
-                                  [request.id]: { ...current[request.id], cancellationReason: event.target.value },
-                                }))
-                              }
-                            />
-                          </div>
-                        </div>
-
-                        <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label htmlFor={`request-vehicle-${request.id}`}>Vehicle details</Label>
-                            <Textarea
-                              id={`request-vehicle-${request.id}`}
-                              placeholder="Vehicle type, plate, capacity…"
-                              value={draft.vehicleDetails ?? request.vehicleDetails ?? ""}
-                              onChange={(event) =>
-                                setRequestDrafts((current) => ({
-                                  ...current,
-                                  [request.id]: { ...current[request.id], vehicleDetails: event.target.value },
-                                }))
-                              }
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor={`request-partner-notes-${request.id}`}>Partner notes</Label>
-                            <Textarea
-                              id={`request-partner-notes-${request.id}`}
-                              placeholder="Availability, quote conditions, pickup notes…"
-                              value={draft.partnerNotes ?? request.partnerNotes ?? ""}
-                              onChange={(event) =>
-                                setRequestDrafts((current) => ({
-                                  ...current,
-                                  [request.id]: { ...current[request.id], partnerNotes: event.target.value },
-                                }))
-                              }
-                            />
-                          </div>
-                          {isAdminView && (
-                            <div className="space-y-2 lg:col-span-2">
-                              <Label htmlFor={`request-admin-notes-${request.id}`}>Internal admin notes</Label>
-                              <Textarea
-                                id={`request-admin-notes-${request.id}`}
-                                placeholder="Internal follow-up, risk, payment, or assignment notes…"
-                                value={draft.adminNotes ?? request.adminNotes ?? ""}
-                                onChange={(event) =>
-                                  setRequestDrafts((current) => ({
-                                    ...current,
-                                    [request.id]: { ...current[request.id], adminNotes: event.target.value },
-                                  }))
-                                }
-                              />
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
-                          <div className="rounded-md border bg-muted/20 p-3 text-sm">
-                            <p className="font-medium">Partner pricing reference</p>
-                            <p className="mt-1 text-muted-foreground">
-                              Use the Pricing tab for saved route prices. The transport quote above is the actual amount sent to the visitor for this request.
-                            </p>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="self-start"
-                            onClick={() => setSelectedActivityRequestId(selectedActivityRequestId === request.id ? "" : request.id)}
-                          >
-                            <History className="h-4 w-4" />
-                            {selectedActivityRequestId === request.id ? "Hide timeline" : "View timeline"}
-                          </Button>
-                        </div>
-
-                        {selectedActivityRequestId === request.id && (
-                          <div className="mt-4 rounded-lg border bg-muted/20 p-4">
-                            <h3 className="text-sm font-semibold">Request timeline</h3>
-                            {requestActivity.length === 0 ? (
-                              <p className="mt-2 text-sm text-muted-foreground">No activity recorded yet.</p>
-                            ) : (
-                              <div className="mt-3 space-y-3">
-                                {requestActivity.map((activity) => (
-                                  <div key={activity.id} className="rounded-md border bg-background p-3 text-sm">
-                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                      <span className="font-medium">{humanizeStatus(activity.action)}</span>
-                                      <span className="text-xs text-muted-foreground">{activity.createdAt ? formatDate(activity.createdAt) : ""}</span>
-                                    </div>
-                                    {(activity.oldStatus || activity.newStatus) && (
-                                      <p className="mt-1 text-xs text-muted-foreground">
-                                        {activity.oldStatus || "none"} → {activity.newStatus || "none"}
-                                      </p>
-                                    )}
+                          return (
+                            <TableRow key={request.id} className="hover:bg-muted/10 transition-colors border-b border-muted/20">
+                              <TableCell className="font-medium py-3.5">
+                                <div>
+                                  <p className="font-semibold text-foreground">{request.visitorName}</p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">{route.shortLabel}</p>
+                                </div>
+                              </TableCell>
+                              {isAdminView && (
+                                <TableCell className="py-3.5">
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-medium">{requestPartnerName}</p>
+                                    <p className="truncate text-xs text-muted-foreground">{requestPartnerContact}</p>
                                   </div>
-                                ))}
-                              </div>
-                            )}
+                                </TableCell>
+                              )}
+                              <TableCell className="py-3.5">
+                                <div>
+                                  <p className="text-sm font-medium">{request.visitDate ? formatDate(request.visitDate) : "Date pending"}</p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">{request.visitTime ? formatTime(request.visitTime) : ""}</p>
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-3.5">
+                                <div>
+                                  {driverName || vehicleLabel ? (
+                                    <div className="space-y-0.5">
+                                      {driverName && <p className="text-xs font-semibold text-foreground">{driverName}</p>}
+                                      {vehicleLabel && <p className="text-[11px] text-muted-foreground">{vehicleLabel}</p>}
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground/60 italic">None assigned</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-3.5 tabular-nums font-semibold text-sm">
+                                {priceDisplay}
+                              </TableCell>
+                              <TableCell className="py-3.5">
+                                <div className="flex flex-col gap-1 items-start">
+                                  <StatusBadge status={request.status} />
+                                  {request.quoteDecision && (
+                                    <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-normal border-muted/50">
+                                      Visitor: {humanizeStatus(request.quoteDecision)}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right py-3.5">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 hover:bg-primary hover:text-primary-foreground border-muted/50 transition-all duration-200"
+                                  onClick={() => setActiveRequestId(request.id)}
+                                >
+                                  Manage
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div className="md:hidden space-y-3">
+                    {transportRequests.map((request) => {
+                      const route = getTransportRoute(request.route);
+                      const priceDisplay = request.quotedAmount != null ? formatCurrency(request.quotedAmount, request.currency || "MWK") : "Quote pending";
+                      const requestPartnerName = partnerNameFor(request.partnerId);
+                      return (
+                        <div key={request.id} className="rounded-lg border border-muted/30 p-4 space-y-3 bg-background/40 backdrop-blur-sm shadow-sm">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <h4 className="font-bold text-sm text-foreground">{request.visitorName}</h4>
+                              <p className="text-xs text-muted-foreground mt-0.5">{route.shortLabel}</p>
+                              {isAdminView && (
+                                <p className="mt-1 text-xs text-muted-foreground">Partner: {requestPartnerName}</p>
+                              )}
+                            </div>
+                            <StatusBadge status={request.status} />
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                          <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-muted/20">
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Schedule</span>
+                              <span className="font-medium text-foreground">
+                                {request.visitDate ? formatDate(request.visitDate) : "Date pending"} {request.visitTime ? `at ${formatTime(request.visitTime)}` : ""}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Price</span>
+                              <span className="font-semibold text-foreground">{priceDisplay}</span>
+                            </div>
+                          </div>
+                          <div className="flex justify-end pt-2 border-t border-muted/10">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full text-xs h-9 hover:bg-primary hover:text-primary-foreground border-muted/50 transition-all duration-200"
+                              onClick={() => setActiveRequestId(request.id)}
+                            >
+                              Manage Request
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -2537,6 +3503,7 @@ export default function TransportPartnerPortal() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Visitor</TableHead>
+                            {isAdminView && <TableHead>Partner</TableHead>}
                             <TableHead>Visit</TableHead>
                             <TableHead>Group</TableHead>
                             <TableHead>Status</TableHead>
@@ -2549,6 +3516,12 @@ export default function TransportPartnerPortal() {
                                 <p className="font-medium">{referral.visitorName}</p>
                                 <p className="text-xs text-muted-foreground">{referral.visitorEmail}</p>
                               </TableCell>
+                              {isAdminView && (
+                                <TableCell>
+                                  <p className="font-medium">{partnerNameFor(referral.partnerId)}</p>
+                                  <p className="text-xs text-muted-foreground">{partnerContactFor(referral.partnerId)}</p>
+                                </TableCell>
+                              )}
                               <TableCell>
                                 <span className="inline-flex items-center gap-1">
                                   <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
@@ -2581,6 +3554,23 @@ export default function TransportPartnerPortal() {
         </TabsContent>
 
         <TabsContent value="roster" className="mt-4">
+          <div className="space-y-6">
+            {isAdminView && (
+              <PartnerScopePanel
+                title="Partner Fleet Workspace"
+                description="Choose the transport company whose drivers and vehicles you are reviewing or editing."
+                partners={partners}
+                selectedPartnerId={rosterPartnerId}
+                onPartnerChange={changeOperationsPartner}
+              >
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <SummaryPill label="Saved drivers" value={scopedDrivers.length} />
+                  <SummaryPill label="Active drivers" value={scopedDrivers.filter((driver) => driver.status !== "inactive").length} />
+                  <SummaryPill label="Saved vehicles" value={scopedVehicles.length} />
+                  <SummaryPill label="Active vehicles" value={scopedVehicles.filter((vehicle) => vehicle.status !== "inactive").length} />
+                </div>
+              </PartnerScopePanel>
+            )}
           <div className="grid gap-6 lg:grid-cols-2">
             <Card>
               <CardHeader>
@@ -2592,23 +3582,6 @@ export default function TransportPartnerPortal() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {isAdminView && (
-                  <div className="space-y-2">
-                    <Label htmlFor="driver-partner">Partner</Label>
-                    <Select value={rosterPartnerId || ""} onValueChange={setAdminPartnerId}>
-                      <SelectTrigger id="driver-partner">
-                        <SelectValue placeholder="Select partner…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {partners.map((partner) => (
-                          <SelectItem key={partner.id} value={partner.id}>
-                            {partner.companyName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
                 <form
                   className="space-y-3"
                   onSubmit={(event) => {
@@ -2649,11 +3622,13 @@ export default function TransportPartnerPortal() {
                   </div>
                 </form>
                 <div className="space-y-2">
-                  {drivers.filter((driver) => !rosterPartnerId || driver.partnerId === rosterPartnerId).map((driver) => (
+                  {scopedDrivers.map((driver) => (
                     <div key={driver.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{driver.name}</p>
-                        <p className="truncate text-xs text-muted-foreground">{driver.phone || driver.email || "No contact saved"}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {isAdminView ? `${partnerNameFor(driver.partnerId)} · ` : ""}{driver.phone || driver.email || "No contact saved"}
+                        </p>
                       </div>
                       <div className="flex shrink-0 gap-1">
                         <Button type="button" variant="ghost" size="icon" aria-label={`Edit ${driver.name}`} onClick={() => editDriver(driver)}>
@@ -2720,11 +3695,12 @@ export default function TransportPartnerPortal() {
                   </div>
                 </form>
                 <div className="space-y-2">
-                  {vehicles.filter((vehicle) => !rosterPartnerId || vehicle.partnerId === rosterPartnerId).map((vehicle) => (
+                  {scopedVehicles.map((vehicle) => (
                     <div key={vehicle.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{vehicle.label}</p>
                         <p className="truncate text-xs text-muted-foreground">
+                          {isAdminView ? `${partnerNameFor(vehicle.partnerId)} · ` : ""}
                           {[vehicle.vehicleType, vehicle.plateNumber, vehicle.capacity ? `${vehicle.capacity} seats` : null].filter(Boolean).join(" · ") || "No vehicle details"}
                         </p>
                       </div>
@@ -2742,9 +3718,27 @@ export default function TransportPartnerPortal() {
               </CardContent>
             </Card>
           </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="availability" className="mt-4">
+          <div className="space-y-6">
+            {isAdminView && (
+              <PartnerScopePanel
+                title="Partner Availability Workspace"
+                description="Select the transport company whose blackout dates and availability risks you are managing."
+                partners={partners}
+                selectedPartnerId={rosterPartnerId}
+                onPartnerChange={changeOperationsPartner}
+              >
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <SummaryPill label="Blackout records" value={scopedBlackouts.length} />
+                  <SummaryPill label="Active blackouts" value={scopedBlackouts.filter((blackout) => blackout.status !== "cancelled").length} />
+                  <SummaryPill label="Open requests" value={scopedTransportRequests.filter(isOpenTransportRequest).length} />
+                  <SummaryPill label="Confirmed pickups" value={scopedTransportRequests.filter((request) => request.status === "confirmed").length} />
+                </div>
+              </PartnerScopePanel>
+            )}
           <Card>
             <CardHeader>
               <CardTitle>{isAdminView ? "Partner Blackout Controls" : "Partner Availability"}</CardTitle>
@@ -2788,15 +3782,17 @@ export default function TransportPartnerPortal() {
                   Cancel availability edit
                 </Button>
               )}
-              {blackouts.length === 0 ? (
+              {scopedBlackouts.length === 0 ? (
                 <EmptyState icon={CalendarOff} title="No blackout dates" description="Blocked dates will appear here." />
               ) : (
                 <div className="space-y-2">
-                  {blackouts.filter((blackout) => !rosterPartnerId || blackout.partnerId === rosterPartnerId).map((blackout) => (
+                  {scopedBlackouts.map((blackout) => (
                     <div key={blackout.id} className="flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
                         <p className="text-sm font-medium">{formatDate(blackout.startDate)} to {formatDate(blackout.endDate)}</p>
-                        <p className="text-xs text-muted-foreground">{blackout.reason || "No reason added"}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {isAdminView ? `${partnerNameFor(blackout.partnerId)} · ` : ""}{blackout.reason || "No reason added"}
+                        </p>
                       </div>
                       <div className="flex shrink-0 gap-2">
                         <Button type="button" variant="outline" size="sm" onClick={() => editBlackout(blackout)}>
@@ -2814,9 +3810,30 @@ export default function TransportPartnerPortal() {
               )}
             </CardContent>
           </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="pricing" className="mt-4">
+          <div className="space-y-6">
+            {isAdminView && (
+              <PartnerScopePanel
+                title="Partner Pricing Workspace"
+                description="Select one transport company before adding or editing route prices. Price rows also show the owning partner."
+                partners={partners}
+                selectedPartnerId={rosterPartnerId}
+                onPartnerChange={changeOperationsPartner}
+              >
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <SummaryPill label="Route prices" value={scopedPartnerPricing.length} />
+                  <SummaryPill label="Active prices" value={scopedPartnerPricing.filter((price) => price.status !== "inactive").length} />
+                  <SummaryPill label="Quoted requests" value={scopedTransportRequests.filter((request) => request.quotedAmount != null).length} />
+                  <SummaryPill
+                    label="Default currency"
+                    value={selectedOperationsPartner?.defaultCurrency || "MWK"}
+                  />
+                </div>
+              </PartnerScopePanel>
+            )}
           <Card>
             <CardHeader>
               <CardTitle>{isAdminView ? "Partner Transport Prices" : "Partner Transport Pricing"}</CardTitle>
@@ -2957,6 +3974,7 @@ export default function TransportPartnerPortal() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      {isAdminView && <TableHead>Partner</TableHead>}
                       <TableHead>Route</TableHead>
                       <TableHead>Label</TableHead>
                       <TableHead>Price</TableHead>
@@ -2966,7 +3984,7 @@ export default function TransportPartnerPortal() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {partnerPricing.filter((price) => !rosterPartnerId || price.partnerId === rosterPartnerId).map((price) => {
+                    {scopedPartnerPricing.map((price) => {
                       const routeInfo = getTransportRoute(price.route);
                       const displayLabel = price.label === "Lilongwe round trip" && routeInfo.id !== DEFAULT_TRANSPORT_ROUTE_ID
                         ? routeInfo.shortLabel
@@ -2974,6 +3992,12 @@ export default function TransportPartnerPortal() {
 
                       return (
                         <TableRow key={price.id}>
+                          {isAdminView && (
+                            <TableCell>
+                              <p className="font-medium">{partnerNameFor(price.partnerId)}</p>
+                              <p className="text-xs text-muted-foreground">{partnerContactFor(price.partnerId)}</p>
+                            </TableCell>
+                          )}
                           <TableCell>{routeInfo.shortLabel}</TableCell>
                           <TableCell>{displayLabel}</TableCell>
                           <TableCell className="tabular-nums">{formatCurrency(price.basePrice, price.currency || "MWK")}</TableCell>
@@ -2997,6 +4021,7 @@ export default function TransportPartnerPortal() {
               </div>
             </CardContent>
           </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="help" className="mt-4">
@@ -3170,9 +4195,10 @@ export default function TransportPartnerPortal() {
             </Card>
           </TabsContent>
         )}
-      </Tabs>
+        </Tabs>
+      )}
 
-      {stats.confirmedRequests > 0 && (
+      {stats.confirmedRequests > 0 && (isAdminView || activeTab === "dashboard") && (
         <div className="mt-4 flex items-center gap-2 rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
           <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden="true" />
           {stats.confirmedRequests} transport request{stats.confirmedRequests === 1 ? "" : "s"} confirmed.

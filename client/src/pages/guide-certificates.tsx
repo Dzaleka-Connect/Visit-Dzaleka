@@ -32,38 +32,38 @@ import type { Guide } from "@shared/schema";
 const defaultLogoUrl = "/favicon.png";
 
 const certificateThemes = {
-  heritage: {
-    label: "Heritage blue",
-    primary: "#0369a1",
-    accent: "#f59e0b",
-    soft: "#e0f2fe",
+  earth: {
+    label: "Dzaleka Earth",
+    primary: "#7C4A2D",
+    accent: "#C4841D",
+    soft: "#FBF0E1",
   },
-  community: {
-    label: "Community green",
-    primary: "#047857",
-    accent: "#0ea5e9",
-    soft: "#dcfce7",
+  sunset: {
+    label: "Sunset Warmth",
+    primary: "#8B3A3A",
+    accent: "#D4943A",
+    soft: "#FDF2E9",
   },
-  classic: {
-    label: "Classic black",
-    primary: "#111827",
-    accent: "#c2410c",
-    soft: "#f8fafc",
+  lake: {
+    label: "Lake Green",
+    primary: "#3D6B4F",
+    accent: "#B8860B",
+    soft: "#EEF5E8",
   },
 } as const;
 
 const certificateLayouts = {
   official: {
-    label: "Official record",
-    description: "Clean internal record with Visit Dzaleka header.",
+    label: "Dzaleka record",
+    description: "Clean document with a warm side accent and organic details.",
   },
   classic: {
-    label: "Classic award",
-    description: "Formal centered certificate with framed borders.",
+    label: "Kanga border",
+    description: "Warm certificate framed with a hand-drawn geometric border inspired by East African textile patterns.",
   },
   community: {
-    label: "Community recognition",
-    description: "Warmer layout for service and appreciation certificates.",
+    label: "Ubuntu spirit",
+    description: "Simple, centered recognition of community contribution.",
   },
 } as const;
 
@@ -156,7 +156,7 @@ export default function GuideCertificates() {
   const [certificateId, setCertificateId] = useState(`VD-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`);
   const [logoUrl, setLogoUrl] = useState(defaultLogoUrl);
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
-  const [theme, setTheme] = useState<CertificateTheme>("heritage");
+  const [theme, setTheme] = useState<CertificateTheme>("earth");
   const [layout, setLayout] = useState<CertificateLayout>("official");
   const [isGenerating, setIsGenerating] = useState(false);
   const [recipientError, setRecipientError] = useState(false);
@@ -214,7 +214,9 @@ export default function GuideCertificates() {
 
       // Dynamic recipient name font size
       let recipientFontSize = 30;
-      if (recipientText.length > 25) {
+      if (recipientText.length > 35) {
+        recipientFontSize = 16;
+      } else if (recipientText.length > 28) {
         recipientFontSize = 20;
       } else if (recipientText.length > 18) {
         recipientFontSize = 24;
@@ -222,12 +224,14 @@ export default function GuideCertificates() {
 
       // Dynamic body text font size
       let bodyFontSize = 11;
-      if (body.length > 280) {
-        bodyFontSize = 8.5;
-      } else if (body.length > 200) {
-        bodyFontSize = 9.2;
-      } else if (body.length > 130) {
-        bodyFontSize = 10;
+      if (body.length > 320) {
+        bodyFontSize = 8.0;
+      } else if (body.length > 250) {
+        bodyFontSize = 8.8;
+      } else if (body.length > 180) {
+        bodyFontSize = 9.6;
+      } else if (body.length > 110) {
+        bodyFontSize = 10.2;
       }
 
       // Set temporarily to split text accurately
@@ -281,53 +285,92 @@ export default function GuideCertificates() {
         doc.text(truncatePdfText(doc, issuerTitleText, 62), 214, labelY, { align: "center" });
       };
 
+      const drawZigzagBand = (startX: number, endX: number, y: number, height: number, segments: number) => {
+        const segWidth = (endX - startX) / segments;
+        doc.setDrawColor(accentR, accentG, accentB);
+        doc.setLineWidth(0.6);
+        for (let i = 0; i < segments; i++) {
+          const x = startX + i * segWidth;
+          doc.line(x, y + height, x + segWidth / 2, y);
+          doc.line(x + segWidth / 2, y, x + segWidth, y + height);
+        }
+      };
+
+      const drawOrganicUnderline = (startX: number, endX: number, y: number) => {
+        doc.setDrawColor(accentR, accentG, accentB);
+        doc.setLineWidth(0.8);
+        const midX = (startX + endX) / 2;
+        doc.line(startX, y, midX + 5, y - 0.2);
+        doc.line(midX - 5, y + 0.3, endX, y);
+      };
+
+      const drawCornerDots = (x: number, y: number, w: number, h: number, margin: number) => {
+        doc.setFillColor(accentR, accentG, accentB);
+        doc.circle(x + margin, y + margin, 1.5, "F");
+        doc.circle(x + w - margin, y + margin, 1.5, "F");
+        doc.circle(x + margin, y + h - margin, 1.5, "F");
+        doc.circle(x + w - margin, y + h - margin, 1.5, "F");
+      };
+
       if (layout === "classic") {
-        doc.setFillColor(255, 255, 255);
+        doc.setFillColor(255, 250, 243); // Warm cream/parchment background
         doc.rect(0, 0, pageWidth, pageHeight, "F");
         doc.setDrawColor(primaryR, primaryG, primaryB);
         doc.setLineWidth(1.2);
         doc.rect(15, 15, pageWidth - 30, pageHeight - 30);
         doc.setDrawColor(accentR, accentG, accentB);
-        doc.setLineWidth(0.5);
+        doc.setLineWidth(0.4);
         doc.rect(21, 21, pageWidth - 42, pageHeight - 42);
-        drawLogo(pageWidth / 2 - 10, 28, 20, "circle");
+        
+        drawZigzagBand(23, pageWidth - 23, 23, 4, 26);
+        drawZigzagBand(23, pageWidth - 23, pageHeight - 27, 4, 26);
+        
+        drawLogo(pageWidth / 2 - 10, 32, 20, "circle");
 
         doc.setTextColor(primaryR, primaryG, primaryB);
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(24);
-        doc.text(truncatePdfText(doc, titleText, 205), pageWidth / 2, 64, { align: "center" });
+        doc.setFontSize(22);
+        doc.text(truncatePdfText(doc, titleText, 205), pageWidth / 2, 66, { align: "center" });
         doc.setTextColor(100, 116, 139);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(11);
-        doc.text(truncatePdfText(doc, subtitleText, 120), pageWidth / 2, 78, { align: "center" });
+        doc.text(truncatePdfText(doc, subtitleText, 120), pageWidth / 2, 80, { align: "center" });
         doc.setTextColor(17, 24, 39);
         doc.setFont("times", "bolditalic");
         doc.setFontSize(recipientFontSize);
-        doc.text(truncatePdfText(doc, recipientText, 220), pageWidth / 2, 96, { align: "center" });
-        doc.setDrawColor(accentR, accentG, accentB);
-        doc.setLineWidth(0.8);
-        doc.line(88, 104, 209, 104);
+        doc.text(truncatePdfText(doc, recipientText, 220), pageWidth / 2, 98, { align: "center" });
+        
+        drawOrganicUnderline(88, 209, 102);
+        
+        const classicBodyY = 110;
         doc.setTextColor(55, 65, 81);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(bodyFontSize);
-        const bodyY = getCenteredBaselineY(106, 145, bodyLines.length, bodyFontSize, 1.35);
-        doc.text(bodyLines, pageWidth / 2, bodyY, { align: "center", lineHeightFactor: 1.35 });
+        doc.text(bodyLines, pageWidth / 2, classicBodyY, { align: "center", lineHeightFactor: 1.35 });
+        const classicBodyBottom = classicBodyY + (bodyLines.length - 1) * (bodyFontSize * 0.3527 * 1.35);
+        
+        const classicBadgeY = classicBodyBottom + 9;
         doc.setTextColor(primaryR, primaryG, primaryB);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.text(recognitionText, pageWidth / 2, 148, { align: "center" });
-        drawSignatureBlock(168, 175, 180, 155);
+        doc.setFont("times", "italic");
+        doc.setFontSize(11);
+        doc.text(`◆  ${recognitionText}  ◆`, pageWidth / 2, classicBadgeY, { align: "center" });
+        
+        const classicSigLineY = Math.max(classicBadgeY + 14, 163);
+        drawSignatureBlock(classicSigLineY, classicSigLineY + 7, classicSigLineY + 12, classicSigLineY - 13);
         doc.setTextColor(100, 116, 139);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
-        doc.text(`Certificate ID: ${truncatePdfText(doc, certificateIdText, 68)}`, pageWidth - 27, 31, { align: "right" });
+        doc.text(`Certificate ID: ${truncatePdfText(doc, certificateIdText, 68)}`, pageWidth - 27, 33, { align: "right" });
       } else if (layout === "community") {
-        doc.setFillColor(255, 255, 255);
+        doc.setFillColor(255, 250, 243);
         doc.rect(0, 0, pageWidth, pageHeight, "F");
         doc.setFillColor(softR, softG, softB);
         doc.roundedRect(14, 14, pageWidth - 28, 182, 5, 5, "F");
         doc.setFillColor(255, 255, 255);
-        doc.roundedRect(25, 25, pageWidth - 50, 160, 4, 4, "F");
+        doc.roundedRect(25, 25, pageWidth - 50, 162, 4, 4, "F");
+        
+        drawCornerDots(25, 25, pageWidth - 50, 162, 4);
+        
         doc.setFillColor(primaryR, primaryG, primaryB);
         doc.rect(25, 25, pageWidth - 50, 21, "F");
         doc.setFillColor(accentR, accentG, accentB);
@@ -343,44 +386,50 @@ export default function GuideCertificates() {
 
         doc.setTextColor(primaryR, primaryG, primaryB);
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(23);
+        doc.setFontSize(22);
         doc.text(truncatePdfText(doc, titleText, 205), pageWidth / 2, 70, { align: "center" });
         doc.setTextColor(100, 116, 139);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(10);
         doc.text(truncatePdfText(doc, subtitleText, 120), pageWidth / 2, 86, { align: "center" });
         doc.setTextColor(17, 24, 39);
-        doc.setFont("times", "bold");
+        doc.setFont("times", "bolditalic");
         doc.setFontSize(recipientFontSize);
-        doc.text(truncatePdfText(doc, recipientText, 185), pageWidth / 2, 105, { align: "center" });
-        doc.setFillColor(accentR, accentG, accentB);
-        doc.roundedRect(pageWidth / 2 - 43, 113, 86, 2, 1, 1, "F");
+        doc.text(truncatePdfText(doc, recipientText, 185), pageWidth / 2, 102, { align: "center" });
+        
+        drawOrganicUnderline(pageWidth / 2 - 43, pageWidth / 2 + 43, 107);
+        
+        const communityBodyY = 115;
         doc.setTextColor(55, 65, 81);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(bodyFontSize);
-        const bodyY = getCenteredBaselineY(116, 145, bodyLines.length, bodyFontSize, 1.35);
-        doc.text(bodyLines, pageWidth / 2, bodyY, { align: "center", lineHeightFactor: 1.35 });
-        doc.setFillColor(softR, softG, softB);
-        doc.roundedRect(pageWidth / 2 - 48, 148, 96, 11, 2.5, 2.5, "F");
+        doc.text(bodyLines, pageWidth / 2, communityBodyY, { align: "center", lineHeightFactor: 1.35 });
+        const communityBodyBottom = communityBodyY + (bodyLines.length - 1) * (bodyFontSize * 0.3527 * 1.35);
+        
+        const communityBadgeY = communityBodyBottom + 9;
         doc.setTextColor(primaryR, primaryG, primaryB);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.text(recognitionText, pageWidth / 2, 155, { align: "center" });
-        drawSignatureBlock(172, 179, 184, 160);
+        doc.setFont("times", "italic");
+        doc.setFontSize(11);
+        doc.text(`◆  ${recognitionText}  ◆`, pageWidth / 2, communityBadgeY, { align: "center" });
+        
+        const communitySigLineY = Math.max(communityBadgeY + 14, 166);
+        drawSignatureBlock(communitySigLineY, communitySigLineY + 6.5, communitySigLineY + 10.5, communitySigLineY - 12);
       } else {
-        doc.setFillColor(248, 250, 252);
+        doc.setFillColor(255, 250, 243);
         doc.rect(0, 0, pageWidth, pageHeight, "F");
-        doc.setFillColor(primaryR, primaryG, primaryB);
-        doc.rect(0, 0, 16, pageHeight, "F");
         doc.setFillColor(accentR, accentG, accentB);
-        doc.rect(16, 0, 2, pageHeight, "F");
+        doc.rect(0, 0, 14, pageHeight, "F");
         doc.setFillColor(255, 255, 255);
         doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 4, 4, "F");
-        doc.setDrawColor(226, 232, 240);
-        doc.setLineWidth(0.4);
+        
+        drawCornerDots(cardX, cardY, cardWidth, cardHeight, 6);
+        
+        doc.setDrawColor(softR, softG, softB);
+        doc.setLineWidth(0.8);
         doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 4, 4);
+        
         doc.setDrawColor(accentR, accentG, accentB);
-        doc.setLineWidth(1);
+        doc.setLineWidth(0.6);
         doc.line(cardX + 12, cardY + 36, cardX + cardWidth - 12, cardY + 36);
         drawLogo(cardX + 14, cardY + 10, 18);
 
@@ -400,37 +449,37 @@ export default function GuideCertificates() {
         doc.setFont("helvetica", "bold");
         doc.setFontSize(9);
         doc.text(truncatePdfText(doc, certificateIdText, 70), cardX + cardWidth - 14, cardY + 22, { align: "right" });
-        doc.setFillColor(softR, softG, softB);
-        doc.roundedRect(pageWidth / 2 - 34, 59, 68, 9, 2.5, 2.5, "F");
+        
         doc.setTextColor(primaryR, primaryG, primaryB);
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(7.5);
-        doc.text("VISIT DZALEKA CERTIFICATE", pageWidth / 2, 65, { align: "center" });
-        doc.setFontSize(25);
+        doc.setFontSize(22);
         doc.text(truncatePdfText(doc, titleText, 205), pageWidth / 2, 78, { align: "center" });
         doc.setTextColor(100, 116, 139);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(10.5);
-        doc.text(truncatePdfText(doc, subtitleText, 120), pageWidth / 2, 94, { align: "center" });
+        doc.text(truncatePdfText(doc, subtitleText, 120), pageWidth / 2, 92, { align: "center" });
         doc.setTextColor(17, 24, 39);
-        doc.setFont("times", "bold");
+        doc.setFont("times", "bolditalic");
         doc.setFontSize(recipientFontSize);
-        doc.text(truncatePdfText(doc, recipientText, 185), pageWidth / 2, 111, { align: "center" });
-        doc.setDrawColor(accentR, accentG, accentB);
-        doc.setLineWidth(0.8);
-        doc.line(90, 118, 207, 118);
+        doc.text(truncatePdfText(doc, recipientText, 185), pageWidth / 2, 108, { align: "center" });
+        
+        drawOrganicUnderline(90, 207, 114);
+        
+        const officialBodyY = 122;
         doc.setTextColor(55, 65, 81);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(bodyFontSize);
-        const bodyY = getCenteredBaselineY(120, 146, bodyLines.length, bodyFontSize, 1.35);
-        doc.text(bodyLines, pageWidth / 2, bodyY, { align: "center", lineHeightFactor: 1.35 });
-        doc.setFillColor(softR, softG, softB);
-        doc.roundedRect(pageWidth / 2 - 48, 149, 96, 11, 2.5, 2.5, "F");
+        doc.text(bodyLines, pageWidth / 2, officialBodyY, { align: "center", lineHeightFactor: 1.35 });
+        const officialBodyBottom = officialBodyY + (bodyLines.length - 1) * (bodyFontSize * 0.3527 * 1.35);
+        
+        const officialBadgeY = officialBodyBottom + 9;
         doc.setTextColor(primaryR, primaryG, primaryB);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.text(recognitionText, pageWidth / 2, 156, { align: "center" });
-        drawSignatureBlock(173, 180, 185, 161);
+        doc.setFont("times", "italic");
+        doc.setFontSize(11);
+        doc.text(`◆  ${recognitionText}  ◆`, pageWidth / 2, officialBadgeY, { align: "center" });
+        
+        const officialSigLineY = Math.max(officialBadgeY + 14, 163);
+        drawSignatureBlock(officialSigLineY, officialSigLineY + 6.5, officialSigLineY + 11, officialSigLineY - 11);
       }
 
       const fileName = `${recipientName.trim().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "guide"}-certificate.pdf`;
@@ -448,8 +497,8 @@ export default function GuideCertificates() {
     );
   }
 
-  const previewRecipientFontSizeClass = recipientName.length > 25 ? "text-xl" : recipientName.length > 18 ? "text-2xl" : "text-3xl";
-  const previewBodyFontSizeClass = body.length > 280 ? "text-[11px] leading-tight" : body.length > 200 ? "text-xs leading-snug" : body.length > 130 ? "text-[13px] leading-snug" : "text-sm leading-relaxed";
+  const recipientFontSizeCqw = recipientName.length > 35 ? "1.6cqw" : recipientName.length > 28 ? "2.0cqw" : recipientName.length > 18 ? "2.4cqw" : "3.0cqw";
+  const bodyFontSizeCqw = body.length > 320 ? "0.95cqw" : body.length > 250 ? "1.05cqw" : body.length > 180 ? "1.15cqw" : body.length > 110 ? "1.25cqw" : "1.35cqw";
 
   return (
     <div className="space-y-6">
@@ -746,166 +795,205 @@ export default function GuideCertificates() {
             <div className="overflow-x-auto pb-2">
               <div
                 className="relative mx-auto aspect-[1.414/1] w-full min-w-[720px] max-w-5xl overflow-hidden rounded-lg border bg-slate-50 shadow-sm"
-                style={{ color: themeConfig.primary }}
+                style={{ color: themeConfig.primary, containerType: "inline-size" }}
               >
                 {layout === "classic" ? (
-                  <div className="absolute inset-7 bg-white shadow-sm">
-                    <div className="absolute inset-0 border-2" style={{ borderColor: themeConfig.primary }} />
-                    <div className="absolute inset-5 border" style={{ borderColor: themeConfig.accent }} />
-                    <div className="absolute inset-x-12 top-7 text-center">
+                  <div className="absolute shadow-sm" style={{ backgroundColor: "#FFFAF3", top: "2.8cqw", bottom: "2.8cqw", left: "2.8cqw", right: "2.8cqw" }}>
+                    <div className="absolute inset-0" style={{ border: "0.2cqw solid", borderColor: themeConfig.primary }} />
+                    <div className="absolute" style={{ top: "1.4cqw", bottom: "1.4cqw", left: "1.4cqw", right: "1.4cqw", border: "0.08cqw solid", borderColor: themeConfig.accent }} />
+                    
+                    {/* Zigzag borders (simulated with SVG background) */}
+                    <div 
+                      className="absolute" 
+                      style={{ 
+                        left: "1.6cqw", right: "1.6cqw", top: "1.6cqw", height: "0.8cqw", 
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='10'%3E%3Cpath d='M0 10 L10 0 L20 10' fill='none' stroke='${encodeURIComponent(themeConfig.accent)}' stroke-width='2'/%3E%3C/svg%3E")`,
+                        backgroundSize: "auto 100%"
+                      }} 
+                    />
+                    <div 
+                      className="absolute" 
+                      style={{ 
+                        left: "1.6cqw", right: "1.6cqw", bottom: "1.6cqw", height: "0.8cqw", 
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='10'%3E%3Cpath d='M0 0 L10 10 L20 0' fill='none' stroke='${encodeURIComponent(themeConfig.accent)}' stroke-width='2'/%3E%3C/svg%3E")`,
+                        backgroundSize: "auto 100%"
+                      }} 
+                    />
+
+                    <div className="absolute text-center" style={{ left: "4.8cqw", right: "4.8cqw", top: "4cqw" }}>
                       <img
                         src={logoUrl || defaultLogoUrl}
                         alt="Visit Dzaleka logo"
-                        className="mx-auto h-10 w-10 rounded-full object-contain"
+                        className="mx-auto rounded-full object-contain"
+                        style={{ height: "4.0cqw", width: "4.0cqw" }}
                       />
-                      <div className="mt-2 truncate text-2xl font-bold tracking-tight" style={{ color: themeConfig.primary }}>
+                      <div className="font-bold tracking-tight" style={{ fontSize: "2.4cqw", marginTop: "1.2cqw", color: themeConfig.primary }}>
                         {certificateTitle}
                       </div>
-                      <div className="mt-3 truncate text-sm text-slate-500">{subtitle}</div>
-                      <div className={`mt-2 truncate font-serif font-bold italic text-slate-900 ${previewRecipientFontSizeClass}`}>
+                      <div className="text-slate-500" style={{ fontSize: "1.2cqw", marginTop: "0.8cqw" }}>{subtitle}</div>
+                      <div className="font-serif font-bold italic text-slate-900 truncate" style={{ fontSize: recipientFontSizeCqw, marginTop: "1.2cqw" }}>
                         {recipientName || "Guide Name"}
                       </div>
-                      <div className="mx-auto mt-2 h-px w-44" style={{ backgroundColor: themeConfig.accent }} />
-                      <p className={`mx-auto mt-3 line-clamp-5 max-w-2xl text-slate-600 ${previewBodyFontSizeClass}`}>{body}</p>
-                      <div className="mx-auto mt-3 max-w-[440px] truncate text-xs font-bold" style={{ color: themeConfig.primary }}>
-                        {completionLabel}
+                      <div className="mx-auto relative" style={{ height: "0.3cqw", width: "20cqw", marginTop: "0.8cqw" }}>
+                        <div className="absolute top-0 left-0 right-4" style={{ borderTop: "0.1cqw solid", borderColor: themeConfig.accent, transform: "rotate(-0.5deg)" }} />
+                        <div className="absolute bottom-0 left-4 right-0" style={{ borderBottom: "0.1cqw solid", borderColor: themeConfig.accent, transform: "rotate(0.5deg)" }} />
+                      </div>
+                      <p className="mx-auto line-clamp-5 text-slate-600" style={{ fontSize: bodyFontSizeCqw, lineHeight: "1.35", marginTop: "1.2cqw", maxWidth: "80%" }}>{body}</p>
+                      <div className="mx-auto font-serif italic truncate" style={{ fontSize: "1.2cqw", marginTop: "1.5cqw", color: themeConfig.primary, maxWidth: "60%" }}>
+                        ◆ &nbsp;{completionLabel}&nbsp; ◆
                       </div>
                     </div>
-                    <div className="absolute inset-x-16 bottom-8 grid grid-cols-2 gap-12 text-center text-slate-600">
+                    <div className="absolute grid grid-cols-2 text-center text-slate-600" style={{ left: "6.4cqw", right: "6.4cqw", bottom: "3.2cqw", gap: "4.8cqw" }}>
                       <div>
-                        <div className="border-t border-slate-300 pt-2 text-sm">{issuedDate}</div>
-                        <div className="mt-1 text-xs uppercase tracking-wide text-slate-400">Date</div>
+                        <div className="border-slate-300" style={{ borderTopWidth: "0.08cqw", paddingTop: "0.6cqw", fontSize: "1.35cqw" }}>{issuedDate}</div>
+                        <div className="uppercase tracking-wide text-slate-400 font-bold" style={{ fontSize: "1.0cqw", marginTop: "0.4cqw" }}>Date</div>
                       </div>
                       <div>
                         {signatureDataUrl && (
                           <img
                             src={signatureDataUrl}
                             alt="Issuer signature"
-                            className="mx-auto mb-1 h-10 max-w-36 object-contain"
+                            className="mx-auto object-contain"
+                            style={{ height: "4.2cqw", maxWidth: "16cqw", marginBottom: "0.2cqw" }}
                           />
                         )}
-                        <div className="truncate border-t border-slate-300 pt-2 text-sm">{issuedBy}</div>
-                        <div className="mt-1 truncate text-xs uppercase tracking-wide text-slate-400">{issuerTitle}</div>
+                        <div className="truncate border-slate-300" style={{ borderTopWidth: "0.08cqw", paddingTop: "0.6cqw", fontSize: "1.35cqw" }}>{issuedBy}</div>
+                        <div className="truncate uppercase tracking-wide text-slate-400 font-bold" style={{ fontSize: "1.0cqw", marginTop: "0.4cqw" }}>{issuerTitle}</div>
                       </div>
                     </div>
-                    <div className="absolute right-9 top-7 max-w-60 truncate text-xs text-slate-500 tabular-nums">Certificate ID: {certificateId}</div>
+                    <div className="absolute truncate text-slate-500 tabular-nums" style={{ fontSize: "1.0cqw", top: "2.2cqw", right: "3.2cqw", maxWidth: "24cqw" }}>Certificate ID: {certificateId}</div>
                   </div>
                 ) : layout === "community" ? (
-                  <div className="absolute inset-5 rounded-lg" style={{ backgroundColor: themeConfig.soft }}>
-                    <div className="absolute inset-7 overflow-hidden rounded-lg bg-white shadow-sm">
-                      <div className="absolute inset-x-0 top-0 h-14" style={{ backgroundColor: themeConfig.primary }} />
-                      <div className="absolute inset-x-0 top-14 h-1" style={{ backgroundColor: themeConfig.accent }} />
-                      <div className="absolute left-6 top-4 flex min-w-0 items-center gap-3 text-white">
-                        <img
-                          src={logoUrl || defaultLogoUrl}
-                          alt="Visit Dzaleka logo"
-                          className="h-9 w-9 rounded-md bg-white object-contain"
-                        />
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-bold">Visit Dzaleka</div>
-                          <div className="truncate text-xs opacity-80">{certificateId}</div>
+                  <div className="absolute rounded-lg" style={{ backgroundColor: "#FFFAF3", top: "0", bottom: "0", left: "0", right: "0" }}>
+                    <div className="absolute rounded-lg" style={{ backgroundColor: themeConfig.soft, top: "2.0cqw", bottom: "2.0cqw", left: "2.0cqw", right: "2.0cqw" }}>
+                      <div className="absolute overflow-hidden rounded-lg shadow-sm" style={{ backgroundColor: "#FFFAF3", top: "2.8cqw", bottom: "2.8cqw", left: "2.8cqw", right: "2.8cqw" }}>
+                        
+                        {/* Corner dots */}
+                        <div className="absolute rounded-full" style={{ width: "0.4cqw", height: "0.4cqw", top: "0.8cqw", left: "0.8cqw", backgroundColor: themeConfig.accent }} />
+                        <div className="absolute rounded-full" style={{ width: "0.4cqw", height: "0.4cqw", top: "0.8cqw", right: "0.8cqw", backgroundColor: themeConfig.accent }} />
+                        <div className="absolute rounded-full" style={{ width: "0.4cqw", height: "0.4cqw", bottom: "0.8cqw", left: "0.8cqw", backgroundColor: themeConfig.accent }} />
+                        <div className="absolute rounded-full" style={{ width: "0.4cqw", height: "0.4cqw", bottom: "0.8cqw", right: "0.8cqw", backgroundColor: themeConfig.accent }} />
+
+                        <div className="absolute inset-x-0 top-0" style={{ backgroundColor: themeConfig.primary, height: "5.6cqw" }} />
+                        <div className="absolute inset-x-0" style={{ backgroundColor: themeConfig.accent, top: "5.6cqw", height: "0.4cqw" }} />
+                        <div className="absolute flex min-w-0 items-center text-white" style={{ left: "2.4cqw", top: "1.0cqw", gap: "1.2cqw" }}>
+                          <img
+                            src={logoUrl || defaultLogoUrl}
+                            alt="Visit Dzaleka logo"
+                            className="rounded-md object-contain"
+                            style={{ width: "3.6cqw", height: "3.6cqw", backgroundColor: "#FFFAF3" }}
+                          />
+                          <div className="min-w-0">
+                            <div className="font-bold truncate" style={{ fontSize: "1.35cqw" }}>Visit Dzaleka</div>
+                            <div className="opacity-80 truncate" style={{ fontSize: "1.0cqw" }}>{certificateId}</div>
+                          </div>
                         </div>
-                      </div>
-                      <div className="absolute inset-x-12 top-[4.5rem] text-center">
-                        <div className="truncate text-2xl font-bold tracking-tight" style={{ color: themeConfig.primary }}>
-                          {certificateTitle}
+                        <div className="absolute text-center" style={{ left: "4.8cqw", right: "4.8cqw", top: "8cqw" }}>
+                          <div className="font-bold tracking-tight" style={{ fontSize: "2.4cqw", color: themeConfig.primary }}>
+                            {certificateTitle}
+                          </div>
+                          <div className="text-slate-500" style={{ fontSize: "1.2cqw", marginTop: "0.8cqw" }}>{subtitle}</div>
+                          <div className="font-serif font-bold italic text-slate-900 truncate" style={{ fontSize: recipientFontSizeCqw, marginTop: "1.0cqw" }}>
+                            {recipientName || "Guide Name"}
+                          </div>
+                          <div className="mx-auto relative" style={{ height: "0.3cqw", width: "18cqw", marginTop: "0.8cqw" }}>
+                            <div className="absolute top-0 left-0 right-4" style={{ borderTop: "0.1cqw solid", borderColor: themeConfig.accent, transform: "rotate(-0.5deg)" }} />
+                            <div className="absolute bottom-0 left-4 right-0" style={{ borderBottom: "0.1cqw solid", borderColor: themeConfig.accent, transform: "rotate(0.5deg)" }} />
+                          </div>
+                          <p className="mx-auto line-clamp-5 text-slate-600" style={{ fontSize: bodyFontSizeCqw, lineHeight: "1.35", marginTop: "1.2cqw", maxWidth: "80%" }}>{body}</p>
+                          <div className="mx-auto font-serif italic truncate" style={{ fontSize: "1.2cqw", marginTop: "1.5cqw", color: themeConfig.primary, maxWidth: "60%" }}>
+                            ◆ &nbsp;{completionLabel}&nbsp; ◆
+                          </div>
                         </div>
-                        <div className="mt-3 truncate text-sm text-slate-500">{subtitle}</div>
-                        <div className={`mt-2 truncate font-serif font-bold text-slate-900 ${previewRecipientFontSizeClass}`}>
-                          {recipientName || "Guide Name"}
-                        </div>
-                        <div className="mx-auto mt-2 h-1 w-36 rounded" style={{ backgroundColor: themeConfig.accent }} />
-                        <p className={`mx-auto mt-3 line-clamp-5 max-w-2xl text-slate-600 ${previewBodyFontSizeClass}`}>{body}</p>
-                        <div
-                          className="mx-auto mt-3 max-w-[440px] truncate rounded px-4 py-2 text-xs font-bold"
-                          style={{ backgroundColor: themeConfig.soft, color: themeConfig.primary }}
-                        >
-                          {completionLabel}
-                        </div>
-                      </div>
-                      <div className="absolute inset-x-12 bottom-7 grid grid-cols-2 gap-12 text-center text-slate-600">
-                        <div>
-                          <div className="border-t border-slate-300 pt-2 text-sm">{issuedDate}</div>
-                          <div className="mt-1 text-xs uppercase tracking-wide text-slate-400">Date</div>
-                        </div>
-                        <div>
-                          {signatureDataUrl && (
-                            <img
-                              src={signatureDataUrl}
-                              alt="Issuer signature"
-                              className="mx-auto mb-1 h-10 max-w-36 object-contain"
-                            />
-                          )}
-                          <div className="truncate border-t border-slate-300 pt-2 text-sm">{issuedBy}</div>
-                          <div className="mt-1 truncate text-xs uppercase tracking-wide text-slate-400">{issuerTitle}</div>
+                        <div className="absolute grid grid-cols-2 text-center text-slate-600" style={{ left: "4.8cqw", right: "4.8cqw", bottom: "2.8cqw", gap: "4.8cqw" }}>
+                          <div>
+                            <div className="border-slate-300" style={{ borderTopWidth: "0.08cqw", paddingTop: "0.6cqw", fontSize: "1.35cqw" }}>{issuedDate}</div>
+                            <div className="uppercase tracking-wide text-slate-400 font-bold" style={{ fontSize: "1.0cqw", marginTop: "0.4cqw" }}>Date</div>
+                          </div>
+                          <div>
+                            {signatureDataUrl && (
+                              <img
+                                src={signatureDataUrl}
+                                alt="Issuer signature"
+                                className="mx-auto object-contain"
+                                style={{ height: "4.2cqw", maxWidth: "16cqw", marginBottom: "0.2cqw" }}
+                              />
+                            )}
+                            <div className="truncate border-slate-300" style={{ borderTopWidth: "0.08cqw", paddingTop: "0.6cqw", fontSize: "1.35cqw" }}>{issuedBy}</div>
+                            <div className="truncate uppercase tracking-wide text-slate-400 font-bold" style={{ fontSize: "1.0cqw", marginTop: "0.4cqw" }}>{issuerTitle}</div>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <>
-                    <div className="absolute inset-y-0 left-0 w-[5.5%]" style={{ backgroundColor: themeConfig.primary }} />
-                    <div className="absolute inset-y-0 left-[5.5%] w-[0.75%]" style={{ backgroundColor: themeConfig.accent }} />
-                    <div className="absolute left-[10%] right-[6%] top-[7%] bottom-[7%] overflow-hidden rounded-lg border bg-white shadow-sm">
-                      <div className="flex items-start justify-between border-b px-8 py-5" style={{ borderColor: themeConfig.accent }}>
-                        <div className="flex min-w-0 items-center gap-3">
+                  <div className="absolute rounded-lg" style={{ backgroundColor: "#FFFAF3", top: "0", bottom: "0", left: "0", right: "0" }}>
+                    <div className="absolute inset-y-0 left-0" style={{ backgroundColor: themeConfig.accent, width: "1.5cqw" }} />
+                    <div className="absolute overflow-hidden rounded-lg shadow-sm" style={{ left: "6cqw", right: "6cqw", top: "7cqw", bottom: "7cqw", backgroundColor: "#FFFAF3" }}>
+                      
+                      {/* Corner dots */}
+                      <div className="absolute rounded-full" style={{ width: "0.4cqw", height: "0.4cqw", top: "1cqw", left: "1cqw", backgroundColor: themeConfig.accent }} />
+                      <div className="absolute rounded-full" style={{ width: "0.4cqw", height: "0.4cqw", top: "1cqw", right: "1cqw", backgroundColor: themeConfig.accent }} />
+                      <div className="absolute rounded-full" style={{ width: "0.4cqw", height: "0.4cqw", bottom: "1cqw", left: "1cqw", backgroundColor: themeConfig.accent }} />
+                      <div className="absolute rounded-full" style={{ width: "0.4cqw", height: "0.4cqw", bottom: "1cqw", right: "1cqw", backgroundColor: themeConfig.accent }} />
+
+                      <div className="absolute inset-0" style={{ border: "0.1cqw solid", borderColor: themeConfig.soft, borderRadius: "0.5cqw" }} />
+
+                      <div className="flex items-start justify-between border-b" style={{ padding: "1.8cqw 2.8cqw", borderColor: themeConfig.accent, borderBottomWidth: "0.1cqw" }}>
+                        <div className="flex min-w-0 items-center" style={{ gap: "1.2cqw" }}>
                           <img
                             src={logoUrl || defaultLogoUrl}
                             alt="Visit Dzaleka logo"
-                            className="h-11 w-11 rounded-md object-contain"
+                            className="rounded-md object-contain"
+                            style={{ height: "4.4cqw", width: "4.4cqw" }}
                           />
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-bold" style={{ color: themeConfig.primary }}>Visit Dzaleka</div>
-                            <div className="truncate text-xs text-slate-500">Guide certification record</div>
+                          <div className="min-w-0 text-left">
+                            <div className="font-bold truncate" style={{ fontSize: "1.4cqw", color: themeConfig.primary }}>Visit Dzaleka</div>
+                            <div className="text-slate-500 truncate" style={{ fontSize: "1.1cqw" }}>Guide certification record</div>
                           </div>
                         </div>
                         <div className="min-w-0 text-right">
-                          <div className="text-[10px] uppercase text-slate-400">Certificate ID</div>
-                          <div className="max-w-48 truncate text-xs font-semibold text-slate-900 tabular-nums">{certificateId}</div>
+                          <div className="uppercase text-slate-400 font-bold" style={{ fontSize: "1.0cqw" }}>Certificate ID</div>
+                          <div className="font-semibold text-slate-900 tabular-nums truncate" style={{ fontSize: "1.2cqw", maxWidth: "24cqw" }}>{certificateId}</div>
                         </div>
                       </div>
-                      <div className="absolute inset-x-12 top-[20%] text-center">
-                        <div
-                          className="mx-auto inline-flex max-w-[320px] rounded px-4 py-1 text-[10px] font-bold uppercase tracking-wide"
-                          style={{ backgroundColor: themeConfig.soft, color: themeConfig.primary }}
-                        >
-                          Visit Dzaleka Certificate
-                        </div>
-                        <div className="mt-3 truncate text-2xl font-bold tracking-tight" style={{ color: themeConfig.primary }}>
+                      <div className="absolute text-center" style={{ left: "4.8cqw", right: "4.8cqw", top: "12cqw" }}>
+                        <div className="font-bold tracking-tight" style={{ fontSize: "2.5cqw", color: themeConfig.primary }}>
                           {certificateTitle}
                         </div>
-                        <div className="mt-3 truncate text-sm text-slate-500">{subtitle}</div>
-                        <div className={`mt-2 truncate font-serif font-bold text-slate-900 ${previewRecipientFontSizeClass}`}>
+                        <div className="text-slate-500" style={{ fontSize: "1.2cqw", marginTop: "0.8cqw" }}>{subtitle}</div>
+                        <div className="font-serif font-bold italic text-slate-900 truncate" style={{ fontSize: recipientFontSizeCqw, marginTop: "1.0cqw" }}>
                           {recipientName || "Guide Name"}
                         </div>
-                        <div className="mx-auto mt-2 h-px w-44" style={{ backgroundColor: themeConfig.accent }} />
-                        <p className={`mx-auto mt-3 line-clamp-5 max-w-2xl text-slate-600 ${previewBodyFontSizeClass}`}>{body}</p>
-                        <div
-                          className="mx-auto mt-3 max-w-[440px] truncate rounded px-4 py-2 text-xs font-bold"
-                          style={{ backgroundColor: themeConfig.soft, color: themeConfig.primary }}
-                        >
-                          {completionLabel}
+                        <div className="mx-auto relative" style={{ height: "0.3cqw", width: "18cqw", marginTop: "0.8cqw" }}>
+                          <div className="absolute top-0 left-0 right-4" style={{ borderTop: "0.1cqw solid", borderColor: themeConfig.accent, transform: "rotate(-0.5deg)" }} />
+                          <div className="absolute bottom-0 left-4 right-0" style={{ borderBottom: "0.1cqw solid", borderColor: themeConfig.accent, transform: "rotate(0.5deg)" }} />
+                        </div>
+                        <p className="mx-auto line-clamp-5 text-slate-600" style={{ fontSize: bodyFontSizeCqw, lineHeight: "1.35", marginTop: "1.2cqw", maxWidth: "80%" }}>{body}</p>
+                        <div className="mx-auto font-serif italic truncate" style={{ fontSize: "1.2cqw", marginTop: "1.5cqw", color: themeConfig.primary, maxWidth: "60%" }}>
+                          ◆ &nbsp;{completionLabel}&nbsp; ◆
                         </div>
                       </div>
-                      <div className="absolute inset-x-12 bottom-7 grid grid-cols-2 gap-12 text-center text-slate-600">
+                      <div className="absolute grid grid-cols-2 text-center text-slate-600" style={{ left: "4.8cqw", right: "4.8cqw", bottom: "2.8cqw", gap: "4.8cqw" }}>
                         <div>
-                          <div className="border-t border-slate-300 pt-2 text-sm">{issuedDate}</div>
-                          <div className="mt-1 text-xs uppercase tracking-wide text-slate-400">Date</div>
+                          <div className="border-slate-300" style={{ borderTopWidth: "0.08cqw", paddingTop: "0.6cqw", fontSize: "1.35cqw" }}>{issuedDate}</div>
+                          <div className="uppercase tracking-wide text-slate-400 font-bold" style={{ fontSize: "1.0cqw", marginTop: "0.4cqw" }}>Date</div>
                         </div>
                         <div>
                           {signatureDataUrl && (
                             <img
                               src={signatureDataUrl}
                               alt="Issuer signature"
-                              className="mx-auto mb-1 h-10 max-w-36 object-contain"
+                              className="mx-auto object-contain"
+                              style={{ height: "4.2cqw", maxWidth: "16cqw", marginBottom: "0.2cqw" }}
                             />
                           )}
-                          <div className="truncate border-t border-slate-300 pt-2 text-sm">{issuedBy}</div>
-                          <div className="mt-1 truncate text-xs uppercase tracking-wide text-slate-400">{issuerTitle}</div>
+                          <div className="truncate border-slate-300" style={{ borderTopWidth: "0.08cqw", paddingTop: "0.6cqw", fontSize: "1.35cqw" }}>{issuedBy}</div>
+                          <div className="truncate uppercase tracking-wide text-slate-400 font-bold" style={{ fontSize: "1.0cqw", marginTop: "0.4cqw" }}>{issuerTitle}</div>
                         </div>
                       </div>
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
             </div>
