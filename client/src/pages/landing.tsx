@@ -34,6 +34,7 @@ import { SEO } from "@/components/seo";
 import { useQuery } from "@tanstack/react-query";
 import { SiteFooter } from "@/components/site-footer";
 import { PublicHeader } from "@/components/public-header";
+import { TRANSPORT_PARTNERS } from "@/lib/transport";
 
 const guidedTourPath = "/things-to-do/dzaleka-refugee-camp-guided-walking-tour";
 const guidedTourOptionsPath = `${guidedTourPath}#tour-options`;
@@ -626,6 +627,59 @@ export default function Landing() {
                     )}
                   </CardContent>
                 </Card>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="border-y bg-muted/30 py-16">
+          <div className="container mx-auto grid gap-8 px-4 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-center">
+            <div className="min-w-0">
+              <Badge variant="outline" className="mb-4">Transport partners</Badge>
+              <h2 className="max-w-3xl text-3xl font-bold tracking-tight md:text-4xl">
+                Need a reliable ride to Dzaleka?
+              </h2>
+              <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
+                Visitors can request verified transport partners for Lilongwe transfers, Kamuzu International Airport pickups, and Lake Malawi add-on routes.
+              </p>
+              <ul aria-label="Featured transport partners" className="mt-5 grid max-w-2xl gap-3 sm:grid-cols-2">
+                {TRANSPORT_PARTNERS.map((partner) => (
+                  <li key={partner.id} className="rounded-lg border bg-background p-4 shadow-sm">
+                    <div className="flex min-w-0 gap-3">
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                      <div className="min-w-0">
+                        <span className="block break-words text-sm font-semibold">{partner.name}</span>
+                        <span className="mt-1 block break-words text-xs text-muted-foreground">{partner.address}</span>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <Button asChild size="lg">
+                  <Link href="/plan-your-trip/transport">
+                    View transport partners
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button asChild variant="outline" size="lg">
+                  <Link href="/embed/booking?transport=true&route=lilongwe-dzaleka">
+                    Request transport with a tour
+                  </Link>
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid gap-3">
+              {[
+                "Verified operators supporting Dzaleka visitor journeys",
+                "Lilongwe, airport, Dzaleka, Lake Malawi, and custom routes",
+                "Partner quote, driver, vehicle, and pickup details shared before confirmation",
+              ].map((item) => (
+                <div key={item} className="flex gap-3 rounded-lg border bg-background p-4 shadow-sm">
+                  <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+                  <span className="min-w-0 break-words text-sm font-medium">{item}</span>
+                </div>
               ))}
             </div>
           </div>

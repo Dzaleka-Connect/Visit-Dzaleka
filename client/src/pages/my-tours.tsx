@@ -21,9 +21,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
-import { formatDate, formatTime } from "@/lib/constants";
+import { formatCurrency, formatDate, formatTime } from "@/lib/constants";
+import { getTransportRoute } from "@/lib/transport";
 import {
     Calendar,
+    Car,
     Clock,
     Users,
     MapPin,
@@ -43,12 +45,98 @@ import {
 import type { Booking, GuideTourReport } from "@shared/schema";
 import { QRScannerDialog } from "@/components/qr-scanner-dialog";
 
+interface GuideTransportPartnerProfile {
+    companyName?: string | null;
+    phone?: string | null;
+    whatsapp?: string | null;
+    email?: string | null;
+}
+
+interface GuideTransportRequestSummary {
+    route?: string | null;
+    status?: string | null;
+    quotedAmount?: number | null;
+    currency?: string | null;
+    driverName?: string | null;
+    driverPhone?: string | null;
+    vehicleDetails?: string | null;
+    estimatedPickupTime?: string | null;
+    requestedPickupTime?: string | null;
+    partner?: GuideTransportPartnerProfile | null;
+}
+
+interface GuideTourBooking extends Booking {
+    transportRequest?: GuideTransportRequestSummary | null;
+}
+
+const transportStatusLabels: Record<string, string> = {
+    pending: "Requested",
+    sent_to_partner: "Sent to partner",
+    quote_sent: "Quote sent",
+    accepted: "Accepted",
+    visitor_approved: "Quote approved",
+    visitor_declined: "Quote declined",
+    confirmed: "Confirmed",
+    reschedule_requested: "Reschedule requested",
+    completed: "Completed",
+    cancelled: "Cancelled",
+};
+
+function getTransportStatusLabel(status?: string | null) {
+    const key = status || "pending";
+    return transportStatusLabels[key] || key.replace(/_/g, " ");
+}
+
+function formatTransportQuote(request?: GuideTransportRequestSummary | null) {
+    if (!request || request.quotedAmount == null) return null;
+    return formatCurrency(request.quotedAmount, request.currency || "MWK");
+}
+
+function GuideTransportSummary({ request }: { request?: GuideTransportRequestSummary | null }) {
+    if (!request) return null;
+
+    const route = getTransportRoute(request.route);
+    const quote = formatTransportQuote(request);
+    const pickupTime = request.estimatedPickupTime || request.requestedPickupTime;
+    const driverLine = [request.driverName, request.driverPhone, request.vehicleDetails].filter(Boolean).join(" - ");
+
+    return (
+        <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm dark:border-sky-800 dark:bg-sky-950/30">
+            <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="flex min-w-0 gap-2">
+                    <Car className="mt-0.5 h-4 w-4 shrink-0 text-sky-700 dark:text-sky-300" aria-hidden="true" />
+                    <div className="min-w-0">
+                        <p className="font-medium text-sky-900 dark:text-sky-100">
+                            Transport {getTransportStatusLabel(request.status)}
+                        </p>
+                        <p className="mt-1 break-words text-xs text-sky-700 dark:text-sky-300">
+                            {[route.shortLabel, request.partner?.companyName, pickupTime ? `Pickup ${formatTime(pickupTime)}` : null]
+                                .filter(Boolean)
+                                .join(" - ")}
+                        </p>
+                        {driverLine && (
+                            <p className="mt-2 break-words text-xs text-sky-800 dark:text-sky-200">
+                                {driverLine}
+                            </p>
+                        )}
+                    </div>
+                </div>
+                {quote && (
+                    <Badge variant="outline" className="shrink-0 border-sky-300 bg-background/80 text-sky-800 dark:border-sky-700 dark:text-sky-200">
+                        {quote}
+                    </Badge>
+                )}
+            </div>
+        </div>
+    );
+}
+
 export default function MyTours() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState("upcoming");
     const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
-    const [reportDialogTour, setReportDialogTour] = useState<Booking | null>(null);
+    const [reportDialogTour, setReportDialogTour] = useState<GuideTourBooking | null>(null);
     const [reportForm, setReportForm] = useState({
         summary: "",
         visitorNeeds: "",
@@ -57,7 +145,7 @@ export default function MyTours() {
         privateNotes: "",
     });
 
-    const { data: tours = [], isLoading } = useQuery<Booking[]>({
+    const { data: tours = [], isLoading } = useQuery<GuideTourBooking[]>({
         queryKey: ["/api/guides/me/tours"],
     });
 
@@ -155,7 +243,7 @@ export default function MyTours() {
     const getReportForTour = (bookingId: string) =>
         tourReports.find(report => report.bookingId === bookingId);
 
-    const openReportDialog = (tour: Booking) => {
+    const openReportDialog = (tour: GuideTourBooking) => {
         const existingReport = getReportForTour(tour.id);
         setReportDialogTour(tour);
         setReportForm({
@@ -184,7 +272,7 @@ export default function MyTours() {
         }
     };
 
-    const renderTourCard = (tour: Booking) => {
+    const renderTourCard = (tour: GuideTourBooking) => {
         const report = getReportForTour(tour.id);
 
         return (
@@ -272,6 +360,8 @@ export default function MyTours() {
                             <p className="break-words text-sm">{tour.accessibilityNeeds}</p>
                         </div>
                     )}
+
+                    <GuideTransportSummary request={tour.transportRequest} />
 
                     {/* Actions */}
                     <div className="flex flex-col gap-2 border-t pt-3 sm:flex-row sm:flex-wrap">

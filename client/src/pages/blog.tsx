@@ -13,6 +13,12 @@ import { SiteFooter } from "@/components/site-footer";
 import { PublicHeader } from "@/components/public-header";
 
 const POSTS_PER_PAGE = 6;
+const SITE_URL = "https://visit.dzaleka.com";
+const BLOG_URL = `${SITE_URL}/blog`;
+const BLOG_TITLE = "Dzaleka Blog & Travel Inspiration";
+const BLOG_DESCRIPTION = "Read refugee-led stories, travel tips, cultural tourism updates, and practical inspiration for visiting Dzaleka Refugee Camp in Malawi.";
+const BLOG_IMAGE = "https://services.dzaleka.com/images/Visit_Dzaleka.png";
+const BLOG_KEYWORDS = "Dzaleka blog, Dzaleka Refugee Camp stories, Malawi cultural tourism, refugee-led tourism, Dzaleka travel tips, Visit Dzaleka updates, responsible travel Malawi";
 
 // Dzaleka Highlights - Inspiration articles
 const dzalekaHighlights = [
@@ -41,6 +47,134 @@ const dzalekaHighlights = [
         link: "/things-to-do"
     },
 ];
+
+function toIsoDate(value?: string | Date | null) {
+    if (!value) return undefined;
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function absoluteUrl(url?: string | null) {
+    if (!url) return BLOG_IMAGE;
+    try {
+        return new URL(url, SITE_URL).href;
+    } catch {
+        return BLOG_IMAGE;
+    }
+}
+
+function plainText(value?: string | null) {
+    return (value || "")
+        .replace(/```[\s\S]*?```/g, " ")
+        .replace(/!\[[^\]]*]\([^)]+\)/g, " ")
+        .replace(/\[[^\]]+]\([^)]+\)/g, (match) => match.replace(/\[|\]\([^)]+\)/g, ""))
+        .replace(/[#>*_`~\-]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function buildBlogStructuredData(posts: BlogPost[] = []) {
+    const publishedPosts = posts.filter((post) => post.published);
+    const latestPostDate = publishedPosts
+        .map((post) => toIsoDate(post.updatedAt || post.publishedAt || post.createdAt))
+        .filter(Boolean)
+        .sort()
+        .at(-1);
+
+    return {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "Organization",
+                "@id": `${SITE_URL}/#organization`,
+                "name": "Visit Dzaleka",
+                "url": SITE_URL,
+                "logo": {
+                    "@type": "ImageObject",
+                    "url": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png"
+                },
+                "sameAs": [
+                    "https://www.facebook.com/DzalekaOnline",
+                    "https://x.com/Dzalekaconnect",
+                    "https://www.instagram.com/dzalekaonline"
+                ]
+            },
+            {
+                "@type": "WebSite",
+                "@id": `${SITE_URL}/#website`,
+                "name": "Visit Dzaleka",
+                "url": SITE_URL,
+                "publisher": {
+                    "@id": `${SITE_URL}/#organization`
+                }
+            },
+            {
+                "@type": "Blog",
+                "@id": `${BLOG_URL}#blog`,
+                "name": BLOG_TITLE,
+                "description": BLOG_DESCRIPTION,
+                "url": BLOG_URL,
+                "inLanguage": "en",
+                "publisher": {
+                    "@id": `${SITE_URL}/#organization`
+                },
+                "blogPost": publishedPosts.slice(0, 12).map((post) => ({
+                    "@type": "BlogPosting",
+                    "@id": `${BLOG_URL}/${post.slug}#article`,
+                    "headline": post.title,
+                    "description": plainText(post.excerpt || post.content).slice(0, 180),
+                    "url": `${BLOG_URL}/${post.slug}`,
+                    "image": absoluteUrl(post.coverImage),
+                    "datePublished": toIsoDate(post.publishedAt || post.createdAt),
+                    "dateModified": toIsoDate(post.updatedAt || post.publishedAt || post.createdAt)
+                }))
+            },
+            {
+                "@type": "CollectionPage",
+                "@id": `${BLOG_URL}#webpage`,
+                "name": BLOG_TITLE,
+                "description": BLOG_DESCRIPTION,
+                "url": BLOG_URL,
+                "isPartOf": {
+                    "@id": `${SITE_URL}/#website`
+                },
+                "about": {
+                    "@id": `${BLOG_URL}#blog`
+                },
+                ...(latestPostDate ? { "dateModified": latestPostDate } : {})
+            },
+            {
+                "@type": "BreadcrumbList",
+                "@id": `${BLOG_URL}#breadcrumb`,
+                "itemListElement": [
+                    {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "Home",
+                        "item": SITE_URL
+                    },
+                    {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Blog",
+                        "item": BLOG_URL
+                    }
+                ]
+            },
+            {
+                "@type": "ItemList",
+                "@id": `${BLOG_URL}#articles`,
+                "name": "Latest Visit Dzaleka articles",
+                "itemListElement": publishedPosts.slice(0, 12).map((post, index) => ({
+                    "@type": "ListItem",
+                    "position": index + 1,
+                    "url": `${BLOG_URL}/${post.slug}`,
+                    "name": post.title
+                }))
+            }
+        ]
+    };
+}
 
 export default function BlogList() {
     const [currentPage, setCurrentPage] = useState(1);
@@ -95,11 +229,13 @@ export default function BlogList() {
     return (
         <div className="min-h-screen bg-background flex flex-col">
             <SEO
-                title="Blog & Inspiration | Stories from Dzaleka"
-                description="Read inspiring stories, travel tips, and updates from Dzaleka Refugee Camp. Discover the resilience and creativity of the community."
-                keywords="Dzaleka blog, refugee stories, travel inspiration Malawi, Dzaleka news, community stories"
-                canonical="https://visit.dzaleka.com/blog"
-                ogImage="https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg"
+                title={BLOG_TITLE}
+                description={BLOG_DESCRIPTION}
+                keywords={BLOG_KEYWORDS}
+                canonical={BLOG_URL}
+                ogImage={BLOG_IMAGE}
+                imageAlt="Visit Dzaleka cultural tourism stories"
+                structuredData={buildBlogStructuredData(posts)}
             />
             <PublicHeader />
 
@@ -125,7 +261,9 @@ export default function BlogList() {
                     <div className="max-w-md mx-auto mb-12 relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                            placeholder="Search articles..."
+                            name="blog-search"
+                            aria-label="Search blog articles"
+                            placeholder="Search articles…"
                             className="pl-10"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -182,7 +320,7 @@ export default function BlogList() {
                                         </CardHeader>
                                         <CardContent className="flex-1">
                                             <p className="text-muted-foreground line-clamp-3 text-sm">
-                                                {post.excerpt || post.content.substring(0, 150) + "..."}
+                                                {post.excerpt || `${post.content.substring(0, 150)}…`}
                                             </p>
                                         </CardContent>
                                         <CardFooter className="pt-0">

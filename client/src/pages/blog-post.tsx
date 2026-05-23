@@ -17,6 +17,9 @@ import { IoCopyOutline, IoCheckmark } from "react-icons/io5";
 
 const SITE_URL = "https://visit.dzaleka.com";
 const DEFAULT_SOCIAL_IMAGE = "https://services.dzaleka.com/images/Visit_Dzaleka.png";
+const BLOG_URL = `${SITE_URL}/blog`;
+const BLOG_DESCRIPTION = "Read refugee-led stories, cultural tourism updates, and practical inspiration for visiting Dzaleka Refugee Camp in Malawi.";
+const BLOG_KEYWORDS = "Dzaleka blog, Dzaleka Refugee Camp, Malawi cultural tourism, refugee-led tourism, Visit Dzaleka, responsible travel Malawi";
 
 function absoluteUrl(url?: string | null) {
     if (!url) return DEFAULT_SOCIAL_IMAGE;
@@ -35,6 +38,16 @@ function plainText(value: string) {
         .replace(/[#>*_`~\-]/g, " ")
         .replace(/\s+/g, " ")
         .trim();
+}
+
+function toIsoDate(value?: string | Date | null) {
+    if (!value) return undefined;
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function wordCount(value: string) {
+    return value.split(/\s+/).filter(Boolean).length;
 }
 
 export default function BlogPostPage() {
@@ -56,8 +69,6 @@ export default function BlogPostPage() {
     // Get related posts (exclude current, take 3)
     const relatedPosts = allPosts?.filter(p => p.slug !== slug).slice(0, 3) || [];
 
-    // Share URL
-    const shareUrl = typeof window !== "undefined" ? window.location.href : `https://visit.dzaleka.com/blog/${slug}`;
     const shareTitle = post?.title || "Check out this article from Dzaleka";
 
     const handleCopyLink = async () => {
@@ -88,54 +99,139 @@ export default function BlogPostPage() {
         )
     }
 
-    const postDescription = plainText(post.excerpt || post.content).slice(0, 180);
+    const postBody = plainText(post.content);
+    const postDescription = plainText(post.excerpt || post.content).slice(0, 180) || BLOG_DESCRIPTION;
     const postImage = absoluteUrl(post.coverImage);
-    const canonicalUrl = `${SITE_URL}/blog/${post.slug}`;
+    const canonicalUrl = `${BLOG_URL}/${post.slug}`;
+    const shareUrl = canonicalUrl;
+    const publishedIso = toIsoDate(post.publishedAt || post.createdAt);
+    const modifiedIso = toIsoDate(post.updatedAt || post.publishedAt || post.createdAt);
+    const articleWordCount = wordCount(postBody);
+    const readingMinutes = Math.max(1, Math.ceil(articleWordCount / 220));
+    const articleTags = ["Dzaleka", "Visit Dzaleka", "Malawi", "Refugee-led tourism", "Cultural tourism"];
+    const postKeywords = `${BLOG_KEYWORDS}, ${post.title}`;
+    const structuredData = {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "Organization",
+                "@id": `${SITE_URL}/#organization`,
+                "name": "Visit Dzaleka",
+                "url": SITE_URL,
+                "logo": {
+                    "@type": "ImageObject",
+                    "url": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png"
+                },
+                "sameAs": [
+                    "https://www.facebook.com/DzalekaOnline",
+                    "https://x.com/Dzalekaconnect",
+                    "https://www.instagram.com/dzalekaonline"
+                ]
+            },
+            {
+                "@type": "WebSite",
+                "@id": `${SITE_URL}/#website`,
+                "name": "Visit Dzaleka",
+                "url": SITE_URL,
+                "publisher": {
+                    "@id": `${SITE_URL}/#organization`
+                }
+            },
+            {
+                "@type": "BlogPosting",
+                "@id": `${canonicalUrl}#article`,
+                "headline": post.title,
+                "description": postDescription,
+                "image": [postImage],
+                "url": canonicalUrl,
+                "mainEntityOfPage": {
+                    "@type": "WebPage",
+                    "@id": canonicalUrl
+                },
+                "isPartOf": {
+                    "@id": `${BLOG_URL}#blog`
+                },
+                "author": {
+                    "@type": "Organization",
+                    "name": "Visit Dzaleka",
+                    "url": SITE_URL
+                },
+                "publisher": {
+                    "@type": "Organization",
+                    "@id": `${SITE_URL}/#organization`,
+                    "name": "Visit Dzaleka",
+                    "logo": {
+                        "@type": "ImageObject",
+                        "url": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png"
+                    }
+                },
+                "articleSection": "Dzaleka Stories",
+                "keywords": articleTags.join(", "),
+                "inLanguage": "en",
+                "wordCount": articleWordCount,
+                ...(publishedIso ? { "datePublished": publishedIso } : {}),
+                ...(modifiedIso ? { "dateModified": modifiedIso } : {})
+            },
+            {
+                "@type": "WebPage",
+                "@id": `${canonicalUrl}#webpage`,
+                "url": canonicalUrl,
+                "name": post.title,
+                "description": postDescription,
+                "isPartOf": {
+                    "@id": `${SITE_URL}/#website`
+                },
+                "primaryImageOfPage": {
+                    "@type": "ImageObject",
+                    "url": postImage
+                },
+                "breadcrumb": {
+                    "@id": `${canonicalUrl}#breadcrumb`
+                }
+            },
+            {
+                "@type": "BreadcrumbList",
+                "@id": `${canonicalUrl}#breadcrumb`,
+                "itemListElement": [
+                    {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "Home",
+                        "item": SITE_URL
+                    },
+                    {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Blog",
+                        "item": BLOG_URL
+                    },
+                    {
+                        "@type": "ListItem",
+                        "position": 3,
+                        "name": post.title,
+                        "item": canonicalUrl
+                    }
+                ]
+            }
+        ]
+    };
 
     return (
         <div className="min-h-screen bg-background flex flex-col">
             <SEO
                 title={post.title}
                 description={postDescription}
-                keywords={`Dzaleka, blog, ${post.title.toLowerCase()}`}
+                keywords={postKeywords}
                 canonical={canonicalUrl}
                 ogImage={postImage}
                 imageAlt={post.title}
                 type="article"
-                publishedTime={post.publishedAt}
-                modifiedTime={post.updatedAt}
+                publishedTime={post.publishedAt || post.createdAt}
+                modifiedTime={post.updatedAt || post.publishedAt || post.createdAt}
                 section="Dzaleka Stories"
-                tags={["Dzaleka", "Visit Dzaleka", "Malawi", "Refugee-led tourism"]}
-            />
-            {/* Structured Data for Google "Top Stories" - BlogPosting */}
-            <script
-                type="application/ld+json"
-                dangerouslySetInnerHTML={{
-                    __html: JSON.stringify({
-                        "@context": "https://schema.org",
-                        "@type": "BlogPosting",
-                        "headline": post.title,
-                        "image": [
-                            postImage
-                        ],
-                        "datePublished": post.publishedAt || new Date().toISOString(),
-                        "dateModified": post.updatedAt || post.publishedAt || new Date().toISOString(),
-                        "author": {
-                            "@type": "Person",
-                            "name": "Visit Dzaleka Team"
-                        },
-                        "publisher": {
-                            "@type": "Organization",
-                            "name": "Visit Dzaleka",
-                            "logo": {
-                                "@type": "ImageObject",
-                                "url": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png"
-                            }
-                        },
-                        "mainEntityOfPage": canonicalUrl,
-                        "description": postDescription
-                    })
-                }}
+                tags={articleTags}
+                robots={post.published ? "index, follow, max-image-preview:large" : "noindex, nofollow"}
+                structuredData={structuredData}
             />
             {/* Header - Reused from Blog List (should probably extracting to component later) */}
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
@@ -166,8 +262,11 @@ export default function BlogPostPage() {
 
                     {/* Mobile Menu Toggle */}
                     <button
+                        type="button"
                         className="md:hidden p-2"
                         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                        aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+                        aria-expanded={mobileMenuOpen}
                     >
                         {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
                     </button>
@@ -214,7 +313,7 @@ export default function BlogPostPage() {
                             <div className="flex items-center gap-3 text-sm text-muted-foreground">
                                 <span className="flex items-center"><Calendar className="mr-1.5 h-4 w-4" /> {post.publishedAt ? format(new Date(post.publishedAt), "MMMM d, yyyy") : "Draft"}</span>
                                 <span>•</span>
-                                <span className="flex items-center"><Clock className="mr-1.5 h-4 w-4" /> {Math.ceil(post.content.length / 1000)} min read</span>
+                                <span className="flex items-center"><Clock className="mr-1.5 h-4 w-4" /> {readingMinutes} min read</span>
                             </div>
                             <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-foreground leading-tight">{post.title}</h1>
                             {post.excerpt && <p className="text-xl text-muted-foreground leading-relaxed">{post.excerpt}</p>}
@@ -259,6 +358,7 @@ export default function BlogPostPage() {
                                     <FaLinkedin className="h-4 w-4" />
                                 </a>
                                 <button
+                                    type="button"
                                     onClick={handleCopyLink}
                                     className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
                                     aria-label="Copy link"
@@ -318,6 +418,7 @@ export default function BlogPostPage() {
                                 <FaWhatsapp className="h-4 w-4" /> WhatsApp
                             </a>
                             <button
+                                type="button"
                                 onClick={handleCopyLink}
                                 className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-muted text-sm font-medium hover:bg-primary hover:text-primary-foreground transition-colors"
                             >

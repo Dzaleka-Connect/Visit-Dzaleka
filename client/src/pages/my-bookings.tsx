@@ -635,6 +635,7 @@ export default function MyBookings() {
     transportRequested: initialTransportRequest.transportRequested || false,
     transportRoute: initialTransportRequest.transportRoute,
     transportPartnerId: initialTransportRequest.transportPartnerId,
+    transportPartnerName: initialTransportRequest.transportPartnerName || "",
     transportPickup: initialTransportRequest.transportPickup || "",
     transportNotes: initialTransportRequest.transportNotes || "",
   });
@@ -688,6 +689,7 @@ export default function MyBookings() {
         transportRequested,
         transportRoute,
         transportPartnerId,
+        transportPartnerName,
         transportPickup,
         transportNotes,
         ...bookingFields
@@ -704,6 +706,7 @@ export default function MyBookings() {
           transportRequested,
           transportRoute,
           transportPartnerId,
+          transportPartnerName,
           transportPickup,
           transportNotes,
         }),
@@ -731,6 +734,7 @@ export default function MyBookings() {
         transportRequested: false,
         transportRoute: initialTransportRequest.transportRoute,
         transportPartnerId: initialTransportRequest.transportPartnerId,
+        transportPartnerName: initialTransportRequest.transportPartnerName || "",
         transportPickup: "",
         transportNotes: "",
       });
@@ -1698,6 +1702,7 @@ export default function MyBookings() {
                   transportRequested={newBooking.transportRequested}
                   transportRoute={newBooking.transportRoute}
                   transportPartnerId={newBooking.transportPartnerId}
+                  transportPartnerName={newBooking.transportPartnerName}
                   transportPickup={newBooking.transportPickup}
                   transportNotes={newBooking.transportNotes}
                   onChange={(updates) => setNewBooking({ ...newBooking, ...updates })}

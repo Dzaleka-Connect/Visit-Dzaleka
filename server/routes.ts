@@ -49,8 +49,11 @@ import {
   sendPasswordResetDetailed,
   sendInvitationEmailDetailed,
   sendPartnerReferralBookingEmailDetailed,
-  sendTransportDriverDetailsEmailDetailed,
+  sendTransportDriverConfirmedEmailDetailed,
+  sendTransportPendingAdminEmailDetailed,
   sendTransportQuoteDecisionEmailDetailed,
+  sendTransportQuoteReadyEmailDetailed,
+  sendTransportRequestReceivedEmailDetailed,
   sendTransportRequestAssignedEmailDetailed,
   sendTransportStatusChangedEmailDetailed,
   sendItineraryEmailDetailed,
@@ -1466,6 +1469,37 @@ function buildVisitorTransportRequestSummary(request?: TransportRequest | null, 
   };
 }
 
+async function attachVisitorTransportSummaries<T extends Booking>(bookings: T[]) {
+  if (bookings.length === 0) return bookings.map((booking) => ({ ...booking, transportRequest: null }));
+
+  const transportRequests = await storage.getTransportRequestsByBookingIds(bookings.map((booking) => booking.id));
+  const partnerIds = Array.from(new Set(
+    transportRequests.map((request) => request.partnerId).filter(Boolean) as string[]
+  ));
+  const partners = partnerIds.length
+    ? await Promise.all(partnerIds.map((partnerId) => storage.getTransportPartner(partnerId)))
+    : [];
+  const partnerMap = new Map(
+    partners
+      .filter(Boolean)
+      .map((partner) => [partner!.id, partner!])
+  );
+
+  return bookings.map((booking) => {
+    const transportRequest = transportRequests
+      .filter((request) => request.bookingId === booking.id)
+      .sort((a, b) => dateSortValue(b.updatedAt || b.createdAt) - dateSortValue(a.updatedAt || a.createdAt))[0] || null;
+    const partner = transportRequest?.partnerId
+      ? partnerMap.get(transportRequest.partnerId) || null
+      : null;
+
+    return {
+      ...booking,
+      transportRequest: buildVisitorTransportRequestSummary(transportRequest, partner),
+    };
+  });
+}
+
 function getUserPreferences(user?: Pick<User, "preferences"> | null): Record<string, any> {
   return user?.preferences && typeof user.preferences === "object" && !Array.isArray(user.preferences)
     ? user.preferences as Record<string, any>
@@ -2464,6 +2498,82 @@ async function logTransportWorkflowEmail(options: {
 async function getTransportAdminEmailRecipients(excludeEmails: Set<string> = new Set()) {
   const admins = await getInternalEmailRecipients(["admin", "coordinator"], "transport_updates");
   return admins.filter((admin) => !excludeEmails.has(admin.email.toLowerCase()));
+}
+
+async function sendTransportRequestReceivedEmail(
+  request: TransportRequest,
+  booking?: Booking | null,
+  partner?: TransportPartner | null,
+  sentBy?: string | null
+) {
+  const result = await sendTransportRequestReceivedEmailDetailed({
+    visitorName: request.visitorName,
+    visitorEmail: request.visitorEmail,
+    bookingReference: transportReference(request, booking),
+    partnerName: partner?.companyName || null,
+    route: request.route,
+    pickupLocation: request.pickupLocation,
+    visitDate: request.visitDate,
+    visitTime: request.visitTime,
+    manageBookingUrl: `${PUBLIC_APP_URL}/my-bookings`,
+  });
+
+  await logTransportWorkflowEmail({
+    result,
+    sentBy,
+    recipientName: request.visitorName,
+    recipientEmail: request.visitorEmail,
+    subject: `Transport quote request received - ${transportReference(request, booking)}`,
+    message: "Visitor transport quote request was received. No transport payment has been taken.",
+    templateType: "transport_request_received",
+    request,
+    metadata: {
+      audience: "visitor",
+      partnerName: partner?.companyName || null,
+    },
+  });
+
+  return result;
+}
+
+async function sendTransportPendingAdminEmails(
+  request: TransportRequest,
+  booking?: Booking | null,
+  actor?: User | null
+) {
+  const recipients = await getTransportAdminEmailRecipients();
+  const results = [];
+
+  for (const recipient of recipients) {
+    const result = await sendTransportPendingAdminEmailDetailed({
+      ...buildTransportEmailData({
+        request,
+        booking,
+        recipientName: getDisplayName(recipient),
+        recipientEmail: recipient.email,
+        actionUrl: transportPortalUrl(),
+        actionLabel: "Assign Transport Partner",
+      }),
+    });
+
+    await logTransportWorkflowEmail({
+      result,
+      sentBy: actor?.id,
+      recipientName: getDisplayName(recipient),
+      recipientEmail: recipient.email,
+      subject: `Transport request needs partner - ${transportReference(request, booking)}`,
+      message: "A visitor requested transport, but no partner has been assigned yet.",
+      templateType: "transport_pending_admin",
+      request,
+      metadata: {
+        audience: "admin",
+      },
+    });
+
+    results.push({ ...result, recipientEmail: recipient.email, audience: "admin" });
+  }
+
+  return results;
 }
 
 async function sendTransportAssignmentEmail(
@@ -5376,7 +5486,7 @@ export async function registerRoutes(
       // Get bookings assigned to this guide
       const allBookings = await storage.getBookings();
       const myTours = allBookings.filter(b => isBookingAssignedToGuide(b, myGuide));
-      res.json(myTours);
+      res.json(await attachVisitorTransportSummaries(myTours));
     } catch (error) {
       logError("Error fetching my tours", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch tours" });
@@ -5655,12 +5765,30 @@ export async function registerRoutes(
           createdByUserId: req.session?.userId || null,
         });
 
+        try {
+          await sendTransportRequestReceivedEmail(
+            transportRequest,
+            booking,
+            assignedPartner,
+            req.session?.userId || null
+          );
+        } catch (emailError) {
+          logError("Failed to send transport request acknowledgement email", emailError, req.requestId);
+        }
+
         if (assignedPartner) {
           try {
             const actor = req.session?.userId ? await storage.getUser(req.session.userId) : null;
             await sendTransportAssignmentEmail(transportRequest, assignedPartner, booking, actor || null);
           } catch (emailError) {
             logError("Failed to send transport assignment email", emailError, req.requestId);
+          }
+        } else {
+          try {
+            const actor = req.session?.userId ? await storage.getUser(req.session.userId) : null;
+            await sendTransportPendingAdminEmails(transportRequest, booking, actor || null);
+          } catch (emailError) {
+            logError("Failed to send pending transport admin email", emailError, req.requestId);
           }
         }
       }
@@ -6032,6 +6160,8 @@ export async function registerRoutes(
 
   app.get("/api/transport-partner/requests", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
     try {
+      checkAndSendDueReminders();
+
       const user = (req as any).currentUser as User;
       const partner = user.role === "transport_partner" ? await getCurrentTransportPartner(user) : null;
       const requests = await storage.getTransportRequests(partner?.id);
@@ -6523,7 +6653,7 @@ export async function registerRoutes(
       let partnerAssignmentEmail: { success: boolean; error?: string; messageId?: string } | null = null;
       let workflowEmails: Array<{ success: boolean; error?: string; messageId?: string; audience?: string; recipientEmail?: string }> = [];
 
-      const acceptedTransportStatuses = new Set(["accepted", "quote_sent"]);
+      const quoteReviewStatuses = new Set(["accepted", "quote_sent"]);
       const previousStatus = request.status || "pending";
       const updatedStatus = updated.status || previousStatus;
       const publicTransportEmailFields = [
@@ -6537,17 +6667,26 @@ export async function registerRoutes(
         "vehicleDetails",
         "partnerNotes",
       ];
-      const publicFacingTransportDetailsChanged =
-        acceptedTransportStatuses.has(updatedStatus) &&
+      const quoteDetailsChanged =
+        quoteReviewStatuses.has(updatedStatus) &&
         publicTransportEmailFields.some((field) =>
           Object.prototype.hasOwnProperty.call(updatePayload, field) &&
           (updated as any)[field] !== (request as any)[field]
         );
-      const shouldNotifyVisitor =
-        (acceptedTransportStatuses.has(updatedStatus) && !acceptedTransportStatuses.has(previousStatus)) ||
-        publicFacingTransportDetailsChanged;
+      const confirmedDetailsChanged =
+        updatedStatus === "confirmed" &&
+        publicTransportEmailFields.some((field) =>
+          Object.prototype.hasOwnProperty.call(updatePayload, field) &&
+          (updated as any)[field] !== (request as any)[field]
+        );
+      const shouldNotifyVisitorQuoteReady =
+        (quoteReviewStatuses.has(updatedStatus) && !quoteReviewStatuses.has(previousStatus)) ||
+        quoteDetailsChanged;
+      const shouldNotifyVisitorDriverConfirmed =
+        (updatedStatus === "confirmed" && previousStatus !== "confirmed") ||
+        confirmedDetailsChanged;
 
-      if (shouldNotifyVisitor) {
+      if (shouldNotifyVisitorQuoteReady || shouldNotifyVisitorDriverConfirmed) {
         try {
           const [partner, booking] = await Promise.all([
             updated.partnerId ? storage.getTransportPartner(updated.partnerId) : Promise.resolve(undefined),
@@ -6562,7 +6701,7 @@ export async function registerRoutes(
           const manageBookingUrl = existingVisitor
             ? `${PUBLIC_APP_URL}/my-bookings`
             : `${PUBLIC_APP_URL}/accept-invite?token=${inviteResult!.invite.inviteToken}`;
-          const emailResult = await sendTransportDriverDetailsEmailDetailed({
+          const transportEmailData = {
             visitorName: updated.visitorName,
             visitorEmail,
             bookingReference: booking?.bookingReference || updated.bookingId || null,
@@ -6581,12 +6720,24 @@ export async function registerRoutes(
             driverPhone: updated.driverPhone,
             vehicleDetails: updated.vehicleDetails,
             partnerNotes: updated.partnerNotes,
-            manageBookingUrl: quoteReviewUrl || manageBookingUrl,
-            accountActionLabel: quoteReviewUrl ? "Review Transport Quote" : existingVisitor ? "Manage Booking" : "Create Account and Manage Booking",
-            accountActionText: existingVisitor
-              ? "Review the transport quote, approve it, or decline it before final confirmation."
-              : "Review the transport quote, approve it, or decline it before final confirmation. You can also create your visitor account to manage this and future bookings.",
-          });
+          };
+          const emailResult = shouldNotifyVisitorDriverConfirmed
+            ? await sendTransportDriverConfirmedEmailDetailed({
+                ...transportEmailData,
+                manageBookingUrl,
+                accountActionLabel: existingVisitor ? "Manage Booking" : "Create Account and Manage Booking",
+                accountActionText: existingVisitor
+                  ? "Your driver and pickup details are confirmed. Use your account to review transport updates."
+                  : "Your driver and pickup details are confirmed. You can also create your visitor account to manage this and future bookings.",
+              })
+            : await sendTransportQuoteReadyEmailDetailed({
+                ...transportEmailData,
+                manageBookingUrl: quoteReviewUrl || manageBookingUrl,
+                accountActionLabel: quoteReviewUrl ? "Review Transport Quote" : existingVisitor ? "Manage Booking" : "Create Account and Manage Booking",
+                accountActionText: existingVisitor
+                  ? "Review the transport quote, approve it, or decline it before final confirmation."
+                  : "Review the transport quote, approve it, or decline it before final confirmation. You can also create your visitor account to manage this and future bookings.",
+              });
 
           driverDetailsEmail = {
             sent: emailResult.success,
@@ -6600,14 +6751,18 @@ export async function registerRoutes(
             sentBy: user.id,
             recipientName: updated.visitorName,
             recipientEmail: visitorEmail,
-            subject: booking?.bookingReference
-              ? `Your transport details - ${booking.bookingReference}`
-              : "Your Visit Dzaleka transport details",
-            message: existingVisitor
-              ? "Transport partner accepted the request and driver details were sent to the visitor."
-              : "Transport partner accepted the request and driver details were sent with a visitor account invitation link.",
-            templateType: "transport_driver_details",
-            status: emailResult.success ? "sent" : "failed",
+            subject: shouldNotifyVisitorDriverConfirmed
+              ? booking?.bookingReference
+                ? `Your driver and pickup details are confirmed - ${booking.bookingReference}`
+                : "Your driver and pickup details are confirmed"
+              : booking?.bookingReference
+                ? `Your transport quote is ready - ${booking.bookingReference}`
+                : "Your transport quote is ready",
+            message: shouldNotifyVisitorDriverConfirmed
+              ? "Driver and pickup details were sent to the visitor."
+              : "Transport quote review details were sent to the visitor.",
+            templateType: shouldNotifyVisitorDriverConfirmed ? "transport_driver_confirmed" : "transport_quote_ready",
+            status: emailResult.success ? "accepted" : "failed",
             errorMessage: emailResult.error,
             providerMessageId: emailResult.messageId,
             relatedEntityType: "transport_request",
@@ -6626,9 +6781,9 @@ export async function registerRoutes(
         } catch (emailError: any) {
           driverDetailsEmail = {
             sent: false,
-            error: emailError?.message || "Failed to send transport driver details email",
+            error: emailError?.message || "Failed to send transport visitor email",
           };
-          logError("Failed to send transport driver details email", emailError, req.requestId);
+          logError("Failed to send transport visitor email", emailError, req.requestId);
         }
       }
 
@@ -6655,7 +6810,16 @@ export async function registerRoutes(
                 actor: user,
                 audiences: ["admin"],
               });
-            } else if (["confirmed", "reschedule_requested", "completed", "cancelled"].includes(updatedStatus)) {
+            } else if (updatedStatus === "confirmed") {
+              workflowEmails = await sendTransportStatusEmails({
+                request: updated,
+                previousStatus,
+                partner,
+                booking,
+                actor: user,
+                audiences: ["partner", "admin"],
+              });
+            } else if (["reschedule_requested", "completed", "cancelled"].includes(updatedStatus)) {
               workflowEmails = await sendTransportStatusEmails({
                 request: updated,
                 previousStatus,
@@ -8775,7 +8939,7 @@ export async function registerRoutes(
         .filter(b => isBookingAssignedToGuide(b, guide))
         .sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime());
 
-      res.json(guideBookings);
+      res.json(await attachVisitorTransportSummaries(guideBookings));
     } catch (error) {
       logError("Error fetching guide tours", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch tours" });

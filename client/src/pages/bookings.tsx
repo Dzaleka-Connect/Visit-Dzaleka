@@ -754,6 +754,7 @@ export default function Bookings() {
     transportRequested: false,
     transportRoute: DEFAULT_TRANSPORT_ROUTE_ID,
     transportPartnerId: "",
+    transportPartnerName: "",
     transportPickup: "",
     transportNotes: "",
   });
@@ -764,6 +765,7 @@ export default function Bookings() {
         transportRequested,
         transportRoute,
         transportPartnerId,
+        transportPartnerName,
         transportPickup,
         transportNotes,
         ...bookingFields
@@ -780,6 +782,7 @@ export default function Bookings() {
           transportRequested,
           transportRoute,
           transportPartnerId,
+          transportPartnerName,
           transportPickup,
           transportNotes,
         }),
@@ -808,6 +811,7 @@ export default function Bookings() {
         transportRequested: false,
         transportRoute: DEFAULT_TRANSPORT_ROUTE_ID,
         transportPartnerId: "",
+        transportPartnerName: "",
         transportPickup: "",
         transportNotes: "",
       });
@@ -2220,6 +2224,7 @@ export default function Bookings() {
               transportRequested={newBooking.transportRequested}
               transportRoute={newBooking.transportRoute}
               transportPartnerId={newBooking.transportPartnerId}
+              transportPartnerName={newBooking.transportPartnerName}
               transportPickup={newBooking.transportPickup}
               transportNotes={newBooking.transportNotes}
               onChange={(updates) => setNewBooking({ ...newBooking, ...updates })}

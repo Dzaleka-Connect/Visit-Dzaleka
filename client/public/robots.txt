@@ -7,6 +7,7 @@ Allow: /things-to-do
 Allow: /accommodation
 Allow: /whats-on
 Allow: /plan-your-trip
+Allow: /plan-your-trip/transport
 Allow: /login
 Allow: /about-dzaleka
 Allow: /life-in-dzaleka

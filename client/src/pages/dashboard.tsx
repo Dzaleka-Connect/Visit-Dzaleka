@@ -178,6 +178,45 @@ function formatTransportQuote(request?: VisitorTransportRequestSummary | null) {
   return formatCurrency(request.quotedAmount, request.currency || "MWK");
 }
 
+function GuideDashboardTransportSummary({ request }: { request?: VisitorTransportRequestSummary | null }) {
+  if (!request) return null;
+
+  const route = getTransportRoute(request.route);
+  const quote = formatTransportQuote(request);
+  const pickupTime = request.estimatedPickupTime || request.requestedPickupTime;
+  const driverLine = [request.driverName, request.driverPhone, request.vehicleDetails].filter(Boolean).join(" - ");
+
+  return (
+    <div className="mt-3 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm dark:border-sky-800 dark:bg-sky-950/30">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 gap-2">
+          <Car className="mt-0.5 h-4 w-4 shrink-0 text-sky-700 dark:text-sky-300" aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="font-medium text-sky-900 dark:text-sky-100">
+              Transport {getTransportStatusLabel(request.status)}
+            </p>
+            <p className="mt-1 break-words text-xs text-sky-700 dark:text-sky-300">
+              {[route.shortLabel, request.partner?.companyName, pickupTime ? `Pickup ${formatTime(pickupTime)}` : null]
+                .filter(Boolean)
+                .join(" - ")}
+            </p>
+            {driverLine && (
+              <p className="mt-2 break-words text-xs text-sky-800 dark:text-sky-200">
+                {driverLine}
+              </p>
+            )}
+          </div>
+        </div>
+        {quote && (
+          <Badge variant="outline" className="shrink-0 border-sky-300 bg-background/80 text-sky-800 dark:border-sky-700 dark:text-sky-200">
+            {quote}
+          </Badge>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function formatTourType(type?: string | null) {
   if (!type) return "Tour";
   return type.replace(/_/g, " ");
@@ -1302,9 +1341,10 @@ function GuideDashboard() {
                     {nextAssignment.numberOfPeople} {nextAssignment.numberOfPeople === 1 ? "person" : "people"}
                   </span>
                 </div>
+                <GuideDashboardTransportSummary request={nextAssignment.transportRequest} />
               </div>
               <Button variant="outline" size="sm" asChild>
-                <Link href="/my-tours">View assignment</Link>
+                <Link href={`/my-tours/${nextAssignment.id}`}>View assignment</Link>
               </Button>
             </div>
           ) : (
@@ -1368,6 +1408,7 @@ function GuideDashboard() {
                         {formatTourType(tour.tourType)}
                       </span>
                     </div>
+                    <GuideDashboardTransportSummary request={tour.transportRequest} />
                   </div>
                   {tour.status === "confirmed" && (
                     <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">

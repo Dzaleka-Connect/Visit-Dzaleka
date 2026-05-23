@@ -245,62 +245,69 @@ export function SEO({
           {
             "@type": "SiteNavigationElement",
             "position": 4,
+            "name": "Transport Partners",
+            "description": "Verified transport operators for Lilongwe, Dzaleka, airport, and Malawi route requests",
+            "url": "https://visit.dzaleka.com/plan-your-trip/transport"
+          },
+          {
+            "@type": "SiteNavigationElement",
+            "position": 5,
             "name": "Accommodation",
             "description": "Find places to stay near Dzaleka Refugee Camp",
             "url": "https://visit.dzaleka.com/accommodation"
           },
           {
             "@type": "SiteNavigationElement",
-            "position": 5,
+            "position": 6,
             "name": "Blog",
             "description": "Stories and updates from Dzaleka Refugee Camp",
             "url": "https://visit.dzaleka.com/blog"
           },
           {
             "@type": "SiteNavigationElement",
-            "position": 6,
+            "position": 7,
             "name": "Destinations",
             "description": "Explore the different zones of Dzaleka Refugee Camp",
             "url": "https://visit.dzaleka.com/destinations"
           },
           {
             "@type": "SiteNavigationElement",
-            "position": 7,
+            "position": 8,
             "name": "What's On",
             "description": "Upcoming events and festivals in Dzaleka",
             "url": "https://visit.dzaleka.com/whats-on"
           },
           {
             "@type": "SiteNavigationElement",
-            "position": 8,
+            "position": 9,
             "name": "About Dzaleka",
             "description": "Learn about the history and community of Dzaleka Refugee Camp",
             "url": "https://visit.dzaleka.com/about-dzaleka"
           },
           {
             "@type": "SiteNavigationElement",
-            "position": 9,
+            "position": 10,
             "name": "Life in Dzaleka",
             "description": "Discover daily life and community stories from Dzaleka",
             "url": "https://visit.dzaleka.com/life-in-dzaleka"
           },
           {
             "@type": "SiteNavigationElement",
-            "position": 10,
+            "position": 11,
             "name": "FAQ",
             "description": "Frequently asked questions about visiting Dzaleka",
             "url": "https://visit.dzaleka.com/faq"
           },
           {
             "@type": "SiteNavigationElement",
-            "position": 11,
+            "position": 12,
             "name": "Partner With Us",
             "description": "Partnership opportunities with Visit Dzaleka",
             "url": "https://visit.dzaleka.com/partner-with-us"
           },
           {
             "@type": "SiteNavigationElement",
-            "position": 12,
+            "position": 13,
             "name": "Support Our Work",
             "description": "Support refugee-led initiatives in Dzaleka",
             "url": "https://visit.dzaleka.com/support-our-work"

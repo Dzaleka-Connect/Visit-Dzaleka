@@ -65,6 +65,7 @@ export default function EmbedBooking() {
         transportRequested: initialTransportRequest.transportRequested || false,
         transportRoute: initialTransportRequest.transportRoute,
         transportPartnerId: initialTransportRequest.transportPartnerId,
+        transportPartnerName: initialTransportRequest.transportPartnerName || "",
         transportPickup: initialTransportRequest.transportPickup || "",
         transportNotes: initialTransportRequest.transportNotes || "",
     });
@@ -90,16 +91,23 @@ export default function EmbedBooking() {
                 transportRequested,
                 transportRoute,
                 transportPartnerId,
+                transportPartnerName,
                 transportPickup,
                 transportNotes,
                 ...bookingFields
             } = data;
             const res = await apiRequest("POST", "/api/bookings", {
                 ...bookingFields,
+                transportRequested,
+                transportRoute,
+                transportPartnerId,
+                transportPickup,
+                transportNotes,
                 specialRequests: buildTransportSpecialRequests(data.specialRequests, {
                     transportRequested,
                     transportRoute,
                     transportPartnerId,
+                    transportPartnerName,
                     transportPickup,
                     transportNotes,
                 }),
@@ -147,6 +155,12 @@ export default function EmbedBooking() {
                         <p className={isDark ? "text-gray-300" : "text-muted-foreground"}>
                             We'll confirm your visit shortly via email.
                         </p>
+                        {formData.transportRequested && (
+                            <p className={`mt-3 text-sm ${isDark ? "text-gray-300" : "text-muted-foreground"}`}>
+                                Your transport quote request was included. A verified partner will confirm the price,
+                                driver or vehicle details, pickup point, and payment terms before the ride is final.
+                            </p>
+                        )}
                         {showBranding && (
                             <p className="text-xs mt-4 text-muted-foreground">
                                 Powered by Visit Dzaleka
@@ -410,6 +424,7 @@ export default function EmbedBooking() {
                             transportRequested={formData.transportRequested}
                             transportRoute={formData.transportRoute}
                             transportPartnerId={formData.transportPartnerId}
+                            transportPartnerName={formData.transportPartnerName}
                             transportPickup={formData.transportPickup}
                             transportNotes={formData.transportNotes}
                             inputClassName={inputClass}

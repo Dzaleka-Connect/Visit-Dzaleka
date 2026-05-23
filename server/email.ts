@@ -199,6 +199,18 @@ interface TransportDriverDetailsEmailData {
   accountActionText?: string | null;
 }
 
+interface TransportRequestReceivedEmailData {
+  visitorName: string;
+  visitorEmail: string;
+  bookingReference?: string | null;
+  partnerName?: string | null;
+  route: string;
+  pickupLocation?: string | null;
+  visitDate?: string | null;
+  visitTime?: string | null;
+  manageBookingUrl?: string | null;
+}
+
 interface TransportWorkflowEmailData {
   recipientName: string;
   recipientEmail: string;
@@ -242,6 +254,10 @@ interface TransportStatusChangedEmailData extends TransportWorkflowEmailData {
   previousStatus?: string | null;
   statusMessage: string;
   changedByName?: string | null;
+}
+
+interface TransportQuoteReminderEmailData extends TransportWorkflowEmailData {
+  hoursWaiting?: number | null;
 }
 
 function escapeHtml(value: string | number | null | undefined): string {
@@ -414,6 +430,110 @@ function transportTextDetails(data: TransportWorkflowEmailData): string[] {
   ]).map(([label, value]) => `${label}: ${value}`);
 
   return [...rows, ...notes];
+}
+
+export async function sendTransportRequestReceivedEmailDetailed(data: TransportRequestReceivedEmailData): Promise<EmailSendResult> {
+  const resendClient = getResendClient();
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
+
+  const safeVisitorName = escapeHtml(data.visitorName);
+  const safeReference = escapeHtml(data.bookingReference || 'Transport quote request');
+  const safeRoute = escapeHtml(formatEmailLabel(data.route) || data.route);
+  const safePickup = escapeHtml(data.pickupLocation || 'To be confirmed');
+  const safeDate = escapeHtml(data.visitDate || 'To be confirmed');
+  const safeTime = escapeHtml(data.visitTime || 'To be confirmed');
+  const safePartnerName = escapeHtml(data.partnerName || 'an available transport partner');
+  const safeManageBookingUrl = escapeHtml(data.manageBookingUrl || publicAppUrl('/my-bookings'));
+
+  const text = [
+    `Hello ${data.visitorName},`,
+    '',
+    'We received your transport quote request. No transport payment is taken now.',
+    'A verified transport partner will review your route, date, pickup point, group details, and timing before sending a price.',
+    '',
+    data.bookingReference ? `Booking reference: ${data.bookingReference}` : '',
+    `Preferred partner: ${data.partnerName || 'No preference - match with an available partner'}`,
+    `Route: ${formatEmailLabel(data.route) || data.route}`,
+    `Pickup/drop-off: ${data.pickupLocation || 'To be confirmed'}`,
+    `Visit date: ${data.visitDate || 'To be confirmed'}`,
+    `Visit time: ${data.visitTime || 'To be confirmed'}`,
+    '',
+    'What happens next:',
+    '1. Visit Dzaleka shares the request with a verified partner.',
+    '2. The partner sends a quote, pickup timing, and available vehicle/driver details.',
+    '3. You approve or decline the quote before transport is final.',
+    '',
+    `Manage booking: ${data.manageBookingUrl || publicAppUrl('/my-bookings')}`,
+  ].filter(Boolean).join('\n');
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Transport Quote Request Received</title>
+      </head>
+      <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #0284C7 0%, #0369a1 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Transport Quote Request Received</p>
+        </div>
+
+        <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+          <p style="margin: 0 0 20px 0;">Hello ${safeVisitorName},</p>
+          <p>We received your transport quote request. <strong>No transport payment is taken now.</strong></p>
+          <p>A verified transport partner will review your route, date, pickup point, group details, and timing before sending a price.</p>
+
+          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h2 style="color: #0284C7; margin: 0 0 15px 0; font-size: 18px;">Request Details</h2>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr><td style="padding: 8px 0; color: #6b7280;">Reference:</td><td style="padding: 8px 0; font-weight: 600;">${safeReference}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Preferred partner:</td><td style="padding: 8px 0;">${safePartnerName}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Route:</td><td style="padding: 8px 0;">${safeRoute}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Pickup/drop-off:</td><td style="padding: 8px 0;">${safePickup}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Visit date:</td><td style="padding: 8px 0;">${safeDate}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Visit time:</td><td style="padding: 8px 0;">${safeTime}</td></tr>
+            </table>
+          </div>
+
+          <div style="background: #fff7ed; border: 1px solid #fb923c; border-radius: 8px; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0 0 8px 0; color: #9a3412; font-size: 14px;"><strong>What happens next</strong></p>
+            <ol style="margin: 0; padding-left: 20px; color: #9a3412; font-size: 14px;">
+              <li>Visit Dzaleka shares the request with a verified partner.</li>
+              <li>The partner sends a quote, pickup timing, and available vehicle/driver details.</li>
+              <li>You approve or decline the quote before transport is final.</li>
+            </ol>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${safeManageBookingUrl}" style="display: inline-block; background: #0284C7; color: white; padding: 15px 32px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+              Manage Booking
+            </a>
+          </div>
+
+          <p style="margin: 20px 0 0 0; font-size: 14px; color: #6b7280;">
+            Transport is quoted separately from the Visit Dzaleka guiding fee. If you have questions, contact us at ${SUPPORT_EMAIL}.
+          </p>
+        </div>
+
+        <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
+          <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">${emailFooterText()}</p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return await sendEmailWithRetry({
+    from: resendClient.fromEmail,
+    replyTo: resendClient.replyTo,
+    to: data.visitorEmail,
+    subject: data.bookingReference
+      ? `Transport quote request received - ${data.bookingReference}`
+      : 'Transport quote request received',
+    html,
+    text,
+  });
 }
 
 // Send booking request received email
@@ -629,6 +749,370 @@ export async function sendPartnerReferralBookingEmailDetailed(data: PartnerRefer
   });
 }
 
+export async function sendTransportPendingAdminEmailDetailed(data: TransportWorkflowEmailData): Promise<EmailSendResult> {
+  const resendClient = getResendClient();
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
+
+  const reference = data.bookingReference || data.visitorName || 'transport request';
+  const actionUrl = data.actionUrl || publicAppUrl('/transport-partner?tab=requests');
+  const actionLabel = data.actionLabel || 'Assign Transport Partner';
+  const safeRecipientName = escapeHtml(data.recipientName || 'there');
+  const rows = transportWorkflowRows(data);
+
+  const text = [
+    `Hello ${data.recipientName || 'there'},`,
+    '',
+    `A visitor requested transport, but no partner has been assigned yet.`,
+    '',
+    ...transportTextDetails(data),
+    '',
+    `${actionLabel}: ${actionUrl}`,
+  ].join('\n');
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Transport Request Needs Partner</title>
+      </head>
+      <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #0284C7 0%, #0369a1 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Transport Request Needs Partner</p>
+        </div>
+
+        <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+          <p style="margin: 0 0 20px 0;">Hello ${safeRecipientName},</p>
+          <p>A visitor requested transport, but no partner has been assigned yet. Please assign an available verified partner or follow up with the visitor if transport cannot be arranged.</p>
+
+          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h2 style="color: #0284C7; margin: 0 0 15px 0; font-size: 18px;">Request Details</h2>
+            ${renderTransportTable(rows)}
+          </div>
+
+          ${renderTransportNotes(data)}
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${escapeHtml(actionUrl)}" style="display: inline-block; background: #0284C7; color: white; padding: 15px 32px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+              ${escapeHtml(actionLabel)}
+            </a>
+          </div>
+        </div>
+
+        <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
+          <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">${emailFooterText()}</p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return await sendEmailWithRetry({
+    from: resendClient.fromEmail,
+    replyTo: resendClient.replyTo,
+    to: data.recipientEmail,
+    subject: `Transport request needs partner - ${reference}`,
+    html,
+    text,
+  });
+}
+
+export async function sendTransportQuoteReadyEmailDetailed(data: TransportDriverDetailsEmailData): Promise<EmailSendResult> {
+  const resendClient = getResendClient();
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
+
+  const quote = formatMoneyAmount(data.quotedAmount, data.currency);
+  const safeVisitorName = escapeHtml(data.visitorName);
+  const safePartnerName = escapeHtml(data.partnerName || 'your transport partner');
+  const safeReference = escapeHtml(data.bookingReference || 'Transport request');
+  const safeRoute = escapeHtml(formatEmailLabel(data.route) || data.route);
+  const safePickup = escapeHtml(data.pickupLocation || 'To be confirmed');
+  const safeDate = escapeHtml(data.visitDate || 'To be confirmed');
+  const safeTime = escapeHtml(data.visitTime || 'To be confirmed');
+  const safePickupTime = escapeHtml(data.estimatedPickupTime || 'To be confirmed');
+  const safeQuote = escapeHtml(quote || 'To be confirmed');
+  const safePartnerNotes = escapeHtml(data.partnerNotes || '');
+  const safeManageBookingUrl = escapeHtml(data.manageBookingUrl || publicAppUrl('/my-bookings'));
+  const safeActionLabel = escapeHtml(data.accountActionLabel || 'Review Transport Quote');
+
+  const text = [
+    `Hello ${data.visitorName},`,
+    '',
+    `Your transport quote is ready. ${data.partnerName || 'A transport partner'} has reviewed your request and provided pricing/details for your trip.`,
+    'Transport is not final until you approve the quote.',
+    data.bookingReference ? `Booking reference: ${data.bookingReference}` : '',
+    `Partner: ${data.partnerName || 'Transport partner'}`,
+    `Route: ${formatEmailLabel(data.route) || data.route}`,
+    `Pickup location: ${data.pickupLocation || 'To be confirmed'}`,
+    `Visit date: ${data.visitDate || 'To be confirmed'}`,
+    `Visit time: ${data.visitTime || 'To be confirmed'}`,
+    `Estimated pickup time: ${data.estimatedPickupTime || 'To be confirmed'}`,
+    quote ? `Quote: ${quote}` : 'Quote: To be confirmed',
+    data.partnerNotes ? `Partner notes: ${data.partnerNotes}` : '',
+    '',
+    `${data.accountActionLabel || 'Review transport quote'}: ${data.manageBookingUrl || publicAppUrl('/my-bookings')}`,
+  ].filter(Boolean).join('\n');
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Your Transport Quote Is Ready</title>
+      </head>
+      <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #0284C7 0%, #0369a1 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Your Transport Quote Is Ready</p>
+        </div>
+
+        <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+          <p style="margin: 0 0 20px 0;">Hello ${safeVisitorName},</p>
+          <p><strong>${safePartnerName}</strong> has reviewed your request and prepared transport pricing/details.</p>
+          <p><strong>Transport is not final until you approve the quote.</strong></p>
+
+          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h2 style="color: #0284C7; margin: 0 0 15px 0; font-size: 18px;">Quote Details</h2>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr><td style="padding: 8px 0; color: #6b7280;">Reference:</td><td style="padding: 8px 0; font-weight: 600;">${safeReference}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Partner:</td><td style="padding: 8px 0;">${safePartnerName}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Route:</td><td style="padding: 8px 0;">${safeRoute}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Pickup location:</td><td style="padding: 8px 0;">${safePickup}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Visit date:</td><td style="padding: 8px 0;">${safeDate}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Visit time:</td><td style="padding: 8px 0;">${safeTime}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Estimated pickup:</td><td style="padding: 8px 0;">${safePickupTime}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Quote:</td><td style="padding: 8px 0; font-weight: 700; color: #0284C7;">${safeQuote}</td></tr>
+            </table>
+          </div>
+
+          ${safePartnerNotes ? `
+          <div style="background: #ecfeff; border: 1px solid #06b6d4; border-radius: 8px; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; color: #155e75; font-size: 14px;"><strong>Partner notes:</strong> ${safePartnerNotes}</p>
+          </div>
+          ` : ''}
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${safeManageBookingUrl}" style="display: inline-block; background: #0284C7; color: white; padding: 15px 32px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+              ${safeActionLabel}
+            </a>
+          </div>
+
+          <p style="margin: 20px 0 0 0; font-size: 14px; color: #6b7280;">
+            No transport payment has been taken by Visit Dzaleka. Please review the quote before the ride is confirmed.
+          </p>
+        </div>
+
+        <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
+          <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">${emailFooterText()}</p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return await sendEmailWithRetry({
+    from: resendClient.fromEmail,
+    replyTo: resendClient.replyTo,
+    to: data.visitorEmail,
+    subject: data.bookingReference
+      ? `Your transport quote is ready - ${data.bookingReference}`
+      : 'Your transport quote is ready',
+    html,
+    text,
+  });
+}
+
+export async function sendTransportDriverConfirmedEmailDetailed(data: TransportDriverDetailsEmailData): Promise<EmailSendResult> {
+  const resendClient = getResendClient();
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
+
+  const quote = formatMoneyAmount(data.quotedAmount, data.currency);
+  const safeVisitorName = escapeHtml(data.visitorName);
+  const safePartnerName = escapeHtml(data.partnerName || 'your transport partner');
+  const safeReference = escapeHtml(data.bookingReference || 'Transport request');
+  const safeRoute = escapeHtml(formatEmailLabel(data.route) || data.route);
+  const safePickup = escapeHtml(data.pickupLocation || 'To be confirmed');
+  const safeDate = escapeHtml(data.visitDate || 'To be confirmed');
+  const safeTime = escapeHtml(data.visitTime || 'To be confirmed');
+  const safePickupTime = escapeHtml(data.estimatedPickupTime || 'To be confirmed');
+  const safeDriverName = escapeHtml(data.driverName || 'To be confirmed');
+  const safeDriverPhone = escapeHtml(data.driverPhone || data.partnerPhone || data.partnerWhatsapp || SUPPORT_PHONE);
+  const safeVehicle = escapeHtml(data.vehicleDetails || 'To be confirmed');
+  const safeQuote = escapeHtml(quote || 'To be confirmed');
+  const safePartnerNotes = escapeHtml(data.partnerNotes || '');
+  const safeManageBookingUrl = escapeHtml(data.manageBookingUrl || publicAppUrl('/my-bookings'));
+  const safeActionLabel = escapeHtml(data.accountActionLabel || 'Manage Booking');
+
+  const contactLine = [
+    data.driverPhone ? `Driver: ${data.driverPhone}` : null,
+    data.partnerWhatsapp ? `WhatsApp: ${data.partnerWhatsapp}` : null,
+    data.partnerPhone ? `Partner phone: ${data.partnerPhone}` : null,
+    data.partnerEmail ? `Partner email: ${data.partnerEmail}` : null,
+  ].filter(Boolean).join(' | ');
+
+  const text = [
+    `Hello ${data.visitorName},`,
+    '',
+    'Your driver and pickup details are confirmed.',
+    data.bookingReference ? `Booking reference: ${data.bookingReference}` : '',
+    `Partner: ${data.partnerName || 'Transport partner'}`,
+    `Route: ${formatEmailLabel(data.route) || data.route}`,
+    `Pickup location: ${data.pickupLocation || 'To be confirmed'}`,
+    `Visit date: ${data.visitDate || 'To be confirmed'}`,
+    `Visit time: ${data.visitTime || 'To be confirmed'}`,
+    `Pickup time: ${data.estimatedPickupTime || 'To be confirmed'}`,
+    quote ? `Quote: ${quote}` : 'Quote: To be confirmed',
+    `Driver: ${data.driverName || 'To be confirmed'}`,
+    `Driver phone: ${data.driverPhone || data.partnerPhone || data.partnerWhatsapp || SUPPORT_PHONE}`,
+    `Vehicle: ${data.vehicleDetails || 'To be confirmed'}`,
+    data.partnerNotes ? `Partner notes: ${data.partnerNotes}` : '',
+    '',
+    contactLine || `Contact Visit Dzaleka at ${SUPPORT_EMAIL} if you need help.`,
+    `${data.accountActionLabel || 'Manage booking'}: ${data.manageBookingUrl || publicAppUrl('/my-bookings')}`,
+  ].filter(Boolean).join('\n');
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Your Driver and Pickup Details Are Confirmed</title>
+      </head>
+      <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #047857 0%, #065f46 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Driver and Pickup Confirmed</p>
+        </div>
+
+        <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+          <p style="margin: 0 0 20px 0;">Hello ${safeVisitorName},</p>
+          <p>Your driver and pickup details are confirmed with <strong>${safePartnerName}</strong>.</p>
+
+          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h2 style="color: #047857; margin: 0 0 15px 0; font-size: 18px;">Confirmed Transport Details</h2>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr><td style="padding: 8px 0; color: #6b7280;">Reference:</td><td style="padding: 8px 0; font-weight: 600;">${safeReference}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Partner:</td><td style="padding: 8px 0;">${safePartnerName}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Route:</td><td style="padding: 8px 0;">${safeRoute}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Pickup location:</td><td style="padding: 8px 0;">${safePickup}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Visit date:</td><td style="padding: 8px 0;">${safeDate}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Visit time:</td><td style="padding: 8px 0;">${safeTime}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Pickup time:</td><td style="padding: 8px 0;">${safePickupTime}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Quote:</td><td style="padding: 8px 0; font-weight: 700; color: #047857;">${safeQuote}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Driver:</td><td style="padding: 8px 0;">${safeDriverName}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Driver phone:</td><td style="padding: 8px 0; font-weight: 600;">${safeDriverPhone}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Vehicle:</td><td style="padding: 8px 0;">${safeVehicle}</td></tr>
+            </table>
+          </div>
+
+          ${safePartnerNotes ? `
+          <div style="background: #ecfeff; border: 1px solid #06b6d4; border-radius: 8px; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; color: #155e75; font-size: 14px;"><strong>Partner notes:</strong> ${safePartnerNotes}</p>
+          </div>
+          ` : ''}
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${safeManageBookingUrl}" style="display: inline-block; background: #047857; color: white; padding: 15px 32px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+              ${safeActionLabel}
+            </a>
+          </div>
+
+          <p style="margin: 20px 0 0 0; font-size: 14px; color: #6b7280;">
+            Transport is managed by the transport partner. Visit Dzaleka can still help if you have questions about your tour at ${SUPPORT_EMAIL}.
+          </p>
+        </div>
+
+        <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
+          <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">${emailFooterText()}</p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return await sendEmailWithRetry({
+    from: resendClient.fromEmail,
+    replyTo: resendClient.replyTo,
+    to: data.visitorEmail,
+    subject: data.bookingReference
+      ? `Your driver and pickup details are confirmed - ${data.bookingReference}`
+      : 'Your driver and pickup details are confirmed',
+    html,
+    text,
+  });
+}
+
+export async function sendTransportQuoteReminderEmailDetailed(data: TransportQuoteReminderEmailData): Promise<EmailSendResult> {
+  const resendClient = getResendClient();
+  if (!resendClient) return { success: false, error: 'Email service not configured' };
+
+  const reference = data.bookingReference || data.visitorName || 'transport request';
+  const actionUrl = data.actionUrl || publicAppUrl('/transport-partner?tab=requests');
+  const actionLabel = data.actionLabel || 'Open Transport Request';
+  const safeRecipientName = escapeHtml(data.recipientName || 'there');
+  const hoursWaiting = data.hoursWaiting ? `${Math.round(data.hoursWaiting)} hours` : 'the reminder window';
+  const rows = transportWorkflowRows(data);
+
+  const text = [
+    `Hello ${data.recipientName || 'there'},`,
+    '',
+    `Reminder: this transport request still needs a quote after ${hoursWaiting}.`,
+    '',
+    ...transportTextDetails(data),
+    '',
+    `${actionLabel}: ${actionUrl}`,
+  ].join('\n');
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Transport Quote Reminder</title>
+      </head>
+      <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #f97316 0%, #c2410c 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Transport Quote Reminder</p>
+        </div>
+
+        <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+          <p style="margin: 0 0 20px 0;">Hello ${safeRecipientName},</p>
+          <p>This transport request still needs a quote after <strong>${escapeHtml(hoursWaiting)}</strong>. Please add pricing, pickup timing, driver/vehicle details if known, and save it as Quote sent.</p>
+
+          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h2 style="color: #f97316; margin: 0 0 15px 0; font-size: 18px;">Request Details</h2>
+            ${renderTransportTable(rows)}
+          </div>
+
+          ${renderTransportNotes(data)}
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${escapeHtml(actionUrl)}" style="display: inline-block; background: #f97316; color: white; padding: 15px 32px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+              ${escapeHtml(actionLabel)}
+            </a>
+          </div>
+        </div>
+
+        <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
+          <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">${emailFooterText()}</p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return await sendEmailWithRetry({
+    from: resendClient.fromEmail,
+    replyTo: resendClient.replyTo,
+    to: data.recipientEmail,
+    subject: `Reminder: transport quote needed - ${reference}`,
+    html,
+    text,
+  });
+}
+
 export async function sendTransportDriverDetailsEmailDetailed(data: TransportDriverDetailsEmailData): Promise<EmailSendResult> {
   const resendClient = getResendClient();
   if (!resendClient) return { success: false, error: 'Email service not configured' };
@@ -661,7 +1145,7 @@ export async function sendTransportDriverDetailsEmailDetailed(data: TransportDri
   const text = [
     `Hello ${data.visitorName},`,
     '',
-    `${data.partnerName || 'Your transport partner'} has accepted your transport request for Visit Dzaleka.`,
+    `${data.partnerName || 'Your transport partner'} has confirmed your driver and pickup details for Visit Dzaleka.`,
     data.bookingReference ? `Booking reference: ${data.bookingReference}` : '',
     `Route: ${data.route}`,
     `Pickup location: ${data.pickupLocation || 'To be confirmed'}`,
@@ -690,12 +1174,12 @@ export async function sendTransportDriverDetailsEmailDetailed(data: TransportDri
       <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #0284C7 0%, #0369a1 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
           <h1 style="color: white; margin: 0; font-size: 24px;">Visit Dzaleka</h1>
-          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Transport Request Accepted</p>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Driver and Pickup Confirmed</p>
         </div>
 
         <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
           <p style="margin: 0 0 20px 0;">Hello ${safeVisitorName},</p>
-          <p><strong>${safePartnerName}</strong> has accepted your transport request. You can now contact the driver or transport partner directly if you need to coordinate pickup details.</p>
+          <p><strong>${safePartnerName}</strong> has confirmed your driver and pickup details. You can now contact the driver or transport partner directly if you need to coordinate pickup details.</p>
 
           <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
             <h2 style="color: #0284C7; margin: 0 0 15px 0; font-size: 18px;">Transport Details</h2>

@@ -5,10 +5,37 @@ export const UNASSIGNED_TRANSPORT_PARTNER_ID = "unassigned";
 export const TRANSPORT_PARTNERS = [
   {
     id: DEFAULT_TRANSPORT_PARTNER_ID,
-    name: "Ashraf's Taxi & Tours",
+    slug: "ashraf",
+    name: "Ashraf's Taxi & Tours Malawi",
+    address: "Lilongwe Mall Malawi, Lilongwe, Malawi",
+    website: "https://www.tripadvisor.com/Attraction_Review-g293811-d26631753-Reviews-Ashraf_s_Taxi_Tours_Malawi-Lilongwe_Central_Region.html",
+    websiteLabel: "Tripadvisor profile",
     description:
-      "Trusted Lilongwe-based transport partner for airport pickups, Dzaleka round trips, and Lake Malawi day-trip extensions.",
-    strengths: ["International visitors", "Lake Malawi day trips", "Lilongwe transfers"],
+      "Highly rated Lilongwe-based transport and tour service trusted by international travellers for airport transfers, private tours, and long-distance travel across Malawi.",
+    strengths: [
+      "Reliable airport pickups and drop-offs",
+      "Private cultural and city tours",
+      "Lake Malawi and regional travel routes",
+      "English-speaking professional driving service",
+      "Comfortable long-distance transport",
+    ],
+  },
+  {
+    id: "anake-taxi-tours-services",
+    slug: "anake",
+    name: "Anake Taxi & Tours Services",
+    address: "Lilongwe, Malawi",
+    website: "https://www.anaketaxi.com/",
+    websiteLabel: "Official website",
+    description:
+      "Professional Malawi tour operator offering structured travel experiences, airport transfers, and guided tours across the country.",
+    strengths: [
+      "Airport transfers between Kamuzu International Airport and Lilongwe",
+      "Private and group transport services",
+      "Safari and Lake Malawi tour packages",
+      "Long-distance travel across Malawi",
+      "Multi-day curated travel experiences",
+    ],
   },
 ] as const;
 
@@ -42,6 +69,11 @@ export const TRANSPORT_ROUTES = [
 export type TransportRouteId = (typeof TRANSPORT_ROUTES)[number]["id"];
 export type TransportPartnerId = (typeof TRANSPORT_PARTNERS)[number]["id"];
 
+const TRANSPORT_PARTNER_ALIASES: Record<string, TransportPartnerId> = {
+  ashraf: DEFAULT_TRANSPORT_PARTNER_ID,
+  anake: "anake-taxi-tours-services",
+};
+
 const LEGACY_TRANSPORT_ROUTE_IDS: Record<string, TransportRouteId> = {
   lilongwe_dzaleka: "lilongwe-dzaleka",
   airport_dzaleka: "airport-dzaleka",
@@ -54,6 +86,7 @@ export interface TransportRequestDraft {
   transportRequested?: boolean;
   transportRoute?: string;
   transportPartnerId?: string;
+  transportPartnerName?: string;
   transportPickup?: string;
   transportNotes?: string;
 }
@@ -78,14 +111,18 @@ export function createTransportRequestFromSearch(search: string): TransportReque
   const routeParam = params.get("route") || params.get("transportRoute");
   const normalizedRouteParam = normalizeTransportRouteId(routeParam);
   const transportParam = params.get("transport") || params.get("partner");
+  const normalizedPartnerParam = (transportParam || "").trim();
   const hasRoute = !!routeParam && TRANSPORT_ROUTES.some((route) => route.id === normalizedRouteParam);
-  const partnerId = transportParam === "ashraf" ? DEFAULT_TRANSPORT_PARTNER_ID : transportParam || "";
+  const partnerId = normalizedPartnerParam === "true"
+    ? ""
+    : TRANSPORT_PARTNER_ALIASES[normalizedPartnerParam] || normalizedPartnerParam;
   const hasPartner = TRANSPORT_PARTNERS.some((partner) => partner.id === partnerId);
 
   return {
-    transportRequested: transportParam === "true" || transportParam === "ashraf" || hasRoute || params.get("transportNeeded") === "true",
+    transportRequested: normalizedPartnerParam === "true" || hasPartner || hasRoute || params.get("transportNeeded") === "true",
     transportRoute: hasRoute ? normalizedRouteParam : DEFAULT_TRANSPORT_ROUTE_ID,
-    transportPartnerId: hasPartner ? partnerId : partnerId || "",
+    transportPartnerId: hasPartner ? partnerId : "",
+    transportPartnerName: hasPartner ? getTransportPartner(partnerId)?.name || "" : "",
     transportPickup: params.get("pickup") || "",
     transportNotes: params.get("transportNotes") || "",
   };
@@ -100,17 +137,20 @@ export function buildTransportSpecialRequests(existingNotes: string | undefined,
 
   const route = getTransportRoute(request.transportRoute);
   const partner = getTransportPartner(request.transportPartnerId);
+  const partnerName = partner?.name || (request.transportPartnerName || "").trim();
   const pickup = (request.transportPickup || "").trim();
   const notes = (request.transportNotes || "").trim();
-  const partnerLine = partner
-    ? `Preferred partner: ${partner.name}`
+  const partnerLine = partnerName
+    ? `Preferred partner: ${partnerName}`
     : request.transportPartnerId
       ? "Preferred partner: Selected transport partner"
-      : "Preferred partner: Assign in admin";
+      : "Preferred partner: No preference - match with an available partner";
   const transportLines = [
     "[Transport request]",
     partnerLine,
     `Route: ${route.label}`,
+    `Route note: ${route.description}`,
+    "Pricing/confirmation: Partner quote required; transport is not final until price, availability, driver, vehicle, pickup details, and payment terms are confirmed.",
     pickup ? `Pickup/drop-off: ${pickup}` : null,
     notes ? `Transport notes: ${notes}` : null,
   ].filter(Boolean);
