@@ -2062,6 +2062,25 @@ export const analyticsSettings = pgTable("analytics_settings", {
 export const insertAnalyticsSettingsSchema = createInsertSchema(analyticsSettings).omit({
   id: true,
   updatedAt: true,
+  customHtml: true,
+}).extend({
+  ga4MeasurementId: z.preprocess(
+    (val) => (val === "" ? null : val),
+    z.string().regex(/^G-[A-Z0-9]{8,20}$/i, "Invalid GA4 Measurement ID (must start with G-)").nullable().optional()
+  ),
+  facebookPixelId: z.preprocess(
+    (val) => (val === "" ? null : val),
+    z.string().regex(/^\d{10,20}$/, "Invalid Facebook Pixel ID (must be 10-20 digits)").nullable().optional()
+  ),
+  googleAdsConversionId: z.preprocess(
+    (val) => (val === "" ? null : val),
+    z.string().regex(/^(AW-)?[0-9]{8,20}$/, "Invalid Google Ads Conversion ID").nullable().optional()
+  ),
+  googleAdsConversionLabel: z.preprocess(
+    (val) => (val === "" ? null : val),
+    z.string().regex(/^[A-Za-z0-9_-]{5,30}$/, "Invalid Google Ads Conversion Label").nullable().optional()
+  ),
+  isEnabled: z.boolean().default(true),
 });
 
 export type AnalyticsSetting = typeof analyticsSettings.$inferSelect;

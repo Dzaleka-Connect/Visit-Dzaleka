@@ -121,7 +121,7 @@ export default function CalendarPage() {
   // Assign guide mutation
   const assignGuideMutation = useMutation({
     mutationFn: async ({ bookingId, guideId }: { bookingId: string; guideId: string | null }) => {
-      await apiRequest("PATCH", `/api/bookings/${bookingId}/assign-guide`, { guideId });
+      await apiRequest("PATCH", `/api/bookings/${bookingId}/assign`, { guideId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });

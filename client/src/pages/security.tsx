@@ -136,10 +136,7 @@ export default function Security() {
 
   const verifyMutation = useMutation({
     mutationFn: async (reference: string) => {
-      const response = await fetch(`/api/bookings/verify/${reference}`);
-      if (!response.ok) {
-        throw new Error("Booking not found");
-      }
+      const response = await apiRequest("GET", `/api/bookings/verify/${encodeURIComponent(reference)}`);
       return response.json();
     },
     onSuccess: (data) => {
@@ -178,7 +175,7 @@ export default function Security() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -211,7 +208,7 @@ export default function Security() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -246,7 +243,7 @@ export default function Security() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -279,7 +276,7 @@ export default function Security() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -310,7 +307,7 @@ export default function Security() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }

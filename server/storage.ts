@@ -130,6 +130,20 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { cache, CACHE_TTL, CACHE_KEYS } from "./utils/cache";
 import { logger } from "./lib/logger";
+import { hashToken } from "./lib/tokens";
+import { encrypt, decrypt } from "./utils/crypto";
+
+function decryptPayload(payloadVal: any): any {
+  if (payloadVal && typeof payloadVal === "object" && typeof payloadVal.data === "string") {
+    try {
+      const decryptedStr = decrypt(payloadVal.data);
+      return JSON.parse(decryptedStr);
+    } catch {
+      return payloadVal;
+    }
+  }
+  return payloadVal;
+}
 
 
 // Generate booking reference (e.g., DVS-2024-ABC123)
@@ -181,6 +195,23 @@ function transformToSnake(obj: any): any {
     result[snakeKey] = transformToSnake(obj[key]);
   }
   return result;
+}
+
+/**
+ * Sanitize a value before interpolating it into a Supabase/PostgREST `.or()` filter string.
+ *
+ * PostgREST's filter grammar uses commas to separate conditions, parentheses for grouping,
+ * and dots to separate column.operator.value segments. Unescaped user input containing
+ * these characters can break filters, widen searches, or produce unexpected query behavior.
+ *
+ * This function strips characters that have special meaning in the PostgREST filter grammar.
+ */
+function sanitizePostgrestValue(value: string): string {
+  // Remove PostgREST filter metacharacters:
+  //   ,  — separates conditions in .or()
+  //   () — grouping operators
+  //   \  — escape character
+  return value.replace(/[,()\\]/g, "");
 }
 
 // Pagination types
@@ -612,6 +643,8 @@ export interface IStorage {
   getWebhookDeliveries(endpointId?: string): Promise<WebhookDelivery[]>;
   getWebhookDelivery(id: string): Promise<WebhookDelivery | undefined>;
   createWebhookDelivery(delivery: InsertWebhookDelivery): Promise<WebhookDelivery>;
+  getPendingWebhookDeliveries(): Promise<WebhookDelivery[]>;
+  updateWebhookDelivery(id: string, update: Partial<WebhookDelivery>): Promise<WebhookDelivery | undefined>;
 
   // Community Listings
   getCommunityListings(filters?: { type?: string; status?: string | string[]; submittedBy?: string }): Promise<CommunityListing[]>;
@@ -637,6 +670,11 @@ export class SupabaseStorage implements IStorage {
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
     this.hasServiceRoleKey = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
     this.supabase = createClient(process.env.SUPABASE_URL, supabaseKey);
+
+    // D2: Warn early if service role key is missing in production
+    if (process.env.NODE_ENV === "production" && !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.warn("⚠️  SUPABASE_SERVICE_ROLE_KEY not set — storage uploads and RLS bypass will fail");
+    }
   }
 
   // Helper to handle Supabase responses
@@ -730,14 +768,14 @@ export class SupabaseStorage implements IStorage {
   }
 
   async setPasswordResetToken(userId: string, token: string, expires: Date): Promise<void> {
-    await this.updateUser(userId, { passwordResetToken: token, passwordResetExpires: expires });
+    await this.updateUser(userId, { passwordResetToken: hashToken(token), passwordResetExpires: expires });
   }
 
   async getUserByResetToken(token: string): Promise<User | undefined> {
     const { data, error } = await this.supabase
       .from("users")
       .select("*")
-      .eq("password_reset_token", token)
+      .eq("password_reset_token", hashToken(token))
       .single();
     if (error && error.code === 'PGRST116') return undefined;
     return this.handleOptionalResponse(data, error);
@@ -767,7 +805,7 @@ export class SupabaseStorage implements IStorage {
     const { error } = await this.supabase
       .from("users")
       .update({
-        email_verification_token: token,
+        email_verification_token: hashToken(token),
         email_verification_expires: expires.toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -779,7 +817,7 @@ export class SupabaseStorage implements IStorage {
     const { data, error } = await this.supabase
       .from("users")
       .select("*")
-      .eq("email_verification_token", token)
+      .eq("email_verification_token", hashToken(token))
       .gt("email_verification_expires", new Date().toISOString())
       .single();
     if (error && error.code === 'PGRST116') return undefined;
@@ -1198,7 +1236,7 @@ export class SupabaseStorage implements IStorage {
     let queryBuilder = this.supabase
       .from("bookings")
       .select("*")
-      .or(`visitor_name.ilike.%${query}%,visitor_email.ilike.%${query}%,booking_reference.ilike.%${query}%`)
+      .or(`visitor_name.ilike.%${sanitizePostgrestValue(query)}%,visitor_email.ilike.%${sanitizePostgrestValue(query)}%,booking_reference.ilike.%${sanitizePostgrestValue(query)}%`)
       .order("created_at", { ascending: false });
 
     if (filters?.status) {
@@ -1806,14 +1844,14 @@ export class SupabaseStorage implements IStorage {
     if (filters.recipient) {
       const recipient = filters.recipient.replace(/[(),]/g, "").trim();
       if (recipient) {
-        query = query.or(`recipient_email.ilike.%${recipient}%,recipient_name.ilike.%${recipient}%`);
+        query = query.or(`recipient_email.ilike.%${sanitizePostgrestValue(recipient)}%,recipient_name.ilike.%${sanitizePostgrestValue(recipient)}%`);
       }
     }
 
     if (filters.bookingReference) {
       const reference = filters.bookingReference.replace(/[(),]/g, "").trim();
       if (reference) {
-        query = query.or(`subject.ilike.%${reference}%,message.ilike.%${reference}%,related_entity_id.eq.${reference}`);
+        query = query.or(`subject.ilike.%${sanitizePostgrestValue(reference)}%,message.ilike.%${sanitizePostgrestValue(reference)}%,related_entity_id.eq.${sanitizePostgrestValue(reference)}`);
       }
     }
 
@@ -1848,7 +1886,7 @@ export class SupabaseStorage implements IStorage {
 
     if (bookingReference) {
       const reference = bookingReference.replace(/[(),]/g, "").trim();
-      query = query.or(`related_entity_id.eq.${bookingId},subject.ilike.%${reference}%,message.ilike.%${reference}%`);
+      query = query.or(`related_entity_id.eq.${sanitizePostgrestValue(bookingId)},subject.ilike.%${sanitizePostgrestValue(reference)}%,message.ilike.%${sanitizePostgrestValue(reference)}%`);
     } else {
       query = query.eq("related_entity_id", bookingId);
     }
@@ -2138,7 +2176,7 @@ export class SupabaseStorage implements IStorage {
     const { data, error } = await this.supabase
       .from("transport_requests")
       .select("*")
-      .eq("quote_approval_token", token)
+      .eq("quote_approval_token", hashToken(token))
       .single();
     if (error && error.code === "PGRST116") return undefined;
     return this.handleOptionalResponse(data, error);
@@ -4263,7 +4301,7 @@ export class SupabaseStorage implements IStorage {
     const { data: bookings } = await this.supabase
       .from("bookings")
       .select("id")
-      .or(`visitor_user_id.eq.${userId},visitor_email.eq.${user.email}`);
+      .or(`visitor_user_id.eq.${sanitizePostgrestValue(userId)},visitor_email.eq.${sanitizePostgrestValue(user.email)}`);
 
     if (!bookings || bookings.length === 0) return [];
 
@@ -4507,7 +4545,11 @@ export class SupabaseStorage implements IStorage {
       .from("webhook_endpoints")
       .select("*")
       .order("created_at", { ascending: false });
-    return this.handleResponse(data, error);
+    const endpoints = this.handleResponse(data, error);
+    return endpoints.map(ep => ({
+      ...ep,
+      secret: ep.secret ? decrypt(ep.secret) : null
+    }));
   }
 
   async getWebhookEndpoint(id: string): Promise<WebhookEndpoint | undefined> {
@@ -4517,28 +4559,45 @@ export class SupabaseStorage implements IStorage {
       .eq("id", id)
       .single();
     if (error && error.code === 'PGRST116') return undefined;
-    return this.handleOptionalResponse(data, error);
+    const endpoint = this.handleOptionalResponse(data, error);
+    if (endpoint) {
+      endpoint.secret = endpoint.secret ? decrypt(endpoint.secret) : null;
+    }
+    return endpoint;
   }
 
   async createWebhookEndpoint(endpoint: InsertWebhookEndpoint): Promise<WebhookEndpoint> {
-    const snakeData = transformToSnake(endpoint);
+    const encryptedSecret = endpoint.secret ? encrypt(endpoint.secret) : null;
+    const snakeData = transformToSnake({ ...endpoint, secret: encryptedSecret });
     const { data, error } = await this.supabase
       .from("webhook_endpoints")
       .insert({ ...snakeData, created_at: new Date(), updated_at: new Date() })
       .select()
       .single();
-    return this.handleResponse(data, error);
+    const result = this.handleResponse(data, error);
+    return {
+      ...result,
+      secret: result.secret ? decrypt(result.secret) : null
+    };
   }
 
   async updateWebhookEndpoint(id: string, endpoint: Partial<WebhookEndpoint>): Promise<WebhookEndpoint | undefined> {
-    const snakeData = transformToSnake(endpoint);
+    const updateData = { ...endpoint };
+    if (endpoint.secret !== undefined) {
+      updateData.secret = endpoint.secret ? encrypt(endpoint.secret) : null;
+    }
+    const snakeData = transformToSnake(updateData);
     const { data, error } = await this.supabase
       .from("webhook_endpoints")
       .update({ ...snakeData, updated_at: new Date() })
       .eq("id", id)
       .select()
       .single();
-    return this.handleOptionalResponse(data, error);
+    const result = this.handleOptionalResponse(data, error);
+    if (result) {
+      result.secret = result.secret ? decrypt(result.secret) : null;
+    }
+    return result;
   }
 
   async deleteWebhookEndpoint(id: string): Promise<void> {
@@ -4555,13 +4614,17 @@ export class SupabaseStorage implements IStorage {
       .select("*")
       .order("timestamp", { ascending: false })
       .limit(100);
-      
+
     if (endpointId) {
       query = query.eq("endpoint_id", endpointId);
     }
-    
+
     const { data, error } = await query;
-    return this.handleResponse(data, error);
+    const deliveries = this.handleResponse(data, error);
+    return deliveries.map(d => ({
+      ...d,
+      payload: decryptPayload(d.payload)
+    }));
   }
 
   async getWebhookDelivery(id: string): Promise<WebhookDelivery | undefined> {
@@ -4571,17 +4634,58 @@ export class SupabaseStorage implements IStorage {
       .eq("id", id)
       .single();
     if (error && error.code === "PGRST116") return undefined;
-    return this.handleOptionalResponse(data, error);
+    const delivery = this.handleOptionalResponse(data, error);
+    if (delivery) {
+      delivery.payload = decryptPayload(delivery.payload);
+    }
+    return delivery;
   }
 
   async createWebhookDelivery(delivery: InsertWebhookDelivery): Promise<WebhookDelivery> {
-    const snakeData = transformToSnake(delivery);
+    const encryptedPayload = delivery.payload ? { data: encrypt(JSON.stringify(delivery.payload)) } : null;
+    const snakeData = transformToSnake({ ...delivery, payload: encryptedPayload });
     const { data, error } = await this.supabase
       .from("webhook_deliveries")
       .insert({ ...snakeData, timestamp: new Date() })
       .select()
       .single();
-    return this.handleResponse(data, error);
+    const result = this.handleResponse(data, error);
+    return {
+      ...result,
+      payload: decryptPayload(result.payload)
+    };
+  }
+
+  async getPendingWebhookDeliveries(): Promise<WebhookDelivery[]> {
+    const { data, error } = await this.supabase
+      .from("webhook_deliveries")
+      .select("*")
+      .eq("status", "pending")
+      .order("timestamp", { ascending: true });
+    const deliveries = this.handleResponse(data, error);
+    return deliveries.map(d => ({
+      ...d,
+      payload: decryptPayload(d.payload)
+    }));
+  }
+
+  async updateWebhookDelivery(id: string, update: Partial<WebhookDelivery>): Promise<WebhookDelivery | undefined> {
+    const updateData = { ...update };
+    if (update.payload !== undefined) {
+      updateData.payload = update.payload ? { data: encrypt(JSON.stringify(update.payload)) } : null;
+    }
+    const snakeData = transformToSnake(updateData);
+    const { data, error } = await this.supabase
+      .from("webhook_deliveries")
+      .update(snakeData)
+      .eq("id", id)
+      .select()
+      .single();
+    const result = this.handleOptionalResponse(data, error);
+    if (result) {
+      result.payload = decryptPayload(result.payload);
+    }
+    return result;
   }
 
   // Community Listings operations

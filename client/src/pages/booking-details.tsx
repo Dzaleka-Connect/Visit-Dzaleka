@@ -245,47 +245,7 @@ function EmailTimeline({ bookingId }: { bookingId: string }) {
     );
 }
 
-function ConversionTracker({ booking, html }: { booking: Booking, html: string }) {
-    useEffect(() => {
-        if (!html) return;
 
-        const key = `tracked_booking_${booking.id}`;
-        if (sessionStorage.getItem(key)) return;
-
-        // Replace placeholders
-        const firstName = booking.visitorName ? booking.visitorName.split(' ')[0] : "";
-        const lastName = booking.visitorName && booking.visitorName.includes(' ') ? booking.visitorName.split(' ').slice(1).join(' ') : "";
-
-        let processedHtml = html
-            .replace(/{FIRSTNAME}/g, firstName)
-            .replace(/{LASTNAME}/g, lastName)
-            .replace(/{EMAIL}/g, booking.visitorEmail || "")
-            .replace(/{TOTALPAID}/g, (booking.totalAmount || 0).toString())
-            .replace(/{BOOKINGNUMBER}/g, booking.bookingReference || "");
-
-        // 1. Create hidden div to load non-script elements (like img pixels)
-        const trackerDiv = document.createElement("div");
-        trackerDiv.style.display = "none";
-        trackerDiv.innerHTML = processedHtml;
-        document.body.appendChild(trackerDiv);
-
-        // 2. Extract and execute scripts (innerHTML scripts don't run automatically)
-        const embeddedScripts = trackerDiv.getElementsByTagName("script");
-        Array.from(embeddedScripts).forEach(script => {
-            const newScript = document.createElement("script");
-            Array.from(script.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
-            newScript.appendChild(document.createTextNode(script.innerHTML));
-            document.body.appendChild(newScript);
-        });
-
-        sessionStorage.setItem(key, "true");
-
-        // Cleanup? Tracking scripts usually need to stay.
-
-    }, [booking, html]);
-
-    return null;
-}
 
 const getTourTypeName = (type: string) => {
     return type === "standard"

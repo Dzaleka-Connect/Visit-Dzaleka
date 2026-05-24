@@ -3,15 +3,30 @@ import { serveStatic } from "./static";
 import { type Request, Response, NextFunction } from "express";
 import { startReminderScheduler } from "./lib/reminder-scheduler";
 import { ReportScheduler } from "./lib/report-scheduler";
+import { logger } from "./lib/logger";
 
 (async () => {
   const { app, httpServer } = await createApp();
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+  app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+    if (res.headersSent) {
+      return next(err);
+    }
 
-    res.status(status).json({ message });
+    const status = err.status || err.statusCode || 500;
+    const isProduction = process.env.NODE_ENV === "production";
+    const message = isProduction && status >= 500
+      ? "Internal Server Error"
+      : err.message || "Internal Server Error";
+    const requestId = req.requestId;
+
+    logger.withRequest(requestId).error("Unhandled request error", err, {
+      method: req.method,
+      path: req.path,
+      status,
+    });
+
+    res.status(status).json({ message, requestId });
     // Don't throw here - response already sent, would cause unhandled rejection
   });
 
@@ -37,10 +52,10 @@ import { ReportScheduler } from "./lib/report-scheduler";
     },
     () => {
       log(`serving on port ${port}`);
-      
+
       // Start booking reminder scheduler
       startReminderScheduler();
-      
+
       // Start scheduled reports engine
       ReportScheduler.init();
     },

@@ -31,7 +31,7 @@ export default function ResetPassword() {
                 title: "Password Reset Successful",
                 description: "You can now log in with your new password.",
             });
-            setTimeout(() => setLocation("/auth"), 3000);
+            setTimeout(() => setLocation("/login"), 3000);
         },
         onError: (error: Error) => {
             toast({
@@ -89,7 +89,7 @@ export default function ResetPassword() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <Button onClick={() => setLocation("/auth")} className="w-full">
+                        <Button onClick={() => setLocation("/login")} className="w-full">
                             Go to Login
                         </Button>
                     </CardContent>
@@ -112,7 +112,7 @@ export default function ResetPassword() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <Button onClick={() => setLocation("/auth")} className="w-full">
+                        <Button onClick={() => setLocation("/login")} className="w-full">
                             Go to Login Now
                         </Button>
                     </CardContent>
@@ -192,7 +192,7 @@ export default function ResetPassword() {
                             <Button
                                 type="button"
                                 variant="ghost"
-                                onClick={() => setLocation("/auth")}
+                                onClick={() => setLocation("/login")}
                                 className="text-sm"
                             >
                                 Back to Login

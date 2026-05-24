@@ -41,6 +41,8 @@ export function logError(
     error: unknown,
     requestId?: string
 ): void {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const includeDebugErrorDetails = process.env.LOG_LEVEL === 'debug';
     const timestamp = new Date().toISOString();
     const errorMessage = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? error.stack : undefined;
@@ -49,7 +51,9 @@ export function logError(
         timestamp,
         context,
         requestId: requestId || 'unknown',
-        error: errorMessage,
-        stack: process.env.NODE_ENV !== 'production' ? stack : undefined
+        error: isProduction && !includeDebugErrorDetails
+            ? error instanceof Error ? error.name : 'Error details redacted'
+            : errorMessage,
+        stack: includeDebugErrorDetails ? stack : undefined
     }));
 }

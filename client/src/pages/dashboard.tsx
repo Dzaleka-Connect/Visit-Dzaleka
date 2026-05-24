@@ -2618,7 +2618,7 @@ function VisitorDashboard() {
               </Link>
             </Button>
             <Button variant="outline" className={dashboardActionCardClass} asChild>
-              <Link href="/visitor-essentials">
+              <Link href="/plan-your-trip/visitor-essentials">
                 <Shield className="h-5 w-5 text-muted-foreground" />
                 <div className="min-w-0">
                   <div className="font-medium">Visitor guidelines</div>

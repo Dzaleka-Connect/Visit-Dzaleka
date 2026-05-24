@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CalendarDays, CheckCircle2, ClipboardCheck, Clock, ExternalLink, Globe, RefreshCw, XCircle } from "lucide-react";
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
+import { apiRequest } from "@/lib/queryClient";
 
 interface GetYourGuideBooking {
     id: string;
@@ -107,23 +108,7 @@ export default function GetYourGuidePage() {
     // Sync availability mutation
     const syncMutation = useMutation<SyncAvailabilityResult, Error>({
         mutationFn: async () => {
-            const response = await fetch("/api/getyourguide/sync-availability", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({}),
-            });
-            if (!response.ok) {
-                const text = await response.text();
-                let message = text || `${response.status}: ${response.statusText}`;
-                try {
-                    const payload = JSON.parse(text);
-                    message = payload.detail || payload.message || message;
-                } catch {
-                    // Keep the raw response text when the server did not return JSON.
-                }
-                throw new Error(message);
-            }
+            const response = await apiRequest("POST", "/api/getyourguide/sync-availability", {});
             return response.json();
         },
         onSuccess: () => {

@@ -2,8 +2,15 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import express from "express";
 import { createServer, type Server } from "http";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { storage } from "./storage";
-import { hashPassword, verifyPassword } from "./auth";
+import {
+  clearSessionCookie,
+  establishAuthenticatedSession,
+  getOrCreateCsrfToken,
+  hashPassword,
+  verifyPassword,
+} from "./auth";
 import {
   insertBookingSchema,
   insertGuideSchema,
@@ -34,6 +41,7 @@ import {
   type PartnerReferralStatus,
   type PartnerTourReferral,
   type CommunityListing,
+  type Task,
   insertCommunityListingSchema,
   insertCommunityExperienceRequestSchema,
 } from "@shared/schema";
@@ -61,6 +69,7 @@ import {
 } from "./email";
 import { ReportScheduler } from "./lib/report-scheduler";
 import { WebhookDispatcher } from "./lib/webhook-dispatcher";
+import { isSafeDestination } from "./utils/ssrf";
 import {
   notifyBookingCreated,
   notifyBookingStatusChanged,
@@ -77,7 +86,9 @@ import { logger } from "./lib/logger";
 import { suggestGuides, getTopReason } from "./lib/guide-suggestion";
 import { checkAndSendDueReminders } from "./lib/reminder-scheduler";
 import { sendAutomatedTemplateEmail } from "./lib/automated-email";
+import { generatePublicToken, hashToken, tokenFingerprint } from "./lib/tokens";
 import crypto from "crypto";
+import { verifyApiKey } from "./middleware/apiKeyAuth";
 
 const dateSortValue = (date: string | Date | null | undefined) =>
   date ? new Date(date).getTime() : 0;
@@ -171,9 +182,135 @@ const recalculateGuideRating = async (guideId: string, requestId?: string) => {
 
 
 const PUBLIC_APP_URL = (process.env.APP_URL || "https://visit.dzaleka.com").replace(/\/$/, "");
+const TRANSPORT_QUOTE_TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+const TRANSPORT_QUOTE_REVIEW_STATUSES = new Set(["accepted", "quote_sent"]);
+const TRANSPORT_QUOTE_DETAIL_FIELDS = [
+  "quotedAmount",
+  "currency",
+  "estimatedPickupTime",
+  "driverId",
+  "vehicleId",
+  "driverName",
+  "driverPhone",
+  "vehicleDetails",
+  "partnerNotes",
+] as const;
 
 const buildFeedbackLink = (bookingReference: string) =>
   `${PUBLIC_APP_URL}/visit/feedback?booking=${encodeURIComponent(bookingReference)}`;
+
+function maskEmail(email: string | null | undefined) {
+  if (!email || !email.includes("@")) return null;
+  const [local, domain] = email.toLowerCase().split("@");
+  const visibleLocal = local.length <= 2 ? local[0] || "" : `${local[0]}${local[local.length - 1]}`;
+  return `${visibleLocal}${"*".repeat(Math.max(2, local.length - visibleLocal.length))}@${domain}`;
+}
+
+function transportQuoteExpiresAt(request: Pick<TransportRequest, "quoteSentAt" | "updatedAt" | "createdAt">) {
+  const sourceDate = request.quoteSentAt || request.updatedAt || request.createdAt;
+  if (!sourceDate) return null;
+  return new Date(new Date(sourceDate as any).getTime() + TRANSPORT_QUOTE_TOKEN_TTL_MS);
+}
+
+function isTransportQuoteExpired(request: Pick<TransportRequest, "quoteSentAt" | "updatedAt" | "createdAt">) {
+  const expiresAt = transportQuoteExpiresAt(request);
+  return !!expiresAt && expiresAt.getTime() < Date.now();
+}
+
+function buildPublicTransportQuoteResponse(
+  request: TransportRequest,
+  partner?: TransportPartner | null,
+) {
+  const base = {
+    id: request.id,
+    partnerName: partner?.companyName || "Transport partner",
+    status: request.status,
+    quoteDecision: request.quoteDecision,
+    quoteDecisionAt: request.quoteDecisionAt,
+  };
+
+  if (request.quoteDecision) {
+    return base;
+  }
+
+  return {
+    ...base,
+    visitorEmailHint: maskEmail(request.visitorEmail),
+    route: request.route,
+    pickupLocation: request.pickupLocation,
+    visitDate: request.visitDate,
+    visitTime: request.visitTime,
+    quotedAmount: request.quotedAmount,
+    currency: request.currency,
+    estimatedPickupTime: request.estimatedPickupTime,
+    partnerNotes: request.partnerNotes,
+    quoteExpiresAt: transportQuoteExpiresAt(request)?.toISOString() || null,
+  };
+}
+
+function getBookingStatusCategory(booking: Pick<Booking, "status" | "checkInTime" | "checkOutTime">) {
+  if (booking.status === "cancelled" || booking.status === "no_show") return "not_valid";
+  if (booking.checkOutTime || booking.status === "completed") return "completed";
+  if (booking.checkInTime || booking.status === "in_progress") return "active";
+  if (booking.status === "confirmed") return "expected";
+  if (booking.status === "pending") return "pending";
+  return "unknown";
+}
+
+const publicBookingVerifyLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const ip = ipKeyGenerator(req.ip || req.socket.remoteAddress || "unknown");
+    const reference = String(req.params.reference || "").trim().toLowerCase();
+    return `${ip}:${tokenFingerprint(reference || "missing")}`;
+  },
+  handler: (req, res) => {
+    logger.warn("Public booking verification rate limit reached", {
+      requestId: req.requestId,
+      referenceFingerprint: tokenFingerprint(String(req.params.reference || "missing").toLowerCase()),
+    });
+    res.status(429).json({ message: "Too many verification attempts. Please try again later." });
+  },
+});
+
+const publicTransportQuoteDecisionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const ip = ipKeyGenerator(req.ip || req.socket.remoteAddress || "unknown");
+    return `${ip}:${tokenFingerprint(String(req.params.token || "missing"))}`;
+  },
+  handler: (req, res) => {
+    logger.warn("Public transport quote decision rate limit reached", {
+      requestId: req.requestId,
+      tokenFingerprint: tokenFingerprint(String(req.params.token || "missing")),
+    });
+    res.status(429).json({ message: "Too many quote response attempts. Please try again later." });
+  },
+});
+
+const publicTransportQuoteViewLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const ip = ipKeyGenerator(req.ip || req.socket.remoteAddress || "unknown");
+    return `${ip}:${tokenFingerprint(String(req.params.token || "missing"))}`;
+  },
+  handler: (req, res) => {
+    logger.warn("Public transport quote view rate limit reached", {
+      requestId: req.requestId,
+      tokenFingerprint: tokenFingerprint(String(req.params.token || "missing")),
+    });
+    res.status(429).json({ message: "Too many quote view attempts. Please try again later." });
+  },
+});
 
 const INTERNAL_NOTIFICATION_LINK_PREFIXES = [
   "/admin",
@@ -1875,6 +2012,10 @@ const quoteDecisionSchema = z.object({
   notes: z.string().trim().max(2000).optional().nullable(),
 });
 
+const publicQuoteDecisionSchema = quoteDecisionSchema.extend({
+  confirmationEmail: z.string().trim().email("Enter the email used for this transport request"),
+});
+
 const scheduledReportPayloadSchema = z.object({
   name: z.string().trim().min(2, "Report name is required").max(160),
   type: z.enum(["visitors", "revenue", "incidents"]),
@@ -2133,13 +2274,30 @@ function parseProfileImageDataUrl(dataUrl: string, contentType: string) {
   return Buffer.from(match[2].replace(/\s/g, ""), "base64");
 }
 
-// Session-based authentication middleware
-function isAuthenticated(req: Request, res: Response, next: NextFunction) {
+// Session-based authentication middleware with API key fallback
+async function isAuthenticated(req: Request, res: Response, next: NextFunction) {
+  // 1. Session auth (primary)
   if (req.session?.userId) {
-    next();
-  } else {
-    res.status(401).json({ message: "Unauthorized" });
+    return next();
   }
+
+  // 2. API key auth (fallback for Bearer dvz_* tokens)
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer dvz_")) {
+    const result = await verifyApiKey(req);
+    if (result.ok) {
+      // Attach user info so downstream middleware/handlers can use it
+      (req as any).currentUser = result.user;
+      (req as any).apiKey = result.apiKey;
+      // Populate session-like fields for compatibility with requireRole/isAdmin
+      (req.session as any).userId = result.user.id;
+      (req.session as any).userRole = result.user.role;
+      return next();
+    }
+    return res.status(result.status).json({ message: result.message });
+  }
+
+  res.status(401).json({ message: "Unauthorized" });
 }
 
 // Admin role middleware (with DB fallback for old sessions)
@@ -2293,6 +2451,37 @@ function requireRole(...allowedRoles: UserRole[]) {
       res.status(500).json({ message: "Authorization error" });
     }
   };
+}
+
+type TaskAccessResult =
+  | { status: 200; task: Task; user: User }
+  | { status: 403 }
+  | { status: 404 };
+
+async function requireTaskAccess(taskId: string, userId?: string | null): Promise<TaskAccessResult> {
+  if (!userId) return { status: 404 };
+
+  const [task, user] = await Promise.all([
+    storage.getTask(taskId),
+    storage.getUser(userId),
+  ]);
+
+  if (!task || !user) return { status: 404 };
+
+  const canAccess =
+    user.role === "admin" ||
+    user.role === "coordinator" ||
+    task.assignedTo === userId ||
+    task.assignedBy === userId;
+
+  return canAccess ? { status: 200, task, user } : { status: 403 };
+}
+
+function sendTaskAccessError(res: Response, access: Exclude<TaskAccessResult, { status: 200 }>) {
+  if (access.status === 404) {
+    return res.status(404).json({ message: "Task not found" });
+  }
+  return res.status(403).json({ message: "You do not have access to this task" });
 }
 
 // Audit logging helper
@@ -3982,18 +4171,29 @@ export async function registerRoutes(
       res.status(500).json({ message: "Failed to update customer" });
     }
   });
-  app.get("/api/auth/session-status", (req, res) => {
+  app.get("/api/auth/csrf", (req, res) => {
+    const csrfToken = getOrCreateCsrfToken(req);
+    res.set("X-CSRF-Token", csrfToken);
+    res.json({ csrfToken });
+  });
+
+  const sessionStatusHandler = (req: Request, res: Response) => {
     res.json({
       hasSession: !!req.session,
       hasUserId: !!req.session?.userId,
-      sessionId: req.sessionID ? req.sessionID.substring(0, 8) + '...' : null,
       cookieSettings: {
         secure: req.session?.cookie?.secure,
         sameSite: req.session?.cookie?.sameSite,
         httpOnly: req.session?.cookie?.httpOnly,
       },
     });
-  });
+  };
+
+  if (process.env.NODE_ENV === "production") {
+    app.get("/api/auth/session-status", isAuthenticated, requireRole("admin"), sessionStatusHandler);
+  } else {
+    app.get("/api/auth/session-status", sessionStatusHandler);
+  }
 
   // Email/Password Registration
   app.post("/api/auth/register", async (req, res) => {
@@ -4010,17 +4210,8 @@ export async function registerRoutes(
       const hashedPassword = await hashPassword(password);
       const user = await storage.createUser(email, hashedPassword, firstName, lastName, "visitor");
 
-      // Regenerate session for security
-      await new Promise<void>((resolve, reject) => {
-        req.session.regenerate((err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
-
-      // Set session after regeneration
-      req.session.userId = user.id;
-      req.session.userRole = user.role || "visitor";
+      const csrfToken = await establishAuthenticatedSession(req, user);
+      res.set("X-CSRF-Token", csrfToken);
 
       // Audit log
       await createAuditLog(user.id, "create", "user", user.id, null, { email, firstName, lastName }, req);
@@ -4123,9 +4314,8 @@ export async function registerRoutes(
         failureReason: null
       });
 
-      // Set session userId and role
-      req.session.userId = user.id;
-      req.session.userRole = user.role || "visitor";
+      const csrfToken = await establishAuthenticatedSession(req, user);
+      res.set("X-CSRF-Token", csrfToken);
 
       // Update last login
       await storage.updateLastLogin(user.id);
@@ -4160,7 +4350,7 @@ export async function registerRoutes(
         logError("Logout error", err, req.requestId);
         return res.status(500).json({ message: "Failed to logout" });
       }
-      res.clearCookie("connect.sid");
+      clearSessionCookie(res);
       res.json({ message: "Logged out successfully" });
     });
   });
@@ -5493,8 +5683,31 @@ export async function registerRoutes(
     }
   });
 
-  // Verify booking by reference (public endpoint for security check)
-  app.get("/api/bookings/verify/:reference", async (req, res) => {
+  // Public booking verification returns only coarse validity information.
+  app.get("/api/public/bookings/verify/:reference", publicBookingVerifyLimiter, async (req, res) => {
+    try {
+      const reference = String(req.params.reference || "").trim();
+      const booking = await storage.getBookingByReference(reference);
+      if (!booking) {
+        logger.warn("Public booking verification failed", {
+          requestId: req.requestId,
+          referenceFingerprint: tokenFingerprint(reference.toLowerCase()),
+        });
+        return res.status(404).json({ valid: false, statusCategory: "not_found" });
+      }
+
+      res.json({
+        valid: true,
+        statusCategory: getBookingStatusCategory(booking),
+      });
+    } catch (error) {
+      logError("Error verifying public booking", error, req.requestId);
+      res.status(500).json({ message: "Failed to verify booking" });
+    }
+  });
+
+  // Security gate verification with full details.
+  app.get("/api/bookings/verify/:reference", isAuthenticated, requireRole("security", "admin", "coordinator"), async (req, res) => {
     try {
       const booking = await storage.getBookingByReference(req.params.reference);
       if (!booking) {
@@ -5890,53 +6103,48 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/public/transport-quotes/:token", async (req, res) => {
+  app.get("/api/public/transport-quotes/:token", publicTransportQuoteViewLimiter, async (req, res) => {
     try {
       const request = await storage.getTransportRequestByQuoteToken(req.params.token);
       if (!request) {
         return res.status(404).json({ message: "Transport quote not found" });
       }
+      if (!request.quoteDecision && (!TRANSPORT_QUOTE_REVIEW_STATUSES.has(request.status || "") || isTransportQuoteExpired(request))) {
+        return res.status(410).json({ message: "This transport quote link has expired" });
+      }
       const partner = request.partnerId ? await storage.getTransportPartner(request.partnerId) : undefined;
-      const booking = request.bookingId ? await storage.getBooking(request.bookingId) : undefined;
-
-      res.json({
-        id: request.id,
-        visitorName: request.visitorName,
-        visitorEmail: request.visitorEmail,
-        bookingReference: booking?.bookingReference || null,
-        partnerName: partner?.companyName || "Transport partner",
-        partnerPhone: partner?.phone || null,
-        partnerWhatsapp: partner?.whatsapp || null,
-        route: request.route,
-        pickupLocation: request.pickupLocation,
-        visitDate: request.visitDate,
-        visitTime: request.visitTime,
-        quotedAmount: request.quotedAmount,
-        currency: request.currency,
-        estimatedPickupTime: request.estimatedPickupTime,
-        driverName: request.driverName,
-        driverPhone: request.driverPhone,
-        vehicleDetails: request.vehicleDetails,
-        partnerNotes: request.partnerNotes,
-        status: request.status,
-        quoteDecision: request.quoteDecision,
-        quoteDecisionAt: request.quoteDecisionAt,
-      });
+      res.json(buildPublicTransportQuoteResponse(request, partner));
     } catch (error) {
       logError("Error fetching public transport quote", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch transport quote" });
     }
   });
 
-  app.post("/api/public/transport-quotes/:token/decision", async (req, res) => {
+  app.post("/api/public/transport-quotes/:token/decision", publicTransportQuoteDecisionLimiter, async (req, res) => {
     try {
-      const payload = quoteDecisionSchema.parse(req.body);
+      const payload = publicQuoteDecisionSchema.parse(req.body);
       const request = await storage.getTransportRequestByQuoteToken(req.params.token);
       if (!request) {
         return res.status(404).json({ message: "Transport quote not found" });
       }
+      if (request.quoteDecision) {
+        return res.status(409).json({ message: "This transport quote has already been answered" });
+      }
       if (request.status === "cancelled" || request.status === "completed") {
         return res.status(409).json({ message: "This transport quote can no longer be changed" });
+      }
+      if (!TRANSPORT_QUOTE_REVIEW_STATUSES.has(request.status || "") || request.quotedAmount == null) {
+        return res.status(409).json({ message: "This transport quote is not ready for visitor approval" });
+      }
+      if (isTransportQuoteExpired(request)) {
+        return res.status(410).json({ message: "This transport quote link has expired" });
+      }
+      if (payload.confirmationEmail.toLowerCase() !== request.visitorEmail.toLowerCase()) {
+        logger.warn("Transport quote email confirmation failed", {
+          requestId: req.requestId,
+          requestIdHash: tokenFingerprint(request.id),
+        });
+        return res.status(403).json({ message: "The email does not match this transport request" });
       }
 
       const newStatus = payload.decision === "approved" ? "visitor_approved" : "visitor_declined";
@@ -5976,7 +6184,11 @@ export async function registerRoutes(
         logError("Failed to send transport quote decision emails", emailError, req.requestId);
       }
 
-      res.json({ ...updated, notificationEmails });
+      const partner = updated.partnerId ? await storage.getTransportPartner(updated.partnerId) : undefined;
+      res.json({
+        ...buildPublicTransportQuoteResponse(updated, partner),
+        notificationsSent: notificationEmails.some((email) => email.sent || email.success),
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid quote decision", errors: error.errors });
@@ -6628,8 +6840,14 @@ export async function registerRoutes(
       }
 
       const nextStatus = (updatePayload.status as string | undefined) || request.status || "pending";
-      if (["accepted", "quote_sent"].includes(nextStatus) && !request.quoteApprovalToken) {
-        updatePayload.quoteApprovalToken = crypto.randomBytes(24).toString("hex");
+      const shouldRotateQuoteToken =
+        TRANSPORT_QUOTE_REVIEW_STATUSES.has(nextStatus) &&
+        (!request.quoteApprovalToken ||
+          !TRANSPORT_QUOTE_REVIEW_STATUSES.has(request.status || "") ||
+          TRANSPORT_QUOTE_DETAIL_FIELDS.some((field) => Object.prototype.hasOwnProperty.call(updatePayload, field)));
+      const quoteApprovalTokenForEmail = shouldRotateQuoteToken ? generatePublicToken(32) : null;
+      if (quoteApprovalTokenForEmail) {
+        updatePayload.quoteApprovalToken = hashToken(quoteApprovalTokenForEmail);
         updatePayload.quoteSentAt = new Date() as any;
       }
       if (nextStatus === "cancelled" && request.status !== "cancelled") {
@@ -6653,34 +6871,22 @@ export async function registerRoutes(
       let partnerAssignmentEmail: { success: boolean; error?: string; messageId?: string } | null = null;
       let workflowEmails: Array<{ success: boolean; error?: string; messageId?: string; audience?: string; recipientEmail?: string }> = [];
 
-      const quoteReviewStatuses = new Set(["accepted", "quote_sent"]);
       const previousStatus = request.status || "pending";
       const updatedStatus = updated.status || previousStatus;
-      const publicTransportEmailFields = [
-        "quotedAmount",
-        "currency",
-        "estimatedPickupTime",
-        "driverId",
-        "vehicleId",
-        "driverName",
-        "driverPhone",
-        "vehicleDetails",
-        "partnerNotes",
-      ];
       const quoteDetailsChanged =
-        quoteReviewStatuses.has(updatedStatus) &&
-        publicTransportEmailFields.some((field) =>
+        TRANSPORT_QUOTE_REVIEW_STATUSES.has(updatedStatus) &&
+        TRANSPORT_QUOTE_DETAIL_FIELDS.some((field) =>
           Object.prototype.hasOwnProperty.call(updatePayload, field) &&
           (updated as any)[field] !== (request as any)[field]
         );
       const confirmedDetailsChanged =
         updatedStatus === "confirmed" &&
-        publicTransportEmailFields.some((field) =>
+        TRANSPORT_QUOTE_DETAIL_FIELDS.some((field) =>
           Object.prototype.hasOwnProperty.call(updatePayload, field) &&
           (updated as any)[field] !== (request as any)[field]
         );
       const shouldNotifyVisitorQuoteReady =
-        (quoteReviewStatuses.has(updatedStatus) && !quoteReviewStatuses.has(previousStatus)) ||
+        (TRANSPORT_QUOTE_REVIEW_STATUSES.has(updatedStatus) && !TRANSPORT_QUOTE_REVIEW_STATUSES.has(previousStatus)) ||
         quoteDetailsChanged;
       const shouldNotifyVisitorDriverConfirmed =
         (updatedStatus === "confirmed" && previousStatus !== "confirmed") ||
@@ -6695,8 +6901,8 @@ export async function registerRoutes(
           const visitorEmail = updated.visitorEmail.toLowerCase();
           const existingVisitor = await storage.getUserByEmail(visitorEmail);
           const inviteResult = existingVisitor ? null : await ensureVisitorInvite(visitorEmail, user.id);
-          const quoteReviewUrl = updated.quoteApprovalToken
-            ? `${PUBLIC_APP_URL}/transport-quote/${updated.quoteApprovalToken}`
+          const quoteReviewUrl = quoteApprovalTokenForEmail
+            ? `${PUBLIC_APP_URL}/transport-quote/${quoteApprovalTokenForEmail}`
             : null;
           const manageBookingUrl = existingVisitor
             ? `${PUBLIC_APP_URL}/my-bookings`
@@ -10213,12 +10419,18 @@ export async function registerRoutes(
   // GetYourGuide Webhook Handler
   app.post("/api/webhooks/getyourguide", async (req, res) => {
     try {
-      const { basicAuth } = await import("./middleware/basicAuth");
+      const { verifyBasicAuth } = await import("./middleware/basicAuth");
 
-      // Verify Basic Auth
-      await new Promise<void>((resolve, reject) => {
-        basicAuth(req, res, (err?: any) => (err ? reject(err) : resolve()));
-      });
+      // Verify Basic Auth — pure function, never hangs
+      const auth = verifyBasicAuth(req);
+      if (!auth.ok) {
+        if (auth.headers) {
+          for (const [key, value] of Object.entries(auth.headers)) {
+            res.setHeader(key, value);
+          }
+        }
+        return res.status(auth.status).json(auth.body);
+      }
 
       const { booking_id, product_id, datetime, participants, customer, total_price } = req.body;
 
@@ -13050,17 +13262,8 @@ export async function registerRoutes(
       // Mark invite as accepted
       await storage.acceptInvite(invite.id);
 
-      // Regenerate session for security
-      await new Promise<void>((resolve, reject) => {
-        req.session.regenerate((err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
-
-      // Set session after regeneration
-      req.session.userId = user.id;
-      req.session.userRole = user.role || "visitor";
+      const csrfToken = await establishAuthenticatedSession(req, user);
+      res.set("X-CSRF-Token", csrfToken);
 
       // Audit log
       await createAuditLog(user.id, "create", "user", user.id, null, { email: invite.email, role: invite.role }, req);
@@ -13432,14 +13635,26 @@ export async function registerRoutes(
     }
   });
 
+  // Get my tasks (must be before :id route)
+  app.get("/api/tasks/my-tasks", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      const tasks = await storage.getTasksByUser(userId);
+      res.json(tasks);
+    } catch (error) {
+      logError("Error fetching my tasks", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch tasks" });
+    }
+  });
+
   // Get task by ID
   app.get("/api/tasks/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const task = await storage.getTask(req.params.id);
-      if (!task) {
-        return res.status(404).json({ message: "Task not found" });
+      const access = await requireTaskAccess(req.params.id, req.session?.userId);
+      if (access.status !== 200) {
+        return sendTaskAccessError(res, access);
       }
-      res.json(task);
+      res.json(access.task);
     } catch (error) {
       logError("Error fetching task", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch task" });
@@ -13525,21 +13740,13 @@ export async function registerRoutes(
     }
   });
 
-  // Get my tasks
-  app.get("/api/tasks/my-tasks", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.session?.userId;
-      const tasks = await storage.getTasksByUser(userId);
-      res.json(tasks);
-    } catch (error) {
-      logError("Error fetching my tasks", error, req.requestId);
-      res.status(500).json({ message: "Failed to fetch tasks" });
-    }
-  });
-
   // Get task comments
   app.get("/api/tasks/:id/comments", isAuthenticated, async (req: any, res) => {
     try {
+      const access = await requireTaskAccess(req.params.id, req.session?.userId);
+      if (access.status !== 200) {
+        return sendTaskAccessError(res, access);
+      }
       const comments = await storage.getTaskComments(req.params.id);
       res.json(comments);
     } catch (error) {
@@ -13553,6 +13760,11 @@ export async function registerRoutes(
     try {
       const userId = req.session?.userId;
       const { content } = req.body;
+
+      const access = await requireTaskAccess(req.params.id, userId);
+      if (access.status !== 200) {
+        return sendTaskAccessError(res, access);
+      }
 
       if (!content || content.trim().length === 0) {
         return res.status(400).json({ message: "Comment content is required" });
@@ -15666,6 +15878,10 @@ export async function registerRoutes(
         return;
       }
       const payload = webhookEndpointPayloadSchema.parse(req.body);
+      const isSafe = await isSafeDestination(payload.url);
+      if (!isSafe) {
+        return res.status(400).json({ message: "Invalid webhook URL: Must use HTTPS and resolve to a public IP address." });
+      }
       const endpoint = await storage.createWebhookEndpoint(payload);
       await createAuditLog(req.session.userId!, "create", "webhook_endpoint", endpoint.id, null, redactWebhookSecret(endpoint), req);
       res.status(201).json(endpoint);
@@ -15688,6 +15904,12 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Webhook endpoint not found" });
       }
       const payload = webhookEndpointPayloadSchema.partial().parse(req.body);
+      if (payload.url) {
+        const isSafe = await isSafeDestination(payload.url);
+        if (!isSafe) {
+          return res.status(400).json({ message: "Invalid webhook URL: Must use HTTPS and resolve to a public IP address." });
+        }
+      }
       const endpoint = await storage.updateWebhookEndpoint(req.params.id, payload);
       if (!endpoint) {
         return res.status(404).json({ message: "Webhook endpoint not found" });
@@ -15749,6 +15971,9 @@ export async function registerRoutes(
       res.status(500).json({ message: error instanceof Error ? error.message : "Failed to retry webhook delivery" });
     }
   });
+
+  // Trigger processing of any outstanding webhooks in database from previous runs
+  WebhookDispatcher.triggerProcessor();
 
   return httpServer;
 }

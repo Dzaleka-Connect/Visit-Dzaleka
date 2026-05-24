@@ -30,6 +30,7 @@ interface LogEntry {
 
 const isProduction = process.env.NODE_ENV === "production";
 const LOG_LEVEL = (process.env.LOG_LEVEL || "info") as LogLevel;
+const includeDebugErrorDetails = LOG_LEVEL === "debug";
 
 const LEVEL_PRIORITY: Record<LogLevel, number> = {
   debug: 0,
@@ -111,13 +112,17 @@ function createLogEntry(
   if (error) {
     if (error instanceof Error) {
       entry.error = {
-        message: error.message,
-        stack: error.stack,
+        message: isProduction && !includeDebugErrorDetails
+          ? error.name || "Error details redacted"
+          : error.message,
+        stack: includeDebugErrorDetails ? error.stack : undefined,
         code: (error as any).code,
       };
     } else {
       entry.error = {
-        message: String(error),
+        message: isProduction && !includeDebugErrorDetails
+          ? "Error details redacted"
+          : String(error),
       };
     }
   }

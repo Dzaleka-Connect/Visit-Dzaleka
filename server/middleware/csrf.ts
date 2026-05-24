@@ -1,16 +1,18 @@
 import type { Request, Response, NextFunction } from "express";
+import crypto from "crypto";
 
 /**
- * CSRF Protection Middleware using Origin/Referer header verification.
- * 
+ * CSRF protection for cookie-authenticated browser requests.
+ *
  * This middleware validates that state-changing requests (POST, PUT, PATCH, DELETE)
- * originate from allowed origins to prevent Cross-Site Request Forgery attacks.
- * 
+ * originate from allowed origins and carry the session CSRF token.
+ *
  * How it works:
  * 1. Extracts Origin or Referer header from incoming request
  * 2. Compares against list of allowed origins
- * 3. Rejects requests from unknown origins
- * 
+ * 3. Requires X-CSRF-Token to match the server-side session token
+ * 4. Allows trusted non-browser clients only when X-Client-Auth matches the configured token
+ *
  * Safe requests (GET, HEAD, OPTIONS) are allowed through without checks.
  */
 
@@ -24,8 +26,33 @@ const EXEMPT_ROUTES = [
     "/api/embed/",
     "/api/webhooks/",
 ];
+const LOCAL_DEV_ORIGIN_PATTERN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+
+function headerValue(value: string | string[] | undefined) {
+    return Array.isArray(value) ? value[0] : value;
+}
+
+function safeEquals(a?: string, b?: string) {
+    if (!a || !b) return false;
+    const left = Buffer.from(a);
+    const right = Buffer.from(b);
+    return left.length === right.length && crypto.timingSafeEqual(left, right);
+}
+
+function hasTrustedClientAuth(req: Request) {
+    const provided = headerValue(req.headers["x-client-auth"]);
+    const expectedTokens = [
+        process.env.CLIENT_AUTH_TOKEN,
+        process.env.MOBILE_CLIENT_AUTH_TOKEN,
+    ].filter(Boolean);
+
+    return expectedTokens.some((expected) => safeEquals(provided, expected));
+}
 
 export function createCsrfMiddleware(allowedOrigins: string[]) {
+    const allowedOriginSet = new Set(allowedOrigins);
+    const isProduction = process.env.NODE_ENV === "production";
+
     return (req: Request, res: Response, next: NextFunction) => {
         // Skip CSRF check for safe methods
         if (!UNSAFE_METHODS.includes(req.method)) {
@@ -38,16 +65,20 @@ export function createCsrfMiddleware(allowedOrigins: string[]) {
         }
 
         // Get the Origin header (preferred) or fall back to Referer
-        const origin = req.headers.origin;
-        const referer = req.headers.referer;
+        const origin = headerValue(req.headers.origin);
+        const referer = headerValue(req.headers.referer);
+        const trustedClient = hasTrustedClientAuth(req);
 
-        // If no Origin and no Referer, this is likely a same-origin request
-        // (browsers set Origin on cross-origin requests)
-        // However, for stricter security, you may want to reject these
-        if (!origin && !referer) {
-            // Allow requests without Origin/Referer (same-origin SPA requests)
-            // These are typically from form submissions or non-CORS fetch
+        if (trustedClient) {
             return next();
+        }
+
+        // Browser cookie sessions must provide an Origin or Referer. Non-browser
+        // clients need X-Client-Auth so missing headers cannot become a CSRF bypass.
+        if (!origin && !referer) {
+            return res.status(403).json({
+                message: "Forbidden: Missing request origin"
+            });
         }
 
         // Extract origin from headers
@@ -68,9 +99,19 @@ export function createCsrfMiddleware(allowedOrigins: string[]) {
         }
 
         // Check if the origin is allowed
-        if (requestOrigin && !allowedOrigins.includes(requestOrigin)) {
+        const isAllowedDevOrigin = !isProduction && LOCAL_DEV_ORIGIN_PATTERN.test(requestOrigin || "");
+        if (requestOrigin && !allowedOriginSet.has(requestOrigin) && !isAllowedDevOrigin) {
             return res.status(403).json({
                 message: "Forbidden: Cross-origin request not allowed"
+            });
+        }
+
+        const requestToken = headerValue(req.headers["x-csrf-token"]);
+        const sessionToken = req.session?.csrfToken;
+
+        if (!safeEquals(requestToken, sessionToken)) {
+            return res.status(403).json({
+                message: "Forbidden: Invalid CSRF token"
             });
         }
 

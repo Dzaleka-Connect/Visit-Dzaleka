@@ -113,7 +113,7 @@ export default function AcceptInvite() {
                         <p className="text-muted-foreground mb-6">
                             This invitation link is invalid. Please check the link or contact an administrator.
                         </p>
-                        <Button onClick={() => setLocation("/auth")}>Go to Sign In</Button>
+                        <Button onClick={() => setLocation("/login")}>Go to Sign In</Button>
                     </CardContent>
                 </Card>
             </div>
@@ -130,7 +130,7 @@ export default function AcceptInvite() {
                         <p className="text-muted-foreground mb-6">
                             This invitation has expired. Please contact an administrator to request a new invitation.
                         </p>
-                        <Button onClick={() => setLocation("/auth")}>Go to Sign In</Button>
+                        <Button onClick={() => setLocation("/login")}>Go to Sign In</Button>
                     </CardContent>
                 </Card>
             </div>
@@ -147,7 +147,7 @@ export default function AcceptInvite() {
                         <p className="text-muted-foreground mb-6">
                             This invitation has already been accepted. You can sign in with your credentials.
                         </p>
-                        <Button onClick={() => setLocation("/auth")}>Go to Sign In</Button>
+                        <Button onClick={() => setLocation("/login")}>Go to Sign In</Button>
                     </CardContent>
                 </Card>
             </div>

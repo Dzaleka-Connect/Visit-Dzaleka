@@ -76,7 +76,7 @@ export default function VerifyEmail() {
                 </p>
               </div>
               <Button
-                onClick={() => setLocation("/auth")}
+                onClick={() => setLocation("/login")}
                 className="mt-4 bg-green-600 hover:bg-green-700"
               >
                 Sign In
@@ -94,7 +94,7 @@ export default function VerifyEmail() {
                 </p>
               </div>
               <Button
-                onClick={() => setLocation("/auth")}
+                onClick={() => setLocation("/login")}
                 variant="outline"
                 className="mt-4"
               >
@@ -113,7 +113,7 @@ export default function VerifyEmail() {
                 </p>
               </div>
               <Button
-                onClick={() => setLocation("/auth")}
+                onClick={() => setLocation("/login")}
                 variant="outline"
                 className="mt-4"
               >

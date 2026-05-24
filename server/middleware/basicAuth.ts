@@ -1,42 +1,106 @@
-import { Request, Response, NextFunction } from 'express';
+import crypto from "crypto";
+import type { Request } from "express";
 
 /**
- * Basic Authentication Middleware for GetYourGuide Webhook
- * Validates HTTP Basic Auth credentials from Authorization header
+ * Basic Authentication Verifier for GetYourGuide Webhook
+ *
+ * Pure function — validates HTTP Basic Auth credentials from the Authorization
+ * header without touching `res`. The caller decides how to respond on failure.
+ *
+ * Uses constant-time comparison to prevent timing attacks.
  */
-export function basicAuth(req: Request, res: Response, next: NextFunction) {
-    const authHeader = req.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith('Basic ')) {
-        res.setHeader('WWW-Authenticate', 'Basic realm="GetYourGuide Webhook"');
-        return res.status(401).json({ error: 'Authentication required' });
+interface BasicAuthSuccess {
+  ok: true;
+}
+
+interface BasicAuthFailure {
+  ok: false;
+  status: number;
+  body: { error: string };
+  headers?: Record<string, string>;
+}
+
+export type BasicAuthResult = BasicAuthSuccess | BasicAuthFailure;
+
+export function verifyBasicAuth(req: Request): BasicAuthResult {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Basic ")) {
+    return {
+      ok: false,
+      status: 401,
+      body: { error: "Authentication required" },
+      headers: { "WWW-Authenticate": 'Basic realm="GetYourGuide Webhook"' },
+    };
+  }
+
+  const expectedUsername = process.env.GETYOURGUIDE_WEBHOOK_USERNAME;
+  const expectedPassword = process.env.GETYOURGUIDE_WEBHOOK_PASSWORD;
+
+  if (!expectedUsername || !expectedPassword) {
+    console.error("GetYourGuide webhook credentials not configured in environment");
+    return {
+      ok: false,
+      status: 500,
+      body: { error: "Webhook not configured" },
+    };
+  }
+
+  let username: string;
+  let password: string;
+
+  try {
+    const base64Credentials = authHeader.split(" ")[1];
+    const credentials = Buffer.from(base64Credentials, "base64").toString("utf-8");
+    const colonIndex = credentials.indexOf(":");
+    if (colonIndex === -1) {
+      return {
+        ok: false,
+        status: 400,
+        body: { error: "Invalid Authorization header format" },
+      };
     }
+    username = credentials.substring(0, colonIndex);
+    password = credentials.substring(colonIndex + 1);
+  } catch {
+    return {
+      ok: false,
+      status: 400,
+      body: { error: "Invalid Authorization header format" },
+    };
+  }
 
-    try {
-        // Extract and decode credentials
-        const base64Credentials = authHeader.split(' ')[1];
-        const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
-        const [username, password] = credentials.split(':');
+  // Constant-time comparison to prevent timing attacks.
+  // Pad both sides to the same length so timingSafeEqual does not throw.
+  const usernameMatch = safeTimingEqual(username, expectedUsername);
+  const passwordMatch = safeTimingEqual(password, expectedPassword);
 
-        // Validate against environment variables
-        const expectedUsername = process.env.GETYOURGUIDE_WEBHOOK_USERNAME;
-        const expectedPassword = process.env.GETYOURGUIDE_WEBHOOK_PASSWORD;
+  if (usernameMatch && passwordMatch) {
+    return { ok: true };
+  }
 
-        if (!expectedUsername || !expectedPassword) {
-            console.error('GetYourGuide webhook credentials not configured in environment');
-            return res.status(500).json({ error: 'Webhook not configured' });
-        }
+  return {
+    ok: false,
+    status: 401,
+    body: { error: "Invalid credentials" },
+    headers: { "WWW-Authenticate": 'Basic realm="GetYourGuide Webhook"' },
+  };
+}
 
-        if (username === expectedUsername && password === expectedPassword) {
-            // Authentication successful
-            next();
-        } else {
-            // Invalid credentials
-            res.setHeader('WWW-Authenticate', 'Basic realm="GetYourGuide Webhook"');
-            return res.status(401).json({ error: 'Invalid credentials' });
-        }
-    } catch (error) {
-        console.error('Error parsing Basic Auth header:', error);
-        return res.status(400).json({ error: 'Invalid Authorization header format' });
-    }
+/**
+ * Constant-time string comparison that handles different-length inputs
+ * without leaking length information through timing.
+ */
+function safeTimingEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+
+  // Use HMAC to normalize both values to the same length before comparing,
+  // preventing length-leaking from timingSafeEqual throwing on mismatched sizes.
+  const key = crypto.randomBytes(32);
+  const hmacA = crypto.createHmac("sha256", key).update(bufA).digest();
+  const hmacB = crypto.createHmac("sha256", key).update(bufB).digest();
+
+  return crypto.timingSafeEqual(hmacA, hmacB);
 }

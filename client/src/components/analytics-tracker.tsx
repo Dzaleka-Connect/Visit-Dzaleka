@@ -58,26 +58,34 @@ export function AnalyticsTracker() {
 
         if (settings.facebookPixelId) {
             if (!document.getElementById("fb-pixel")) {
+                const w = window as any;
+                if (!w.fbq) {
+                    w.fbq = function () {
+                        w.fbq.callMethod ? w.fbq.callMethod.apply(w.fbq, arguments) : w.fbq.queue.push(arguments);
+                    };
+                    w.fbq.push = w.fbq;
+                    w.fbq.loaded = true;
+                    w.fbq.version = "2.0";
+                    w.fbq.queue = [];
+                }
+
                 const script = document.createElement("script");
                 script.id = "fb-pixel";
-                script.innerHTML = `
-             !function(f,b,e,v,n,t,s)
-             {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-             n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-             if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-             n.queue=[];t=b.createElement(e);t.async=!0;
-             t.src=v;s=b.getElementsByTagName(e)[0];
-             s.parentNode.insertBefore(t,s)}(window, document,'script',
-             'https://connect.facebook.net/en_US/fbevents.js');
-             fbq('init', '${settings.facebookPixelId}');
-             fbq('track', 'PageView');
-           `;
+                script.async = true;
+                script.src = "https://connect.facebook.net/en_US/fbevents.js";
                 document.head.appendChild(script);
 
+                w.fbq("init", settings.facebookPixelId);
+                w.fbq("track", "PageView");
+
                 const noscript = document.createElement("noscript");
-                noscript.innerHTML = `<img height="1" width="1" style="display:none"
-             src="https://www.facebook.com/tr?id=${settings.facebookPixelId}&ev=PageView&noscript=1"
-           />`;
+                noscript.id = "fb-pixel-noscript";
+                const img = document.createElement("img");
+                img.height = 1;
+                img.width = 1;
+                img.style.display = "none";
+                img.src = `https://www.facebook.com/tr?id=${encodeURIComponent(settings.facebookPixelId)}&ev=PageView&noscript=1`;
+                noscript.appendChild(img);
                 document.head.appendChild(noscript);
             }
         }

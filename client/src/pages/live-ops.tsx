@@ -17,7 +17,7 @@ import {
 import { format } from "date-fns";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { SEO } from "@/components/seo";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -99,11 +99,7 @@ export default function LiveOperations() {
 
     const checkInMutation = useMutation({
         mutationFn: async (bookingId: string) => {
-            const res = await fetch(`/api/bookings/${bookingId}/check-in`, {
-                method: "POST",
-                credentials: "include",
-            });
-            if (!res.ok) throw new Error("Failed to check in");
+            const res = await apiRequest("POST", `/api/bookings/${bookingId}/check-in`);
             return res.json();
         },
         onSuccess: () => {
@@ -118,11 +114,7 @@ export default function LiveOperations() {
 
     const checkOutMutation = useMutation({
         mutationFn: async (bookingId: string) => {
-            const res = await fetch(`/api/bookings/${bookingId}/check-out`, {
-                method: "POST",
-                credentials: "include",
-            });
-            if (!res.ok) throw new Error("Failed to check out");
+            const res = await apiRequest("POST", `/api/bookings/${bookingId}/check-out`);
             return res.json();
         },
         onSuccess: () => {

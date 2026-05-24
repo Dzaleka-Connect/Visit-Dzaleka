@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
+import { apiRequest } from "@/lib/queryClient";
 
 // Generate a session ID for this browser session
 function getSessionId(): string {
@@ -48,16 +49,11 @@ export function usePageTracker() {
         const referrer = document.referrer || "";
         const userAgent = navigator.userAgent;
 
-        // Use fetch for reliable tracking
-        fetch("/api/analytics/pageview", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                page: normalizedPath,
-                sessionId,
-                referrer,
-                userAgent,
-            }),
+        apiRequest("POST", "/api/analytics/pageview", {
+            page: normalizedPath,
+            sessionId,
+            referrer,
+            userAgent,
         }).catch(() => {
             // Silent fail - analytics should not break the user experience
         });

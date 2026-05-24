@@ -495,7 +495,7 @@ export default function Bookings() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -555,7 +555,7 @@ export default function Bookings() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -592,7 +592,7 @@ export default function Bookings() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -633,7 +633,7 @@ export default function Bookings() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -659,7 +659,7 @@ export default function Bookings() {
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
         toast({ title: "Unauthorized", description: "You are logged out.", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        setTimeout(() => { window.location.href = "/login"; }, 500);
         return;
       }
       toast({ title: "Error", description: "Failed to check in visitor.", variant: "destructive" });
@@ -680,7 +680,7 @@ export default function Bookings() {
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
         toast({ title: "Unauthorized", description: "You are logged out.", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        setTimeout(() => { window.location.href = "/login"; }, 500);
         return;
       }
       toast({ title: "Error", description: "Failed to check out visitor.", variant: "destructive" });
@@ -723,7 +723,7 @@ export default function Bookings() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -829,7 +829,7 @@ export default function Bookings() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }

@@ -4,13 +4,14 @@ import { registerRoutes } from "./routes";
 import { createServer } from "http";
 import session from "express-session";
 import createMemoryStore from "memorystore";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import helmet from "helmet";
 import cors from "cors";
 import pg from "pg";
 import connectPgSimple from "connect-pg-simple";
 import { requestIdMiddleware } from "./middleware/requestId";
 import { createCsrfMiddleware } from "./middleware/csrf";
+import { getSessionCookieOptions, getSessionSecret, SESSION_COOKIE_NAME } from "./auth";
 
 // Export log function so it can be used here
 export function log(message: string, source = "express") {
@@ -25,6 +26,14 @@ export function log(message: string, source = "express") {
 }
 
 const SENSITIVE_LOG_KEY_PATTERN = /password|token|secret|api[-_]?key|authorization|cookie|session/i;
+
+function normalizeOrigin(origin: string) {
+  try {
+    return new URL(origin).origin;
+  } catch {
+    return origin.replace(/\/+$/, "");
+  }
+}
 
 function sanitizeForLog(value: unknown, depth = 0): unknown {
   if (depth > 4) return "[Truncated]";
@@ -55,9 +64,8 @@ export async function createApp() {
   const app = express();
   const httpServer = createServer(app);
 
-  // Trust proxy is required for secure cookies to work behind Netlify's load balancer
-  // Using 'true' trusts the client's IP address and is more robust for varying proxy depths
-  app.set('trust proxy', true);
+  // Trust the immediate hosting proxy for secure cookies and rate-limit IP parsing.
+  app.set("trust proxy", 1);
 
   // Security headers
   app.use(helmet({
@@ -66,11 +74,11 @@ export async function createApp() {
   }));
 
   // CORS configuration
-  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS?.split(',') || [
     'http://localhost:3000',
     'http://localhost:5000',
     process.env.APP_URL || 'https://visit.dzaleka.com'
-  ].filter(Boolean);
+  ]).map((origin) => normalizeOrigin(origin.trim())).filter(Boolean);
 
   app.use(cors({
     origin: (origin, callback) => {
@@ -94,8 +102,7 @@ export async function createApp() {
     message: { message: "Too many login attempts. Please try again in 15 minutes." },
     standardHeaders: true,
     legacyHeaders: false,
-    validate: false, // Disable validation for serverless
-    keyGenerator: (req) => req.ip || req.headers['x-forwarded-for']?.toString() || 'unknown',
+    keyGenerator: (req) => ipKeyGenerator(req.ip || req.socket.remoteAddress || "unknown"),
   });
 
   // General API rate limiter
@@ -105,12 +112,12 @@ export async function createApp() {
     message: { message: "Too many requests. Please slow down." },
     standardHeaders: true,
     legacyHeaders: false,
-    validate: false, // Disable validation for serverless
-    keyGenerator: (req) => req.ip || req.headers['x-forwarded-for']?.toString() || 'unknown',
+    keyGenerator: (req) => ipKeyGenerator(req.ip || req.socket.remoteAddress || "unknown"),
   });
 
   // Session store - Use PostgreSQL in production, Memory in development
   const isProduction = process.env.NODE_ENV === 'production';
+  const sessionSecret = getSessionSecret();
   let sessionStore;
 
   if (isProduction && process.env.DATABASE_URL) {
@@ -156,6 +163,21 @@ export async function createApp() {
   app.use("/api/auth/forgot-password", authLimiter);
   app.use("/api", apiLimiter);
 
+  app.use(
+    session({
+      store: sessionStore,
+      secret: sessionSecret,
+      resave: false,
+      saveUninitialized: false,
+      name: SESSION_COOKIE_NAME,
+      proxy: true,
+      cookie: {
+        ...getSessionCookieOptions(),
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      },
+    })
+  );
+
   // Avoid caching authenticated/private API responses. Only explicitly public API
   // surfaces can use CDN/browser caching.
   app.use("/api", (req, res, next) => {
@@ -179,24 +201,6 @@ export async function createApp() {
 
   // CSRF protection for state-changing API requests
   app.use("/api", createCsrfMiddleware(allowedOrigins));
-
-  app.use(
-    session({
-      store: sessionStore,
-      secret: process.env.SESSION_SECRET || "supersecretdevkey",
-      resave: false,
-      saveUninitialized: false,
-      name: 'dzaleka.sid', // Custom session cookie name
-      proxy: true, // Required for secure cookies behind a proxy
-      cookie: {
-        secure: isProduction, // true for HTTPS
-        httpOnly: true,
-        sameSite: 'lax', // 'lax' is safer and works well for SPA
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        domain: process.env.COOKIE_DOMAIN || undefined, // Set to your domain in production if needed
-      },
-    })
-  );
 
   // Logging middleware
   app.use((req, res, next) => {

@@ -64,7 +64,6 @@ export default function Settings() {
     googleAdsConversionId: "",
     googleAdsConversionLabel: "",
     facebookPixelId: "",
-    customHtml: "",
     isEnabled: true
   });
 
@@ -79,7 +78,6 @@ export default function Settings() {
         googleAdsConversionId: analyticsSettings.googleAdsConversionId || "",
         googleAdsConversionLabel: analyticsSettings.googleAdsConversionLabel || "",
         facebookPixelId: analyticsSettings.facebookPixelId || "",
-        customHtml: analyticsSettings.customHtml || "",
         isEnabled: analyticsSettings.isEnabled
       });
     }
@@ -121,7 +119,7 @@ export default function Settings() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -350,21 +348,6 @@ export default function Settings() {
                   </div>
 
                   <Separator />
-
-                  {/* Custom HTML */}
-                  <div className="space-y-2">
-                    <h3 className="font-medium text-sm flex items-center gap-2">Other tracking methods (Custom HTML)</h3>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      This code will be included at the bottom of the <strong>Booking Confirmation</strong> page.
-                      <br />Supported placeholders: {'{FIRSTNAME}'}, {'{LASTNAME}'}, {'{EMAIL}'}, {'{TOTALPAID}'}, {'{BOOKINGNUMBER}'}.
-                    </p>
-                    <Textarea
-                      className="font-mono text-xs min-h-[150px]"
-                      placeholder="<script>…</script>"
-                      value={analyticsForm.customHtml || ""}
-                      onChange={(e) => setAnalyticsForm({ ...analyticsForm, customHtml: e.target.value })}
-                    />
-                  </div>
 
                   <div className="flex justify-end pt-4">
                     <Button

@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -207,6 +207,7 @@ const PUBLIC_ROUTES = [
   "/impact-report",
   "/it-code-of-practice",
   "/contact",
+  "/auth",
 ];
 
 function isPublicRoute(path: string): boolean {
@@ -283,6 +284,9 @@ function Router() {
         <Route path="/newsletter" component={Newsletter} />
         <Route path="/visit/feedback" component={VisitFeedback} />
         <Route path="/transport-quote/:token" component={TransportQuote} />
+        <Route path="/auth">
+          <Redirect to="/login" replace />
+        </Route>
       </Switch>
     );
   }

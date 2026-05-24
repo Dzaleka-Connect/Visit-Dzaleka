@@ -1,9 +1,9 @@
 [build]
-  command = "npm run build"
+  command = "npm run netlify:build"
   publish = "dist/public"
 
 [build.environment]
-  NPM_FLAGS = "--include=dev"
+  PUPPETEER_CACHE_DIR = "/opt/build/cache/puppeteer"
 
 [functions]
   node_bundler = "esbuild"

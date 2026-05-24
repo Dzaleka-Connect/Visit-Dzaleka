@@ -1,5 +1,8 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
+
+const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+let csrfToken: string | null = null;
+let csrfTokenPromise: Promise<string> | null = null;
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -12,19 +15,62 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+function isInternalApiUrl(url: string) {
+  return url.startsWith("/api/");
+}
+
+async function fetchCsrfToken() {
+  if (csrfToken) return csrfToken;
+  if (csrfTokenPromise) return csrfTokenPromise;
+
+  csrfTokenPromise = fetch("/api/auth/csrf", {
+    credentials: "include",
+  })
+    .then(async (res) => {
+      await throwIfResNotOk(res);
+      const headerToken = res.headers.get("X-CSRF-Token");
+      const payload = await res.json().catch(() => null) as { csrfToken?: string } | null;
+      const nextToken = headerToken || payload?.csrfToken;
+      if (!nextToken) {
+        throw new Error("CSRF token was not returned by the server");
+      }
+      csrfToken = nextToken;
+      return nextToken;
+    })
+    .finally(() => {
+      csrfTokenPromise = null;
+    });
+
+  return csrfTokenPromise;
+}
+
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const normalizedMethod = method.toUpperCase();
+  const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
+
+  if (isInternalApiUrl(url) && UNSAFE_METHODS.has(normalizedMethod)) {
+    headers["X-CSRF-Token"] = await fetchCsrfToken();
+  }
+
   const res = await fetch(url, {
-    method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    method: normalizedMethod,
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
 
   await throwIfResNotOk(res);
+  const responseToken = res.headers.get("X-CSRF-Token");
+  if (responseToken) {
+    csrfToken = responseToken;
+  }
+  if (url === "/api/auth/logout") {
+    csrfToken = null;
+  }
   return res;
 }
 
@@ -67,4 +113,3 @@ export const queryClient = new QueryClient({
     },
   },
 });
-
