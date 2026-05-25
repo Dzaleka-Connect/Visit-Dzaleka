@@ -3,22 +3,13 @@ import { useLocation } from "wouter";
 import { Command } from "cmdk";
 import {
   Home,
-  Calendar,
-  Users,
-  BookOpen,
-  Settings,
   User,
   LogOut,
   Search,
   MapPin,
-  MessageCircle,
   HelpCircle,
   FileText,
-  BarChart3,
-  Shield,
   Mail,
-  DollarSign,
-  Ticket,
   Globe,
   Sparkles,
   Heart,
@@ -26,6 +17,14 @@ import {
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import {
+  adminItems,
+  financeItems,
+  mainNavigationItems,
+  operationsItems,
+  type NavItem,
+  type UserRole,
+} from "@/components/app-sidebar";
 
 interface CommandItem {
   id: string;
@@ -72,6 +71,37 @@ export function CommandPalette() {
     setSearch("");
   }, []);
 
+  const userRole = user?.role as UserRole | undefined;
+  const navCommand = (item: NavItem, group: CommandItem["group"]): CommandItem => ({
+    id: `nav-${item.url.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "home"}`,
+    label: item.title,
+    icon: item.icon,
+    action: () => {
+      if (item.external) {
+        window.open(item.url, "_blank", "noopener,noreferrer");
+        setOpen(false);
+        setSearch("");
+        return;
+      }
+      navigate(item.url);
+    },
+    keywords: [item.title.toLowerCase(), item.url.replace(/[-/]/g, " ").trim()],
+    group,
+  });
+
+  const roleCommands = userRole
+    ? [
+        ...mainNavigationItems.map((item) => navCommand(item, "navigation")),
+        ...financeItems.map((item) => navCommand(item, "admin")),
+        ...operationsItems.map((item) => navCommand(item, "admin")),
+        ...adminItems.map((item) => navCommand(item, "admin")),
+      ].filter((item) => {
+        const source = [...mainNavigationItems, ...financeItems, ...operationsItems, ...adminItems]
+          .find((nav) => `nav-${nav.url.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "home"}` === item.id);
+        return source?.roles.includes(userRole);
+      })
+    : [];
+
   // Define all available commands
   const commands: CommandItem[] = [
     // Public navigation (always available)
@@ -84,27 +114,8 @@ export function CommandPalette() {
     { id: "accommodation", label: "Accommodation", icon: MapPin, action: () => navigate("/accommodation"), keywords: ["stay", "hotel", "homestay"], group: "public" },
     { id: "support", label: "Support Our Work", icon: Heart, action: () => navigate("/support-our-work"), keywords: ["donate", "help", "support"], group: "public" },
 
-    // Authenticated navigation
-    ...(isAuthenticated ? [
-      { id: "dashboard", label: "Dashboard", icon: Home, shortcut: "G D", action: () => navigate("/"), keywords: ["dashboard", "home", "overview"], group: "navigation" as const },
-      { id: "bookings", label: "Bookings", icon: Ticket, shortcut: "G B", action: () => navigate("/bookings"), keywords: ["bookings", "reservations", "tours"], group: "navigation" as const },
-      { id: "calendar", label: "Calendar", icon: Calendar, shortcut: "G C", action: () => navigate("/calendar"), keywords: ["calendar", "schedule", "dates"], group: "navigation" as const },
-      { id: "messages", label: "Messages", icon: MessageCircle, shortcut: "G M", action: () => navigate("/messages"), keywords: ["messages", "chat", "inbox"], group: "navigation" as const },
-      { id: "profile", label: "My Profile", icon: User, shortcut: "G P", action: () => navigate("/profile"), keywords: ["profile", "account", "me"], group: "navigation" as const },
-      { id: "settings", label: "Settings", icon: Settings, shortcut: "G S", action: () => navigate("/settings"), keywords: ["settings", "preferences", "config"], group: "navigation" as const },
-      { id: "help", label: "Help Center", icon: HelpCircle, action: () => navigate("/help"), keywords: ["help", "support", "docs"], group: "navigation" as const },
-    ] : []),
-
-    // Admin-only commands
-    ...(user?.role === "admin" ? [
-      { id: "users", label: "User Management", icon: Users, action: () => navigate("/users"), keywords: ["users", "accounts", "manage"], group: "admin" as const },
-      { id: "analytics", label: "Analytics", icon: BarChart3, action: () => navigate("/analytics"), keywords: ["analytics", "stats", "reports"], group: "admin" as const },
-      { id: "revenue", label: "Revenue", icon: DollarSign, action: () => navigate("/revenue"), keywords: ["revenue", "money", "income"], group: "admin" as const },
-      { id: "guides", label: "Manage Guides", icon: Users, action: () => navigate("/guides"), keywords: ["guides", "staff", "team"], group: "admin" as const },
-      { id: "cms", label: "Content Management", icon: FileText, action: () => navigate("/cms"), keywords: ["cms", "content", "pages"], group: "admin" as const },
-      { id: "security-admin", label: "Security Settings", icon: Shield, action: () => navigate("/security-admin"), keywords: ["security", "permissions"], group: "admin" as const },
-      { id: "audit-logs", label: "Audit Logs", icon: BookOpen, action: () => navigate("/audit-logs"), keywords: ["logs", "audit", "history"], group: "admin" as const },
-    ] : []),
+    // Authenticated navigation, filtered by the same role matrix as the sidebar.
+    ...(isAuthenticated ? roleCommands : []),
 
     // Actions
     ...(isAuthenticated ? [

@@ -27,10 +27,13 @@ const navItems: NavItem[] = [
       { label: "About Dzaleka", href: "/about-dzaleka", description: "Learn about the camp's history and community" },
       { label: "About Us", href: "/about-us", description: "Our mission and team" },
       { label: "Life in Dzaleka", href: "/life-in-dzaleka", description: "Daily life and culture" },
+      { label: "Destinations", href: "/destinations", description: "Explore camp sectors, zones, and key facilities" },
       { label: "Things To Do", href: "/things-to-do", description: "Experiences and activities" },
       { label: "Guided Walking Tour", href: "/things-to-do/dzaleka-refugee-camp-guided-walking-tour", description: "Official Visit Dzaleka tour listing" },
       { label: "Arts & Culture", href: "/things-to-do/arts-culture", description: "Local art scene and performances" },
       { label: "Shopping & Markets", href: "/things-to-do/shopping", description: "Markets and local crafts" },
+      { label: "Nature & Outdoors", href: "/things-to-do/nature-outdoors", description: "Green spaces, walking routes, and outdoor activities" },
+      { label: "Dining & Nightlife", href: "/things-to-do/dining-nightlife", description: "Food, cafes, and evening community life" },
       { label: "Sports & Recreation", href: "/things-to-do/sports-recreation", description: "Sports and outdoor activities" },
       { label: "Host Community", href: "/things-to-do/host-community", description: "Connect with locals" },
       { label: "What's On", href: "/whats-on", description: "Events and festivals" },
@@ -122,6 +125,9 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
                   <ListItem href="/life-in-dzaleka" title="Life in Dzaleka">
                     Daily life and culture
                   </ListItem>
+                  <ListItem href="/destinations" title="Destinations">
+                    Explore camp sectors and key zones
+                  </ListItem>
                   <ListItem href="/friends-of-dzaleka" title="Friends of Dzaleka">
                     Our supporters and partners
                   </ListItem>
@@ -140,6 +146,12 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
                   </ListItem>
                   <ListItem href="/things-to-do/shopping" title="Shopping & Markets">
                     Markets and crafts
+                  </ListItem>
+                  <ListItem href="/things-to-do/nature-outdoors" title="Nature & Outdoors">
+                    Green spaces and outdoor activities
+                  </ListItem>
+                  <ListItem href="/things-to-do/dining-nightlife" title="Dining & Nightlife">
+                    Food, cafes, and evening community life
                   </ListItem>
                   <ListItem href="/things-to-do/sports-recreation" title="Sports & Recreation">
                     Sports and outdoor fun
@@ -267,11 +279,35 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
             <MobileNavLink href="/life-in-dzaleka" onClick={() => setMobileMenuOpen(false)} active={isActive("/life-in-dzaleka")}>
               Life in Dzaleka
             </MobileNavLink>
+            <MobileNavLink href="/destinations" onClick={() => setMobileMenuOpen(false)} active={isActive("/destinations")}>
+              Destinations
+            </MobileNavLink>
+            <MobileNavLink href="/friends-of-dzaleka" onClick={() => setMobileMenuOpen(false)} active={isActive("/friends-of-dzaleka")}>
+              Friends of Dzaleka
+            </MobileNavLink>
             <MobileNavLink href="/things-to-do" onClick={() => setMobileMenuOpen(false)} active={isActive("/things-to-do")}>
               Things To Do
             </MobileNavLink>
             <MobileNavLink href="/things-to-do/dzaleka-refugee-camp-guided-walking-tour" onClick={() => setMobileMenuOpen(false)} active={isActive("/things-to-do/dzaleka-refugee-camp-guided-walking-tour")}>
               Guided Walking Tour
+            </MobileNavLink>
+            <MobileNavLink href="/things-to-do/arts-culture" onClick={() => setMobileMenuOpen(false)} active={isActive("/things-to-do/arts-culture")}>
+              Arts & Culture
+            </MobileNavLink>
+            <MobileNavLink href="/things-to-do/shopping" onClick={() => setMobileMenuOpen(false)} active={isActive("/things-to-do/shopping")}>
+              Shopping & Markets
+            </MobileNavLink>
+            <MobileNavLink href="/things-to-do/nature-outdoors" onClick={() => setMobileMenuOpen(false)} active={isActive("/things-to-do/nature-outdoors")}>
+              Nature & Outdoors
+            </MobileNavLink>
+            <MobileNavLink href="/things-to-do/dining-nightlife" onClick={() => setMobileMenuOpen(false)} active={isActive("/things-to-do/dining-nightlife")}>
+              Dining & Nightlife
+            </MobileNavLink>
+            <MobileNavLink href="/things-to-do/sports-recreation" onClick={() => setMobileMenuOpen(false)} active={isActive("/things-to-do/sports-recreation")}>
+              Sports & Recreation
+            </MobileNavLink>
+            <MobileNavLink href="/things-to-do/host-community" onClick={() => setMobileMenuOpen(false)} active={isActive("/things-to-do/host-community")}>
+              Host Community
             </MobileNavLink>
             <MobileNavLink href="/whats-on" onClick={() => setMobileMenuOpen(false)} active={isActive("/whats-on")}>
               What's On
@@ -298,6 +334,15 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
             </MobileNavLink>
             <MobileNavLink href="/plan-your-trip/transport" onClick={() => setMobileMenuOpen(false)} active={isActive("/plan-your-trip/transport")}>
               Transport Partners
+            </MobileNavLink>
+            <MobileNavLink href="/plan-your-trip/public-holidays" onClick={() => setMobileMenuOpen(false)} active={isActive("/plan-your-trip/public-holidays")}>
+              Public Holidays
+            </MobileNavLink>
+            <MobileNavLink href="/plan-your-trip/dzaleka-map" onClick={() => setMobileMenuOpen(false)} active={isActive("/plan-your-trip/dzaleka-map")}>
+              Dzaleka Map
+            </MobileNavLink>
+            <MobileNavLink href="/plan-your-trip/safe-travel" onClick={() => setMobileMenuOpen(false)} active={isActive("/plan-your-trip/safe-travel")}>
+              Safe Travel
             </MobileNavLink>
             <MobileNavLink href="/accommodation" onClick={() => setMobileMenuOpen(false)} active={isActive("/accommodation")}>
               Accommodation

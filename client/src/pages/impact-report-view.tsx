@@ -20,6 +20,7 @@ import {
     CheckCircle2,
     BookOpen
 } from "lucide-react";
+import { PublicHeader } from "@/components/public-header";
 
 const reportsData: Record<string, {
     id: string;
@@ -97,7 +98,6 @@ const reportsData: Record<string, {
 const IMPACT_OG_IMAGE = "https://services.dzaleka.com/images/Visit_Dzaleka.png";
 
 export default function ImpactReportView() {
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [, params] = useRoute("/impact-report/:id");
     const reportId = params?.id || "";
     const report = reportsData[reportId];
@@ -136,45 +136,7 @@ export default function ImpactReportView() {
             />
 
             {/* Header */}
-            <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
-                <div className="container mx-auto flex h-16 items-center justify-between px-4">
-                    <Link href="/">
-                        <div className="flex items-center gap-3 cursor-pointer">
-                            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Visit Dzaleka Logo" className="h-10 w-10 rounded-lg shadow-sm" />
-                            <div className="flex flex-col">
-                                <span className="text-sm font-bold tracking-tight">Visit Dzaleka</span>
-                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Official Portal</span>
-                            </div>
-                        </div>
-                    </Link>
-
-                    <nav className="hidden md:flex items-center gap-4">
-                        <Link href="/impact-report" className="text-sm font-medium hover:text-primary transition-colors">All Reports</Link>
-                        <Link href="/about-us" className="text-sm font-medium hover:text-primary transition-colors">About Us</Link>
-                        <div className="flex items-center gap-2 ml-2">
-                            <Button asChild size="sm">
-                                <Link href="/login">Book a Tour</Link>
-                            </Button>
-                        </div>
-                    </nav>
-
-                    <button className="md:hidden p-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-                        {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-                    </button>
-                </div>
-
-                {mobileMenuOpen && (
-                    <div className="md:hidden border-t bg-background p-4 space-y-3">
-                        <Link href="/impact-report" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>All Reports</Link>
-                        <Link href="/about-us" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>About Us</Link>
-                        <div className="flex gap-2 pt-2">
-                            <Button asChild className="flex-1">
-                                <Link href="/login">Book a Tour</Link>
-                            </Button>
-                        </div>
-                    </div>
-                )}
-            </header>
+            <PublicHeader activePath="/impact-report" />
 
             <main className="flex-1">
                 {/* Back Button */}

@@ -204,14 +204,17 @@ function transformToSnake(obj: any): any {
  * and dots to separate column.operator.value segments. Unescaped user input containing
  * these characters can break filters, widen searches, or produce unexpected query behavior.
  *
- * This function strips characters that have special meaning in the PostgREST filter grammar.
+ * This function escapes backslashes and SQL LIKE wildcards (`%`, `_`), and strips other
+ * PostgREST metacharacters (`,()`).
  */
-function sanitizePostgrestValue(value: string): string {
-  // Remove PostgREST filter metacharacters:
-  //   ,  — separates conditions in .or()
-  //   () — grouping operators
-  //   \  — escape character
-  return value.replace(/[,()\\]/g, "");
+export function sanitizePostgrestValue(value: string): string {
+  // 1. Escape backslashes first so they don't act as metacharacters
+  let sanitized = value.replace(/\\/g, "\\\\");
+  // 2. Remove brackets, commas and parentheses which break the PostgREST filter grammar
+  sanitized = sanitized.replace(/[\[\],()]/g, "");
+  // 3. Escape SQL LIKE wildcards (% and _) with backslashes so they are matched literally
+  sanitized = sanitized.replace(/%/g, "\\%").replace(/_/g, "\\_");
+  return sanitized;
 }
 
 // Pagination types
@@ -258,6 +261,7 @@ export interface IStorage {
   setEmailVerificationToken(userId: string, token: string, expires: Date): Promise<void>;
   getUserByEmailVerificationToken(token: string): Promise<User | undefined>;
   clearEmailVerificationToken(userId: string): Promise<void>;
+  checkStorageConnectivity(): Promise<{ bucketCount: number }>;
   uploadPublicStorageObject(bucket: string, path: string, body: Buffer, options: { contentType: string; cacheControl?: string }): Promise<{ path: string; publicUrl: string }>;
 
   // Guide operations
@@ -388,6 +392,7 @@ export interface IStorage {
 
   // Guide Availability operations
   getGuideAvailability(guideId: string): Promise<GuideAvailability[]>;
+  getGuideAvailabilityItem(id: string): Promise<GuideAvailability | undefined>;
   createGuideAvailability(availability: InsertGuideAvailability): Promise<GuideAvailability>;
   deleteGuideAvailability(id: string): Promise<void>;
 
@@ -449,6 +454,7 @@ export interface IStorage {
 
   // External Calendars
   getExternalCalendars(): Promise<ExternalCalendar[]>;
+  getExternalCalendarByFeedTokenHash(tokenHash: string): Promise<ExternalCalendar | undefined>;
   createExternalCalendar(calendar: InsertExternalCalendar): Promise<ExternalCalendar>;
   updateExternalCalendar(id: string, updates: Partial<ExternalCalendar>): Promise<ExternalCalendar | undefined>;
   deleteExternalCalendar(id: string): Promise<void>;
@@ -592,12 +598,14 @@ export interface IStorage {
   getChatRooms(userId: string): Promise<ChatRoom[]>;
   getChatRoom(id: string): Promise<ChatRoom | undefined>;
   createChatRoom(room: InsertChatRoom): Promise<ChatRoom>;
+  deleteChatRoom(roomId: string): Promise<void>;
   getOrCreateDirectRoom(userId1: string, userId2: string): Promise<ChatRoom>;
   getChatMessage(id: string): Promise<ChatMessage | undefined>;
   getChatMessages(roomId: string, limit?: number): Promise<ChatMessage[]>;
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
   getChatParticipants(roomId: string): Promise<ChatParticipant[]>;
   addChatParticipant(participant: InsertChatParticipant): Promise<ChatParticipant>;
+  removeChatParticipant(roomId: string, userId: string): Promise<void>;
   updateLastRead(roomId: string, userId: string): Promise<void>;
 
   // API Key operations (Developer Settings)
@@ -671,9 +679,9 @@ export class SupabaseStorage implements IStorage {
     this.hasServiceRoleKey = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
     this.supabase = createClient(process.env.SUPABASE_URL, supabaseKey);
 
-    // D2: Warn early if service role key is missing in production
+    // D2: Fail fast if service role key is missing in production
     if (process.env.NODE_ENV === "production" && !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      console.warn("⚠️  SUPABASE_SERVICE_ROLE_KEY not set — storage uploads and RLS bypass will fail");
+      throw new Error("SUPABASE_SERVICE_ROLE_KEY is required for backend storage access in production");
     }
   }
 
@@ -688,6 +696,12 @@ export class SupabaseStorage implements IStorage {
   private handleOptionalResponse<T>(data: T | null, error: any): T | undefined {
     if (error) throw new Error(error.message);
     return data ? transformToCamel<T>(data) : undefined;
+  }
+
+  async checkStorageConnectivity(): Promise<{ bucketCount: number }> {
+    const { data, error } = await this.supabase.storage.listBuckets();
+    if (error) throw new Error(error.message);
+    return { bucketCount: data?.length || 0 };
   }
 
   async uploadPublicStorageObject(
@@ -1645,6 +1659,16 @@ export class SupabaseStorage implements IStorage {
       .eq("guide_id", guideId)
       .order("date");
     return this.handleResponse(data, error);
+  }
+
+  async getGuideAvailabilityItem(id: string): Promise<GuideAvailability | undefined> {
+    const { data, error } = await this.supabase
+      .from("guide_availability")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
   }
 
   async createGuideAvailability(availability: InsertGuideAvailability): Promise<GuideAvailability> {
@@ -3661,6 +3685,18 @@ export class SupabaseStorage implements IStorage {
     return this.handleResponse<ChatParticipant>(data, error);
   }
 
+  async removeChatParticipant(roomId: string, userId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("chat_participants")
+      .delete()
+      .eq("room_id", roomId)
+      .eq("user_id", userId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
   async updateLastRead(roomId: string, userId: string): Promise<void> {
     await this.supabase
       .from("chat_participants")
@@ -3907,6 +3943,16 @@ export class SupabaseStorage implements IStorage {
     return this.handleResponse(data, error);
   }
 
+  async getExternalCalendarByFeedTokenHash(tokenHash: string): Promise<ExternalCalendar | undefined> {
+    const { data, error } = await this.supabase
+      .from("external_calendars")
+      .select("*")
+      .eq("feed_token_hash", tokenHash)
+      .single();
+    if (error && error.code === "PGRST116") return undefined;
+    return this.handleOptionalResponse(data, error);
+  }
+
   async createExternalCalendar(calendar: InsertExternalCalendar): Promise<ExternalCalendar> {
     const snakeData = transformToSnake(calendar);
     const { data, error } = await this.supabase.from("external_calendars").insert(snakeData).select().single();
@@ -4004,9 +4050,24 @@ export class SupabaseStorage implements IStorage {
     const bounceRate = uniqueSessions.size > 0 ? (singlePageSessions / uniqueSessions.size) * 100 : 0;
 
     // Page breakdown
+    const maskPrivatePaths = (pathStr: string): string => {
+      if (!pathStr) return "";
+      let masked = pathStr.trim();
+      // Mask UUIDs
+      masked = masked.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/ig, ":id");
+      // Mask numeric resource IDs
+      masked = masked.replace(/\/(bookings|guides|users|incidents|rooms)\/\d+/ig, "/$1/:id");
+      // Remove query parameters
+      if (masked.includes("?")) {
+        masked = masked.split("?")[0];
+      }
+      return masked;
+    };
+
     const pageMap = new Map<string, number>();
     views.forEach(v => {
-      pageMap.set(v.page, (pageMap.get(v.page) || 0) + 1);
+      const maskedPage = maskPrivatePaths(v.page);
+      pageMap.set(maskedPage, (pageMap.get(maskedPage) || 0) + 1);
     });
     const pageBreakdown = Array.from(pageMap.entries())
       .map(([page, viewCount]) => ({ page, views: viewCount }))

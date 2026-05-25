@@ -162,6 +162,10 @@ export const externalCalendars = pgTable("external_calendars", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(), // e.g., "Viator", "Airbnb"
   url: text("url").notNull(), // iCal URL
+  feedTokenHash: varchar("feed_token_hash"),
+  feedOwnerUserId: varchar("feed_owner_user_id").references(() => users.id),
+  feedAudience: varchar("feed_audience").default("staff"),
+  includeSensitiveDetails: boolean("include_sensitive_details").default(false),
   color: text("color").default("#3b82f6"),
   lastSyncedAt: timestamp("last_synced_at"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -2023,7 +2027,7 @@ export const apiKeys = pgTable("api_keys", {
   userId: varchar("user_id").notNull(), // Owner of the API key
   name: varchar("name").notNull(), // "Production Key", "Test Key"
   keyHash: varchar("key_hash").notNull(), // bcrypt hash of the full key
-  keyPrefix: varchar("key_prefix").notNull(), // First 8 chars for display (dvz_xxxxxxxx)
+  keyPrefix: varchar("key_prefix").unique().notNull(), // First 8 chars for display (dvz_xxxxxxxx)
   scopes: text("scopes").array().default(sql`ARRAY[]::text[]`), // ['bookings:read', 'guides:read']
   status: apiKeyStatusEnum("status").default("active"),
   lastUsedAt: timestamp("last_used_at"),
@@ -2033,7 +2037,7 @@ export const apiKeys = pgTable("api_keys", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("IDX_apikeys_user").on(table.userId),
-  index("IDX_apikeys_prefix").on(table.keyPrefix),
+  uniqueIndex("IDX_apikeys_prefix").on(table.keyPrefix),
 ]);
 
 export const insertApiKeySchema = createInsertSchema(apiKeys).omit({

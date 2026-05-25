@@ -15,6 +15,8 @@ import {
     Clock,
     CheckCircle,
     XCircle,
+    AlertTriangle,
+    RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -77,6 +79,30 @@ const getRecognizedBookingRevenue = (booking: Booking) =>
         ? booking.totalAmount || 0
         : 0;
 
+function DataErrorState({
+    title,
+    description,
+    onRetry,
+}: {
+    title: string;
+    description: string;
+    onRetry: () => void;
+}) {
+    return (
+        <EmptyState
+            icon={AlertTriangle}
+            title={title}
+            description={description}
+            action={
+                <Button type="button" variant="outline" onClick={onRetry}>
+                    <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Retry
+                </Button>
+            }
+        />
+    );
+}
+
 export default function VisitorsPage() {
     const [, setLocation] = useLocation();
     const [searchQuery, setSearchQuery] = useState("");
@@ -84,14 +110,25 @@ export default function VisitorsPage() {
     const [filterType, setFilterType] = useState("all"); // all, registered, unregistered
 
     // Fetch registered visitor CRM records
-    const { data: registeredVisitors = [], isLoading: usersLoading } = useQuery<CustomerRecord[]>({
+    const {
+        data: registeredVisitors = [],
+        isLoading: usersLoading,
+        isError: usersError,
+        refetch: refetchUsers,
+    } = useQuery<CustomerRecord[]>({
         queryKey: ["/api/customers"],
     });
 
     // Fetch all bookings for stats
-    const { data: bookings, isLoading: bookingsLoading } = useQuery<Booking[]>({
+    const {
+        data: bookings,
+        isLoading: bookingsLoading,
+        isError: bookingsError,
+        refetch: refetchBookings,
+    } = useQuery<Booking[]>({
         queryKey: ["/api/bookings"],
     });
+    const hasVisitorDataError = usersError || bookingsError;
 
     // Get unique visitors from bookings who are NOT in the users table
     const registeredEmails = new Set(registeredVisitors.map((v) => v.email?.toLowerCase()));
@@ -240,53 +277,71 @@ export default function VisitorsPage() {
                 </p>
             </div>
 
-            {/* Stats Cards */}
-            <div className="grid gap-4 md:grid-cols-4">
-                <Card>
-                    <CardContent className="flex items-center gap-4 p-6">
-                        <div className="rounded-full bg-blue-100 p-3 dark:bg-blue-900/30">
-                            <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold">{totalVisitors}</p>
-                            <p className="text-sm text-muted-foreground">Total Visitors</p>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="flex items-center gap-4 p-6">
-                        <div className="rounded-full bg-green-100 p-3 dark:bg-green-900/30">
-                            <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold">{registeredCount}</p>
-                            <p className="text-sm text-muted-foreground">Registered</p>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="flex items-center gap-4 p-6">
-                        <div className="rounded-full bg-purple-100 p-3 dark:bg-purple-900/30">
-                            <Calendar className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold">{totalBookingsCount}</p>
-                            <p className="text-sm text-muted-foreground">Total Bookings</p>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="flex items-center gap-4 p-6">
-                        <div className="rounded-full bg-amber-100 p-3 dark:bg-amber-900/30">
-                            <TrendingUp className="h-6 w-6 text-amber-600 dark:text-amber-400" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold">{formatCurrency(totalRevenue)}</p>
-                            <p className="text-sm text-muted-foreground">Total Revenue</p>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
+            {hasVisitorDataError ? (
+                <div className="grid gap-3 md:grid-cols-2">
+                    {usersError && (
+                        <DataErrorState
+                            title="Registered visitors failed to load"
+                            description="Customer records could not be loaded. Retry before treating registered visitor totals as empty."
+                            onRetry={() => void refetchUsers()}
+                        />
+                    )}
+                    {bookingsError && (
+                        <DataErrorState
+                            title="Booking visitors failed to load"
+                            description="Booking-derived visitor history could not be loaded. Retry before treating visitor totals as empty."
+                            onRetry={() => void refetchBookings()}
+                        />
+                    )}
+                </div>
+            ) : (
+                <div className="grid gap-4 md:grid-cols-4">
+                    <Card>
+                        <CardContent className="flex items-center gap-4 p-6">
+                            <div className="rounded-full bg-blue-100 p-3 dark:bg-blue-900/30">
+                                <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <div>
+                                <p className="text-2xl font-bold">{totalVisitors}</p>
+                                <p className="text-sm text-muted-foreground">Total Visitors</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="flex items-center gap-4 p-6">
+                            <div className="rounded-full bg-green-100 p-3 dark:bg-green-900/30">
+                                <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+                            </div>
+                            <div>
+                                <p className="text-2xl font-bold">{registeredCount}</p>
+                                <p className="text-sm text-muted-foreground">Registered</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="flex items-center gap-4 p-6">
+                            <div className="rounded-full bg-purple-100 p-3 dark:bg-purple-900/30">
+                                <Calendar className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                            </div>
+                            <div>
+                                <p className="text-2xl font-bold">{totalBookingsCount}</p>
+                                <p className="text-sm text-muted-foreground">Total Bookings</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="flex items-center gap-4 p-6">
+                            <div className="rounded-full bg-amber-100 p-3 dark:bg-amber-900/30">
+                                <TrendingUp className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                            </div>
+                            <div>
+                                <p className="text-2xl font-bold">{formatCurrency(totalRevenue)}</p>
+                                <p className="text-sm text-muted-foreground">Total Revenue</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
 
             {/* Visitors Table */}
             <Card>
@@ -297,7 +352,7 @@ export default function VisitorsPage() {
                             <div className="relative flex-1 md:w-64">
                                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                 <Input
-                                    placeholder="Search visitors..."
+                                    placeholder="Search visitors…"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     className="pl-9"
@@ -330,6 +385,23 @@ export default function VisitorsPage() {
                     {(usersLoading || bookingsLoading) ? (
                         <div className="flex items-center justify-center py-8">
                             <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+                        </div>
+                    ) : hasVisitorDataError ? (
+                        <div className="grid gap-3 md:grid-cols-2">
+                            {usersError && (
+                                <DataErrorState
+                                    title="Registered visitors unavailable"
+                                    description="The visitor table is incomplete because registered visitor records failed to load."
+                                    onRetry={() => void refetchUsers()}
+                                />
+                            )}
+                            {bookingsError && (
+                                <DataErrorState
+                                    title="Booking visitor history unavailable"
+                                    description="The visitor table is incomplete because bookings failed to load."
+                                    onRetry={() => void refetchBookings()}
+                                />
+                            )}
                         </div>
                     ) : filteredVisitors.length === 0 ? (
                         <EmptyState

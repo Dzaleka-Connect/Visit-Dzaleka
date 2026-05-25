@@ -33,6 +33,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ReportIncidentDialog } from "@/components/report-incident-dialog";
+import { DataErrorState } from "@/components/data-error-state";
 
 interface ActiveBooking {
     id: string;
@@ -75,7 +76,7 @@ export default function LiveOperations() {
     const [checkOutBookingId, setCheckOutBookingId] = useState<string | null>(null);
     const [incidentBookingId, setIncidentBookingId] = useState<string | null>(null);
 
-    const { data: stats, isLoading, dataUpdatedAt, refetch } = useQuery<LiveStats>({
+    const { data: stats, isLoading, isError: statsError, dataUpdatedAt, refetch } = useQuery<LiveStats>({
         queryKey: ["/api/live-ops/stats"],
         refetchInterval: 30000,
     });
@@ -88,7 +89,7 @@ export default function LiveOperations() {
     }, []);
 
     // Fetch today's confirmed bookings that haven't started yet
-    const { data: todaysTours } = useQuery<ActiveBooking[]>({
+    const { data: todaysTours, isError: todaysToursError, refetch: refetchTodaysTours } = useQuery<ActiveBooking[]>({
         queryKey: ["/api/bookings/today"],
         refetchInterval: 30000,
     });
@@ -96,6 +97,8 @@ export default function LiveOperations() {
     const pendingTours = todaysTours?.filter(
         (t) => t.status === "confirmed" && !t.checkInTime
     ) || [];
+    const hasLiveOpsError = statsError || todaysToursError;
+    const metricValue = (value?: number) => statsError ? "Unavailable" : (value ?? 0);
 
     const checkInMutation = useMutation({
         mutationFn: async (bookingId: string) => {
@@ -146,7 +149,7 @@ export default function LiveOperations() {
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Live Operations</h1>
                     <p className="text-muted-foreground flex items-center gap-2">
-                        <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+                        <span className={`flex h-2 w-2 rounded-full ${hasLiveOpsError ? "bg-red-500" : "bg-green-500"} animate-pulse`}></span>
                         Real-time overview • Auto-refreshes every 30s
                     </p>
                 </div>
@@ -163,6 +166,25 @@ export default function LiveOperations() {
                 </div>
             </div>
 
+            {hasLiveOpsError && (
+                <div className="grid gap-3 md:grid-cols-2">
+                    {statsError && (
+                        <DataErrorState
+                            title="Live operations stats unavailable"
+                            description="Visitor counts, active tours, incidents, and guide availability could not be loaded. Do not treat the zero values as all-clear."
+                            onRetry={() => void refetch()}
+                        />
+                    )}
+                    {todaysToursError && (
+                        <DataErrorState
+                            title="Today's tours unavailable"
+                            description="Confirmed tours waiting to start could not be loaded. Retry before assuming there are no pending check-ins."
+                            onRetry={() => void refetchTodaysTours()}
+                        />
+                    )}
+                </div>
+            )}
+
             {/* Key Metrics */}
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
                 <Card>
@@ -171,8 +193,8 @@ export default function LiveOperations() {
                         <Users className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{stats?.visitorsOnSite || 0}</div>
-                        <p className="text-xs text-muted-foreground">Currently checked-in</p>
+                        <div className="text-2xl font-bold tabular-nums">{metricValue(stats?.visitorsOnSite)}</div>
+                        <p className="text-xs text-muted-foreground">{statsError ? "Stats API unavailable" : "Currently checked-in"}</p>
                     </CardContent>
                 </Card>
 
@@ -182,22 +204,22 @@ export default function LiveOperations() {
                         <Activity className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{stats?.activeTours || 0}</div>
-                        <p className="text-xs text-muted-foreground">In progress</p>
+                        <div className="text-2xl font-bold tabular-nums">{metricValue(stats?.activeTours)}</div>
+                        <p className="text-xs text-muted-foreground">{statsError ? "Stats API unavailable" : "In progress"}</p>
                     </CardContent>
                 </Card>
 
-                <Card className={stats?.openIncidents ? "border-red-200 bg-red-50 dark:bg-red-950/20" : ""}>
+                <Card className={statsError || stats?.openIncidents ? "border-red-200 bg-red-50 dark:bg-red-950/20" : ""}>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Open Incidents</CardTitle>
-                        <AlertCircle className={`h-4 w-4 ${stats?.openIncidents ? "text-red-500" : "text-muted-foreground"}`} />
+                        <AlertCircle className={`h-4 w-4 ${statsError || stats?.openIncidents ? "text-red-500" : "text-muted-foreground"}`} />
                     </CardHeader>
                     <CardContent>
-                        <div className={`text-2xl font-bold ${stats?.openIncidents ? "text-red-600" : ""}`}>
-                            {stats?.openIncidents || 0}
+                        <div className={`text-2xl font-bold tabular-nums ${statsError || stats?.openIncidents ? "text-red-600" : ""}`}>
+                            {metricValue(stats?.openIncidents)}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                            {stats?.openIncidents ? "Requires attention" : "All clear"}
+                            {statsError ? "Incident feed unavailable" : stats?.openIncidents ? "Requires attention" : "All clear"}
                         </p>
                     </CardContent>
                 </Card>
@@ -208,8 +230,8 @@ export default function LiveOperations() {
                         <UserCheck className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{stats?.availableGuides || 0}</div>
-                        <p className="text-xs text-muted-foreground">Ready to deploy</p>
+                        <div className="text-2xl font-bold tabular-nums">{metricValue(stats?.availableGuides)}</div>
+                        <p className="text-xs text-muted-foreground">{statsError ? "Stats API unavailable" : "Ready to deploy"}</p>
                     </CardContent>
                 </Card>
             </div>
@@ -230,7 +252,13 @@ export default function LiveOperations() {
                         </div>
                     </CardHeader>
                     <CardContent>
-                        {stats?.activeBookings && stats.activeBookings.length > 0 ? (
+                        {statsError ? (
+                            <DataErrorState
+                                title="Active tours unavailable"
+                                description="Active tour data failed to load. Retry before assuming no tours are currently in progress."
+                                onRetry={() => void refetch()}
+                            />
+                        ) : stats?.activeBookings && stats.activeBookings.length > 0 ? (
                             <div className="rounded-md border overflow-x-auto">
                                 <Table>
                                     <TableHeader>
@@ -308,18 +336,24 @@ export default function LiveOperations() {
                 </Card>
 
                 {/* Pending Tours - Ready to Start */}
-                {pendingTours.length > 0 && (
-                    <Card>
-                        <CardHeader>
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <CardTitle>Ready to Start</CardTitle>
-                                    <CardDescription>Confirmed tours waiting to check in</CardDescription>
-                                </div>
-                                <Badge variant="outline">{pendingTours.length} pending</Badge>
+                <Card>
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle>Ready to Start</CardTitle>
+                                <CardDescription>Confirmed tours waiting to check in</CardDescription>
                             </div>
-                        </CardHeader>
-                        <CardContent>
+                            {!todaysToursError && <Badge variant="outline">{pendingTours.length} pending</Badge>}
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        {todaysToursError ? (
+                            <DataErrorState
+                                title="Ready-to-start tours unavailable"
+                                description="Today's confirmed bookings could not be loaded. Retry before assuming there are no pending check-ins."
+                                onRetry={() => void refetchTodaysTours()}
+                            />
+                        ) : pendingTours.length > 0 ? (
                             <div className="rounded-md border overflow-x-auto">
                                 <Table>
                                     <TableHeader>
@@ -365,9 +399,15 @@ export default function LiveOperations() {
                                     </TableBody>
                                 </Table>
                             </div>
-                        </CardContent>
-                    </Card>
-                )}
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
+                                <CheckCircle2 className="h-8 w-8 mb-2 text-green-500" />
+                                <p className="text-sm font-medium">No tours waiting to start</p>
+                                <p className="text-xs">Confirmed tours will appear here before check-in.</p>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
 
                 {/* Security Feed */}
                 <Card>
@@ -377,7 +417,13 @@ export default function LiveOperations() {
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
-                            {stats?.recentIncidents && stats.recentIncidents.length > 0 ? (
+                            {statsError ? (
+                                <DataErrorState
+                                    title="Security feed unavailable"
+                                    description="Incident data could not be loaded. Retry before treating the feed as all-clear."
+                                    onRetry={() => void refetch()}
+                                />
+                            ) : stats?.recentIncidents && stats.recentIncidents.length > 0 ? (
                                 stats.recentIncidents.map((incident) => (
                                     <div key={incident.id} className="flex items-start gap-3 pb-3 border-b last:border-0 last:pb-0">
                                         <div className={`mt-0.5 rounded-full p-1.5 ${incident.severity === 'critical' ? 'bg-red-100 text-red-600' :

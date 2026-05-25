@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   ChevronLeft,
@@ -60,6 +60,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
 import { AnimatedNumber } from "@/components/animated-number";
+import { useAuth } from "@/hooks/useAuth";
 
 interface BookingWithGuide extends Booking {
   guide?: Guide;
@@ -83,6 +84,9 @@ const GUIDE_COLORS = [
 
 export default function CalendarPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const canManageSchedule = user?.role === "admin" || user?.role === "coordinator";
+  const isGuide = user?.role === "guide";
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<BookingWithGuide | null>(null); // For non-calendar views
@@ -90,6 +94,16 @@ export default function CalendarPage() {
   const [viewMode, setViewMode] = useState<"month" | "week" | "list" | "board" | "timeline">("month");
   const [showAvailability, setShowAvailability] = useState(false);
   const [draggedBooking, setDraggedBooking] = useState<BookingWithGuide | null>(null);
+
+  useEffect(() => {
+    if (!canManageSchedule && (viewMode === "board" || viewMode === "timeline")) {
+      setViewMode("month");
+    }
+    if (!canManageSchedule) {
+      setShowAvailability(false);
+      setGuideFilter("all");
+    }
+  }, [canManageSchedule, viewMode]);
 
   const { data: bookings } = useQuery<BookingWithGuide[]>({
     queryKey: ["/api/bookings"],
@@ -255,17 +269,20 @@ export default function CalendarPage() {
 
   // Drag and drop handlers
   const handleDragStart = (e: React.DragEvent, booking: BookingWithGuide) => {
+    if (!canManageSchedule) return;
     setDraggedBooking(booking);
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", booking.id);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
+    if (!canManageSchedule) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
   };
 
   const handleDrop = (e: React.DragEvent, targetDate: Date, targetTime?: string) => {
+    if (!canManageSchedule) return;
     e.preventDefault();
     if (!draggedBooking) return;
 
@@ -283,6 +300,9 @@ export default function CalendarPage() {
   };
 
   const isWideView = viewMode === "list" || viewMode === "board" || viewMode === "timeline";
+  const pageDescription = isGuide
+    ? "View your assigned tour schedule."
+    : "View and manage tour schedules. Drag bookings to reschedule.";
   const todayBookingsCount = getBookingsForDay(new Date()).length;
   const weekBookingsCount = filteredBookings.filter(b => {
     const bookingDate = parseISO(b.visitDate);
@@ -293,11 +313,11 @@ export default function CalendarPage() {
     <PageContainer size="xl" className="page-spacing">
       <SEO
         title="Schedule & Bookings"
-        description="View and manage tour schedules for Dzaleka Refugee Camp. Drag bookings to reschedule."
+        description={isGuide ? "View your assigned Visit Dzaleka tour schedule." : "View and manage tour schedules for Dzaleka Refugee Camp. Drag bookings to reschedule."}
       />
       <PageHeader
         title="Schedule"
-        description="View and manage tour schedules. Drag bookings to reschedule."
+        description={pageDescription}
       >
         <div className="flex flex-wrap items-center gap-2">
           {!isWideView && (
@@ -315,7 +335,7 @@ export default function CalendarPage() {
               </Button>
             </>
           )}
-          {(!isWideView) && (
+          {(!isWideView && canManageSchedule) && (
             <Button
               variant={showAvailability ? "default" : "outline"}
               size="sm"
@@ -360,41 +380,47 @@ export default function CalendarPage() {
             <LayoutList className="h-4 w-4" />
             <span className="hidden md:inline">List</span>
           </Button>
-          <Button
-            variant={viewMode === "board" ? "default" : "ghost"}
-            size="sm"
-            className="h-9 px-3 gap-2"
-            onClick={() => setViewMode("board")}
-          >
-            <Kanban className="h-4 w-4" />
-            <span className="hidden md:inline">Board</span>
-          </Button>
-          <Button
-            variant={viewMode === "timeline" ? "default" : "ghost"}
-            size="sm"
-            className="h-9 px-3 gap-2"
-            onClick={() => setViewMode("timeline")}
-          >
-            <BarChartHorizontal className="h-4 w-4" />
-            <span className="hidden md:inline">Timeline</span>
-          </Button>
+          {canManageSchedule && (
+            <>
+              <Button
+                variant={viewMode === "board" ? "default" : "ghost"}
+                size="sm"
+                className="h-9 px-3 gap-2"
+                onClick={() => setViewMode("board")}
+              >
+                <Kanban className="h-4 w-4" />
+                <span className="hidden md:inline">Board</span>
+              </Button>
+              <Button
+                variant={viewMode === "timeline" ? "default" : "ghost"}
+                size="sm"
+                className="h-9 px-3 gap-2"
+                onClick={() => setViewMode("timeline")}
+              >
+                <BarChartHorizontal className="h-4 w-4" />
+                <span className="hidden md:inline">Timeline</span>
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Guide Filter */}
-        <Select value={guideFilter} onValueChange={setGuideFilter}>
-          <SelectTrigger className="w-full sm:w-48 h-9" data-testid="select-guide-filter">
-            <SelectValue placeholder="All Guides" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Guides</SelectItem>
-            <SelectItem value="unassigned">Unassigned Only</SelectItem>
-            {guides?.filter((g) => g.isActive).map((guide) => (
-              <SelectItem key={guide.id} value={guide.id}>
-                {guide.firstName} {guide.lastName}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {canManageSchedule && (
+          <Select value={guideFilter} onValueChange={setGuideFilter}>
+            <SelectTrigger className="w-full sm:w-48 h-9" data-testid="select-guide-filter">
+              <SelectValue placeholder="All Guides" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Guides</SelectItem>
+              <SelectItem value="unassigned">Unassigned Only</SelectItem>
+              {guides?.filter((g) => g.isActive).map((guide) => (
+                <SelectItem key={guide.id} value={guide.id}>
+                  {guide.firstName} {guide.lastName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Quick Stats Row */}
@@ -479,13 +505,13 @@ export default function CalendarPage() {
                 bookings={filteredBookings}
                 onSelectBooking={setSelectedBooking}
                 selectedBookingId={selectedBooking?.id}
-                onConfirm={(id) => statusMutation.mutate({ id, status: "confirmed" })}
-                onCancel={(id) => statusMutation.mutate({ id, status: "cancelled" })}
+                onConfirm={canManageSchedule ? (id) => statusMutation.mutate({ id, status: "confirmed" }) : undefined}
+                onCancel={canManageSchedule ? (id) => statusMutation.mutate({ id, status: "cancelled" }) : undefined}
               />
             )}
 
             {/* Board View */}
-            {viewMode === "board" && (
+            {viewMode === "board" && canManageSchedule && (
               <BookingBoardView
                 bookings={filteredBookings}
                 onSelectBooking={setSelectedBooking}
@@ -495,7 +521,7 @@ export default function CalendarPage() {
             )}
 
             {/* Timeline View */}
-            {viewMode === "timeline" && (
+            {viewMode === "timeline" && canManageSchedule && (
               <BookingTimelineView
                 bookings={filteredBookings}
                 guides={guides || []}
@@ -566,14 +592,14 @@ export default function CalendarPage() {
                             return (
                               <div
                                 key={booking.id}
-                                draggable
+                                draggable={canManageSchedule}
                                 onDragStart={(e) => handleDragStart(e, booking)}
                                 onDragEnd={handleDragEnd}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setSelectedBooking(booking);
                                 }}
-                                className={`group flex flex-col gap-0.5 rounded-md px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing transition-all duration-150 border ${statusColor.bg} ${statusColor.text} ${isDragging ? 'opacity-50 scale-95' : 'hover:shadow-md hover:scale-[1.02]'} border-l-4 ${statusColor.border || 'border-transparent'}`}
+                                className={`group flex flex-col gap-0.5 rounded-md px-2 py-1.5 text-xs transition-all duration-150 border ${canManageSchedule ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${statusColor.bg} ${statusColor.text} ${isDragging ? 'opacity-50 scale-95' : 'hover:shadow-md hover:scale-[1.02]'} border-l-4 ${statusColor.border || 'border-transparent'}`}
                               >
                                 <div className="flex items-center gap-1">
                                   <GripVertical className="h-3 w-3 opacity-40 group-hover:opacity-70 transition-opacity shrink-0" />
@@ -669,13 +695,13 @@ export default function CalendarPage() {
                                 return (
                                   <div
                                     key={booking.id}
-                                    draggable
+                                    draggable={canManageSchedule}
                                     onDragStart={(e) => handleDragStart(e, booking)}
                                     onDragEnd={handleDragEnd}
                                     onClick={() => {
                                       setSelectedDate(day);
                                     }}
-                                    className={`rounded px-2 py-1 text-xs cursor-grab active:cursor-grabbing mb-1 ${statusColor.bg} ${statusColor.text}`}
+                                    className={`rounded px-2 py-1 text-xs mb-1 ${canManageSchedule ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${statusColor.bg} ${statusColor.text}`}
                                   >
                                     <div className="font-medium truncate">
                                       <GripVertical className="inline h-3 w-3 mr-0.5 opacity-50" />
@@ -850,35 +876,43 @@ export default function CalendarPage() {
                   </div>
                 </div>
 
-                {/* Assigned Guide - With Assignment */}
+                {/* Assigned Guide */}
                 <div className="flex items-start gap-3">
                   <div className="h-9 w-9 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 shrink-0">
                     <Users className="h-5 w-5" />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium mb-2">Assigned Guide</p>
-                    <Select
-                      value={selectedBooking.assignedGuideId || "none"}
-                      onValueChange={(value) => {
-                        assignGuideMutation.mutate({
-                          bookingId: selectedBooking.id,
-                          guideId: value === "none" ? null : value,
-                        });
-                      }}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a guide" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No guide assigned</SelectItem>
-                        {guides?.map((guide) => (
-                          <SelectItem key={guide.id} value={guide.id}>
-                            {guide.firstName} {guide.lastName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {selectedBooking.guide && (
+                    {canManageSchedule ? (
+                      <Select
+                        value={selectedBooking.assignedGuideId || "none"}
+                        onValueChange={(value) => {
+                          assignGuideMutation.mutate({
+                            bookingId: selectedBooking.id,
+                            guideId: value === "none" ? null : value,
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a guide" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No guide assigned</SelectItem>
+                          {guides?.map((guide) => (
+                            <SelectItem key={guide.id} value={guide.id}>
+                              {guide.firstName} {guide.lastName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        {selectedBooking.guide
+                          ? `${selectedBooking.guide.firstName} ${selectedBooking.guide.lastName}`
+                          : "Guide not recorded"}
+                      </p>
+                    )}
+                    {canManageSchedule && selectedBooking.guide && (
                       <p className="text-xs text-muted-foreground mt-1">
                         📞 {selectedBooking.guide.phone}
                       </p>
@@ -923,25 +957,26 @@ export default function CalendarPage() {
                     </div>
                   )}
 
-                {/* Additional Info */}
-                <div className="p-4 rounded-lg bg-muted/50 border text-sm space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Phone</span>
-                    <span className="font-medium">{selectedBooking.visitorPhone || "N/A"}</span>
+                {canManageSchedule && (
+                  <div className="p-4 rounded-lg bg-muted/50 border text-sm space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Phone</span>
+                      <span className="font-medium">{selectedBooking.visitorPhone || "N/A"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Country</span>
+                      <span className="font-medium">N/A</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Payment</span>
+                      <span className="font-medium capitalize">{selectedBooking.paymentStatus || "Pending"}</span>
+                    </div>
+                    <div className="pt-2 border-t mt-2 flex justify-between font-medium">
+                      <span>Total Amount</span>
+                      <span className="text-primary">{selectedBooking.totalAmount ? `$${selectedBooking.totalAmount}` : "Free"}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Country</span>
-                    <span className="font-medium">N/A</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Payment</span>
-                    <span className="font-medium capitalize">{selectedBooking.paymentStatus || "Pending"}</span>
-                  </div>
-                  <div className="pt-2 border-t mt-2 flex justify-between font-medium">
-                    <span>Total Amount</span>
-                    <span className="text-primary">{selectedBooking.totalAmount ? `$${selectedBooking.totalAmount}` : "Free"}</span>
-                  </div>
-                </div>
+                )}
 
                 {selectedBooking.specialRequests && (
                   <div className="space-y-1">
@@ -952,7 +987,7 @@ export default function CalendarPage() {
                   </div>
                 )}
 
-                {/* Quick Status Actions */}
+                {canManageSchedule && (
                 <div className="flex flex-col gap-2 pt-4 border-t">
                   <p className="text-sm font-medium">Quick Actions</p>
                   <div className="grid grid-cols-2 gap-2">
@@ -988,10 +1023,11 @@ export default function CalendarPage() {
                     )}
                   </div>
                 </div>
+                )}
 
                 <div className="flex flex-col gap-2 pt-2">
                   <Button className="w-full" asChild>
-                    <a href={`/bookings/${selectedBooking.id}`}>
+                    <a href={isGuide ? `/my-tours/${selectedBooking.id}` : `/bookings/${selectedBooking.id}`}>
                       View Full Details
                     </a>
                   </Button>

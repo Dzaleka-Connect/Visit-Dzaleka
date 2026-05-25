@@ -3,6 +3,7 @@ import { SEO } from "@/components/seo";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/empty-state";
+import { DataErrorState } from "@/components/data-error-state";
 import { StatCard } from "@/components/stat-card";
 import { formatDate, formatCurrency } from "@/lib/constants";
 import { DollarSign, TrendingUp, Calendar, Loader2 } from "lucide-react";
@@ -24,7 +25,7 @@ interface EarningsData {
 }
 
 export default function MyEarnings() {
-    const { data, isLoading } = useQuery<EarningsData>({
+    const { data, isLoading, isError, error, refetch } = useQuery<EarningsData>({
         queryKey: ["/api/guides/me/earnings"],
     });
 
@@ -32,6 +33,30 @@ export default function MyEarnings() {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+        );
+    }
+
+    if (isError) {
+        return (
+            <div className="space-y-6">
+                <SEO
+                    title="My Earnings"
+                    description="View your earnings from completed tours."
+                />
+                <div className="flex flex-col gap-2">
+                    <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">My Earnings</h1>
+                    <p className="text-muted-foreground">
+                        Track your earnings from completed tours.
+                    </p>
+                </div>
+                <DataErrorState
+                    icon={DollarSign}
+                    title="Earnings unavailable"
+                    description={error instanceof Error ? error.message : "Could not load your earnings."}
+                    onRetry={() => refetch()}
+                    className="py-16"
+                />
             </div>
         );
     }

@@ -18,6 +18,7 @@ import {
     X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { PublicHeader } from "@/components/public-header";
 
 const PARTNER_OG_IMAGE = "https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg";
 
@@ -45,7 +46,6 @@ const benefits = [
 ];
 
 export default function PartnerWithUs() {
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
 
@@ -99,54 +99,7 @@ export default function PartnerWithUs() {
             />
 
             {/* Header - Reused from Landing/Blog */}
-            <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
-                <div className="container mx-auto flex h-16 items-center justify-between px-4">
-                    <Link href="/">
-                        <div className="flex items-center gap-3 cursor-pointer">
-                            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Dzaleka Visit Logo" className="h-10 w-10 rounded-lg shadow-sm" />
-                            <div className="flex flex-col">
-                                <span className="text-sm font-bold tracking-tight">Dzaleka Visit</span>
-                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                                    Official Portal
-                                </span>
-                            </div>
-                        </div>
-                    </Link>
-
-                    {/* Desktop Nav */}
-                    <nav className="hidden md:flex items-center gap-4">
-                        <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">Home</Link>
-                        <Link href="/blog" className="text-sm font-medium hover:text-primary transition-colors">Blog</Link>
-                        <a href="/#features" className="text-sm font-medium hover:text-primary transition-colors">Features</a>
-                        <div className="flex items-center gap-2 ml-2">
-                            <Button asChild size="sm">
-                                <Link href="/login">Book Now</Link>
-                            </Button>
-                        </div>
-                    </nav>
-
-                    {/* Mobile Menu Toggle */}
-                    <button
-                        className="md:hidden p-2"
-                        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                    >
-                        {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-                    </button>
-                </div>
-
-                {/* Mobile Nav */}
-                {mobileMenuOpen && (
-                    <div className="md:hidden border-t bg-background p-4 space-y-3">
-                        <Link href="/" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Home</Link>
-                        <Link href="/blog" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Blog</Link>
-                        <div className="flex gap-2 pt-2">
-                            <Button asChild className="flex-1">
-                                <Link href="/login">Book Now</Link>
-                            </Button>
-                        </div>
-                    </div>
-                )}
-            </header>
+            <PublicHeader activePath="/partner-with-us" />
 
             <main className="flex-1">
                 {/* Hero Section */}

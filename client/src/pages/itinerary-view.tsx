@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useParams, Link } from "wouter";
+import { useLocation, useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, ArrowLeft, MapPin, Printer, Calendar, Clock, User } from "lucide-react";
@@ -29,9 +29,25 @@ interface ItineraryData {
 }
 
 export default function ItineraryView() {
-    const { id } = useParams(); // bookingId
+    const params = useParams<{ id?: string; bookingId?: string }>();
+    const [location] = useLocation();
+    const bookingId = params.id || params.bookingId;
+    const isVisitorRoute = location.startsWith("/my-bookings/");
+    const isGuideRoute = location.startsWith("/my-tours/");
+    const backHref = isVisitorRoute
+        ? `/my-bookings/${bookingId}`
+        : isGuideRoute
+            ? `/my-tours/${bookingId}`
+            : `/bookings/${bookingId}`;
+    const backLabel = isVisitorRoute
+        ? "Back to My Booking"
+        : isGuideRoute
+            ? "Back to My Tour"
+            : "Back to Booking";
+
     const { data: itinerary, isLoading, error } = useQuery<Itinerary>({
-        queryKey: [`/api/bookings/${id}/itinerary`],
+        queryKey: [`/api/bookings/${bookingId}/itinerary`],
+        enabled: Boolean(bookingId),
     });
 
     if (isLoading) return <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -40,8 +56,8 @@ export default function ItineraryView() {
         return (
             <div className="container mx-auto p-6 max-w-3xl">
                 <Button variant="ghost" asChild className="mb-4">
-                    <Link href={`/bookings/${id}`}>
-                        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Booking
+                    <Link href={backHref}>
+                        <ArrowLeft className="mr-2 h-4 w-4" /> {backLabel}
                     </Link>
                 </Button>
                 <Card>
@@ -85,8 +101,8 @@ export default function ItineraryView() {
                 robots="noindex, nofollow"
             />
             <Button variant="ghost" asChild className="mb-6">
-                <Link href={`/bookings/${id}`}>
-                    <ArrowLeft className="mr-2 h-4 w-4" /> Back to Booking
+                <Link href={backHref}>
+                    <ArrowLeft className="mr-2 h-4 w-4" /> {backLabel}
                 </Link>
             </Button>
 

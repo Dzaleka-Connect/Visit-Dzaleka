@@ -7,10 +7,56 @@ import { MapPin, ArrowRight, Menu, X, Globe, Calendar, Users, Camera, Music, Boo
 import { useState } from "react";
 import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
+import { PublicHeader } from "@/components/public-header";
 
 const guidedTourPath = "/things-to-do/dzaleka-refugee-camp-guided-walking-tour";
 const guidedTourOptionsPath = `${guidedTourPath}#tour-options`;
 const guidedTourUrl = "https://visit.dzaleka.com/things-to-do/dzaleka-refugee-camp-guided-walking-tour";
+
+const experienceCategories = [
+    {
+        title: "Guided Walking Tour",
+        href: guidedTourPath,
+        description: "Resident-led cultural route through camp zones, markets, and community spaces.",
+        icon: MapPin,
+    },
+    {
+        title: "Arts & Culture",
+        href: "/things-to-do/arts-culture",
+        description: "Creative spaces, music, craft, performance, and cultural storytelling.",
+        icon: Music,
+    },
+    {
+        title: "Shopping & Markets",
+        href: "/things-to-do/shopping",
+        description: "Community markets, small businesses, local makers, and everyday trade.",
+        icon: Camera,
+    },
+    {
+        title: "Nature & Outdoors",
+        href: "/things-to-do/nature-outdoors",
+        description: "Outdoor routes, green edges, sport spaces, and slower ways to explore.",
+        icon: Globe,
+    },
+    {
+        title: "Dining & Nightlife",
+        href: "/things-to-do/dining-nightlife",
+        description: "Food spots, cafes, evening activity, and informal community gathering places.",
+        icon: Star,
+    },
+    {
+        title: "Sports & Recreation",
+        href: "/things-to-do/sports-recreation",
+        description: "Football, youth recreation, competitions, and active community events.",
+        icon: Users,
+    },
+    {
+        title: "Host Community",
+        href: "/things-to-do/host-community",
+        description: "Experiences connecting Dzaleka visitors with surrounding host communities.",
+        icon: BookOpen,
+    },
+];
 
 // Structured Data for Google "Things to do" - TouristAttraction + TouristTrip
 // Using valid schema.org types only: https://schema.org/TouristAttraction
@@ -408,8 +454,6 @@ const structuredData = {
 };
 
 export default function ThingsToDo() {
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
     return (
         <div className="min-h-screen bg-background flex flex-col">
             <SEO
@@ -427,106 +471,7 @@ export default function ThingsToDo() {
             />
 
             {/* Header - Reused from Landing */}
-            <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
-                <div className="container mx-auto flex h-16 items-center justify-between px-4">
-                    <Link href="/">
-                        <div className="flex items-center gap-3 cursor-pointer">
-                            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Visit Dzaleka Logo" className="h-10 w-10 rounded-lg shadow-sm" />
-                            <div className="flex flex-col">
-                                <span className="text-sm font-bold tracking-tight">Visit Dzaleka</span>
-                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                                    Official Portal
-                                </span>
-                            </div>
-                        </div>
-                    </Link>
-
-                    {/* Desktop Nav */}
-                    <nav className="hidden md:flex items-center gap-4">
-                        <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">Home</Link>
-                        <Link href="/blog" className="text-sm font-medium hover:text-primary transition-colors">Blog</Link>
-                        <div className="relative group">
-                            <Link href="/things-to-do" className="text-sm font-medium text-primary transition-colors flex items-center gap-1">
-                                Things To Do
-                                <svg className="h-3 w-3 transition-transform group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </Link>
-                            <div className="absolute left-0 top-full mt-1 w-48 rounded-md border bg-background shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                                <div className="py-1">
-                                    <Link href="/things-to-do" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">All Experiences</Link>
-                                    <Link href={guidedTourPath} className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Guided Walking Tour</Link>
-                                    <Link href="/things-to-do/arts-culture" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Arts & Culture</Link>
-                                    <Link href="/things-to-do/shopping" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Shopping & Markets</Link>
-                                    <Link href="/things-to-do/nature-outdoors" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Nature & Outdoors</Link>
-                                    <Link href="/things-to-do/dining-nightlife" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Dining & Nightlife</Link>
-                                    <Link href="/things-to-do/sports-recreation" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Sports & Recreation</Link>
-                                    <Link href="/things-to-do/host-community" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Host Community</Link>
-                                </div>
-                            </div>
-                        </div>
-                        <Link href="/accommodation" className="text-sm font-medium hover:text-primary transition-colors">Accommodation</Link>
-                        <Link href="/whats-on" className="text-sm font-medium hover:text-primary transition-colors">What's On</Link>
-                        <div className="relative group">
-                            <Link href="/plan-your-trip" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
-                                Plan Your Trip
-                                <svg className="h-3 w-3 transition-transform group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </Link>
-                            <div className="absolute left-0 top-full mt-1 w-48 rounded-md border bg-background shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                                <div className="py-1">
-                                    <Link href="/plan-your-trip" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Trip Planner</Link>
-                                    <Link href="/plan-your-trip/visitor-essentials" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Visitor Essentials</Link>
-                                    <Link href="/plan-your-trip/public-holidays" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Public Holidays</Link>
-                                    <Link href="/accommodation" className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Accommodation</Link>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2 ml-2">
-                            <Button asChild size="sm">
-                                <Link href={guidedTourPath}>Book Now</Link>
-                            </Button>
-                        </div>
-                    </nav>
-
-                    {/* Mobile Menu Toggle */}
-                    <button
-                        className="md:hidden p-2"
-                        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                        aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-                        aria-expanded={mobileMenuOpen}
-                    >
-                        {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-                    </button>
-                </div>
-
-                {/* Mobile Nav */}
-                {mobileMenuOpen && (
-                    <div className="md:hidden border-t bg-background p-4 space-y-3">
-                        <Link href="/" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Home</Link>
-                        <Link href="/blog" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Blog</Link>
-                        <Link href="/things-to-do" className="block text-sm font-medium py-1 text-primary" onClick={() => setMobileMenuOpen(false)}>Things To Do</Link>
-                        <Link href={guidedTourPath} className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>Guided Walking Tour</Link>
-                        <Link href="/things-to-do/arts-culture" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Arts & Culture</Link>
-                        <Link href="/things-to-do/shopping" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Shopping & Markets</Link>
-                        <Link href="/things-to-do/nature-outdoors" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Nature & Outdoors</Link>
-                        <Link href="/things-to-do/dining-nightlife" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Dining & Nightlife</Link>
-                        <Link href="/things-to-do/sports-recreation" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Sports & Recreation</Link>
-                        <Link href="/things-to-do/host-community" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Host Community</Link>
-                        <Link href="/accommodation" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Accommodation</Link>
-                        <Link href="/whats-on" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>What's On</Link>
-                        <Link href="/plan-your-trip" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Plan Your Trip</Link>
-                        <Link href="/plan-your-trip/visitor-essentials" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Visitor Essentials</Link>
-                        <Link href="/plan-your-trip/public-holidays" className="block text-sm font-medium py-1 pl-4 text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>↳ Public Holidays</Link>
-                        <div className="flex gap-2 pt-2">
-                            <Button asChild className="flex-1">
-                                <Link href={guidedTourPath}>Book Now</Link>
-                            </Button>
-                        </div>
-                    </div>
-                )}
-            </header>
+            <PublicHeader activePath="/things-to-do" />
 
             <main className="flex-1">
                 {/* Hero Section */}
@@ -554,6 +499,35 @@ export default function ThingsToDo() {
                 </div>
 
                 <div className="container mx-auto px-4 py-16 space-y-24">
+                    <section className="space-y-8">
+                        <div className="max-w-3xl">
+                            <h2 className="text-3xl font-bold tracking-tight">Explore by category</h2>
+                            <p className="mt-3 text-muted-foreground text-lg">
+                                Use these sections to find the kind of visit you want to plan, from guided cultural routes to food, markets, outdoor spaces, and community connections.
+                            </p>
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            {experienceCategories.map((category) => (
+                                <Link key={category.href} href={category.href}>
+                                    <Card className="h-full transition-shadow hover:shadow-md">
+                                        <CardContent className="flex h-full flex-col gap-4 p-5">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="rounded-lg bg-primary/10 p-2 text-primary">
+                                                    <category.icon className="h-5 w-5" />
+                                                </div>
+                                                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-semibold">{category.title}</h3>
+                                                <p className="mt-2 text-sm text-muted-foreground">{category.description}</p>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                </Link>
+                            ))}
+                        </div>
+                    </section>
+
                     {/* Section 1: Guided Tours */}
                     <section className="grid md:grid-cols-2 gap-12 items-center">
                         <div className="order-2 md:order-1 relative">

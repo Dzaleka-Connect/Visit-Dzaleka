@@ -362,8 +362,12 @@
 
   /* Premium table row hover */
   .table-row-hover {
-    @apply transition-all duration-200 ease-out;
+    transition: background-color 200ms ease-out, box-shadow 200ms ease-out;
     @apply hover:bg-accent/50 hover:shadow-sm;
+  }
+
+  .transition-transform-shadow {
+    transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   /* Shimmer loading effect */

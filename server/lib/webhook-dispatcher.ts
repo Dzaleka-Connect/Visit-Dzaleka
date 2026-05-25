@@ -48,7 +48,7 @@ export class WebhookDispatcher {
   static triggerProcessor() {
     setImmediate(async () => {
       try {
-        await this.processPendingDeliveries();
+        await this.processPending();
       } catch (error) {
         logger.error("Background webhook processor failed", error as Error);
       }
@@ -56,15 +56,29 @@ export class WebhookDispatcher {
   }
 
   /**
-   * Worker loop that processes all pending webhook deliveries.
+   * Public worker loop that processes all pending webhook deliveries.
+   * Returns details of processed count.
    */
-  private static async processPendingDeliveries() {
-    if (this.isProcessing) return;
+  static async processPending(): Promise<{ processedCount: number }> {
+    if (this.isProcessing) return { processedCount: 0 };
     this.isProcessing = true;
 
     try {
       const pendingDeliveries = await storage.getPendingWebhookDeliveries();
+
+      if (pendingDeliveries.length > 0) {
+        let oldestTime = Date.now();
+        for (const d of pendingDeliveries) {
+          const timestamp = d.timestamp ? new Date(d.timestamp).getTime() : Date.now();
+          if (timestamp < oldestTime) {
+            oldestTime = timestamp;
+          }
+        }
+        const oldestAgeSeconds = Math.max(0, Math.floor((Date.now() - oldestTime) / 1000));
+        logger.info(`Processing ${pendingDeliveries.length} pending webhooks. Oldest webhook age: ${oldestAgeSeconds}s`);
+      }
       
+      let processedCount = 0;
       for (const delivery of pendingDeliveries) {
         // Mark as processing so no other worker picks it up
         await storage.updateWebhookDelivery(delivery.id, { status: "processing" });
@@ -76,13 +90,17 @@ export class WebhookDispatcher {
             responseBody: "Endpoint not found or inactive",
             responseStatus: 404,
           });
+          processedCount++;
           continue;
         }
 
         await this.sendDelivery(endpoint, delivery);
+        processedCount++;
       }
+      return { processedCount };
     } catch (error) {
       logger.error("Error processing pending webhook deliveries", error as Error);
+      return { processedCount: 0 };
     } finally {
       this.isProcessing = false;
     }

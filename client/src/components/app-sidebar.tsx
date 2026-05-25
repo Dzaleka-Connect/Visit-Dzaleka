@@ -62,9 +62,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { AccountSwitcher } from "@/components/account-switcher";
 import type { LucideIcon } from "lucide-react";
 
-type UserRole = "admin" | "coordinator" | "guide" | "security" | "visitor" | "transport_partner";
+export type UserRole = "admin" | "coordinator" | "guide" | "security" | "visitor" | "transport_partner";
 
-interface NavItem {
+export interface NavItem {
   title: string;
   url: string;
   icon: LucideIcon;
@@ -72,7 +72,7 @@ interface NavItem {
   external?: boolean;
 }
 
-const mainNavigationItems: NavItem[] = [
+export const mainNavigationItems: NavItem[] = [
   {
     title: "Dashboard",
     url: "/",
@@ -164,10 +164,11 @@ const mainNavigationItems: NavItem[] = [
     roles: ["visitor"],
   },
   {
-    title: "Share Photos",
-    url: "/share-photos",
+    title: "Photo Portal",
+    url: "https://services.dzaleka.com/photos/submit/",
     icon: Camera,
     roles: ["visitor"],
+    external: true,
   },
   {
     title: "Saved Itineraries",
@@ -310,7 +311,7 @@ const mainNavigationItems: NavItem[] = [
   },
 ];
 
-const financeItems: NavItem[] = [
+export const financeItems: NavItem[] = [
   {
     title: "Revenue",
     url: "/revenue",
@@ -325,7 +326,7 @@ const financeItems: NavItem[] = [
   },
 ];
 
-const operationsItems: NavItem[] = [
+export const operationsItems: NavItem[] = [
   {
     title: "Operations Control",
     url: "/operations-control",
@@ -348,7 +349,7 @@ const operationsItems: NavItem[] = [
     title: "System Health",
     url: "/admin/system-health",
     icon: Activity,
-    roles: ["admin"],
+    roles: ["admin", "coordinator"],
   },
   {
     title: "GetYourGuide",
@@ -424,7 +425,7 @@ const operationsItems: NavItem[] = [
   },
 ];
 
-const adminItems: NavItem[] = [
+export const adminItems: NavItem[] = [
   {
     title: "User Management",
     url: "/users",
@@ -456,12 +457,6 @@ const adminItems: NavItem[] = [
     roles: ["admin", "coordinator"],
   },
   {
-    title: "Webhooks",
-    url: "/admin/webhooks",
-    icon: Globe,
-    roles: ["admin"],
-  },
-  {
     title: "Scheduled Reports",
     url: "/admin/scheduled-reports",
     icon: Calendar,
@@ -471,7 +466,7 @@ const adminItems: NavItem[] = [
     title: "My Profile",
     url: "/profile",
     icon: User,
-    roles: ["admin", "coordinator", "guide", "security", "visitor"],
+    roles: ["admin", "coordinator", "guide", "security", "visitor", "transport_partner"],
   },
 ];
 

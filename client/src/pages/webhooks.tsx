@@ -302,39 +302,47 @@ export default function Webhooks() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {endpoints.map((ep) => (
-                  <TableRow key={ep.id}>
-                    <TableCell className="font-medium max-w-[180px] break-words">{ep.description}</TableCell>
-                    <TableCell className="text-xs font-mono max-w-[240px] break-all">{ep.url}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1 flex-wrap">
-                        {ep.events.map((ev: string) => (
-                          <Badge key={ev} variant="outline" className="text-[10px]">
-                            {ev}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={ep.status === "active" ? "default" : "destructive"}>
-                        {ep.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => {
-                        setEditingEndpoint(ep);
-                        setIsDialogOpen(true);
-                      }}>Edit</Button>
-                      <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => {
-                        if (window.confirm("Confirm webhook approval: delete this endpoint?")) {
-                          deleteMutation.mutate(ep.id);
-                        }
-                      }}>
-                        Delete
-                      </Button>
+                {endpoints.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
+                      No webhook endpoints yet. Add an endpoint to receive events.
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  endpoints.map((ep) => (
+                    <TableRow key={ep.id}>
+                      <TableCell className="font-medium max-w-[180px] break-words">{ep.description}</TableCell>
+                      <TableCell className="text-xs font-mono max-w-[240px] break-all">{ep.url}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-1 flex-wrap">
+                          {ep.events.map((ev: string) => (
+                            <Badge key={ev} variant="outline" className="text-[10px]">
+                              {ev}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={ep.status === "active" ? "default" : "destructive"}>
+                          {ep.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => {
+                          setEditingEndpoint(ep);
+                          setIsDialogOpen(true);
+                        }}>Edit</Button>
+                        <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => {
+                          if (window.confirm("Confirm webhook approval: delete this endpoint?")) {
+                            deleteMutation.mutate(ep.id);
+                          }
+                        }}>
+                          Delete
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -357,34 +365,42 @@ export default function Webhooks() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentDeliveries.map((delivery) => (
-                  <TableRow key={delivery.id}>
-                    <TableCell className="font-mono text-xs">{delivery.event}</TableCell>
-                    <TableCell className="text-sm">
-                      {endpoints.find(e => e.id === delivery.endpointId)?.description || "Unknown"}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {delivery.timestamp ? new Date(delivery.timestamp).toLocaleString() : "Not recorded"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={delivery.status === "success" ? "default" : "destructive"} className={delivery.status === "success" ? "bg-green-500 hover:bg-green-600" : ""}>
-                        {delivery.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Retry"
-                        aria-label={`Retry ${delivery.event} webhook delivery`}
-                        disabled={retryMutation.isPending}
-                        onClick={() => retryMutation.mutate(delivery.id)}
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
+                {recentDeliveries.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
+                      No webhook deliveries yet. Deliveries appear after matching events fire.
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  recentDeliveries.map((delivery) => (
+                    <TableRow key={delivery.id}>
+                      <TableCell className="font-mono text-xs">{delivery.event}</TableCell>
+                      <TableCell className="text-sm">
+                        {endpoints.find(e => e.id === delivery.endpointId)?.description || "Unknown"}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {delivery.timestamp ? new Date(delivery.timestamp).toLocaleString() : "Not recorded"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={delivery.status === "success" ? "default" : "destructive"} className={delivery.status === "success" ? "bg-green-500 hover:bg-green-600" : ""}>
+                          {delivery.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Retry"
+                          aria-label={`Retry ${delivery.event} webhook delivery`}
+                          disabled={retryMutation.isPending}
+                          onClick={() => retryMutation.mutate(delivery.id)}
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>

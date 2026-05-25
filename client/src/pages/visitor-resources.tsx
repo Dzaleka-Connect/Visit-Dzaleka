@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -31,6 +32,7 @@ import type { TrainingModule } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { SEO } from "@/components/seo";
 import { apiRequest } from "@/lib/queryClient";
+import { EmptyState } from "@/components/empty-state";
 
 type ResourceProgress = Record<string, { status: "completed"; completedAt?: string }>;
 
@@ -113,6 +115,37 @@ export default function VisitorResourcesPage() {
             ))}
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (!modules?.length) {
+    return (
+      <div className="space-y-6 overflow-x-hidden">
+        <SEO
+          title="Before You Visit"
+          description="Essential information and guides for your visit to Dzaleka."
+        />
+        <div className="min-w-0">
+          <h2 className="break-words text-2xl font-bold tracking-tight sm:text-3xl">Before You Visit</h2>
+          <p className="break-words text-muted-foreground">
+            Essential information and guides for your visit to Dzaleka.
+          </p>
+        </div>
+        <Card>
+          <CardContent className="p-8">
+            <EmptyState
+              icon={BookOpen}
+              title="No visitor resources yet"
+              description="Check back before your visit or contact support if you need help preparing."
+              action={
+                <Button asChild>
+                  <Link href="/help?support=true">Contact support</Link>
+                </Button>
+              }
+            />
+          </CardContent>
+        </Card>
       </div>
     );
   }

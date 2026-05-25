@@ -26,6 +26,7 @@ const sidebarContent = `
   
   <div class="nav-section">
     <div class="nav-section-title">User Guide</div>
+    <a href="authentication.html" class="nav-item" data-page="authentication">Authentication</a>
     <a href="dashboard.html" class="nav-item" data-page="dashboard">Dashboard</a>
     <a href="bookings.html" class="nav-item" data-page="bookings">Managing Bookings</a>
     <a href="guides.html" class="nav-item" data-page="guides">Guide Management</a>

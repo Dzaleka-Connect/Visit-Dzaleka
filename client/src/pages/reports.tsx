@@ -15,6 +15,7 @@ import {
     AlertTriangle,
     Lightbulb,
     UserPlus,
+    RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,7 @@ import {
 } from "@/components/ui/collapsible";
 import { StatusBadge } from "@/components/status-badge";
 import { SEO } from "@/components/seo";
+import { EmptyState } from "@/components/empty-state";
 import { formatDate, formatTime, formatCurrency, TOUR_TYPES } from "@/lib/constants";
 import { StatusBreakdownChart, POIFrequencyChart, GuideUtilizationChart, ParticipantsChart, SeasonalTrendsChart, BookingTimeHeatmap, RevenueByTourChart, EmailStatsChart } from "@/components/dashboard-charts";
 import type { StatusBreakdownData, POIFrequencyData, GuideUtilizationData, ParticipantsData, MonthlyTrendData, HeatmapData, RevenueByTourData, EmailStatsData } from "@/components/dashboard-charts";
@@ -60,6 +62,33 @@ interface BookingWithGuide extends Booking {
 
 const isBookingForGuide = (booking: Booking, guide: Guide) =>
     booking.assignedGuideId === guide.id || (!!guide.userId && booking.assignedGuideId === guide.userId);
+
+function DataErrorState({
+    title,
+    description,
+    onRetry,
+    className,
+}: {
+    title: string;
+    description: string;
+    onRetry: () => void;
+    className?: string;
+}) {
+    return (
+        <EmptyState
+            icon={AlertTriangle}
+            title={title}
+            description={description}
+            className={className}
+            action={
+                <Button type="button" variant="outline" onClick={onRetry}>
+                    <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Retry
+                </Button>
+            }
+        />
+    );
+}
 
 export default function Reports() {
     const [activeTab, setActiveTab] = useState("bookings");
@@ -79,19 +108,36 @@ export default function Reports() {
     const [searchQuery, setSearchQuery] = useState("");
 
     // Fetch data
-    const { data: bookings, isLoading: bookingsLoading } = useQuery<BookingWithGuide[]>({
+    const {
+        data: bookings,
+        isLoading: bookingsLoading,
+        isError: bookingsError,
+        refetch: refetchBookings,
+    } = useQuery<BookingWithGuide[]>({
         queryKey: ["/api/bookings"],
     });
 
-    const { data: guides } = useQuery<Guide[]>({
+    const {
+        data: guides,
+        isError: guidesError,
+        refetch: refetchGuides,
+    } = useQuery<Guide[]>({
         queryKey: ["/api/guides"],
     });
 
-    const { data: zones } = useQuery<Zone[]>({
+    const {
+        data: zones,
+        isError: zonesError,
+        refetch: refetchZones,
+    } = useQuery<Zone[]>({
         queryKey: ["/api/zones"],
     });
 
-    const { data: pointsOfInterest } = useQuery<PointOfInterest[]>({
+    const {
+        data: pointsOfInterest,
+        isError: pointsOfInterestError,
+        refetch: refetchPointsOfInterest,
+    } = useQuery<PointOfInterest[]>({
         queryKey: ["/api/points-of-interest"],
     });
 
@@ -367,7 +413,11 @@ export default function Reports() {
         })).sort((a, b) => b.revenue - a.revenue);
     }, [filteredBookings]);
 
-    const { data: emailStats } = useQuery<EmailStatsData[]>({
+    const {
+        data: emailStats,
+        isError: emailStatsError,
+        refetch: refetchEmailStats,
+    } = useQuery<EmailStatsData[]>({
         queryKey: [`/api/reports/email-stats?startDate=${dateFrom}&endDate=${dateTo}`],
     });
 
@@ -511,6 +561,39 @@ export default function Reports() {
             detail: "Useful for guide allocation and pricing review",
         },
     ];
+    const reportDataIssues = [
+        bookingsError
+            ? {
+                title: "Bookings failed to load",
+                description: "Reports cannot show booking totals, filters, or exports until the bookings API responds.",
+                onRetry: () => void refetchBookings(),
+            }
+            : null,
+        guidesError
+            ? {
+                title: "Guides failed to load",
+                description: "Guide filters and guide utilization may be incomplete until guide data loads.",
+                onRetry: () => void refetchGuides(),
+            }
+            : null,
+        zonesError || pointsOfInterestError
+            ? {
+                title: "Route interest data failed to load",
+                description: "Zone and point-of-interest charts may be incomplete until this data loads.",
+                onRetry: () => {
+                    void refetchZones();
+                    void refetchPointsOfInterest();
+                },
+            }
+            : null,
+        emailStatsError
+            ? {
+                title: "Email stats failed to load",
+                description: "Communication reporting cannot show email performance until the email stats API responds.",
+                onRetry: () => void refetchEmailStats(),
+            }
+            : null,
+    ].filter(Boolean);
 
     return (
         <div className="space-y-6">
@@ -520,6 +603,19 @@ export default function Reports() {
                 <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Reports</h1>
                 <p className="text-sm sm:text-base text-muted-foreground">Monitor your business with detailed reports and data exports.</p>
             </div>
+
+            {reportDataIssues.length > 0 && (
+                <div className="grid gap-3 md:grid-cols-2">
+                    {reportDataIssues.map((issue) => (
+                        <DataErrorState
+                            key={issue!.title}
+                            title={issue!.title}
+                            description={issue!.description}
+                            onRetry={issue!.onRetry}
+                        />
+                    ))}
+                </div>
+            )}
 
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {reportSnapshot.map((item) => (
@@ -748,7 +844,7 @@ export default function Reports() {
                                     {filteredBookings.length} bookings from {dateFrom} to {dateTo}
                                 </CardDescription>
                             </div>
-                            <Button onClick={exportToCSV} variant="outline" size="sm" className="w-full sm:w-auto">
+                            <Button onClick={exportToCSV} variant="outline" size="sm" className="w-full sm:w-auto" disabled={bookingsLoading || bookingsError}>
                                 <Download className="h-4 w-4 mr-2" />
                                 Export CSV
                             </Button>
@@ -758,6 +854,13 @@ export default function Reports() {
                                 <div className="flex items-center justify-center py-12">
                                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                                 </div>
+                            ) : bookingsError ? (
+                                <DataErrorState
+                                    title="Bookings report unavailable"
+                                    description="The bookings table could not load. Retry the request before treating this report as empty."
+                                    onRetry={() => void refetchBookings()}
+                                    className="py-12"
+                                />
                             ) : filteredBookings.length === 0 ? (
                                 <div className="text-center py-12 text-muted-foreground">
                                     No bookings found for the selected filters.
@@ -817,7 +920,14 @@ export default function Reports() {
 
                 {/* Payments Tab */}
                 <TabsContent value="payments" className="mt-4 space-y-4 sm:space-y-6">
-                    <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
+                    {bookingsError ? (
+                        <DataErrorState
+                            title="Payment report unavailable"
+                            description="Revenue and payment summaries depend on bookings data. Retry before treating this period as empty."
+                            onRetry={() => void refetchBookings()}
+                        />
+                    ) : (
+                        <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
                         <Card>
                             <CardHeader>
                                 <CardTitle>Revenue Summary</CardTitle>
@@ -852,29 +962,73 @@ export default function Reports() {
                         </Card>
                         <SeasonalTrendsChart customData={seasonalData} />
                         <RevenueByTourChart data={revenueByTourData} />
-                    </div>
+                        </div>
+                    )}
                 </TabsContent>
 
                 {/* Visitors Tab */}
                 <TabsContent value="visitors" className="mt-4 space-y-4 sm:space-y-6">
-                    <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
-                        <ParticipantsChart customData={participantsData} />
-                        <StatusBreakdownChart customData={statusBreakdownData} />
-                        <POIFrequencyChart customData={poiFrequencyData} />
-                    </div>
+                    {bookingsError ? (
+                        <DataErrorState
+                            title="Visitor report unavailable"
+                            description="Visitor participation charts depend on bookings data. Retry before treating the report as empty."
+                            onRetry={() => void refetchBookings()}
+                        />
+                    ) : (
+                        <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
+                            <ParticipantsChart customData={participantsData} />
+                            <StatusBreakdownChart customData={statusBreakdownData} />
+                            {zonesError || pointsOfInterestError ? (
+                                <DataErrorState
+                                    title="Route interest chart unavailable"
+                                    description="Zones or points of interest failed to load, so this chart may be incomplete."
+                                    onRetry={() => {
+                                        void refetchZones();
+                                        void refetchPointsOfInterest();
+                                    }}
+                                />
+                            ) : (
+                                <POIFrequencyChart customData={poiFrequencyData} />
+                            )}
+                        </div>
+                    )}
                 </TabsContent>
 
                 {/* Schedule Tab */}
                 <TabsContent value="schedule" className="mt-4 space-y-4 sm:space-y-6">
-                    <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
-                        <GuideUtilizationChart customData={guideUtilizationData} />
-                        <BookingTimeHeatmap customData={heatmapData} />
-                    </div>
+                    {bookingsError ? (
+                        <DataErrorState
+                            title="Schedule report unavailable"
+                            description="Schedule charts depend on bookings data. Retry before treating the schedule as empty."
+                            onRetry={() => void refetchBookings()}
+                        />
+                    ) : (
+                        <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
+                            {guidesError ? (
+                                <DataErrorState
+                                    title="Guide utilization unavailable"
+                                    description="Guide data failed to load, so guide utilization cannot be calculated."
+                                    onRetry={() => void refetchGuides()}
+                                />
+                            ) : (
+                                <GuideUtilizationChart customData={guideUtilizationData} />
+                            )}
+                            <BookingTimeHeatmap customData={heatmapData} />
+                        </div>
+                    )}
                 </TabsContent>
 
                 {/* Communications Tab */}
                 <TabsContent value="communications" className="mt-4 space-y-6">
-                    <EmailStatsChart data={emailStats || []} />
+                    {emailStatsError ? (
+                        <DataErrorState
+                            title="Email report unavailable"
+                            description="Email stats failed to load. Retry before treating communication activity as empty."
+                            onRetry={() => void refetchEmailStats()}
+                        />
+                    ) : (
+                        <EmailStatsChart data={emailStats || []} />
+                    )}
                 </TabsContent>
             </Tabs>
         </div>

@@ -49,6 +49,10 @@ function hasTrustedClientAuth(req: Request) {
     return expectedTokens.some((expected) => safeEquals(provided, expected));
 }
 
+function hasApiKeyAuthorization(req: Request) {
+    return headerValue(req.headers.authorization)?.startsWith("Bearer dvz_") === true;
+}
+
 export function createCsrfMiddleware(allowedOrigins: string[]) {
     const allowedOriginSet = new Set(allowedOrigins);
     const isProduction = process.env.NODE_ENV === "production";
@@ -69,7 +73,7 @@ export function createCsrfMiddleware(allowedOrigins: string[]) {
         const referer = headerValue(req.headers.referer);
         const trustedClient = hasTrustedClientAuth(req);
 
-        if (trustedClient) {
+        if (trustedClient || hasApiKeyAuthorization(req)) {
             return next();
         }
 
@@ -98,9 +102,10 @@ export function createCsrfMiddleware(allowedOrigins: string[]) {
             }
         }
 
-        // Check if the origin is allowed
+        // Check if the origin is allowed (allow Chrome extensions to connect, validation happens via CSRF token checking below)
         const isAllowedDevOrigin = !isProduction && LOCAL_DEV_ORIGIN_PATTERN.test(requestOrigin || "");
-        if (requestOrigin && !allowedOriginSet.has(requestOrigin) && !isAllowedDevOrigin) {
+        const isChromeExtension = requestOrigin?.startsWith("chrome-extension://") ?? false;
+        if (requestOrigin && !allowedOriginSet.has(requestOrigin) && !isAllowedDevOrigin && !isChromeExtension) {
             return res.status(403).json({
                 message: "Forbidden: Cross-origin request not allowed"
             });

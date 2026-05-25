@@ -22,6 +22,8 @@ import {
   Mountain,
   Search,
   ShieldCheck,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -249,6 +251,12 @@ export default function Zones() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 25;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchTerm, statusFilter, categoryFilter]);
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [selectedLocation, setSelectedLocation] = useState<LocationDetail | null>(null);
   const [isZoneFormOpen, setIsZoneFormOpen] = useState(false);
@@ -424,6 +432,18 @@ export default function Zones() {
       return matchesSearch && matchesStatus;
     });
   }, [filterText, meetingPoints, statusFilter]);
+
+  const paginatedZones = useMemo(() => {
+    return filteredZones.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  }, [filteredZones, currentPage]);
+
+  const paginatedPois = useMemo(() => {
+    return filteredPois.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  }, [filteredPois, currentPage]);
+
+  const paginatedMeetingPoints = useMemo(() => {
+    return filteredMeetingPoints.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  }, [filteredMeetingPoints, currentPage]);
 
   const visibleCategoryOptions = activeTab === "zones" ? zoneTypeOptions : poiCategoryOptions.map((value) => ({ value, label: labelFor(value) }));
 
@@ -1068,7 +1088,7 @@ export default function Zones() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredZones.map((zone) => (
+                  {paginatedZones.map((zone) => (
                     <TableRow key={zone.id}>
                       <TableCell className="font-medium">
                         <button
@@ -1094,7 +1114,7 @@ export default function Zones() {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredZones.map((zone) => (
+              {paginatedZones.map((zone) => (
                 <Card
                   key={zone.id}
                   className="hover-elevate"
@@ -1180,6 +1200,72 @@ export default function Zones() {
               ))}
             </div>
           )}
+
+          {filteredZones && filteredZones.length > ITEMS_PER_PAGE && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border rounded-lg bg-card mt-6">
+              <div className="text-sm text-muted-foreground font-medium">
+                Showing <span className="font-semibold text-foreground">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> to{" "}
+                <span className="font-semibold text-foreground">
+                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredZones.length)}
+                </span>{" "}
+                of <span className="font-semibold text-foreground">{filteredZones.length}</span> entries
+              </div>
+              <nav className="flex items-center gap-1" aria-label="Zones Pagination Navigation">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  aria-label="Previous Page"
+                  className="h-9 w-9 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                {Array.from({ length: Math.ceil(filteredZones.length / ITEMS_PER_PAGE) }, (_, i) => i + 1)
+                  .filter((page, _, arr) => {
+                    const totalPages = arr.length;
+                    return (
+                      page === 1 ||
+                      page === totalPages ||
+                      Math.abs(page - currentPage) <= 1
+                    );
+                  })
+                  .map((page, index, array) => {
+                    const showEllipsis = index > 0 && page - array[index - 1] > 1;
+                    return (
+                      <div key={page} className="flex items-center">
+                        {showEllipsis && (
+                          <span className="px-2 text-muted-foreground select-none" aria-hidden="true">
+                            …
+                          </span>
+                        )}
+                        <Button
+                          variant={currentPage === page ? "default" : "outline"}
+                          onClick={() => setCurrentPage(page)}
+                          aria-label={`Page ${page}`}
+                          aria-current={currentPage === page ? "page" : undefined}
+                          className={`h-9 w-9 p-0 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary ${
+                            currentPage === page ? "pointer-events-none" : ""
+                          }`}
+                        >
+                          {page}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentPage((p) => Math.min(Math.ceil(filteredZones.length / ITEMS_PER_PAGE), p + 1))}
+                  disabled={currentPage === Math.ceil(filteredZones.length / ITEMS_PER_PAGE)}
+                  aria-label="Next Page"
+                  className="h-9 w-9 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </nav>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="poi" className="mt-6">
@@ -1233,7 +1319,7 @@ export default function Zones() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredPois.map((poi) => (
+                  {paginatedPois.map((poi) => (
                     <TableRow key={poi.id}>
                       <TableCell className="font-medium">
                         <button
@@ -1244,7 +1330,7 @@ export default function Zones() {
                           {poi.name}
                         </button>
                       </TableCell>
-                      <TableCell>{labelFor(poi.category)}</TableCell>
+                      <TableCell>{poi.category ? labelFor(poi.category) : "Not set"}</TableCell>
                       <TableCell>{poi.isPublic === false ? "Internal" : "Public"}</TableCell>
                       <TableCell>{poi.requiresPermission ? "Permission needed" : labelFor(poi.photoPolicy)}</TableCell>
                       <TableCell>{formatReviewDate(poi.lastReviewedAt)}</TableCell>
@@ -1260,7 +1346,7 @@ export default function Zones() {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredPois.map((poi) => (
+              {paginatedPois.map((poi) => (
                 <Card
                   key={poi.id}
                   className="hover-elevate"
@@ -1361,6 +1447,72 @@ export default function Zones() {
               ))}
             </div>
           )}
+
+          {filteredPois && filteredPois.length > ITEMS_PER_PAGE && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border rounded-lg bg-card mt-6">
+              <div className="text-sm text-muted-foreground font-medium">
+                Showing <span className="font-semibold text-foreground">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> to{" "}
+                <span className="font-semibold text-foreground">
+                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredPois.length)}
+                </span>{" "}
+                of <span className="font-semibold text-foreground">{filteredPois.length}</span> entries
+              </div>
+              <nav className="flex items-center gap-1" aria-label="POIs Pagination Navigation">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  aria-label="Previous Page"
+                  className="h-9 w-9 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                {Array.from({ length: Math.ceil(filteredPois.length / ITEMS_PER_PAGE) }, (_, i) => i + 1)
+                  .filter((page, _, arr) => {
+                    const totalPages = arr.length;
+                    return (
+                      page === 1 ||
+                      page === totalPages ||
+                      Math.abs(page - currentPage) <= 1
+                    );
+                  })
+                  .map((page, index, array) => {
+                    const showEllipsis = index > 0 && page - array[index - 1] > 1;
+                    return (
+                      <div key={page} className="flex items-center">
+                        {showEllipsis && (
+                          <span className="px-2 text-muted-foreground select-none" aria-hidden="true">
+                            …
+                          </span>
+                        )}
+                        <Button
+                          variant={currentPage === page ? "default" : "outline"}
+                          onClick={() => setCurrentPage(page)}
+                          aria-label={`Page ${page}`}
+                          aria-current={currentPage === page ? "page" : undefined}
+                          className={`h-9 w-9 p-0 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary ${
+                            currentPage === page ? "pointer-events-none" : ""
+                          }`}
+                        >
+                          {page}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentPage((p) => Math.min(Math.ceil(filteredPois.length / ITEMS_PER_PAGE), p + 1))}
+                  disabled={currentPage === Math.ceil(filteredPois.length / ITEMS_PER_PAGE)}
+                  aria-label="Next Page"
+                  className="h-9 w-9 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </nav>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="meeting" className="mt-6">
@@ -1414,7 +1566,7 @@ export default function Zones() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredMeetingPoints.map((mp) => (
+                  {paginatedMeetingPoints.map((mp) => (
                     <TableRow key={mp.id}>
                       <TableCell className="font-medium">
                         <button
@@ -1441,7 +1593,7 @@ export default function Zones() {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredMeetingPoints.map((mp) => (
+              {paginatedMeetingPoints.map((mp) => (
                 <Card
                   key={mp.id}
                   className="hover-elevate"
@@ -1528,6 +1680,72 @@ export default function Zones() {
                   </CardContent>
                 </Card>
               ))}
+            </div>
+          )}
+
+          {filteredMeetingPoints && filteredMeetingPoints.length > ITEMS_PER_PAGE && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border rounded-lg bg-card mt-6">
+              <div className="text-sm text-muted-foreground font-medium">
+                Showing <span className="font-semibold text-foreground">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> to{" "}
+                <span className="font-semibold text-foreground">
+                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredMeetingPoints.length)}
+                </span>{" "}
+                of <span className="font-semibold text-foreground">{filteredMeetingPoints.length}</span> entries
+              </div>
+              <nav className="flex items-center gap-1" aria-label="Meeting Points Pagination Navigation">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  aria-label="Previous Page"
+                  className="h-9 w-9 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                {Array.from({ length: Math.ceil(filteredMeetingPoints.length / ITEMS_PER_PAGE) }, (_, i) => i + 1)
+                  .filter((page, _, arr) => {
+                    const totalPages = arr.length;
+                    return (
+                      page === 1 ||
+                      page === totalPages ||
+                      Math.abs(page - currentPage) <= 1
+                    );
+                  })
+                  .map((page, index, array) => {
+                    const showEllipsis = index > 0 && page - array[index - 1] > 1;
+                    return (
+                      <div key={page} className="flex items-center">
+                        {showEllipsis && (
+                          <span className="px-2 text-muted-foreground select-none" aria-hidden="true">
+                            …
+                          </span>
+                        )}
+                        <Button
+                          variant={currentPage === page ? "default" : "outline"}
+                          onClick={() => setCurrentPage(page)}
+                          aria-label={`Page ${page}`}
+                          aria-current={currentPage === page ? "page" : undefined}
+                          className={`h-9 w-9 p-0 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary ${
+                            currentPage === page ? "pointer-events-none" : ""
+                          }`}
+                        >
+                          {page}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentPage((p) => Math.min(Math.ceil(filteredMeetingPoints.length / ITEMS_PER_PAGE), p + 1))}
+                  disabled={currentPage === Math.ceil(filteredMeetingPoints.length / ITEMS_PER_PAGE)}
+                  aria-label="Next Page"
+                  className="h-9 w-9 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </nav>
             </div>
           )}
         </TabsContent>

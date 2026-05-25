@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
+import { PublicHeader } from "@/components/public-header";
 
 // Structured Data for SEO
 // Comprehensive Structured Data for SEO
@@ -100,8 +101,6 @@ const stats = [
 ];
 
 export default function LifeInDzaleka() {
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
     return (
         <div className="min-h-screen bg-background flex flex-col">
             <SEO
@@ -118,58 +117,7 @@ export default function LifeInDzaleka() {
             />
 
             {/* Header */}
-            <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
-                <div className="container mx-auto flex h-16 items-center justify-between px-4">
-                    <Link href="/">
-                        <div className="flex items-center gap-3 cursor-pointer">
-                            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Visit Dzaleka Logo" className="h-10 w-10 rounded-lg shadow-sm" />
-                            <div className="flex flex-col">
-                                <span className="text-sm font-bold tracking-tight">Visit Dzaleka</span>
-                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                                    Official Portal
-                                </span>
-                            </div>
-                        </div>
-                    </Link>
-
-                    <nav className="hidden md:flex items-center gap-4">
-                        <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">Home</Link>
-                        <Link href="/blog" className="text-sm font-medium hover:text-primary transition-colors">Blog</Link>
-                        <Link href="/life-in-dzaleka" className="text-sm font-medium text-primary transition-colors">Life in Dzaleka</Link>
-                        <Link href="/things-to-do" className="text-sm font-medium hover:text-primary transition-colors">Things To Do</Link>
-                        <Link href="/whats-on" className="text-sm font-medium hover:text-primary transition-colors">What's On</Link>
-                        <Link href="/plan-your-trip" className="text-sm font-medium hover:text-primary transition-colors">Plan Your Trip</Link>
-                        <div className="flex items-center gap-2 ml-2">
-                            <Button asChild size="sm">
-                                <Link href="/login">Book Now</Link>
-                            </Button>
-                        </div>
-                    </nav>
-
-                    <button
-                        className="md:hidden p-2"
-                        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                    >
-                        {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-                    </button>
-                </div>
-
-                {mobileMenuOpen && (
-                    <div className="md:hidden border-t bg-background p-4 space-y-3">
-                        <Link href="/" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Home</Link>
-                        <Link href="/blog" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Blog</Link>
-                        <Link href="/life-in-dzaleka" className="block text-sm font-medium py-1 text-primary" onClick={() => setMobileMenuOpen(false)}>Life in Dzaleka</Link>
-                        <Link href="/things-to-do" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Things To Do</Link>
-                        <Link href="/whats-on" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>What's On</Link>
-                        <Link href="/plan-your-trip" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Plan Your Trip</Link>
-                        <div className="flex gap-2 pt-2">
-                            <Button asChild className="flex-1">
-                                <Link href="/login">Book Now</Link>
-                            </Button>
-                        </div>
-                    </div>
-                )}
-            </header>
+            <PublicHeader activePath="/life-in-dzaleka" />
 
             <main className="flex-1">
                 {/* Hero Section */}

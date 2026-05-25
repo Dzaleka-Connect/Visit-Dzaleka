@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { EmptyState } from "@/components/empty-state";
+import { DataErrorState } from "@/components/data-error-state";
 import { apiRequest } from "@/lib/queryClient";
 import type { AuditLog } from "@shared/schema";
 import { SEO } from "@/components/seo";
@@ -107,9 +108,19 @@ export default function AuditLogs() {
     const [searchQuery, setSearchQuery] = useState("");
     const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
-    const { data: logs, isLoading } = useQuery<EnrichedAuditLog[]>({
+    const {
+        data: logs,
+        isLoading,
+        isError: logsIsError,
+        error: logsError,
+        refetch: refetchLogs,
+    } = useQuery<EnrichedAuditLog[]>({
         queryKey: ["/api/audit-logs"],
     });
+
+    const logsErrorMessage = logsError instanceof Error
+        ? logsError.message
+        : "Audit log data could not be loaded.";
 
     // Derive unique actions and entities for filter options
     const uniqueActions = useMemo(() => {
@@ -264,7 +275,7 @@ export default function AuditLogs() {
                         ))}
                     </SelectContent>
                 </Select>
-                <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={!filteredLogs.length} className="h-9">
+                <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={logsIsError || !filteredLogs.length} className="h-9">
                     <Download className="mr-2 h-4 w-4" />
                     Export CSV
                 </Button>
@@ -285,10 +296,10 @@ export default function AuditLogs() {
 
                         {/* Cleanup Controls */}
                         <div className="flex items-center gap-2">
-                            <Select value={cleanupDays} onValueChange={setCleanupDays}>
-                                <SelectTrigger className="w-[140px]">
-                                    <SelectValue placeholder="Select period" />
-                                </SelectTrigger>
+                                    <Select value={cleanupDays} onValueChange={setCleanupDays} disabled={logsIsError}>
+                                        <SelectTrigger className="w-[140px]">
+                                            <SelectValue placeholder="Select period" />
+                                        </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="7">Older than 7 days</SelectItem>
                                     <SelectItem value="30">Older than 30 days</SelectItem>
@@ -299,7 +310,7 @@ export default function AuditLogs() {
 
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" size="sm">
+                                    <Button variant="destructive" size="sm" disabled={logsIsError}>
                                         <Trash2 className="mr-2 h-4 w-4" />
                                         Cleanup
                                     </Button>
@@ -332,6 +343,13 @@ export default function AuditLogs() {
                 <CardContent>
                     {isLoading ? (
                         <p className="text-muted-foreground">Loading audit logs...</p>
+                    ) : logsIsError ? (
+                        <DataErrorState
+                            title="Audit logs unavailable"
+                            description={`The audit trail could not be loaded. ${logsErrorMessage}`}
+                            onRetry={() => refetchLogs()}
+                            className="py-12"
+                        />
                     ) : !filteredLogs || filteredLogs.length === 0 ? (
                         <EmptyState
                             icon={FileText}

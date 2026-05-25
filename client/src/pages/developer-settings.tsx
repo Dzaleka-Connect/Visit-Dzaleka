@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SEO } from "@/components/seo";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import {
     Dialog,
     DialogContent,
@@ -31,8 +33,23 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { formatDistanceToNow } from "date-fns";
-import { Key, Plus, Copy, Trash2, Clock, Activity, Shield, Code, BookOpen, Terminal, AlertTriangle, Layout, Palette } from "lucide-react";
+import { Key, Plus, Copy, Trash2, Clock, Activity, Shield, Code, BookOpen, Terminal, AlertTriangle, Layout, Palette, Eye, EyeOff, RefreshCw, Globe } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import type { WebhookEndpoint, WebhookDelivery } from "@shared/schema";
+import { DataErrorState } from "@/components/data-error-state";
+
+const WEBHOOK_EVENTS = [
+    { id: "booking.created", label: "Booking Created" },
+    { id: "booking.updated", label: "Booking Updated" },
+    { id: "guide.assigned", label: "Guide Assigned" },
+    { id: "incident.reported", label: "Incident Reported" },
+];
+
+const DEVELOPER_TABS = new Set(["api-keys", "embed-widgets", "api-docs", "webhooks"]);
+
+function normalizeDeveloperTab(value: string | null) {
+    return value && DEVELOPER_TABS.has(value) ? value : "api-keys";
+}
 
 interface ApiKey {
     id: string;
@@ -50,16 +67,108 @@ const AVAILABLE_SCOPES = [
     { id: "bookings:read", label: "Read Bookings" },
     { id: "bookings:write", label: "Create/Update Bookings" },
     { id: "guides:read", label: "Read Guide Profiles" },
-    { id: "analytics:read", label: "Access Analytics" },
 ];
 
 export default function DeveloperSettings() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const [, setLocation] = useLocation();
+    const search = useSearch();
+    const activeTab = normalizeDeveloperTab(new URLSearchParams(search).get("tab"));
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
     const [newKeyName, setNewKeyName] = useState("");
     const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
     const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+
+    // Webhooks State
+    const [createWebhookOpen, setCreateWebhookOpen] = useState(false);
+    const [webhookUrl, setWebhookUrl] = useState("");
+    const [webhookEvents, setWebhookEvents] = useState<string[]>(["booking.created"]);
+    const [showWebhookSecrets, setShowWebhookSecrets] = useState<Record<string, boolean>>({});
+    const [selectedEndpointId, setSelectedEndpointId] = useState<string | null>(null);
+    const [viewingDelivery, setViewingDelivery] = useState<WebhookDelivery | null>(null);
+
+    const { data: webhookEndpoints, isLoading: isLoadingWebhooks, isError: webhooksError, refetch: refetchWebhooks } = useQuery<WebhookEndpoint[]>({
+        queryKey: ["/api/webhooks"],
+    });
+
+    const { data: deliveries, isLoading: isLoadingDeliveries, isError: deliveriesError, refetch: refetchDeliveries } = useQuery<WebhookDelivery[]>({
+        queryKey: ["/api/webhooks/deliveries", selectedEndpointId],
+        queryFn: async () => {
+            const url = selectedEndpointId 
+                ? `/api/webhooks/deliveries?endpointId=${selectedEndpointId}`
+                : `/api/webhooks/deliveries`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error("Failed to fetch deliveries");
+            return res.json();
+        },
+        refetchInterval: 5000,
+    });
+
+    const createWebhookMutation = useMutation({
+        mutationFn: async (data: { url: string; description: string; events: string[]; status: "active" | "disabled" }) => {
+            const res = await apiRequest("POST", "/api/webhooks", data);
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/webhooks"] });
+            toast({
+                title: "Webhook Created",
+                description: "The webhook endpoint has been registered.",
+            });
+            setCreateWebhookOpen(false);
+            setWebhookUrl("");
+            setWebhookEvents(["booking.created"]);
+        },
+        onError: (err: any) => {
+            toast({
+                title: "Error",
+                description: err.message || "Failed to create webhook endpoint",
+                variant: "destructive",
+            });
+        },
+    });
+
+    const updateWebhookMutation = useMutation({
+        mutationFn: async ({ id, data }: { id: string; data: Partial<WebhookEndpoint> }) => {
+            const res = await apiRequest("PATCH", `/api/webhooks/${id}`, data);
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/webhooks"] });
+            toast({
+                title: "Webhook Updated",
+                description: "The endpoint configuration has been updated.",
+            });
+        },
+    });
+
+    const deleteWebhookMutation = useMutation({
+        mutationFn: async (id: string) => {
+            await apiRequest("DELETE", `/api/webhooks/${id}`);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/webhooks"] });
+            toast({
+                title: "Webhook Deleted",
+                description: "The webhook endpoint was deleted successfully.",
+            });
+        },
+    });
+
+    const retryDeliveryMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const res = await apiRequest("POST", `/api/webhooks/deliveries/${id}/retry`);
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/webhooks/deliveries"] });
+            toast({
+                title: "Delivery Retried",
+                description: "A retry attempt has been scheduled.",
+            });
+        },
+    });
 
     // Widget Builder State
     const [widgetTheme, setWidgetTheme] = useState<"light" | "dark">("light");
@@ -83,9 +192,12 @@ export default function DeveloperSettings() {
 ></iframe>`;
     };
 
-    const { data: apiKeys = [], isLoading } = useQuery<ApiKey[]>({
+    const { data: apiKeys, isLoading, isError: apiKeysError, refetch: refetchApiKeys } = useQuery<ApiKey[]>({
         queryKey: ["/api/developer/api-keys"],
     });
+    const apiKeysList = apiKeys || [];
+    const webhookEndpointsList = webhookEndpoints || [];
+    const deliveriesList = deliveries || [];
 
     const createKeyMutation = useMutation({
         mutationFn: async (data: { name: string; scopes: string[] }) => {
@@ -149,6 +261,11 @@ export default function DeveloperSettings() {
         setCreateDialogOpen(false);
     };
 
+    const handleTabChange = (value: string) => {
+        const tab = normalizeDeveloperTab(value);
+        setLocation(tab === "api-keys" ? "/developer" : `/developer?tab=${tab}`);
+    };
+
     return (
         <div className="container mx-auto px-4 py-6 space-y-6">
             <SEO title="Developer Settings" description="Manage API keys and integrations" />
@@ -163,7 +280,7 @@ export default function DeveloperSettings() {
                 </p>
             </div>
 
-            <Tabs defaultValue="api-keys" className="w-full">
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
                 <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
                     <TabsList className="inline-flex w-auto min-w-full md:w-auto">
                         <TabsTrigger value="api-keys" className="gap-1 md:gap-2 text-xs md:text-sm">
@@ -178,7 +295,7 @@ export default function DeveloperSettings() {
                             <BookOpen className="h-3.5 w-3.5 md:h-4 md:w-4" />
                             <span className="hidden sm:inline">API</span> Docs
                         </TabsTrigger>
-                        <TabsTrigger value="webhooks" disabled className="gap-1 md:gap-2 text-xs md:text-sm">
+                        <TabsTrigger value="webhooks" className="gap-1 md:gap-2 text-xs md:text-sm">
                             <Activity className="h-3.5 w-3.5 md:h-4 md:w-4" />
                             Webhooks
                         </TabsTrigger>
@@ -283,7 +400,13 @@ export default function DeveloperSettings() {
 
                     {isLoading ? (
                         <div className="text-center py-8 text-muted-foreground">Loading API keys...</div>
-                    ) : apiKeys.length === 0 ? (
+                    ) : apiKeysError ? (
+                        <DataErrorState
+                            title="API keys unavailable"
+                            description="API key inventory could not be loaded. Retry before assuming no keys exist."
+                            onRetry={() => void refetchApiKeys()}
+                        />
+                    ) : apiKeysList.length === 0 ? (
                         <Card>
                             <CardContent className="flex flex-col items-center justify-center py-12">
                                 <Key className="h-12 w-12 text-muted-foreground mb-4" />
@@ -299,7 +422,7 @@ export default function DeveloperSettings() {
                         </Card>
                     ) : (
                         <div className="grid gap-4">
-                            {apiKeys.map((key) => (
+                            {apiKeysList.map((key) => (
                                 <Card key={key.id}>
                                     <CardHeader className="pb-2">
                                         <div className="flex items-center justify-between">
@@ -532,7 +655,7 @@ export default function DeveloperSettings() {
                                 Base URL & Authentication
                             </CardTitle>
                             <CardDescription>
-                                All API requests require authentication using an API key
+                                Developer API endpoints require an API key with the listed scope
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -548,6 +671,7 @@ export default function DeveloperSettings() {
                                     <Button
                                         variant="ghost"
                                         size="sm"
+                                        aria-label="Copy example request"
                                         className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
                                         onClick={() => handleCopyCode(`curl -X GET "https://visit.dzaleka.com/api/bookings" \\
   -H "Authorization: Bearer dvz_your_api_key_here"`)}
@@ -608,6 +732,14 @@ export default function DeveloperSettings() {
                                 <p className="text-sm text-muted-foreground">List all tour guides</p>
                                 <Badge variant="outline">guides:read</Badge>
                             </div>
+
+                            <div className="border-t pt-6 space-y-4">
+                                <h4 className="font-semibold flex items-center gap-2">
+                                    <Badge>GET</Badge> /api/meeting-points, /api/zones
+                                </h4>
+                                <p className="text-sm text-muted-foreground">Read public tour setup data for booking integrations</p>
+                                <Badge variant="outline">guides:read</Badge>
+                            </div>
                         </CardContent>
                     </Card>
 
@@ -620,8 +752,7 @@ export default function DeveloperSettings() {
                                 {[
                                     { scope: "bookings:read", desc: "View all bookings" },
                                     { scope: "bookings:write", desc: "Create and update bookings" },
-                                    { scope: "guides:read", desc: "View guide profiles" },
-                                    { scope: "analytics:read", desc: "Access analytics data" },
+                                    { scope: "guides:read", desc: "View guide profiles, availability, meeting points, and zones" },
                                 ].map((item) => (
                                     <div key={item.scope} className="flex items-center justify-between py-2 border-b last:border-0">
                                         <code className="text-sm bg-muted px-2 py-1 rounded">{item.scope}</code>
@@ -659,6 +790,396 @@ export default function DeveloperSettings() {
                             </div>
                         </CardContent>
                     </Card>
+                </TabsContent>
+
+                <TabsContent value="webhooks" className="space-y-6">
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <h2 className="text-xl font-semibold">Webhooks</h2>
+                            <p className="text-sm text-muted-foreground">
+                                Configure HTTP POST endpoints to receive real-time event updates
+                            </p>
+                        </div>
+                        <Dialog open={createWebhookOpen} onOpenChange={setCreateWebhookOpen}>
+                            <DialogTrigger asChild>
+                                <Button className="gap-2">
+                                    <Plus className="h-4 w-4" />
+                                    Add Endpoint
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Add Webhook Endpoint</DialogTitle>
+                                    <DialogDescription>
+                                        Specify the destination URL and select event triggers.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="webhookUrl">Payload URL</Label>
+                                        <Input
+                                            id="webhookUrl"
+                                            placeholder="https://your-api.com/webhooks"
+                                            value={webhookUrl}
+                                            onChange={(e) => setWebhookUrl(e.target.value)}
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            Must be HTTPS. Visit Dzaleka sends a POST request with signature verification headers.
+                                        </p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Event Triggers</Label>
+                                        <div className="space-y-2">
+                                            {WEBHOOK_EVENTS.map((event) => (
+                                                <div key={event.id} className="flex items-center gap-2">
+                                                    <Checkbox
+                                                        id={`webhook-${event.id}`}
+                                                        checked={webhookEvents.includes(event.id)}
+                                                        onCheckedChange={(checked) => {
+                                                            setWebhookEvents(
+                                                                checked
+                                                                    ? [...webhookEvents, event.id]
+                                                                    : webhookEvents.filter((e) => e !== event.id)
+                                                            );
+                                                        }}
+                                                    />
+                                                    <label htmlFor={`webhook-${event.id}`} className="text-sm">
+                                                        {event.label} (<code>{event.id}</code>)
+                                                    </label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <Button variant="outline" onClick={() => setCreateWebhookOpen(false)}>
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        onClick={() => createWebhookMutation.mutate({ url: webhookUrl, description: "Integration Webhook", events: webhookEvents, status: "active" })}
+                                        disabled={createWebhookMutation.isPending}
+                                    >
+                                        {createWebhookMutation.isPending ? "Adding…" : "Add Endpoint"}
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+
+                    <div className="grid gap-6 lg:grid-cols-3">
+                        {/* Webhook Endpoints List */}
+                        <div className="lg:col-span-1 space-y-4">
+                            <h3 className="font-semibold text-lg">Endpoints</h3>
+                            {isLoadingWebhooks ? (
+                                <div className="text-center py-4 text-muted-foreground">Loading endpoints…</div>
+                            ) : webhooksError ? (
+                                <DataErrorState
+                                    title="Webhook endpoints unavailable"
+                                    description="Webhook endpoint inventory could not be loaded. Retry before assuming no endpoints exist."
+                                    onRetry={() => void refetchWebhooks()}
+                                />
+                            ) : webhookEndpointsList.length === 0 ? (
+                                <Card>
+                                    <CardContent className="flex flex-col items-center justify-center py-8">
+                                        <Globe className="h-8 w-8 text-muted-foreground mb-2" />
+                                        <p className="text-sm text-muted-foreground text-center">No endpoints registered</p>
+                                    </CardContent>
+                                </Card>
+                            ) : (
+                                webhookEndpointsList.map((endpoint) => {
+                                    const isSecretVisible = showWebhookSecrets[endpoint.id];
+                                    return (
+                                        <Card
+                                            key={endpoint.id}
+                                            className={cn(
+                                                "cursor-pointer hover:border-primary/50 transition-colors",
+                                                selectedEndpointId === endpoint.id && "border-primary ring-1 ring-primary"
+                                            )}
+                                            onClick={() => setSelectedEndpointId(selectedEndpointId === endpoint.id ? null : endpoint.id)}
+                                        >
+                                            <CardContent className="p-4 space-y-3">
+                                                <div className="flex items-start justify-between">
+                                                    <div className="font-medium text-sm break-all pr-2 max-w-[80%]">
+                                                        {endpoint.url}
+                                                    </div>
+                                                    <Badge variant={endpoint.status === "active" ? "default" : "secondary"}>
+                                                        {endpoint.status}
+                                                    </Badge>
+                                                </div>
+
+                                                <div className="flex flex-wrap gap-1">
+                                                    {endpoint.events.map((evt) => (
+                                                        <Badge key={evt} variant="outline" className="text-[10px]">
+                                                            {evt}
+                                                        </Badge>
+                                                    ))}
+                                                </div>
+
+                                                <div className="pt-2 border-t text-xs space-y-2" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="flex justify-between items-center text-muted-foreground">
+                                                        <span>Signing Secret</span>
+                                                        <div className="flex gap-1">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-6 w-6"
+                                                                onClick={() =>
+                                                                    setShowWebhookSecrets({
+                                                                        ...showWebhookSecrets,
+                                                                        [endpoint.id]: !isSecretVisible,
+                                                                    })
+                                                                }
+                                                            >
+                                                                {isSecretVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-6 w-6"
+                                                                onClick={() => {
+                                                                    navigator.clipboard.writeText(endpoint.secret || "");
+                                                                    toast({ title: "Copied!", description: "Secret copied to clipboard" });
+                                                                }}
+                                                            >
+                                                                <Copy className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="font-mono bg-muted p-1.5 rounded break-all select-all">
+                                                        {isSecretVisible ? (endpoint.secret || "") : "whsec_••••••••••••••••••••••••"}
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-between pt-2" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="flex items-center gap-2">
+                                                        <Checkbox
+                                                            id={`status-${endpoint.id}`}
+                                                            checked={endpoint.status === "active"}
+                                                            onCheckedChange={(checked) =>
+                                                                updateWebhookMutation.mutate({
+                                                                    id: endpoint.id,
+                                                                    data: { status: checked ? "active" : "disabled" },
+                                                                })
+                                                            }
+                                                        />
+                                                        <label htmlFor={`status-${endpoint.id}`} className="text-xs text-muted-foreground select-none cursor-pointer">
+                                                            Enabled
+                                                        </label>
+                                                    </div>
+
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10">
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>Delete Webhook Endpoint?</AlertDialogTitle>
+                                                                <AlertDialogDescription>
+                                                                    Are you sure you want to delete this endpoint? You will stop receiving webhook dispatches at this URL.
+                                                                </AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                <AlertDialogAction
+                                                                    onClick={() => deleteWebhookMutation.mutate(endpoint.id)}
+                                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                                >
+                                                                    Delete
+                                                                </AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        {/* Webhook Delivery Logs */}
+                        <div className="lg:col-span-2 space-y-4">
+                            <div className="flex justify-between items-center">
+                                <h3 className="font-semibold text-lg flex items-center gap-2">
+                                    <Activity className="h-5 w-5 text-muted-foreground" />
+                                    Delivery Logs
+                                    {selectedEndpointId && (
+                                        <Badge variant="outline" className="text-xs">
+                                            Filtered
+                                        </Badge>
+                                    )}
+                                </h3>
+                                {selectedEndpointId && (
+                                    <Button variant="ghost" size="sm" onClick={() => setSelectedEndpointId(null)}>
+                                        Clear Filter
+                                    </Button>
+                                )}
+                            </div>
+
+                            <Card>
+                                <CardContent className="p-0">
+                                    {isLoadingDeliveries ? (
+                                        <div className="text-center py-8 text-muted-foreground">Loading delivery logs…</div>
+                                    ) : deliveriesError ? (
+                                        <div className="p-6">
+                                            <DataErrorState
+                                                title="Webhook deliveries unavailable"
+                                                description="Webhook delivery history could not be loaded. Retry before assuming no deliveries exist."
+                                                onRetry={() => void refetchDeliveries()}
+                                            />
+                                        </div>
+                                    ) : deliveriesList.length === 0 ? (
+                                        <div className="text-center py-12 text-muted-foreground flex flex-col items-center justify-center">
+                                            <Clock className="h-10 w-10 mb-2" />
+                                            <p className="text-sm font-medium">No webhook deliveries recorded</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                Trigger some actions (e.g. creating bookings) to dispatch logs
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <ScrollArea className="h-[400px]">
+                                            <div className="divide-y">
+                                                {deliveriesList.map((delivery) => (
+                                                    <div
+                                                        key={delivery.id}
+                                                        className="p-4 hover:bg-muted/50 cursor-pointer flex items-center justify-between"
+                                                        onClick={() => setViewingDelivery(delivery)}
+                                                    >
+                                                        <div className="space-y-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-mono text-sm font-semibold">
+                                                                    {delivery.event}
+                                                                </span>
+                                                                <Badge
+                                                                    variant={
+                                                                        delivery.status === "success"
+                                                                            ? "default"
+                                                                            : delivery.status === "failed"
+                                                                            ? "destructive"
+                                                                            : "secondary"
+                                                                    }
+                                                                >
+                                                                    {delivery.responseStatus || "—"}
+                                                                </Badge>
+                                                            </div>
+                                                            <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                                                                <span>ID: {delivery.id.slice(0, 8)}</span>
+                                                                <span>•</span>
+                                                                <span>
+                                                                    {delivery.timestamp ? formatDistanceToNow(new Date(delivery.timestamp), { addSuffix: true }) : "—"}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                                            {delivery.status !== "success" && (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="h-8 gap-1"
+                                                                    disabled={retryDeliveryMutation.isPending}
+                                                                    onClick={() => retryDeliveryMutation.mutate(delivery.id)}
+                                                                >
+                                                                    <RefreshCw className="h-3 w-3" />
+                                                                    Retry
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </ScrollArea>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </div>
+
+                    {/* Delivery Log Details Dialog */}
+                    <Dialog open={!!viewingDelivery} onOpenChange={(open) => !open && setViewingDelivery(null)}>
+                        {viewingDelivery && (
+                            <DialogContent className="max-w-2xl">
+                                <DialogHeader>
+                                    <DialogTitle className="font-mono text-base break-all">
+                                        Delivery Details: {viewingDelivery.id}
+                                    </DialogTitle>
+                                    <DialogDescription className="flex items-center gap-2">
+                                        Event: <code>{viewingDelivery.event}</code>
+                                        <span>•</span>
+                                        Status:{" "}
+                                        <Badge
+                                            variant={
+                                                viewingDelivery.status === "success"
+                                                    ? "default"
+                                                    : viewingDelivery.status === "failed"
+                                                    ? "destructive"
+                                                    : "secondary"
+                                            }
+                                        >
+                                            {viewingDelivery.status}
+                                        </Badge>
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-2">
+                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                        <div>
+                                            <span className="font-semibold block text-xs uppercase text-muted-foreground">Status Code</span>
+                                            <code>{viewingDelivery.responseStatus || "—"}</code>
+                                        </div>
+                                        <div>
+                                            <span className="font-semibold block text-xs uppercase text-muted-foreground">Dispatched At</span>
+                                            <span>{viewingDelivery.timestamp ? new Date(viewingDelivery.timestamp).toLocaleString() : "—"}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <span className="font-semibold block text-xs uppercase text-muted-foreground">Payload (JSON)</span>
+                                        <ScrollArea className="h-44 bg-muted rounded-lg border">
+                                            <pre className="p-3 text-xs font-mono whitespace-pre overflow-x-auto">
+                                                {JSON.stringify(viewingDelivery.payload, null, 2)}
+                                            </pre>
+                                        </ScrollArea>
+                                    </div>
+
+                                    {viewingDelivery.responseBody && (
+                                        <div className="space-y-1">
+                                            <span className="font-semibold block text-xs uppercase text-muted-foreground">Response Body</span>
+                                            <ScrollArea className="h-28 bg-muted rounded-lg border">
+                                                <pre className="p-3 text-xs font-mono whitespace-pre-wrap break-all">
+                                                    {viewingDelivery.responseBody}
+                                                </pre>
+                                            </ScrollArea>
+                                        </div>
+                                    )}
+                                </div>
+                                <DialogFooter className="sm:justify-between items-center">
+                                    <div className="text-xs text-muted-foreground">
+                                        Endpoint ID: {viewingDelivery.endpointId}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        {viewingDelivery.status !== "success" && (
+                                            <Button
+                                                variant="outline"
+                                                className="gap-2"
+                                                onClick={() => {
+                                                    retryDeliveryMutation.mutate(viewingDelivery.id);
+                                                    setViewingDelivery(null);
+                                                }}
+                                            >
+                                                <RefreshCw className="h-4 w-4" />
+                                                Retry Now
+                                            </Button>
+                                        )}
+                                        <Button variant="outline" onClick={() => setViewingDelivery(null)}>
+                                            Close
+                                        </Button>
+                                    </div>
+                                </DialogFooter>
+                            </DialogContent>
+                        )}
+                    </Dialog>
                 </TabsContent>
             </Tabs>
         </div>

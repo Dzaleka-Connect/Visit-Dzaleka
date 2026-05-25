@@ -1231,7 +1231,7 @@ export default function MyBookings() {
               <div className="flex flex-col justify-end gap-2 sm:flex-row">
                 {itineraries?.some((i) => i.bookingId === selectedBooking.id) && (
                   <Button variant="default" asChild className="w-full sm:w-auto">
-                    <Link href={`/bookings/${selectedBooking.id}/itinerary`}>
+                    <Link href={`/my-bookings/${selectedBooking.id}/itinerary`}>
                       <FileDown className="mr-2 h-4 w-4" /> View Itinerary
                     </Link>
                   </Button>

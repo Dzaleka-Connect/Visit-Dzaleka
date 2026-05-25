@@ -64,6 +64,7 @@ import {
     Search,
 } from "lucide-react";
 import { format } from "date-fns";
+import { DataErrorState } from "@/components/data-error-state";
 
 const PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 const STATUSES = ["pending", "in_progress", "under_review", "completed", "cancelled"] as const;
@@ -106,7 +107,7 @@ export default function TaskAdmin() {
     });
 
     // Fetch tasks
-    const { data: tasks, isLoading: tasksLoading } = useQuery<Task[]>({
+    const { data: tasks, isLoading: tasksLoading, isError: tasksError, refetch: refetchTasks } = useQuery<Task[]>({
         queryKey: ["/api/tasks", statusFilter, priorityFilter],
         queryFn: async () => {
             let url = "/api/tasks";
@@ -121,12 +122,12 @@ export default function TaskAdmin() {
     });
 
     // Fetch users for assignment
-    const { data: users } = useQuery<User[]>({
+    const { data: users, isError: usersError, refetch: refetchUsers } = useQuery<User[]>({
         queryKey: ["/api/users"],
     });
 
     // Fetch task stats
-    const { data: stats } = useQuery<{ total: number; pending: number; inProgress: number; completed: number; overdue: number }>({
+    const { data: stats, isError: statsError, refetch: refetchStats } = useQuery<{ total: number; pending: number; inProgress: number; completed: number; overdue: number }>({
         queryKey: ["/api/tasks/stats"],
     });
 
@@ -147,6 +148,7 @@ export default function TaskAdmin() {
         users?.forEach(u => m.set(u.id, `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email || "Unknown"));
         return m;
     }, [users]);
+    const statValue = (value?: number) => statsError ? "Unavailable" : (value ?? 0);
 
     // Task input type for API (dates as ISO strings)
     type TaskInput = {
@@ -270,7 +272,7 @@ export default function TaskAdmin() {
                 </div>
                 <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                     <DialogTrigger asChild>
-                        <Button onClick={resetForm}>
+                        <Button onClick={resetForm} disabled={usersError}>
                             <Plus className="mr-2 h-4 w-4" />
                             New Task
                         </Button>
@@ -285,7 +287,7 @@ export default function TaskAdmin() {
                         <div className="flex items-center gap-2">
                             <ListTodo className="h-5 w-5 text-blue-600" />
                             <div>
-                                <div className="text-2xl font-bold">{stats?.total || 0}</div>
+                                <div className="text-2xl font-bold tabular-nums">{statValue(stats?.total)}</div>
                                 <p className="text-sm text-muted-foreground">Total Tasks</p>
                             </div>
                         </div>
@@ -296,7 +298,7 @@ export default function TaskAdmin() {
                         <div className="flex items-center gap-2">
                             <Clock className="h-5 w-5 text-yellow-600" />
                             <div>
-                                <div className="text-2xl font-bold">{stats?.pending || 0}</div>
+                                <div className="text-2xl font-bold tabular-nums">{statValue(stats?.pending)}</div>
                                 <p className="text-sm text-muted-foreground">Pending</p>
                             </div>
                         </div>
@@ -307,7 +309,7 @@ export default function TaskAdmin() {
                         <div className="flex items-center gap-2">
                             <Users className="h-5 w-5 text-blue-600" />
                             <div>
-                                <div className="text-2xl font-bold">{stats?.inProgress || 0}</div>
+                                <div className="text-2xl font-bold tabular-nums">{statValue(stats?.inProgress)}</div>
                                 <p className="text-sm text-muted-foreground">In Progress</p>
                             </div>
                         </div>
@@ -318,7 +320,7 @@ export default function TaskAdmin() {
                         <div className="flex items-center gap-2">
                             <CheckCircle2 className="h-5 w-5 text-green-600" />
                             <div>
-                                <div className="text-2xl font-bold">{stats?.completed || 0}</div>
+                                <div className="text-2xl font-bold tabular-nums">{statValue(stats?.completed)}</div>
                                 <p className="text-sm text-muted-foreground">Completed</p>
                             </div>
                         </div>
@@ -329,13 +331,32 @@ export default function TaskAdmin() {
                         <div className="flex items-center gap-2">
                             <AlertCircle className="h-5 w-5 text-red-600" />
                             <div>
-                                <div className="text-2xl font-bold">{stats?.overdue || 0}</div>
+                                <div className="text-2xl font-bold tabular-nums">{statValue(stats?.overdue)}</div>
                                 <p className="text-sm text-muted-foreground">Overdue</p>
                             </div>
                         </div>
                     </CardContent>
                 </Card>
             </div>
+
+            {(statsError || usersError) && (
+                <div className="grid gap-3 md:grid-cols-2">
+                    {statsError && (
+                        <DataErrorState
+                            title="Task stats unavailable"
+                            description="Task totals could not be loaded. Retry before treating these metrics as zero."
+                            onRetry={() => void refetchStats()}
+                        />
+                    )}
+                    {usersError && (
+                        <DataErrorState
+                            title="Assignable users unavailable"
+                            description="User data could not be loaded, so assignment controls are disabled."
+                            onRetry={() => void refetchUsers()}
+                        />
+                    )}
+                </div>
+            )}
 
             {/* Filters */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
@@ -384,6 +405,12 @@ export default function TaskAdmin() {
                 <CardContent>
                     {tasksLoading ? (
                         <p className="text-center py-8 text-muted-foreground">Loading tasks\u2026</p>
+                    ) : tasksError ? (
+                        <DataErrorState
+                            title="Tasks unavailable"
+                            description="Task queue data could not be loaded. Retry before treating the queue as empty."
+                            onRetry={() => void refetchTasks()}
+                        />
                     ) : filteredTasks && filteredTasks.length > 0 ? (
                         <Table>
                             <TableHeader>
@@ -525,7 +552,7 @@ export default function TaskAdmin() {
                                 <div className="grid gap-2">
                                     <Label>Assign To</Label>
                                     <Select value={formData.assignedTo || "none"} onValueChange={(v) => setFormData({ ...formData, assignedTo: v === "none" ? "" : v })}>
-                                        <SelectTrigger>
+                                        <SelectTrigger disabled={usersError}>
                                             <SelectValue placeholder="Unassigned" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -563,7 +590,7 @@ export default function TaskAdmin() {
                             <Button type="button" variant="outline" onClick={() => { setIsCreateOpen(false); setEditTask(null); }}>
                                 Cancel
                             </Button>
-                            <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                            <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending || usersError}>
                                 {createMutation.isPending || updateMutation.isPending ? "Saving…" : editTask ? "Update Task" : "Create Task"}
                             </Button>
                         </DialogFooter>

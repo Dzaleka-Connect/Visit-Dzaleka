@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -18,6 +18,8 @@ import {
   CheckCircle,
   Car,
   MessageSquare,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,6 +59,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EmptyState } from "@/components/empty-state";
+import { DataErrorState } from "@/components/data-error-state";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -141,6 +144,12 @@ export default function UsersPage() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 25;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, roleFilter]);
   const [createUserOpen, setCreateUserOpen] = useState(false);
   const [newUser, setNewUser] = useState({
     email: "",
@@ -150,13 +159,27 @@ export default function UsersPage() {
     role: "visitor" as UserRole,
   });
 
-  const { data: usersList, isLoading } = useQuery<User[]>({
+  const {
+    data: usersList,
+    isLoading,
+    isError: usersIsError,
+    error: usersError,
+    refetch: refetchUsers,
+  } = useQuery<User[]>({
     queryKey: ["/api/users"],
   });
 
-  const { data: userStats } = useQuery<UserStats>({
+  const {
+    data: userStats,
+    isError: userStatsIsError,
+    error: userStatsError,
+    refetch: refetchUserStats,
+  } = useQuery<UserStats>({
     queryKey: ["/api/user-stats"],
   });
+
+  const usersErrorMessage = usersError instanceof Error ? usersError.message : "User inventory could not be loaded.";
+  const userStatsErrorMessage = userStatsError instanceof Error ? userStatsError.message : "Role statistics could not be loaded.";
 
   const createUserMutation = useMutation({
     mutationFn: async (data: typeof newUser) => {
@@ -388,7 +411,14 @@ export default function UsersPage() {
     return matchesSearch && matchesRole;
   });
 
-  const roleCounts = usersList?.reduce(
+  const paginatedUsers = filteredUsers?.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  ) || [];
+
+  const roleCounts = (userStats?.byRole && !usersIsError)
+    ? userStats.byRole
+    : usersList?.reduce(
     (acc, user) => {
       const role = user.role || "visitor";
       acc[role] = (acc[role] || 0) + 1;
@@ -409,7 +439,7 @@ export default function UsersPage() {
       >
         <Dialog open={createUserOpen} onOpenChange={setCreateUserOpen}>
           <DialogTrigger asChild>
-            <Button data-testid="button-create-user">
+            <Button data-testid="button-create-user" disabled={usersIsError}>
               <Plus className="mr-2 h-4 w-4" />
               Create User
             </Button>
@@ -536,6 +566,25 @@ export default function UsersPage() {
         </Dialog>
       </PageHeader>
 
+      {(usersIsError || userStatsIsError) && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {usersIsError && (
+            <DataErrorState
+              title="User inventory unavailable"
+              description={`The user list could not be loaded. ${usersErrorMessage}`}
+              onRetry={() => refetchUsers()}
+            />
+          )}
+          {userStatsIsError && (
+            <DataErrorState
+              title="User statistics unavailable"
+              description={`Role counts could not be loaded. ${userStatsErrorMessage}`}
+              onRetry={() => refetchUserStats()}
+            />
+          )}
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-6">
         {USER_ROLES.map(
           (role) => {
@@ -555,7 +604,7 @@ export default function UsersPage() {
                     <Icon className={`h-4 w-4 ${config.text}`} />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{roleCounts[role] || 0}</p>
+                    <p className="text-2xl font-bold">{usersIsError ? "Unavailable" : (roleCounts[role] || 0)}</p>
                     <p className="text-xs text-muted-foreground capitalize">
                       {role === "transport_partner" ? "transport partners" : `${role}s`}
                     </p>
@@ -601,6 +650,14 @@ export default function UsersPage() {
         <CardContent>
           {isLoading ? (
             <p className="text-muted-foreground">Loading users...</p>
+          ) : usersIsError ? (
+            <DataErrorState
+              icon={Users}
+              title="Users unavailable"
+              description={`The user table could not be loaded. ${usersErrorMessage}`}
+              onRetry={() => refetchUsers()}
+              className="py-8"
+            />
           ) : !filteredUsers || filteredUsers.length === 0 ? (
             <EmptyState
               icon={Users}
@@ -627,7 +684,7 @@ export default function UsersPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.map((user) => (
+                  {paginatedUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -772,6 +829,72 @@ export default function UsersPage() {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          )}
+
+          {filteredUsers && filteredUsers.length > ITEMS_PER_PAGE && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-border bg-card mt-4">
+              <div className="text-sm text-muted-foreground font-medium">
+                Showing <span className="font-semibold text-foreground">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> to{" "}
+                <span className="font-semibold text-foreground">
+                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredUsers.length)}
+                </span>{" "}
+                of <span className="font-semibold text-foreground">{filteredUsers.length}</span> entries
+              </div>
+              <nav className="flex items-center gap-1" aria-label="Pagination Navigation">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  aria-label="Previous Page"
+                  className="h-9 w-9 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                {Array.from({ length: Math.ceil(filteredUsers.length / ITEMS_PER_PAGE) }, (_, i) => i + 1)
+                  .filter((page, _, arr) => {
+                    const totalPages = arr.length;
+                    return (
+                      page === 1 ||
+                      page === totalPages ||
+                      Math.abs(page - currentPage) <= 1
+                    );
+                  })
+                  .map((page, index, array) => {
+                    const showEllipsis = index > 0 && page - array[index - 1] > 1;
+                    return (
+                      <div key={page} className="flex items-center">
+                        {showEllipsis && (
+                          <span className="px-2 text-muted-foreground select-none" aria-hidden="true">
+                            …
+                          </span>
+                        )}
+                        <Button
+                          variant={currentPage === page ? "default" : "outline"}
+                          onClick={() => setCurrentPage(page)}
+                          aria-label={`Page ${page}`}
+                          aria-current={currentPage === page ? "page" : undefined}
+                          className={`h-9 w-9 p-0 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary ${
+                            currentPage === page ? "pointer-events-none" : ""
+                          }`}
+                        >
+                          {page}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentPage((p) => Math.min(Math.ceil(filteredUsers.length / ITEMS_PER_PAGE), p + 1))}
+                  disabled={currentPage === Math.ceil(filteredUsers.length / ITEMS_PER_PAGE)}
+                  aria-label="Next Page"
+                  className="h-9 w-9 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </nav>
             </div>
           )}
         </CardContent>

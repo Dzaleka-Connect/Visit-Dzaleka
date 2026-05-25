@@ -65,8 +65,10 @@ import {
   sendTransportRequestAssignedEmailDetailed,
   sendTransportStatusChangedEmailDetailed,
   sendItineraryEmailDetailed,
-  sendBookingReminderEmailDetailed
+  sendBookingReminderEmailDetailed,
+  getResendClient
 } from "./email";
+import { getStripePaymentConfig } from "./lib/stripe";
 import { ReportScheduler } from "./lib/report-scheduler";
 import { WebhookDispatcher } from "./lib/webhook-dispatcher";
 import { isSafeDestination } from "./utils/ssrf";
@@ -86,7 +88,7 @@ import { logger } from "./lib/logger";
 import { suggestGuides, getTopReason } from "./lib/guide-suggestion";
 import { checkAndSendDueReminders } from "./lib/reminder-scheduler";
 import { sendAutomatedTemplateEmail } from "./lib/automated-email";
-import { generatePublicToken, hashToken, tokenFingerprint } from "./lib/tokens";
+import { createSignedToken, generatePublicToken, hashToken, tokenFingerprint, verifySignedToken } from "./lib/tokens";
 import crypto from "crypto";
 import { verifyApiKey } from "./middleware/apiKeyAuth";
 
@@ -146,31 +148,31 @@ const recalculateGuideRating = async (guideId: string, requestId?: string) => {
       storage.getTourReviews(),
       storage.getBookings()
     ]);
-    
+
     // Filter reviews for this guide that are published
     const guideReviews = reviews.filter(r => r.guideId === guideId && r.status === "published" && r.rating !== null && r.rating !== undefined);
-    
+
     // Find booking IDs that have reviews
     const reviewedBookingIds = new Set(reviews.map(r => r.bookingId));
-    
+
     // Filter bookings for this guide that have a rating but no review
-    const directBookings = bookings.filter(b => 
-      b.assignedGuideId === guideId && 
-      b.visitorRating !== null && 
-      b.visitorRating !== undefined && 
+    const directBookings = bookings.filter(b =>
+      b.assignedGuideId === guideId &&
+      b.visitorRating !== null &&
+      b.visitorRating !== undefined &&
       !reviewedBookingIds.has(b.id)
     );
-    
+
     const allRatings: number[] = [
       ...guideReviews.map(r => r.rating!),
       ...directBookings.map(b => b.visitorRating!)
     ];
-    
+
     const totalRatings = allRatings.length;
-    const rating = totalRatings > 0 
+    const rating = totalRatings > 0
       ? Math.round(allRatings.reduce((sum, r) => sum + r, 0) / totalRatings)
       : 0;
-      
+
     await storage.updateGuide(guideId, {
       rating,
       totalRatings
@@ -195,9 +197,68 @@ const TRANSPORT_QUOTE_DETAIL_FIELDS = [
   "vehicleDetails",
   "partnerNotes",
 ] as const;
+const API_KEY_ROUTE_SCOPES = {
+  bookingsRead: "bookings:read",
+  bookingsWrite: "bookings:write",
+  guidesRead: "guides:read",
+} as const;
 
-const buildFeedbackLink = (bookingReference: string) =>
-  `${PUBLIC_APP_URL}/visit/feedback?booking=${encodeURIComponent(bookingReference)}`;
+const REVIEW_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+type ReviewRequestTokenPayload = {
+  purpose: "review_request";
+  bookingId: string;
+  bookingReference: string;
+  visitorEmail: string;
+};
+
+function buildFeedbackLink(booking: Pick<Booking, "id" | "bookingReference" | "visitorEmail">) {
+  const token = createSignedToken({
+    purpose: "review_request",
+    bookingId: booking.id,
+    bookingReference: booking.bookingReference,
+    visitorEmail: booking.visitorEmail,
+  }, REVIEW_TOKEN_TTL_MS);
+  return `${PUBLIC_APP_URL}/visit/feedback?token=${encodeURIComponent(token)}`;
+}
+
+function verifyReviewRequestToken(token: string): ReviewRequestTokenPayload | null {
+  const payload = verifySignedToken<{
+    purpose?: string;
+    bookingId?: string;
+    bookingReference?: string;
+    visitorEmail?: string;
+  }>(token);
+  if (!payload || payload.purpose !== "review_request" || !payload.bookingId || !payload.bookingReference || !payload.visitorEmail) {
+    return null;
+  }
+  return {
+    purpose: "review_request",
+    bookingId: payload.bookingId,
+    bookingReference: payload.bookingReference,
+    visitorEmail: payload.visitorEmail,
+  };
+}
+
+function normalizeReviewEmail(email: string | null | undefined) {
+  return (email || "").trim().toLowerCase();
+}
+
+async function loadBookingForReviewToken(token: string) {
+  const payload = verifyReviewRequestToken(token);
+  if (!payload) {
+    return { status: 401 as const, message: "Invalid or expired review link" };
+  }
+
+  const booking = await storage.getBooking(payload.bookingId);
+  const emailMatches = normalizeReviewEmail(booking?.visitorEmail) === normalizeReviewEmail(payload.visitorEmail);
+  const referenceMatches = booking?.bookingReference === payload.bookingReference;
+  if (!booking || !emailMatches || !referenceMatches) {
+    return { status: 404 as const, message: "Review request not found" };
+  }
+
+  return { status: 200 as const, booking };
+}
 
 function maskEmail(email: string | null | undefined) {
   if (!email || !email.includes("@")) return null;
@@ -424,6 +485,7 @@ function isNotificationVisibleToRole(notification: AppNotification, role: UserRo
 
 const publicReviewSchema = z.object({
   bookingReference: z.string().min(1),
+  token: z.string().min(16),
   rating: z.coerce.number().int().min(1).max(5),
   title: z.string().trim().max(120).optional(),
   comment: z.string().trim().max(3000).optional(),
@@ -478,7 +540,7 @@ const TEMPLATE_SAMPLE_DATA: Record<string, string> = {
   old_visit_time: "09:00",
   new_visit_date: "2026-05-15",
   new_visit_time: "10:00",
-  feedback_link: buildFeedbackLink("DVS-2026-SAMPLE"),
+  feedback_link: `${PUBLIC_APP_URL}/visit/feedback?token=sample`,
   visitor_phone: "+265 888 123 456",
   visitor_organization: "Sample University",
   selected_zones: "Market, Education Center",
@@ -1225,7 +1287,7 @@ async function sendBookingRescheduledEmail(booking: Booking, oldBooking: Booking
 async function sendFeedbackRequestEmail(booking: Booking, sentBy?: string | null) {
   const guide = await getAssignedGuide(booking);
   const guideName = guide ? `${guide.firstName} ${guide.lastName}` : "";
-  const feedbackLink = buildFeedbackLink(booking.bookingReference || booking.id);
+  const feedbackLink = buildFeedbackLink(booking);
 
   const email = await sendAutomatedTemplateEmail({
     templateName: "feedback_request",
@@ -1835,15 +1897,11 @@ function buildAssignedGuideSummary(guide?: Guide | null) {
 }
 
 function buildSafeBookingForRole(booking: Booking, role?: UserRole | null) {
-  const shared = {
+  const guideDeliveryFields = {
     id: booking.id,
     bookingReference: booking.bookingReference,
     source: booking.source,
     visitorName: booking.visitorName,
-    visitorEmail: booking.visitorEmail,
-    visitorPhone: booking.visitorPhone,
-    visitorCountry: booking.visitorCountry,
-    visitorUserId: booking.visitorUserId,
     visitDate: booking.visitDate,
     visitTime: booking.visitTime,
     groupSize: booking.groupSize,
@@ -1851,26 +1909,34 @@ function buildSafeBookingForRole(booking: Booking, role?: UserRole | null) {
     tourType: booking.tourType,
     customDuration: booking.customDuration,
     meetingPointId: booking.meetingPointId,
-    paymentStatus: booking.paymentStatus,
     status: booking.status,
-    cancellationCategory: booking.cancellationCategory,
-    cancellationReason: booking.cancellationReason,
-    cancellationNote: booking.cancellationNote,
-    cancelledAt: booking.cancelledAt,
-	    selectedZones: booking.selectedZones,
-	    selectedInterests: booking.selectedInterests,
-	    selectedCommunityListings: booking.selectedCommunityListings,
-	    specialRequests: booking.specialRequests,
+    selectedZones: booking.selectedZones,
+    selectedInterests: booking.selectedInterests,
+    selectedCommunityListings: booking.selectedCommunityListings,
+    specialRequests: booking.specialRequests,
     accessibilityNeeds: booking.accessibilityNeeds,
-    referralSource: booking.referralSource,
     assignedGuideId: booking.assignedGuideId,
     checkInTime: booking.checkInTime,
     checkOutTime: booking.checkOutTime,
     visitorRating: booking.visitorRating,
-    visitorOrganization: booking.visitorOrganization,
-    recurringBookingId: booking.recurringBookingId,
     createdAt: booking.createdAt,
     updatedAt: booking.updatedAt,
+  };
+
+  const shared = {
+    ...guideDeliveryFields,
+    visitorEmail: booking.visitorEmail,
+    visitorPhone: booking.visitorPhone,
+    visitorCountry: booking.visitorCountry,
+    visitorUserId: booking.visitorUserId,
+    paymentStatus: booking.paymentStatus,
+    cancellationCategory: booking.cancellationCategory,
+    cancellationReason: booking.cancellationReason,
+    cancellationNote: booking.cancellationNote,
+    cancelledAt: booking.cancelledAt,
+    referralSource: booking.referralSource,
+    visitorOrganization: booking.visitorOrganization,
+    recurringBookingId: booking.recurringBookingId,
   };
 
   if (role === "visitor") {
@@ -1883,7 +1949,7 @@ function buildSafeBookingForRole(booking: Booking, role?: UserRole | null) {
   }
 
   if (role === "guide") {
-    return shared;
+    return guideDeliveryFields;
   }
 
   return booking;
@@ -1940,6 +2006,22 @@ const transportRequestUpdateSchema = z.object({
   vehicleDetails: z.string().trim().max(1000).nullable().optional(),
   partnerNotes: z.string().trim().max(3000).nullable().optional(),
   adminNotes: z.string().trim().max(3000).nullable().optional(),
+  cancellationReason: z.string().trim().max(3000).nullable().optional(),
+});
+
+const transportPartnerRequestUpdateSchema = z.object({
+  status: z.enum(["sent_to_partner", "quote_sent", "declined", "reschedule_requested"]).optional(),
+  quotedAmount: z.coerce.number().int().min(0).max(100000000).nullable().optional(),
+  currency: z.string().trim().max(8).optional(),
+  requestedPickupTime: z.string().regex(/^\d{2}:\d{2}$/, "Pickup time must use HH:mm").nullable().optional(),
+  requestedVisitDate: z.string().nullable().optional(),
+  rescheduleNotes: z.string().trim().max(3000).nullable().optional(),
+  driverId: z.string().trim().max(120).nullable().optional(),
+  vehicleId: z.string().trim().max(120).nullable().optional(),
+  driverName: z.string().trim().max(160).nullable().optional(),
+  driverPhone: z.string().trim().max(80).nullable().optional(),
+  vehicleDetails: z.string().trim().max(1000).nullable().optional(),
+  partnerNotes: z.string().trim().max(3000).nullable().optional(),
   cancellationReason: z.string().trim().max(3000).nullable().optional(),
 });
 
@@ -2274,30 +2356,60 @@ function parseProfileImageDataUrl(dataUrl: string, contentType: string) {
   return Buffer.from(match[2].replace(/\s/g, ""), "base64");
 }
 
-// Session-based authentication middleware with API key fallback
-async function isAuthenticated(req: Request, res: Response, next: NextFunction) {
-  // 1. Session auth (primary)
+function hasApiKeyAuthorization(req: Request) {
+  return req.headers.authorization?.startsWith("Bearer dvz_") === true;
+}
+
+// Browser/session authentication only. API keys must be enabled explicitly
+// through authenticateSessionOrApiKey(...) with route-specific scopes.
+function isAuthenticated(req: Request, res: Response, next: NextFunction) {
   if (req.session?.userId) {
     return next();
   }
 
-  // 2. API key auth (fallback for Bearer dvz_* tokens)
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith("Bearer dvz_")) {
-    const result = await verifyApiKey(req);
-    if (result.ok) {
-      // Attach user info so downstream middleware/handlers can use it
-      (req as any).currentUser = result.user;
-      (req as any).apiKey = result.apiKey;
-      // Populate session-like fields for compatibility with requireRole/isAdmin
-      (req.session as any).userId = result.user.id;
-      (req.session as any).userRole = result.user.role;
+  res.status(401).json({ message: "Unauthorized" });
+}
+
+function authenticateSessionOrApiKey(...requiredScopes: string[]) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (req.session?.userId) {
       return next();
     }
-    return res.status(result.status).json({ message: result.message });
-  }
 
-  res.status(401).json({ message: "Unauthorized" });
+    if (!hasApiKeyAuthorization(req)) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const result = await verifyApiKey(req, requiredScopes);
+    if (result.ok) {
+      (req as any).currentUser = result.user;
+      (req as any).apiKey = result.apiKey;
+      return next();
+    }
+
+    return res.status(result.status).json({
+      error: result.code,
+      message: result.message,
+    });
+  };
+}
+
+function authenticateApiKeyIfPresent(...requiredScopes: string[]) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (!hasApiKeyAuthorization(req)) return next();
+
+    const result = await verifyApiKey(req, requiredScopes);
+    if (result.ok) {
+      (req as any).currentUser = result.user;
+      (req as any).apiKey = result.apiKey;
+      return next();
+    }
+
+    return res.status(result.status).json({
+      error: result.code,
+      message: result.message,
+    });
+  };
 }
 
 // Admin role middleware (with DB fallback for old sessions)
@@ -2421,6 +2533,18 @@ function applySpecialOfferAmount(baseAmount: number, offer?: SpecialOffer) {
 // Role-based access control middleware (session-based)
 function requireRole(...allowedRoles: UserRole[]) {
   return async (req: Request, res: Response, next: NextFunction) => {
+    const currentUser = (req as any).currentUser as User | undefined;
+    if (currentUser) {
+      if (!currentUser.role) {
+        return res.status(403).json({ message: "Access denied - no role assigned" });
+      }
+      if (!allowedRoles.includes(currentUser.role as UserRole)) {
+        return res.status(403).json({ message: "Insufficient permissions" });
+      }
+      (req as any).userRole = currentUser.role;
+      return next();
+    }
+
     const userId = req.session?.userId;
 
     // Early return if not authenticated - this prevents 500 errors
@@ -2453,10 +2577,47 @@ function requireRole(...allowedRoles: UserRole[]) {
   };
 }
 
+function requireActivePartnerIfPartner() {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = await getRequestUser(req);
+      if (user && user.role === "transport_partner") {
+        const partner = await storage.getTransportPartnerByUserId(user.id);
+        if (!partner || partner.status !== "active") {
+          return res.status(403).json({ message: "Transport partner account is inactive or pending approval." });
+        }
+      }
+      next();
+    } catch (error) {
+      logError("Active partner check error", error, req.requestId);
+      res.status(500).json({ message: "Authorization error" });
+    }
+  };
+}
+
+function isClosedRequestForPartner(status: string): boolean {
+  return ["completed", "cancelled", "visitor_declined", "declined"].includes(status);
+}
+
+function isValidTransitionForPartner(currentStatus: string, newStatus: string): boolean {
+  if (currentStatus === newStatus) return true;
+  const partnerTargetStatuses = ["sent_to_partner", "quote_sent", "declined", "reschedule_requested"];
+  if (!partnerTargetStatuses.includes(newStatus)) return false;
+  const terminalOrControlledStatuses = ["accepted", "visitor_approved", "visitor_declined", "confirmed", "completed", "cancelled", "declined"];
+  if (terminalOrControlledStatuses.includes(currentStatus)) return false;
+  return true;
+}
+
 type TaskAccessResult =
   | { status: 200; task: Task; user: User }
   | { status: 403 }
   | { status: 404 };
+
+async function getRequestUser(req: Request): Promise<User | undefined> {
+  const currentUser = (req as any).currentUser as User | undefined;
+  if (currentUser) return currentUser;
+  return req.session?.userId ? storage.getUser(req.session.userId) : undefined;
+}
 
 async function requireTaskAccess(taskId: string, userId?: string | null): Promise<TaskAccessResult> {
   if (!userId) return { status: 404 };
@@ -2482,6 +2643,35 @@ function sendTaskAccessError(res: Response, access: Exclude<TaskAccessResult, { 
     return res.status(404).json({ message: "Task not found" });
   }
   return res.status(403).json({ message: "You do not have access to this task" });
+}
+
+async function requireGuideOwnerOrStaff(req: Request, guideId: string) {
+  const user = await getRequestUser(req);
+  if (!user) return false;
+  if (user.role === "admin" || user.role === "coordinator") return true;
+  if (user.role !== "guide") return false;
+  const guide = await storage.getGuideByUserId(user.id);
+  return guide?.id === guideId;
+}
+
+async function getBookingsForCalendarFeed(calendar: { feedOwnerUserId?: string | null; feedAudience?: string | null }) {
+  const bookings = await storage.getBookings();
+  if (!calendar.feedOwnerUserId) {
+    return [];
+  }
+
+  const owner = await storage.getUser(calendar.feedOwnerUserId);
+  if (!owner) return [];
+  if (owner.role === "admin" || owner.role === "coordinator" || owner.role === "security") return bookings;
+  if (owner.role === "guide") {
+    const guide = await storage.getGuideByUserId(owner.id);
+    return guide ? bookings.filter((booking) => isBookingAssignedToGuide(booking, guide)) : [];
+  }
+  if (owner.role === "visitor") {
+    return bookings.filter((booking) => booking.visitorUserId === owner.id || booking.visitorEmail === owner.email);
+  }
+
+  return [];
 }
 
 // Audit logging helper
@@ -2547,7 +2737,7 @@ async function getCurrentTransportPartner(user: User) {
     phone: user.phone || null,
     whatsapp: user.phone || null,
     serviceAreas: [],
-    status: "active",
+    status: "pending",
     notes: "Created automatically from transport partner login.",
   });
 }
@@ -3865,40 +4055,82 @@ async function getVisitorAssignedGuideUserIds(visitor: User): Promise<Set<string
   );
 }
 
+async function isGuideAssignedToVisitor(guideUser: User, visitorUser: User): Promise<boolean> {
+  const guide = await storage.getGuideByUserId(guideUser.id);
+  if (!guide) return false;
+  const visitorEmail = normalizedEmail(visitorUser.email);
+  const allBookings = await storage.getBookings();
+  return allBookings.some((booking) =>
+    booking.assignedGuideId === guide.id &&
+    (booking.visitorUserId === visitorUser.id || (visitorEmail && normalizedEmail(booking.visitorEmail) === visitorEmail))
+  );
+}
+
+async function isVisitorActiveToday(visitorUser: User): Promise<boolean> {
+  const visitorEmail = normalizedEmail(visitorUser.email);
+  const todaysBookings = await storage.getTodaysBookings();
+  return todaysBookings.some((booking) =>
+    !["cancelled", "declined", "visitor_declined"].includes(booking.status || "") &&
+    (booking.visitorUserId === visitorUser.id || (visitorEmail && normalizedEmail(booking.visitorEmail) === visitorEmail))
+  );
+}
+
 async function canUsersStartDirectChat(currentUser: User, otherUser: User): Promise<boolean> {
   if (currentUser.id === otherUser.id) return false;
 
+  // 1. Staff (admin, coordinator) can chat with anyone
   if (currentUser.role === "admin" || currentUser.role === "coordinator") {
     return true;
   }
+  if (otherUser.role === "admin" || otherUser.role === "coordinator") {
+    return true;
+  }
 
+  // 2. Transport Partner: can only chat with linked visitors
   if (currentUser.role === "transport_partner") {
-    if (otherUser.role === "admin" || otherUser.role === "coordinator") {
-      return true;
-    }
-    if (otherUser.role !== "visitor") {
-      return false;
-    }
+    if (otherUser.role !== "visitor") return false;
     const partner = await getTransportPartnerForUser(currentUser);
     return partner ? await isVisitorLinkedToTransportPartner(otherUser, partner.id) : false;
   }
+  if (otherUser.role === "transport_partner") {
+    if (currentUser.role !== "visitor") return false;
+    const partner = await getTransportPartnerForUser(otherUser);
+    return partner ? await isVisitorLinkedToTransportPartner(currentUser, partner.id) : false;
+  }
 
+  // 3. Visitor: can only chat with assigned guides (and linked transport partners - handled above)
   if (currentUser.role === "visitor") {
-    if (otherUser.role === "admin" || otherUser.role === "coordinator") {
-      return true;
-    }
     if (otherUser.role === "guide") {
       const assignedGuideUserIds = await getVisitorAssignedGuideUserIds(currentUser);
       return assignedGuideUserIds.has(otherUser.id);
     }
-    if (otherUser.role === "transport_partner") {
-      const partner = await getTransportPartnerForUser(otherUser);
-      return partner ? await isVisitorLinkedToTransportPartner(currentUser, partner.id) : false;
+    return false;
+  }
+
+  // 4. Guide: can only chat with assigned visitors
+  if (currentUser.role === "guide") {
+    if (otherUser.role === "visitor") {
+      return isGuideAssignedToVisitor(currentUser, otherUser);
     }
     return false;
   }
 
-  return true;
+  // 5. Security: can only chat with active-day visitors
+  if (currentUser.role === "security") {
+    if (otherUser.role === "visitor") {
+      return isVisitorActiveToday(otherUser);
+    }
+    return false;
+  }
+  if (otherUser.role === "security") {
+    if (currentUser.role === "visitor") {
+      return isVisitorActiveToday(currentUser);
+    }
+    return false;
+  }
+
+  // 6. Default deny other role pairs
+  return false;
 }
 
 async function canUserAccessChatParticipants(userId: string, participants: Array<{ userId?: string | null; user_id?: string | null }>): Promise<boolean> {
@@ -3953,27 +4185,222 @@ async function logTransportRequestActivity(
   }
 }
 
+type HealthComponentStatus = "operational" | "degraded" | "down" | "not_configured";
+
+type HealthComponent = {
+  status: HealthComponentStatus;
+  checkedAt: string;
+  message: string;
+  remediationUrl?: string;
+  metrics?: Record<string, unknown>;
+};
+
+function isRecentDate(value: string | Date | null | undefined, windowMs: number) {
+  if (!value) return false;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) && Date.now() - time <= windowMs;
+}
+
+async function buildIntegrationHealth(): Promise<Record<string, HealthComponent>> {
+  const checkedAt = new Date().toISOString();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const components: Record<string, HealthComponent> = {};
+
+  try {
+    const resendClient = getResendClient();
+    const emailLogs = await storage.getEmailLogs({ archived: "all" });
+    const recentFailed = emailLogs.filter((log) =>
+      isRecentDate(log.createdAt, dayMs) && ["failed", "bounced"].includes((log.status || "").toLowerCase())
+    ).length;
+    components.resend = {
+      status: !resendClient ? "not_configured" : recentFailed > 0 ? "degraded" : "operational",
+      checkedAt,
+      message: !resendClient
+        ? "RESEND_API_KEY is not configured."
+        : recentFailed > 0
+          ? `${recentFailed} email delivery failure${recentFailed === 1 ? "" : "s"} recorded in the last 24 hours.`
+          : "Resend is configured and no recent delivery failures were found.",
+      remediationUrl: "/email-settings",
+      metrics: {
+        recentFailures: recentFailed,
+        checkedEmailLogs: emailLogs.length,
+      },
+    };
+  } catch (error: any) {
+    components.resend = {
+      status: "down",
+      checkedAt,
+      message: error?.message || "Email delivery health could not be checked.",
+      remediationUrl: "/email-settings",
+    };
+  }
+
+  try {
+    const stripeConfig = getStripePaymentConfig();
+    const missing = [
+      !stripeConfig.secretKeyConfigured ? "secret key" : null,
+      !stripeConfig.webhookConfigured ? "webhook secret" : null,
+      !stripeConfig.usdConversionConfigured ? "USD conversion rate" : null,
+    ].filter(Boolean);
+    components.stripe = {
+      status: !stripeConfig.secretKeyConfigured ? "not_configured" : missing.length > 0 ? "degraded" : "operational",
+      checkedAt,
+      message: missing.length > 0
+        ? `Stripe configuration is missing ${missing.join(", ")}.`
+        : `Stripe is configured for ${stripeConfig.currency} checkout.`,
+      remediationUrl: "/payments",
+      metrics: {
+        currency: stripeConfig.currency,
+        liveMode: stripeConfig.isLiveMode,
+        webhookConfigured: stripeConfig.webhookConfigured,
+      },
+    };
+  } catch (error: any) {
+    components.stripe = {
+      status: "down",
+      checkedAt,
+      message: error?.message || "Stripe health could not be checked.",
+      remediationUrl: "/payments",
+    };
+  }
+
+  try {
+    const hasCredentials = Boolean(process.env.GETYOURGUIDE_API_USERNAME && process.env.GETYOURGUIDE_API_PASSWORD);
+    const hasAvailabilityProduct = Boolean(process.env.GETYOURGUIDE_AVAILABILITY_PRODUCT_ID);
+    components.getyourguide = {
+      status: hasCredentials && hasAvailabilityProduct ? "operational" : hasCredentials ? "degraded" : "not_configured",
+      checkedAt,
+      message: hasCredentials && hasAvailabilityProduct
+        ? "GetYourGuide supplier API and availability push settings are configured."
+        : hasCredentials
+          ? "GetYourGuide credentials exist, but availability push product mapping is missing."
+          : "GetYourGuide outbound API credentials are not configured.",
+      remediationUrl: "/getyourguide",
+      metrics: {
+        credentialsConfigured: hasCredentials,
+        availabilityProductConfigured: hasAvailabilityProduct,
+      },
+    };
+  } catch (error: any) {
+    components.getyourguide = {
+      status: "down",
+      checkedAt,
+      message: error?.message || "GetYourGuide health could not be checked.",
+      remediationUrl: "/getyourguide",
+    };
+  }
+
+  try {
+    const storageStatus = await storage.checkStorageConnectivity();
+    components.supabaseStorage = {
+      status: "operational",
+      checkedAt,
+      message: "Supabase Storage bucket listing succeeded.",
+      remediationUrl: "/developer",
+      metrics: storageStatus,
+    };
+  } catch (error: any) {
+    components.supabaseStorage = {
+      status: "down",
+      checkedAt,
+      message: error?.message || "Supabase Storage health could not be checked.",
+      remediationUrl: "/developer",
+    };
+  }
+
+  try {
+    const reports = await storage.getScheduledReports();
+    const activeReports = reports.filter((report) => report.status !== "paused" && report.status !== "disabled");
+    const overdueReports = activeReports.filter((report) => new Date(report.nextRunAt).getTime() < Date.now());
+    components.scheduledReports = {
+      status: overdueReports.length > 0 ? "degraded" : "operational",
+      checkedAt,
+      message: overdueReports.length > 0
+        ? `${overdueReports.length} scheduled report${overdueReports.length === 1 ? " is" : "s are"} past the next-run time.`
+        : "Scheduled report configuration loaded successfully.",
+      remediationUrl: "/admin/scheduled-reports",
+      metrics: {
+        totalReports: reports.length,
+        activeReports: activeReports.length,
+        overdueReports: overdueReports.length,
+      },
+    };
+  } catch (error: any) {
+    components.scheduledReports = {
+      status: "down",
+      checkedAt,
+      message: error?.message || "Scheduled report health could not be checked.",
+      remediationUrl: "/admin/scheduled-reports",
+    };
+  }
+
+  try {
+    const [pendingDeliveries, recentDeliveries] = await Promise.all([
+      storage.getPendingWebhookDeliveries(),
+      storage.getWebhookDeliveries(),
+    ]);
+    const recentFailed = recentDeliveries.filter((delivery) =>
+      isRecentDate(delivery.timestamp, dayMs) && ["failed", "error"].includes((delivery.status || "").toLowerCase())
+    ).length;
+    components.webhookQueue = {
+      status: pendingDeliveries.length > 25 || recentFailed > 0 ? "degraded" : "operational",
+      checkedAt,
+      message: recentFailed > 0
+        ? `${recentFailed} webhook delivery failure${recentFailed === 1 ? "" : "s"} recorded in the last 24 hours.`
+        : pendingDeliveries.length > 25
+          ? `${pendingDeliveries.length} webhook deliveries are pending.`
+          : "Webhook delivery queue loaded successfully.",
+      remediationUrl: "/developer?tab=webhooks",
+      metrics: {
+        pendingDeliveries: pendingDeliveries.length,
+        recentFailures: recentFailed,
+      },
+    };
+  } catch (error: any) {
+    components.webhookQueue = {
+      status: "down",
+      checkedAt,
+      message: error?.message || "Webhook delivery health could not be checked.",
+      remediationUrl: "/developer?tab=webhooks",
+    };
+  }
+
+  return components;
+}
+
+function summarizeHealthStatus(databaseConnected: boolean, integrations: Record<string, HealthComponent>) {
+  const statuses = Object.values(integrations).map((component) => component.status);
+  if (!databaseConnected || statuses.includes("down")) return "unhealthy";
+  if (statuses.some((status) => status === "degraded" || status === "not_configured")) return "degraded";
+  return "healthy";
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   // Health check endpoint - exempt from IP whitelist for monitoring
   app.get("/api/health", async (req, res) => {
+    const timestamp = new Date().toISOString();
     try {
       // Test database connectivity with a lightweight query
       const zones = await storage.getZones();
+      const integrations = await buildIntegrationHealth();
+      const status = summarizeHealthStatus(true, integrations);
       res.json({
-        status: "healthy",
-        timestamp: new Date().toISOString(),
+        status,
+        timestamp,
         database: "connected",
-        zonesCount: zones.length
+        zonesCount: zones.length,
+        integrations,
       });
     } catch (error) {
       logError("Health check failed", error, req.requestId);
       res.status(503).json({
         status: "unhealthy",
-        timestamp: new Date().toISOString(),
-        database: "disconnected"
+        timestamp,
+        database: "disconnected",
+        integrations: {},
       });
     }
   });
@@ -4079,7 +4506,7 @@ export async function registerRoutes(
   });
 
   // CRM: Get Customers (Visitors with stats)
-  app.get("/api/customers", requireRole("admin", "coordinator"), async (req, res) => {
+  app.get("/api/customers", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
     try {
       const users = await storage.getUsers();
       const bookings = await storage.getBookings();
@@ -4116,7 +4543,7 @@ export async function registerRoutes(
   });
 
   // CRM: Get Customer Details
-  app.get("/api/customers/:id", requireRole("admin", "coordinator"), async (req, res) => {
+  app.get("/api/customers/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
     try {
       const user = await storage.getUser(req.params.id);
       if (!user) return res.status(404).json({ message: "Customer not found" });
@@ -4140,7 +4567,7 @@ export async function registerRoutes(
   });
 
   // CRM: Update Customer (Notes, Preferences, Tags, Personal Info)
-  app.patch("/api/customers/:id", requireRole("admin", "coordinator"), async (req, res) => {
+  app.patch("/api/customers/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
     try {
       const {
         preferences,
@@ -5279,7 +5706,7 @@ export async function registerRoutes(
   });
 
   // Bookings endpoints - admin, coordinator, security can view all bookings; guides see only their assigned bookings
-  app.get("/api/bookings", isAuthenticated, requireRole("admin", "coordinator", "security", "guide"), async (req: any, res) => {
+  app.get("/api/bookings", authenticateSessionOrApiKey(API_KEY_ROUTE_SCOPES.bookingsRead), requireRole("admin", "coordinator", "security", "guide"), async (req: any, res) => {
     try {
       // Trigger reminder check (debounced, runs in background)
       checkAndSendDueReminders();
@@ -5317,10 +5744,14 @@ export async function registerRoutes(
       const guides = await storage.getGuides();
       const guidesMap = buildGuideLookup(guides);
 
-      const bookingsWithGuides = bookingsList.map(booking => ({
-        ...booking,
-        guide: booking.assignedGuideId ? guidesMap.get(booking.assignedGuideId) || null : null
-      }));
+      const role = currentUser?.role as UserRole | undefined;
+      const bookingsWithGuides = bookingsList.map(booking => {
+        const guide = booking.assignedGuideId ? guidesMap.get(booking.assignedGuideId) || null : null;
+        return {
+          ...buildSafeBookingForRole(booking, role),
+          guide: role === "admin" || role === "coordinator" || role === "security" ? guide : buildAssignedGuideSummary(guide),
+        };
+      });
 
       if (paginationMeta) {
         res.json({ data: bookingsWithGuides, ...paginationMeta });
@@ -5383,7 +5814,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/bookings/today", isAuthenticated, requireRole("admin", "coordinator", "security", "guide"), async (req, res) => {
+  app.get("/api/bookings/today", authenticateSessionOrApiKey(API_KEY_ROUTE_SCOPES.bookingsRead), requireRole("admin", "coordinator", "security", "guide"), async (req, res) => {
     try {
       let todaysBookings = await storage.getTodaysBookings();
       const currentUser = (req as any).currentUser;
@@ -5399,10 +5830,14 @@ export async function registerRoutes(
       const guides = await storage.getGuides();
       const guidesMap = buildGuideLookup(guides);
 
-      const bookingsWithGuides = todaysBookings.map(booking => ({
-        ...booking,
-        guide: booking.assignedGuideId ? guidesMap.get(booking.assignedGuideId) || null : null
-      }));
+      const role = currentUser?.role as UserRole | undefined;
+      const bookingsWithGuides = todaysBookings.map(booking => {
+        const guide = booking.assignedGuideId ? guidesMap.get(booking.assignedGuideId) || null : null;
+        return {
+          ...buildSafeBookingForRole(booking, role),
+          guide: role === "admin" || role === "coordinator" || role === "security" ? guide : buildAssignedGuideSummary(guide),
+        };
+      });
 
       res.json(bookingsWithGuides);
     } catch (error) {
@@ -5432,7 +5867,7 @@ export async function registerRoutes(
   });
 
   // Visitor's own bookings - visitor role (with guide info)
-  app.get("/api/bookings/my-bookings", isAuthenticated, async (req, res) => {
+  app.get("/api/bookings/my-bookings", isAuthenticated, requireRole("visitor"), async (req, res) => {
     try {
       const userId = req.session.userId!;
       const user = await storage.getUser(userId);
@@ -5491,7 +5926,7 @@ export async function registerRoutes(
   // ==================== VISITOR FEATURES ====================
 
   // Saved Itineraries - List
-  app.get("/api/visitors/saved-itineraries", isAuthenticated, async (req: any, res) => {
+  app.get("/api/visitors/saved-itineraries", isAuthenticated, requireRole("visitor"), async (req: any, res) => {
     try {
       const userId = req.session.userId!;
       const itineraries = await storage.getSavedItineraries(userId);
@@ -5503,7 +5938,7 @@ export async function registerRoutes(
   });
 
   // Saved Itineraries - Create
-  app.post("/api/visitors/saved-itineraries", isAuthenticated, async (req: any, res) => {
+  app.post("/api/visitors/saved-itineraries", isAuthenticated, requireRole("visitor"), async (req: any, res) => {
     try {
       const userId = req.session.userId!;
       const { name, tourType, groupSize, numberOfPeople, selectedZones, selectedInterests, customDuration, meetingPointId, specialRequests } = req.body;
@@ -5529,7 +5964,7 @@ export async function registerRoutes(
   });
 
   // Saved Itineraries - Delete
-  app.delete("/api/visitors/saved-itineraries/:id", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/visitors/saved-itineraries/:id", isAuthenticated, requireRole("visitor"), async (req: any, res) => {
     try {
       const userId = req.session.userId!;
       const itineraryId = req.params.id;
@@ -5543,7 +5978,7 @@ export async function registerRoutes(
   });
 
   // Favorite Guides - List
-  app.get("/api/visitors/favorite-guides", isAuthenticated, async (req: any, res) => {
+  app.get("/api/visitors/favorite-guides", isAuthenticated, requireRole("visitor"), async (req: any, res) => {
     try {
       const userId = req.session.userId!;
       const favorites = await storage.getFavoriteGuides(userId);
@@ -5565,7 +6000,7 @@ export async function registerRoutes(
   });
 
   // Favorite Guides - Add
-  app.post("/api/visitors/favorite-guides/:guideId", isAuthenticated, async (req: any, res) => {
+  app.post("/api/visitors/favorite-guides/:guideId", isAuthenticated, requireRole("visitor"), async (req: any, res) => {
     try {
       const userId = req.session.userId!;
       const guideId = req.params.guideId;
@@ -5585,7 +6020,7 @@ export async function registerRoutes(
   });
 
   // Favorite Guides - Remove
-  app.delete("/api/visitors/favorite-guides/:guideId", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/visitors/favorite-guides/:guideId", isAuthenticated, requireRole("visitor"), async (req: any, res) => {
     try {
       const userId = req.session.userId!;
       const guideId = req.params.guideId;
@@ -5599,7 +6034,7 @@ export async function registerRoutes(
   });
 
   // Visit History Export (simple JSON for now, frontend will generate PDF)
-  app.get("/api/visitors/export-history", isAuthenticated, async (req: any, res) => {
+  app.get("/api/visitors/export-history", isAuthenticated, requireRole("visitor"), async (req: any, res) => {
     try {
       const userId = req.session.userId!;
       const user = await storage.getUser(userId);
@@ -5657,7 +6092,7 @@ export async function registerRoutes(
 
 
   // Guide's assigned tours - guide role
-  app.get("/api/bookings/my-tours", isAuthenticated, async (req, res) => {
+  app.get("/api/bookings/my-tours", isAuthenticated, requireRole("guide"), async (req, res) => {
     try {
       const userId = req.session.userId!;
       const user = await storage.getUser(userId);
@@ -5676,7 +6111,7 @@ export async function registerRoutes(
       // Get bookings assigned to this guide
       const allBookings = await storage.getBookings();
       const myTours = allBookings.filter(b => isBookingAssignedToGuide(b, myGuide));
-      res.json(await attachVisitorTransportSummaries(myTours));
+      res.json(myTours.map((booking) => buildSafeBookingForRole(booking, "guide")));
     } catch (error) {
       logError("Error fetching my tours", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch tours" });
@@ -5777,7 +6212,7 @@ export async function registerRoutes(
   });
 
   // Get single booking by ID
-  app.get("/api/bookings/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/bookings/:id", authenticateSessionOrApiKey(API_KEY_ROUTE_SCOPES.bookingsRead), async (req, res) => {
     try {
       const { id } = req.params;
       const booking = await storage.getBooking(id);
@@ -5787,7 +6222,7 @@ export async function registerRoutes(
       }
 
       // Authorization check
-      const user = await storage.getUser(req.session.userId!);
+      const user = await getRequestUser(req);
       if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -5818,6 +6253,9 @@ export async function registerRoutes(
           if (!guide || !isBookingAssignedToGuide(booking, guide)) {
             return res.status(403).json({ message: "Forbidden" });
           }
+        }
+        if (!isVisitor && !isGuide) {
+          return res.status(403).json({ message: "Forbidden" });
         }
       }
 
@@ -5906,7 +6344,7 @@ export async function registerRoutes(
 	        req
 	      );
 
-	      res.json(updated);
+	      res.json(buildSafeBookingForRole(updated, user.role as UserRole));
 	    } catch (error) {
 	      if (error instanceof z.ZodError) {
 	        return res.status(400).json({ message: "Invalid community highlights", errors: error.errors });
@@ -5916,7 +6354,7 @@ export async function registerRoutes(
 	    }
 	  });
 
-	  app.post("/api/bookings", async (req, res) => {
+  app.post("/api/bookings", authenticateApiKeyIfPresent(API_KEY_ROUTE_SCOPES.bookingsWrite), async (req, res) => {
     try {
       const transportPayload = transportRequestPayloadSchema.parse(req.body);
       const bookingData = insertBookingSchema.parse(req.body);
@@ -6068,7 +6506,9 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/transport-partner/me", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+  app.use("/api/transport-partner", isAuthenticated, requireActivePartnerIfPartner());
+
+  app.get("/api/transport-partner/me", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), requireActivePartnerIfPartner(), async (req: any, res) => {
     try {
       const user = (req as any).currentUser as User;
       if (user.role === "admin" || user.role === "coordinator") {
@@ -6354,7 +6794,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/transport-partner/me", isAuthenticated, requireRole("transport_partner"), async (req: any, res) => {
+  app.patch("/api/transport-partner/me", isAuthenticated, requireRole("transport_partner"), requireActivePartnerIfPartner(), async (req: any, res) => {
     try {
       const user = (req as any).currentUser as User;
       const payload = transportPartnerSelfUpdateSchema.parse(req.body);
@@ -6370,7 +6810,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/transport-partner/requests", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+  app.get("/api/transport-partner/requests", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), requireActivePartnerIfPartner(), async (req: any, res) => {
     try {
       checkAndSendDueReminders();
 
@@ -6384,7 +6824,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/transport-partner/requests/:id/activity", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+  app.get("/api/transport-partner/requests/:id/activity", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), requireActivePartnerIfPartner(), async (req: any, res) => {
     try {
       const user = (req as any).currentUser as User;
       const request = await storage.getTransportRequest(req.params.id);
@@ -6754,19 +7194,31 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/transport-partner/requests/:id", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), async (req: any, res) => {
+  app.patch("/api/transport-partner/requests/:id", isAuthenticated, requireRole("transport_partner", "admin", "coordinator"), requireActivePartnerIfPartner(), async (req: any, res) => {
     try {
       const user = (req as any).currentUser as User;
-      const payload = transportRequestUpdateSchema.parse(req.body);
+      const isPartner = user.role === "transport_partner";
+      const payload = isPartner
+        ? transportPartnerRequestUpdateSchema.parse(req.body)
+        : transportRequestUpdateSchema.parse(req.body);
       const request = await storage.getTransportRequest(req.params.id);
 
       if (!request) {
         return res.status(404).json({ message: "Transport request not found" });
       }
 
+      if (isPartner) {
+        if (isClosedRequestForPartner(request.status || "pending")) {
+          return res.status(403).json({ message: "Cannot edit a closed transport request" });
+        }
+        if (payload.status !== undefined && !isValidTransitionForPartner(request.status || "pending", payload.status)) {
+          return res.status(403).json({ message: `Unauthorized status transition from ${request.status || "pending"} to ${payload.status}` });
+        }
+      }
+
       const isAdminOrCoordinator = user.role === "admin" || user.role === "coordinator";
       let updatePayload: Partial<typeof request> = {};
-      const targetPartnerId = payload.partnerId === undefined ? request.partnerId : payload.partnerId;
+      const targetPartnerId = (payload as any).partnerId === undefined ? request.partnerId : (payload as any).partnerId;
       const selectedDriver = payload.driverId ? await storage.getTransportPartnerDriver(payload.driverId) : undefined;
       const selectedVehicle = payload.vehicleId ? await storage.getTransportPartnerVehicle(payload.vehicleId) : undefined;
 
@@ -6777,63 +7229,64 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Selected vehicle does not belong to the assigned partner" });
       }
 
-      if (user.role === "transport_partner") {
+      if (isPartner) {
         const partner = await getCurrentTransportPartner(user);
         if (request.partnerId !== partner.id) {
           return res.status(403).json({ message: "You can only update requests assigned to your account" });
         }
 
+        const partnerPayload = payload as z.infer<typeof transportPartnerRequestUpdateSchema>;
         updatePayload = {
-          status: payload.status as TransportRequestStatus | undefined,
-          quotedAmount: payload.quotedAmount ?? undefined,
-          currency: payload.currency || undefined,
-          estimatedPickupTime: payload.estimatedPickupTime ?? undefined,
-          requestedPickupTime: payload.requestedPickupTime ?? undefined,
-          requestedVisitDate: payload.requestedVisitDate ?? undefined,
-          rescheduleNotes: payload.rescheduleNotes ?? undefined,
-          driverId: payload.driverId === undefined ? undefined : payload.driverId,
-          vehicleId: payload.vehicleId === undefined ? undefined : payload.vehicleId,
-          driverName: selectedDriver?.name ?? payload.driverName ?? undefined,
-          driverPhone: selectedDriver?.phone ?? payload.driverPhone ?? undefined,
+          status: partnerPayload.status as TransportRequestStatus | undefined,
+          quotedAmount: partnerPayload.quotedAmount ?? undefined,
+          currency: partnerPayload.currency || undefined,
+          requestedPickupTime: partnerPayload.requestedPickupTime ?? undefined,
+          requestedVisitDate: partnerPayload.requestedVisitDate ?? undefined,
+          rescheduleNotes: partnerPayload.rescheduleNotes ?? undefined,
+          driverId: partnerPayload.driverId === undefined ? undefined : partnerPayload.driverId,
+          vehicleId: partnerPayload.vehicleId === undefined ? undefined : partnerPayload.vehicleId,
+          driverName: selectedDriver?.name ?? partnerPayload.driverName ?? undefined,
+          driverPhone: selectedDriver?.phone ?? partnerPayload.driverPhone ?? undefined,
           vehicleDetails: selectedVehicle
             ? [selectedVehicle.label, selectedVehicle.vehicleType, selectedVehicle.plateNumber, selectedVehicle.color]
                 .filter(Boolean)
                 .join(" | ")
-            : payload.vehicleDetails ?? undefined,
-          partnerNotes: payload.partnerNotes ?? undefined,
-          cancellationReason: payload.cancellationReason ?? undefined,
+            : partnerPayload.vehicleDetails ?? undefined,
+          partnerNotes: partnerPayload.partnerNotes ?? undefined,
+          cancellationReason: partnerPayload.cancellationReason ?? undefined,
           partnerRespondedAt: new Date() as any,
         };
       } else if (isAdminOrCoordinator) {
+        const adminPayload = payload as z.infer<typeof transportRequestUpdateSchema>;
         updatePayload = {
-          partnerId: payload.partnerId === undefined ? undefined : payload.partnerId,
-          route: payload.route,
-          pickupLocation: payload.pickupLocation ?? undefined,
-          notes: payload.notes ?? undefined,
-          status: payload.status as TransportRequestStatus | undefined,
-          quotedAmount: payload.quotedAmount ?? undefined,
-          currency: payload.currency || undefined,
-          estimatedPickupTime: payload.estimatedPickupTime ?? undefined,
-          requestedPickupTime: payload.requestedPickupTime ?? undefined,
-          requestedVisitDate: payload.requestedVisitDate ?? undefined,
-          rescheduleNotes: payload.rescheduleNotes ?? undefined,
-          driverId: payload.driverId === undefined ? undefined : payload.driverId,
-          vehicleId: payload.vehicleId === undefined ? undefined : payload.vehicleId,
-          driverName: selectedDriver?.name ?? payload.driverName ?? undefined,
-          driverPhone: selectedDriver?.phone ?? payload.driverPhone ?? undefined,
+          partnerId: adminPayload.partnerId === undefined ? undefined : adminPayload.partnerId,
+          route: adminPayload.route,
+          pickupLocation: adminPayload.pickupLocation ?? undefined,
+          notes: adminPayload.notes ?? undefined,
+          status: adminPayload.status as TransportRequestStatus | undefined,
+          quotedAmount: adminPayload.quotedAmount ?? undefined,
+          currency: adminPayload.currency || undefined,
+          estimatedPickupTime: adminPayload.estimatedPickupTime ?? undefined,
+          requestedPickupTime: adminPayload.requestedPickupTime ?? undefined,
+          requestedVisitDate: adminPayload.requestedVisitDate ?? undefined,
+          rescheduleNotes: adminPayload.rescheduleNotes ?? undefined,
+          driverId: adminPayload.driverId === undefined ? undefined : adminPayload.driverId,
+          vehicleId: adminPayload.vehicleId === undefined ? undefined : adminPayload.vehicleId,
+          driverName: selectedDriver?.name ?? adminPayload.driverName ?? undefined,
+          driverPhone: selectedDriver?.phone ?? adminPayload.driverPhone ?? undefined,
           vehicleDetails: selectedVehicle
             ? [selectedVehicle.label, selectedVehicle.vehicleType, selectedVehicle.plateNumber, selectedVehicle.color]
                 .filter(Boolean)
                 .join(" | ")
-            : payload.vehicleDetails ?? undefined,
-          partnerNotes: payload.partnerNotes ?? undefined,
-          adminNotes: payload.adminNotes ?? undefined,
-          cancellationReason: payload.cancellationReason ?? undefined,
-          ...(payload.partnerId !== undefined && payload.partnerId !== request.partnerId
+            : adminPayload.vehicleDetails ?? undefined,
+          partnerNotes: adminPayload.partnerNotes ?? undefined,
+          adminNotes: adminPayload.adminNotes ?? undefined,
+          cancellationReason: adminPayload.cancellationReason ?? undefined,
+          ...(adminPayload.partnerId !== undefined && adminPayload.partnerId !== request.partnerId
             ? {
                 assignedByUserId: user.id,
                 assignedAt: new Date() as any,
-                status: payload.status || (payload.partnerId ? "sent_to_partner" : "pending"),
+                status: adminPayload.status || (adminPayload.partnerId ? "sent_to_partner" : "pending"),
               }
             : {}),
         };
@@ -7334,7 +7787,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/bookings/:id/status", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
+  app.patch("/api/bookings/:id/status", authenticateSessionOrApiKey(API_KEY_ROUTE_SCOPES.bookingsWrite), requireRole("admin", "coordinator"), async (req: any, res) => {
     try {
       const { id } = req.params;
       const { status, version } = req.body;
@@ -7349,6 +7802,8 @@ export async function registerRoutes(
       const cancellationNote = typeof req.body?.cancellationNote === "string"
         ? req.body.cancellationNote.trim()
         : "";
+      const actor = await getRequestUser(req);
+      const actorId = actor?.id || null;
       const oldBooking = await storage.getBooking(id);
 
       // Use optimistic locking if version is provided
@@ -7368,11 +7823,11 @@ export async function registerRoutes(
           cancellationReason: resolvedCancellationReason,
           cancellationNote: cancellationNote || null,
           cancelledAt: new Date(),
-          cancelledBy: req.session?.userId || null,
+          cancelledBy: actorId,
         });
         booking = cancellationUpdate || booking;
 
-        await sendBookingCancelledEmail(booking, resolvedCancellationReason, req.session?.userId || null);
+        await sendBookingCancelledEmail(booking, resolvedCancellationReason, actorId);
       } else {
         // Send status update email
         const statusTemplateName = status === "confirmed" ? "booking_confirmation" : "status_update";
@@ -7402,7 +7857,7 @@ export async function registerRoutes(
         });
 
         await storage.createEmailLog({
-          sentBy: req.session?.userId,
+          sentBy: actorId,
           recipientName: statusBooking.visitorName,
           recipientEmail: statusBooking.visitorEmail,
           subject: statusEmail.subject,
@@ -7418,9 +7873,8 @@ export async function registerRoutes(
       }
 
       // Create audit log
-      const userId = req.session?.userId;
-      if (userId) {
-        await createAuditLog(userId, "update", "booking", id,
+      if (actorId) {
+        await createAuditLog(actorId, "update", "booking", id,
           { status: oldBooking?.status }, {
             status,
             cancellationCategory: cancellationCategory || undefined,
@@ -8706,7 +9160,7 @@ export async function registerRoutes(
       await createAuditLog(userId, "mark_no_show", "booking", id,
         { status: booking.status }, { status: "no_show" }, req);
 
-      res.json(updatedBooking);
+      res.json(updatedBooking ? buildSafeBookingForRole(updatedBooking, "guide") : null);
     } catch (error) {
       logError("Error marking visitor as no-show", error, req.requestId);
       res.status(500).json({ message: "Failed to mark visitor as no-show" });
@@ -9145,7 +9599,7 @@ export async function registerRoutes(
         .filter(b => isBookingAssignedToGuide(b, guide))
         .sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime());
 
-      res.json(await attachVisitorTransportSummaries(guideBookings));
+      res.json(guideBookings.map((booking) => buildSafeBookingForRole(booking, "guide")));
     } catch (error) {
       logError("Error fetching guide tours", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch tours" });
@@ -9199,7 +9653,7 @@ export async function registerRoutes(
       await createAuditLog(userId, "check_in", "booking", bookingId,
         { status: booking.status }, { status: "in_progress" }, req);
 
-      res.json(updatedBooking);
+      res.json(updatedBooking ? buildSafeBookingForRole(updatedBooking, "guide") : null);
     } catch (error) {
       logError("Error checking in visitor", error, req.requestId);
       res.status(500).json({ message: "Failed to check in visitor" });
@@ -9243,7 +9697,7 @@ export async function registerRoutes(
         await sendFeedbackRequestEmail(updatedBooking, userId || null);
       }
 
-      res.json(updatedBooking);
+      res.json(updatedBooking ? buildSafeBookingForRole(updatedBooking, "guide") : null);
     } catch (error) {
       logError("Error checking out visitor", error, req.requestId);
       res.status(500).json({ message: "Failed to check out visitor" });
@@ -9495,7 +9949,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/guides", isAuthenticated, requireRole("admin", "coordinator", "guide", "security"), async (req: any, res) => {
+  app.get("/api/guides", authenticateSessionOrApiKey(API_KEY_ROUTE_SCOPES.guidesRead), requireRole("admin", "coordinator", "guide", "security"), async (req: any, res) => {
     try {
       const guidesList = await storage.getGuides();
       const bookings = await storage.getBookings();
@@ -9563,6 +10017,12 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Guide not found" });
       }
 
+      const user = await getRequestUser(req);
+      const isStaff = user?.role === "admin" || user?.role === "coordinator" || user?.role === "security";
+      if (!isStaff && !(await requireGuideOwnerOrStaff(req, guide.id))) {
+        return res.status(403).json({ message: "You can only access your own guide profile" });
+      }
+
       const bookings = await storage.getBookings();
       res.json(buildGuideComputedStats(guide, bookings));
     } catch (error) {
@@ -9578,9 +10038,13 @@ export async function registerRoutes(
       if (!guide) {
         return res.status(404).json({ message: "Guide not found" });
       }
+      if (!(await requireGuideOwnerOrStaff(req, guide.id))) {
+        return res.status(403).json({ message: "You can only access your own guide bookings" });
+      }
       const bookings = await storage.getBookings();
       const guideBookings = getGuideBookings(bookings, guide);
-      res.json(guideBookings);
+      const user = await getRequestUser(req);
+      res.json(guideBookings.map((booking) => buildSafeBookingForRole(booking, user?.role as UserRole)));
     } catch (error) {
       logError("Error fetching guide bookings", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch guide bookings" });
@@ -9592,28 +10056,30 @@ export async function registerRoutes(
     try {
       const { id } = req.params;
       const reviews = await storage.getTourReviews();
-      const userId = req.session?.userId;
-      if (!userId) {
+      const user = await getRequestUser(req);
+      if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      const user = await storage.getUser(userId);
-      
-      const isStaff = user?.role === "admin" || user?.role === "coordinator";
+
+      const isStaff = user.role === "admin" || user.role === "coordinator";
       let isOwnProfile = false;
-      if (user?.role === "guide") {
+      if (user.role === "guide") {
         const guide = await storage.getGuideByUserId(user.id);
         if (guide && guide.id === id) {
           isOwnProfile = true;
         }
       }
-      
+      if (user.role === "guide" && !isOwnProfile) {
+        return res.status(403).json({ message: "You can only access your own guide reviews" });
+      }
+
       let guideReviews = reviews.filter(r => r.guideId === id);
-      
+
       // If not staff and not their own profile, only show published reviews
       if (!isStaff && !isOwnProfile) {
         guideReviews = guideReviews.filter(r => r.status === "published");
       }
-      
+
       res.json(guideReviews);
     } catch (error) {
       logError("Error fetching guide reviews", error, req.requestId);
@@ -9906,11 +10372,14 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/guides/:id", isAuthenticated, requireRole("admin", "coordinator", "guide"), async (req, res) => {
+  app.get("/api/guides/:id", authenticateSessionOrApiKey(API_KEY_ROUTE_SCOPES.guidesRead), requireRole("admin", "coordinator", "guide"), async (req, res) => {
     try {
       const guide = await storage.getGuide(req.params.id);
       if (!guide) {
         return res.status(404).json({ message: "Guide not found" });
+      }
+      if (!(await requireGuideOwnerOrStaff(req, guide.id))) {
+        return res.status(403).json({ message: "You can only access your own guide profile" });
       }
       const bookings = await storage.getBookings();
       res.json(buildGuideComputedStats(guide, bookings));
@@ -10513,8 +10982,11 @@ export async function registerRoutes(
   });
 
   // Guide availability (weekly schedule)
-  app.get("/api/guides/:id/availability", isAuthenticated, requireRole("admin", "coordinator", "guide"), async (req, res) => {
+  app.get("/api/guides/:id/availability", authenticateSessionOrApiKey(API_KEY_ROUTE_SCOPES.guidesRead), requireRole("admin", "coordinator", "guide"), async (req, res) => {
     try {
+      if (!(await requireGuideOwnerOrStaff(req, req.params.id))) {
+        return res.status(403).json({ message: "You can only access your own availability" });
+      }
       const availability = await storage.getGuideAvailability(req.params.id);
       res.json(availability);
     } catch (error) {
@@ -10525,6 +10997,9 @@ export async function registerRoutes(
 
   app.post("/api/guides/:id/availability", isAuthenticated, requireRole("admin", "coordinator", "guide"), async (req, res) => {
     try {
+      if (!(await requireGuideOwnerOrStaff(req, req.params.id))) {
+        return res.status(403).json({ message: "You can only manage your own availability" });
+      }
       const availabilityData = {
         ...req.body,
         guideId: req.params.id,
@@ -10539,6 +11014,13 @@ export async function registerRoutes(
 
   app.delete("/api/guides/availability/:id", isAuthenticated, requireRole("admin", "coordinator", "guide"), async (req, res) => {
     try {
+      const existing = await storage.getGuideAvailabilityItem(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Availability not found" });
+      }
+      if (!(await requireGuideOwnerOrStaff(req, existing.guideId))) {
+        return res.status(403).json({ message: "You can only manage your own availability" });
+      }
       await storage.deleteGuideAvailability(req.params.id);
       res.status(204).send();
     } catch (error) {
@@ -10872,7 +11354,7 @@ export async function registerRoutes(
         return res.status(404).json({ message: "User not found or no email" });
       }
 
-      // Generate reset token  
+      // Generate reset token
       const resetToken = crypto.randomBytes(32).toString('hex');
       const resetExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
@@ -10922,7 +11404,7 @@ export async function registerRoutes(
   });
 
   // Zones endpoints - admin and coordinator can manage
-  app.get("/api/zones", isAuthenticated, async (req, res) => {
+  app.get("/api/zones", authenticateSessionOrApiKey(API_KEY_ROUTE_SCOPES.guidesRead), async (req, res) => {
     try {
       const zonesList = await storage.getZones();
       res.json(zonesList);
@@ -11016,8 +11498,8 @@ export async function registerRoutes(
           // Return filtered logic from external API as authoritative source
           return res.json(mappedEvents);
 
-          /* 
-          // Previous logic: fallback if empty. 
+          /*
+          // Previous logic: fallback if empty.
           // Removing this because it causes confusion if external has 0 events but local has data.
           if (mappedEvents.length > 0) {
             return res.json(mappedEvents);
@@ -11135,7 +11617,7 @@ export async function registerRoutes(
   });
 
   // Meeting Points endpoints - admin and coordinator can manage
-  app.get("/api/meeting-points", isAuthenticated, async (req, res) => {
+  app.get("/api/meeting-points", authenticateSessionOrApiKey(API_KEY_ROUTE_SCOPES.guidesRead), async (req, res) => {
     try {
       const mpList = await storage.getMeetingPoints();
       res.json(mpList);
@@ -11484,9 +11966,9 @@ export async function registerRoutes(
             },
             description: {
               localized_texts: [
-                { 
-                  language_code: "en", 
-                  text: "A resident-led cultural walking tour through Kawale, Katudza, Dzaleka Hill, community markets, and local organizations or project spaces when active. Book with transparent group tier pricing." 
+                {
+                  language_code: "en",
+                  text: "A resident-led cultural walking tour through Kawale, Katudza, Dzaleka Hill, community markets, and local organizations or project spaces when active. Book with transparent group tier pricing."
                 }
               ]
             },
@@ -11604,9 +12086,9 @@ export async function registerRoutes(
   app.get("/api/public/community-listings", async (req, res) => {
     try {
       const type = req.query.type as string | undefined;
-      const listings = await storage.getCommunityListings({ 
+      const listings = await storage.getCommunityListings({
         status: publicCommunityListingStatuses,
-        type 
+        type
       });
       res.json(listings);
     } catch (error) {
@@ -13827,8 +14309,16 @@ export async function registerRoutes(
         return res.status(access.status).json({ message: access.message });
       }
 
-      await storage.deleteChatRoom(roomId);
-      res.json({ message: "Chat history deleted" });
+      const user = await getRequestUser(req);
+      const isStaff = user?.role === "admin" || user?.role === "coordinator";
+
+      if (isStaff) {
+        await storage.deleteChatRoom(roomId);
+        res.json({ message: "Chat history deleted" });
+      } else {
+        await storage.removeChatParticipant(roomId, userId);
+        res.json({ message: "Left chat room successfully" });
+      }
     } catch (error) {
       logError("Error deleting chat room", error, req.requestId);
       res.status(500).json({ message: "Failed to delete chat" });
@@ -13987,8 +14477,7 @@ export async function registerRoutes(
           assignedGuideUserIds.has(u.id) ||
           linkedTransportPartnerUserIds.has(u.id)
         );
-      }
-      if (currentUser?.role === 'transport_partner') {
+      } else if (currentUser?.role === 'transport_partner') {
         const partner = await getTransportPartnerForUser(currentUser);
         const linkedVisitorEmails = partner
           ? await getTransportPartnerLinkedVisitorEmails(partner.id)
@@ -13998,6 +14487,42 @@ export async function registerRoutes(
           u.role === 'admin' ||
           u.role === 'coordinator' ||
           (u.role === 'visitor' && linkedVisitorEmails.has(normalizedEmail(u.email)))
+        );
+      } else if (currentUser?.role === 'guide') {
+        // Guides can only chat with admins/coordinators and assigned visitors
+        const visitorUsers = filteredUsers.filter(u => u.role === 'visitor');
+        const assignedVisitorIds = new Set<string>();
+        for (const visitor of visitorUsers) {
+          if (await isGuideAssignedToVisitor(currentUser, visitor)) {
+            assignedVisitorIds.add(visitor.id);
+          }
+        }
+
+        filteredUsers = filteredUsers.filter(u =>
+          u.role === 'admin' ||
+          u.role === 'coordinator' ||
+          assignedVisitorIds.has(u.id)
+        );
+      } else if (currentUser?.role === 'security') {
+        // Security can only chat with admins/coordinators and active-day visitors
+        const visitorUsers = filteredUsers.filter(u => u.role === 'visitor');
+        const activeVisitorIds = new Set<string>();
+        for (const visitor of visitorUsers) {
+          if (await isVisitorActiveToday(visitor)) {
+            activeVisitorIds.add(visitor.id);
+          }
+        }
+
+        filteredUsers = filteredUsers.filter(u =>
+          u.role === 'admin' ||
+          u.role === 'coordinator' ||
+          activeVisitorIds.has(u.id)
+        );
+      } else if (currentUser?.role !== 'admin' && currentUser?.role !== 'coordinator') {
+        // Default-deny other role pairs unless communicating with admins/coordinators
+        filteredUsers = filteredUsers.filter(u =>
+          u.role === 'admin' ||
+          u.role === 'coordinator'
         );
       }
       // Admins/coordinators and existing staff roles keep broader operational visibility.
@@ -14089,6 +14614,25 @@ export async function registerRoutes(
       if (!article) {
         return res.status(404).json({ message: "Article not found" });
       }
+
+      const user = await getRequestUser(req);
+      const isStaff = user?.role === "admin" || user?.role === "coordinator";
+      if (!isStaff) {
+        if (!article.isPublished) {
+          return res.status(404).json({ message: "Article not found" });
+        }
+
+        const userRole = user?.role || "visitor";
+        if (article.audience !== "both") {
+          if (article.audience === "visitor" && userRole !== "visitor") {
+            return res.status(403).json({ message: "You do not have permission to view this article" });
+          }
+          if (article.audience === "guide" && userRole !== "guide") {
+            return res.status(403).json({ message: "You do not have permission to view this article" });
+          }
+        }
+      }
+
       res.json(article);
     } catch (error) {
       logError("Error fetching help article", error, req.requestId);
@@ -14151,17 +14695,25 @@ export async function registerRoutes(
     }
   });
 
+  // Helper to sanitize ticket by role
+  function sanitizeTicketForRole(ticket: any, role: string) {
+    if (role === "admin") return ticket;
+    const { adminNotes, ...rest } = ticket;
+    return rest;
+  }
+
   // Get support tickets (admin sees all, users see their own)
   app.get("/api/support/tickets", isAuthenticated, async (req, res) => {
     try {
       const userId = req.session.userId!;
-      const userRole = req.session.userRole;
+      const user = await getRequestUser(req);
+      const userRole = user?.role || "visitor";
 
       // Admins see all tickets, others see only their own
       const tickets = await storage.getSupportTickets(
         userRole === "admin" ? undefined : userId
       );
-      res.json(tickets);
+      res.json(tickets.map(t => sanitizeTicketForRole(t, userRole)));
     } catch (error) {
       logError("Error fetching support tickets", error, req.requestId);
       res.status(500).json({ message: "Failed to fetch tickets" });
@@ -14172,6 +14724,8 @@ export async function registerRoutes(
   app.post("/api/support/tickets", isAuthenticated, async (req, res) => {
     try {
       const userId = req.session.userId!;
+      const user = await getRequestUser(req);
+      const userRole = user?.role || "visitor";
       const ticketData = {
         ...req.body,
         userId,
@@ -14179,13 +14733,12 @@ export async function registerRoutes(
       const ticket = await storage.createSupportTicket(ticketData);
 
       // Notify admins about new ticket
-      const user = await storage.getUser(userId);
       await notifySupportTicketCreated(ticket.id, ticketData.subject, user ? `${user.firstName} ${user.lastName}` : "User");
       if (user?.email) {
         await sendSupportTicketCreatedEmail(ticket, user, userId);
       }
 
-      res.status(201).json(ticket);
+      res.status(201).json(sanitizeTicketForRole(ticket, userRole));
     } catch (error) {
       logError("Error creating support ticket", error, req.requestId);
       res.status(500).json({ message: "Failed to create ticket" });
@@ -14434,7 +14987,7 @@ export async function registerRoutes(
   // Channel Manager Endpoints
 
   // Get all external calendars
-  app.get("/api/calendars", requireRole("admin", "coordinator"), async (req, res) => {
+  app.get("/api/calendars", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
     try {
       const calendars = await storage.getExternalCalendars();
       res.json(calendars);
@@ -14445,7 +14998,7 @@ export async function registerRoutes(
   });
 
   // Create external calendar
-  app.post("/api/calendars", requireRole("admin", "coordinator"), async (req, res) => {
+  app.post("/api/calendars", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
     try {
       const calendar = await storage.createExternalCalendar(req.body);
       res.status(201).json(calendar);
@@ -14456,7 +15009,7 @@ export async function registerRoutes(
   });
 
   // Delete external calendar
-  app.delete("/api/calendars/:id", requireRole("admin", "coordinator"), async (req, res) => {
+  app.delete("/api/calendars/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
     try {
       await storage.deleteExternalCalendar(req.params.id);
       res.sendStatus(204);
@@ -14468,11 +15021,17 @@ export async function registerRoutes(
 
   // Public iCal Feed
   app.get("/api/calendar/feed/:token", async (req, res) => {
-    // In a real app, token would be verified against a user or setting.
-    // For now, we'll allow public access or check a static token/ID.
     try {
-      const bookings = await storage.getBookings(); // Retrieve all bookings
-      const icalData = generateIcalFeed(bookings, "Visit Dzaleka Bookings");
+      const token = String(req.params.token || "").trim();
+      const calendar = token ? await storage.getExternalCalendarByFeedTokenHash(hashToken(token)) : undefined;
+      if (!calendar) {
+        return res.status(404).send("Calendar feed not found");
+      }
+
+      const bookings = await getBookingsForCalendarFeed(calendar);
+      const icalData = generateIcalFeed(bookings, calendar.name || "Visit Dzaleka Bookings", {
+        includeSensitiveDetails: calendar.includeSensitiveDetails === true,
+      });
       res.set('Content-Type', 'text/calendar; charset=utf-8');
       res.set('Content-Disposition', 'attachment; filename="calendar.ics"');
       res.send(icalData);
@@ -14483,7 +15042,7 @@ export async function registerRoutes(
   });
 
   // Sync External Calendars (Import)
-  app.post("/api/calendar/sync", requireRole("admin", "coordinator"), async (req, res) => {
+  app.post("/api/calendar/sync", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
     try {
       const calendars = await storage.getExternalCalendars();
       const results = [];
@@ -14533,49 +15092,29 @@ export async function registerRoutes(
 
   app.get("/api/public/reviews/request", async (req: Request, res: Response) => {
     try {
-      const bookingReference = String(req.query.booking || "").trim();
-      if (!bookingReference) {
-        return res.status(400).json({ message: "Missing booking reference" });
+      const token = String(req.query.token || "").trim();
+      if (!token) {
+        return res.status(400).json({ message: "Missing review token" });
       }
 
-      const bookings = await storage.getBookings();
-      const booking = bookings.find((item) =>
-        item.bookingReference === bookingReference || item.id === bookingReference
-      );
-      if (!booking) {
-        return res.status(404).json({ message: "Booking not found" });
+      const result = await loadBookingForReviewToken(token);
+      if (result.status !== 200) {
+        return res.status(result.status).json({ message: result.message });
       }
 
+      const booking = result.booking;
       const review = await storage.getTourReviewByBookingReference(booking.bookingReference);
       const guide = await getAssignedGuide(booking);
       res.json({
         bookingReference: booking.bookingReference,
-        visitorName: booking.visitorName,
         visitDate: booking.visitDate,
         visitTime: booking.visitTime,
         status: booking.status,
         guideName: guide ? `${guide.firstName} ${guide.lastName}` : null,
         canReview: booking.status === "completed",
-        review: review ? {
+        review: review?.submittedAt ? {
           id: review.id,
           rating: review.rating,
-          title: review.title,
-          comment: review.comment,
-          tourGuideName: review.tourGuideName,
-          country: review.country,
-          purposeOfVisit: review.purposeOfVisit,
-          groupSize: review.groupSize,
-          referralSource: review.referralSource,
-          overallExperience: review.overallExperience,
-          guideExperience: review.guideExperience,
-          enjoyedMost: review.enjoyedMost,
-          improvementSuggestions: review.improvementSuggestions,
-          wouldRecommend: review.wouldRecommend,
-          otherComments: review.otherComments,
-          wouldVisitAgain: review.wouldVisitAgain,
-          consentPhotos: review.consentPhotos,
-          consentTestimonial: review.consentTestimonial,
-          consentDataProcessing: review.consentDataProcessing,
           status: review.status,
           submittedAt: review.submittedAt,
         } : null,
@@ -14589,12 +15128,14 @@ export async function registerRoutes(
   app.post("/api/public/reviews/request", async (req: Request, res: Response) => {
     try {
       const payload = publicReviewSchema.parse(req.body);
-      const bookings = await storage.getBookings();
-      const booking = bookings.find((item) =>
-        item.bookingReference === payload.bookingReference || item.id === payload.bookingReference
-      );
-      if (!booking) {
-        return res.status(404).json({ message: "Booking not found" });
+      const result = await loadBookingForReviewToken(payload.token.trim());
+      if (result.status !== 200) {
+        return res.status(result.status).json({ message: result.message });
+      }
+
+      const booking = result.booking;
+      if (payload.bookingReference !== booking.bookingReference) {
+        return res.status(403).json({ message: "Review link does not match this booking." });
       }
       if (booking.status !== "completed") {
         return res.status(400).json({ message: "Reviews open after the tour is completed." });
@@ -14833,7 +15374,7 @@ export async function registerRoutes(
           visitorEmail: booking.visitorEmail,
           visitDate: booking.visitDate,
           guideId: booking.assignedGuideId,
-          reviewLink: buildFeedbackLink(booking.bookingReference),
+          reviewLink: buildFeedbackLink(booking),
         }));
 
       res.json({
@@ -14880,7 +15421,7 @@ export async function registerRoutes(
       res.json({
         success: emailResult.success,
         review,
-        reviewLink: buildFeedbackLink(booking.bookingReference),
+        reviewLink: buildFeedbackLink(booking),
         emailError: emailResult.error,
       });
     } catch (error) {
@@ -14938,8 +15479,17 @@ export async function registerRoutes(
 
   // ===== Page View Analytics =====
 
+  const pageviewLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 30, // 30 requests per minute
+    message: { message: "Too many pageview requests. Please slow down." },
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => ipKeyGenerator(req.ip || req.socket.remoteAddress || "unknown"),
+  });
+
   // Track a page view (public endpoint - no auth required)
-  app.post("/api/analytics/pageview", async (req: Request, res: Response) => {
+  app.post("/api/analytics/pageview", pageviewLimiter, async (req: Request, res: Response) => {
     try {
       const { page, referrer, userAgent, sessionId } = req.body;
 
@@ -15188,9 +15738,25 @@ export async function registerRoutes(
         return res.status(400).json({ message: "API key name is required" });
       }
 
-      // Generate a random API key: dvz_<32 random hex chars>
-      const rawKey = `dvz_${crypto.randomBytes(24).toString('hex')}`;
-      const keyPrefix = rawKey.substring(0, 12); // dvz_xxxxxxxx for display
+      // Generate a unique random API key: dvz_<32 random hex chars>
+      let rawKey = "";
+      let keyPrefix = "";
+      let isUnique = false;
+
+      for (let attempt = 0; attempt < 10; attempt++) {
+        rawKey = `dvz_${crypto.randomBytes(24).toString('hex')}`;
+        keyPrefix = rawKey.substring(0, 12); // dvz_xxxxxxxx for display
+        const existingKey = await storage.getApiKeyByPrefix(keyPrefix);
+        if (!existingKey) {
+          isUnique = true;
+          break;
+        }
+      }
+
+      if (!isUnique) {
+        return res.status(500).json({ message: "Failed to generate a unique API key prefix after multiple attempts" });
+      }
+
       const keyHash = await hashPassword(rawKey);
 
       const apiKey = await storage.createApiKey({
@@ -15606,7 +16172,7 @@ export async function registerRoutes(
   });
 
   // Get analytics settings
-  app.get("/api/settings/analytics", requireRole("admin", "coordinator"), async (req, res) => {
+  app.get("/api/settings/analytics", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
     try {
       const settings = await storage.getAnalyticsSettings();
       // If no settings exist yet, return a default object or null
@@ -15618,7 +16184,7 @@ export async function registerRoutes(
   });
 
   // Update analytics settings
-  app.patch("/api/settings/analytics", requireRole("admin"), async (req, res) => {
+  app.patch("/api/settings/analytics", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
       const data = insertAnalyticsSettingsSchema.parse(req.body);
       const updated = await storage.updateAnalyticsSettings(data);
@@ -15653,7 +16219,7 @@ export async function registerRoutes(
       // If admin, show all (including drafts), otherwise only published
       // For now we trust the client logic or query param, but ideally we check role
       // But since we want public access to published posts, we check query param
-      // and maybe enforce strictness if needed. 
+      // and maybe enforce strictness if needed.
       // Actually, storage method supports publishedOnly flag.
       // If user is NOT admin, we force publishedOnly = true.
 
@@ -15790,7 +16356,7 @@ export async function registerRoutes(
 
   // ==================== Scheduled Reports ====================
 
-  app.get("/api/scheduled-reports", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+  app.get("/api/scheduled-reports", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
       const reports = await storage.getScheduledReports();
       res.json(reports);
@@ -15800,7 +16366,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/scheduled-reports", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+  app.post("/api/scheduled-reports", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
       const payload = scheduledReportPayloadSchema.parse(req.body);
       const report = await storage.createScheduledReport({
@@ -15817,7 +16383,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/scheduled-reports/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+  app.patch("/api/scheduled-reports/:id", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
       const payload = scheduledReportPayloadSchema.partial().parse(req.body);
       const report = await storage.updateScheduledReport(req.params.id, payload);
@@ -15834,7 +16400,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/scheduled-reports/:id", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+  app.delete("/api/scheduled-reports/:id", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
       await storage.deleteScheduledReport(req.params.id);
       res.status(204).send();
@@ -15844,7 +16410,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/scheduled-reports/:id/run", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
+  app.post("/api/scheduled-reports/:id/run", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
       const report = await storage.getScheduledReport(req.params.id);
       if (!report) {

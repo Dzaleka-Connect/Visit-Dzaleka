@@ -38,6 +38,9 @@ import {
   UserX,
   Car,
   Compass,
+  Bell,
+  Heart,
+  type LucideIcon,
 } from "lucide-react";
 import {
   Card,
@@ -77,12 +80,14 @@ import { DashboardSkeleton } from "@/components/loading-skeleton";
 import { formatDate, formatTime, formatCurrency } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
 import { WeeklyBookingTrends, PopularZonesChart, GuidePerformanceChart, BookingTimeHeatmap, SeasonalTrendsChart, GuideComparisonChart, RevenueByChannelChart, ReferralSourceChart, ConversionRateChart } from "@/components/dashboard-charts";
-import type { Booking, CommunityExperienceRequest, CommunityListing, Guide, Incident } from "@shared/schema";
+import type { Booking, CommunityExperienceRequest, CommunityListing, Guide, GuideTourReport, Incident, SupportTicket } from "@shared/schema";
 import { SEO } from "@/components/seo";
 import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
 import { QRScannerDialog } from "@/components/qr-scanner-dialog";
+import { QRCodeDisplay } from "@/components/qr-scanner-dialog";
 import { getTransportRoute } from "@/lib/transport";
+import { DataErrorState } from "@/components/data-error-state";
 
 interface DashboardStats {
   totalBookings: number;
@@ -151,9 +156,109 @@ interface GuideEarningsSummary {
   };
 }
 
+interface SavedItinerarySummary {
+  id: string;
+  name: string;
+  tourType?: string | null;
+  createdAt?: string | null;
+}
+
+interface FavoriteGuideSummary {
+  id: string;
+  guideId: string;
+  guide?: Guide | null;
+}
+
+interface DashboardHealthSummary {
+  status: "healthy" | "degraded" | "unhealthy";
+}
+
+type DashboardActionSeverity = "info" | "warning" | "critical";
+
+interface DashboardActionItem {
+  id: string;
+  severity: DashboardActionSeverity;
+  title: string;
+  description: string;
+  href: string;
+  icon: LucideIcon;
+  count?: number | string;
+}
+
 const quickActionButtonClass = "h-10 min-h-10 rounded-full gap-2 px-4";
 const quickActionIconClass = "h-4 w-4";
 const dashboardActionCardClass = "relative h-full min-h-24 w-full justify-start flex-col items-start gap-2 p-4 text-left";
+
+const actionSeverityClasses: Record<DashboardActionSeverity, string> = {
+  info: "border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-50",
+  warning: "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-50",
+  critical: "border-red-200 bg-red-50 text-red-950 dark:border-red-900 dark:bg-red-950/30 dark:text-red-50",
+};
+
+const actionIconClasses: Record<DashboardActionSeverity, string> = {
+  info: "bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-200",
+  warning: "bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-200",
+  critical: "bg-red-100 text-red-700 dark:bg-red-900/60 dark:text-red-200",
+};
+
+function DashboardActionList({
+  title = "Action Required",
+  description = "Items that need attention now.",
+  items,
+}: {
+  title?: string;
+  description?: string;
+  items: DashboardActionItem[];
+}) {
+  if (items.length === 0) return null;
+
+  return (
+    <section aria-label={title} className="rounded-lg border bg-card p-4 shadow-sm">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold">{title}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        </div>
+        <Badge variant="secondary" className="w-fit shrink-0 tabular-nums">
+          {items.length}
+        </Badge>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {items.map((item) => {
+          const Icon = item.icon;
+
+          return (
+            <Button
+              key={item.id}
+              asChild
+              variant="outline"
+              className={`h-auto min-h-24 justify-start whitespace-normal rounded-lg p-0 text-left ${actionSeverityClasses[item.severity]}`}
+            >
+              <Link href={item.href}>
+                <span className="flex w-full items-start gap-3 p-4">
+                  <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${actionIconClasses[item.severity]}`}>
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-start justify-between gap-3">
+                      <span className="break-words text-sm font-semibold leading-5">{item.title}</span>
+                      {item.count !== undefined && (
+                        <span className="shrink-0 rounded-full bg-background/80 px-2 py-0.5 text-xs font-semibold tabular-nums">
+                          {item.count}
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-1 block break-words text-xs leading-5 opacity-80">{item.description}</span>
+                  </span>
+                </span>
+              </Link>
+            </Button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 const transportStatusLabels: Record<string, string> = {
   pending: "Requested",
@@ -222,6 +327,115 @@ function formatTourType(type?: string | null) {
   return type.replace(/_/g, " ");
 }
 
+function isTransportQuoteAwaitingVisitor(request?: VisitorTransportRequestSummary | null) {
+  if (!request) return false;
+  const status = request.status || "";
+  return request.quotedAmount != null && ["quote_sent", "accepted"].includes(status);
+}
+
+function getBookingTimestamp(booking: RecentBooking) {
+  const value = booking.updatedAt || booking.visitDate || booking.createdAt;
+  const timestamp = value ? new Date(value).getTime() : 0;
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function buildVisitorActionItems({
+  bookings,
+  supportTickets,
+  unreadNotifications,
+}: {
+  bookings: RecentBooking[];
+  supportTickets: SupportTicket[];
+  unreadNotifications: number;
+}): DashboardActionItem[] {
+  const activeBookings = bookings.filter((booking) => booking.status !== "cancelled" && booking.status !== "completed");
+  const paymentBooking = activeBookings.find((booking) => booking.paymentStatus !== "paid" && !booking.paymentReference);
+  const pendingPaymentVerification = activeBookings.find((booking) => booking.paymentStatus !== "paid" && !!booking.paymentReference);
+  const quoteBooking = activeBookings.find((booking) => isTransportQuoteAwaitingVisitor(booking.transportRequest));
+  const latestTicket = [...supportTickets]
+    .filter((ticket) => ticket.status === "open" || ticket.status === "in_progress")
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0];
+  const ratingBooking = bookings
+    .filter((booking) => booking.status === "completed" && booking.assignedGuideId && !booking.visitorRating)
+    .sort((a, b) => getBookingTimestamp(b) - getBookingTimestamp(a))[0];
+  const cancellationBooking = bookings
+    .filter((booking) =>
+      booking.status === "cancelled"
+      && booking.paymentStatus !== "refunded"
+      && (booking.paymentStatus === "paid" || !!booking.paymentReference)
+    )
+    .sort((a, b) => getBookingTimestamp(b) - getBookingTimestamp(a))[0];
+  const upcomingBooking = activeBookings[0];
+
+  return [
+    paymentBooking && {
+      id: `payment-${paymentBooking.id}`,
+      severity: "critical" as const,
+      title: "Payment needed",
+      description: `${formatTourType(paymentBooking.tourType)} on ${formatDate(paymentBooking.visitDate)} still needs payment reporting.`,
+      href: `/my-bookings/${paymentBooking.id}`,
+      icon: DollarSign,
+    },
+    pendingPaymentVerification && {
+      id: `payment-verification-${pendingPaymentVerification.id}`,
+      severity: "warning" as const,
+      title: "Payment verification pending",
+      description: "Staff are checking the payment reference you submitted.",
+      href: `/my-bookings/${pendingPaymentVerification.id}`,
+      icon: Clock,
+    },
+    quoteBooking && {
+      id: `transport-quote-${quoteBooking.id}`,
+      severity: "critical" as const,
+      title: "Transport quote waiting",
+      description: `${formatTransportQuote(quoteBooking.transportRequest) || "A quote"} is ready for approval or decline.`,
+      href: `/my-bookings/${quoteBooking.id}`,
+      icon: Car,
+    },
+    unreadNotifications > 0 && {
+      id: "unread-notifications",
+      severity: "warning" as const,
+      title: "Unread notifications",
+      description: "Open notifications to review booking, payment, guide, or system updates.",
+      href: "/messages",
+      icon: Bell,
+      count: unreadNotifications,
+    },
+    latestTicket && {
+      id: `support-${latestTicket.id}`,
+      severity: latestTicket.priority === "urgent" ? "critical" as const : "info" as const,
+      title: "Support ticket updated",
+      description: `${latestTicket.subject} is ${latestTicket.status?.replace(/_/g, " ") || "open"}.`,
+      href: "/help?support=true",
+      icon: MessageCircle,
+    },
+    ratingBooking && {
+      id: `rating-${ratingBooking.id}`,
+      severity: "info" as const,
+      title: "Rate your guide",
+      description: `Share feedback for your ${formatTourType(ratingBooking.tourType)} tour.`,
+      href: "/my-bookings",
+      icon: Star,
+    },
+    upcomingBooking && {
+      id: `resources-${upcomingBooking.id}`,
+      severity: "info" as const,
+      title: "Complete pre-visit learning",
+      description: "Review visitor resources before arrival.",
+      href: "/resources",
+      icon: BookOpen,
+    },
+    cancellationBooking && {
+      id: `cancel-refund-${cancellationBooking.id}`,
+      severity: "warning" as const,
+      title: "Cancellation follow-up",
+      description: "Check refund or credit next steps for a cancelled visit.",
+      href: "/help?support=true&subject=Question%20about%20a%20cancelled%20booking",
+      icon: XCircle,
+    },
+  ].filter(Boolean) as DashboardActionItem[];
+}
+
 function AdminDashboard() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -234,16 +448,39 @@ function AdminDashboard() {
   });
   const displayName = user?.firstName || "there";
 
-  const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    isError: statsError,
+    error: statsQueryError,
+    refetch: refetchStats,
+  } = useQuery<DashboardStats>({
     queryKey: ["/api/stats"],
   });
 
-  const { data: recentBookings, isLoading: bookingsLoading } = useQuery<RecentBooking[]>({
+  const {
+    data: recentBookings,
+    isLoading: bookingsLoading,
+    isError: bookingsError,
+    error: bookingsQueryError,
+    refetch: refetchBookings,
+  } = useQuery<RecentBooking[]>({
     queryKey: ["/api/bookings/recent"],
   });
 
-  const { data: todaysTours, isLoading: toursLoading } = useQuery<RecentBooking[]>({
+  const {
+    data: todaysTours,
+    isLoading: toursLoading,
+    isError: toursError,
+    error: toursQueryError,
+    refetch: refetchTours,
+  } = useQuery<RecentBooking[]>({
     queryKey: ["/api/bookings/today"],
+  });
+
+  const { data: dashboardHealth } = useQuery<DashboardHealthSummary>({
+    queryKey: ["/api/health"],
+    refetchInterval: 60000,
   });
 
   const { data: visitorCountryStats } = useQuery<VisitorCountryStats>({
@@ -306,6 +543,30 @@ function AdminDashboard() {
     return <DashboardSkeleton />;
   }
 
+  if (statsError || bookingsError || toursError) {
+    const error = statsQueryError || bookingsQueryError || toursQueryError;
+
+    return (
+      <PageContainer className="page-spacing">
+        <SEO title="Dashboard" description="Manage your Dzaleka tours, bookings, guides, and analytics from your admin dashboard." />
+        <PageHeader
+          title="Dashboard"
+          description={`Welcome back, ${displayName}. Dashboard data could not be loaded.`}
+        />
+        <DataErrorState
+          title="Dashboard unavailable"
+          description={error instanceof Error ? error.message : "Could not load dashboard data."}
+          onRetry={() => {
+            void refetchStats();
+            void refetchBookings();
+            void refetchTours();
+          }}
+          className="py-16"
+        />
+      </PageContainer>
+    );
+  }
+
   const dashboardStats = stats || {
     totalBookings: 0,
     pendingRequests: 0,
@@ -320,6 +581,61 @@ function AdminDashboard() {
   const openCommunityExperienceRequests = communityExperienceRequests.filter((request) =>
     request.status === "submitted" || request.status === "contacted"
   );
+  const adminOperationalActions: DashboardActionItem[] = [
+    dashboardStats.pendingRequests > 0 && {
+      id: "pending-bookings",
+      severity: "critical" as const,
+      title: "Pending bookings",
+      description: "Booking requests need confirmation or follow-up.",
+      href: "/bookings",
+      icon: BookOpen,
+      count: dashboardStats.pendingRequests,
+    },
+    (recentBookings || []).filter((booking) => booking.status === "confirmed" && !booking.assignedGuideId).length > 0 && {
+      id: "unassigned-bookings",
+      severity: "warning" as const,
+      title: "Confirmed bookings need guides",
+      description: "Assign guides before visitor arrival.",
+      href: "/bookings",
+      icon: UserCheck,
+      count: (recentBookings || []).filter((booking) => booking.status === "confirmed" && !booking.assignedGuideId).length,
+    },
+    (recentBookings || []).filter((booking) => booking.paymentStatus !== "paid" && !!booking.paymentReference).length > 0 && {
+      id: "payment-verification",
+      severity: "warning" as const,
+      title: "Payment verification pending",
+      description: "Visitors have submitted payment references for staff review.",
+      href: "/payments",
+      icon: DollarSign,
+      count: (recentBookings || []).filter((booking) => booking.paymentStatus !== "paid" && !!booking.paymentReference).length,
+    },
+    (recentBookings || []).filter((booking) => isTransportQuoteAwaitingVisitor(booking.transportRequest)).length > 0 && {
+      id: "transport-quotes",
+      severity: "info" as const,
+      title: "Transport quotes awaiting visitors",
+      description: "Visitors need to approve or decline transport quotes.",
+      href: "/transport-partner?tab=requests",
+      icon: Car,
+      count: (recentBookings || []).filter((booking) => isTransportQuoteAwaitingVisitor(booking.transportRequest)).length,
+    },
+    openCommunityExperienceRequests.length > 0 && {
+      id: "community-requests",
+      severity: "warning" as const,
+      title: "Community requests open",
+      description: "Community Hub experience requests need coordinator follow-up.",
+      href: "/admin/community-listings",
+      icon: Compass,
+      count: openCommunityExperienceRequests.length,
+    },
+    dashboardHealth && dashboardHealth.status !== "healthy" && {
+      id: "system-health",
+      severity: dashboardHealth.status === "unhealthy" ? "critical" as const : "warning" as const,
+      title: "System health needs review",
+      description: `System health is ${dashboardHealth.status}. Review integrations and queues.`,
+      href: "/admin/system-health",
+      icon: AlertTriangle,
+    },
+  ].filter(Boolean) as DashboardActionItem[];
 
   return (
     <PageContainer className="page-spacing overflow-x-hidden">
@@ -385,68 +701,6 @@ function AdminDashboard() {
             </Link>
           </>
         )}
-        {user?.role === "guide" && (
-          <>
-            <Link href="/calendar">
-              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
-                <Calendar className={quickActionIconClass} />
-                <span>Schedule</span>
-              </Button>
-            </Link>
-            <Link href="/my-guide-profile">
-              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
-                <UserCheck className={quickActionIconClass} />
-                <span>Guide profile</span>
-              </Button>
-            </Link>
-            <Link href="/tasks">
-              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
-                <ListTodo className={quickActionIconClass} />
-                <span>Tasks</span>
-              </Button>
-            </Link>
-            <Link href="/messages">
-              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
-                <MessageCircle className={quickActionIconClass} />
-                <span>Messages</span>
-              </Button>
-            </Link>
-            <Link href="/guide-training">
-              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
-                <BookOpen className={quickActionIconClass} />
-                <span>Training</span>
-              </Button>
-            </Link>
-          </>
-        )}
-        {user?.role === "visitor" && (
-          <>
-            <Link href="/my-bookings?book=true">
-              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
-                <Ticket className={quickActionIconClass} />
-                <span>Book</span>
-              </Button>
-            </Link>
-            <Link href="/my-bookings">
-              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
-                <Calendar className={quickActionIconClass} />
-                <span>Bookings</span>
-              </Button>
-            </Link>
-            <Link href="/messages">
-              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
-                <MessageCircle className={quickActionIconClass} />
-                <span>Messages</span>
-              </Button>
-            </Link>
-            <Link href="/resources">
-              <Button variant="secondary" size="sm" className={quickActionButtonClass}>
-                <BookOpen className={quickActionIconClass} />
-                <span>Resources</span>
-              </Button>
-            </Link>
-          </>
-        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -481,6 +735,12 @@ function AdminDashboard() {
           pulse={hasActiveTours}
         />
       </div>
+
+      <DashboardActionList
+        title="Operational Action Center"
+        description="Queues that can affect visitor confirmation, payments, transport, community experiences, or system health."
+        items={adminOperationalActions}
+      />
 
       {user?.role === "admin" && openCommunityExperienceRequests.length > 0 && (
         <Card className="border-primary/30 bg-primary/5">
@@ -885,22 +1145,68 @@ function AdminDashboard() {
 }
 
 function CoordinatorDashboard() {
-  const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    isError: statsError,
+    error: statsQueryError,
+    refetch: refetchStats,
+  } = useQuery<DashboardStats>({
     queryKey: ["/api/stats"],
   });
 
-  const { data: todaysTours, isLoading: toursLoading } = useQuery<RecentBooking[]>({
+  const {
+    data: todaysTours,
+    isLoading: toursLoading,
+    isError: toursError,
+    error: toursQueryError,
+    refetch: refetchTours,
+  } = useQuery<RecentBooking[]>({
     queryKey: ["/api/bookings/today"],
   });
 
-  const { data: recentBookings, isLoading: bookingsLoading } = useQuery<RecentBooking[]>({
+  const {
+    data: recentBookings,
+    isLoading: bookingsLoading,
+    isError: bookingsError,
+    error: bookingsQueryError,
+    refetch: refetchBookings,
+  } = useQuery<RecentBooking[]>({
     queryKey: ["/api/bookings/recent"],
+  });
+
+  const { data: dashboardHealth } = useQuery<DashboardHealthSummary>({
+    queryKey: ["/api/health"],
+    refetchInterval: 60000,
   });
 
   const isLoading = statsLoading || toursLoading || bookingsLoading;
 
   if (isLoading) {
     return <DashboardSkeleton />;
+  }
+
+  if (statsError || bookingsError || toursError) {
+    const error = statsQueryError || bookingsQueryError || toursQueryError;
+
+    return (
+      <PageContainer className="page-spacing">
+        <PageHeader
+          title="Coordinator Dashboard"
+          description="Dashboard data could not be loaded."
+        />
+        <DataErrorState
+          title="Coordinator dashboard unavailable"
+          description={error instanceof Error ? error.message : "Could not load dashboard data."}
+          onRetry={() => {
+            void refetchStats();
+            void refetchBookings();
+            void refetchTours();
+          }}
+          className="py-16"
+        />
+      </PageContainer>
+    );
   }
 
   const dashboardStats = stats || {
@@ -913,6 +1219,55 @@ function CoordinatorDashboard() {
   };
 
   const hasActiveTours = todaysTours?.some(t => t.status === "in_progress") || false;
+  const pendingBookings = (recentBookings || []).filter((booking) => booking.status === "pending");
+  const unassignedConfirmed = (recentBookings || []).filter((booking) => booking.status === "confirmed" && !booking.assignedGuideId);
+  const paymentVerifications = (recentBookings || []).filter((booking) => booking.paymentStatus !== "paid" && !!booking.paymentReference);
+  const coordinatorActions: DashboardActionItem[] = [
+    pendingBookings.length > 0 && {
+      id: "pending-bookings",
+      severity: "critical" as const,
+      title: "Pending bookings",
+      description: "Confirm or follow up on visitor booking requests.",
+      href: "/bookings",
+      icon: BookOpen,
+      count: pendingBookings.length,
+    },
+    unassignedConfirmed.length > 0 && {
+      id: "unassigned-confirmed",
+      severity: "warning" as const,
+      title: "Guides need assignment",
+      description: "Confirmed visits should have guides before arrival.",
+      href: "/bookings",
+      icon: UserCheck,
+      count: unassignedConfirmed.length,
+    },
+    paymentVerifications.length > 0 && {
+      id: "payment-verifications",
+      severity: "warning" as const,
+      title: "Payment checks pending",
+      description: "Review visitor payment references.",
+      href: "/payments",
+      icon: DollarSign,
+      count: paymentVerifications.length,
+    },
+    (todaysTours || []).filter((tour) => tour.status === "in_progress").length > 0 && {
+      id: "active-tours",
+      severity: "info" as const,
+      title: "Tours in progress",
+      description: "Monitor active tours and live support needs.",
+      href: "/live-ops",
+      icon: Play,
+      count: (todaysTours || []).filter((tour) => tour.status === "in_progress").length,
+    },
+    dashboardHealth && dashboardHealth.status !== "healthy" && {
+      id: "system-health",
+      severity: dashboardHealth.status === "unhealthy" ? "critical" as const : "warning" as const,
+      title: "System health needs review",
+      description: `System health is ${dashboardHealth.status}.`,
+      href: "/admin/system-health",
+      icon: AlertTriangle,
+    },
+  ].filter(Boolean) as DashboardActionItem[];
 
   return (
     <PageContainer className="page-spacing overflow-x-hidden">
@@ -949,6 +1304,12 @@ function CoordinatorDashboard() {
           icon={BookOpen}
         />
       </div>
+
+      <DashboardActionList
+        title="Operational Action Center"
+        description="Coordinator queues that need booking, payment, assignment, or live-ops attention."
+        items={coordinatorActions}
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
@@ -1003,7 +1364,7 @@ function CoordinatorDashboard() {
             </Button>
           </CardHeader>
           <CardContent>
-            {!recentBookings || recentBookings.length === 0 ? (
+            {pendingBookings.length === 0 ? (
               <EmptyState
                 icon={BookOpen}
                 title="No pending bookings"
@@ -1012,7 +1373,7 @@ function CoordinatorDashboard() {
               />
             ) : (
               <div className="space-y-3">
-                {recentBookings.filter(b => b.status === "pending").slice(0, 5).map((booking) => (
+                {pendingBookings.slice(0, 5).map((booking) => (
                   <div key={booking.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center">
                     <Avatar className="h-10 w-10">
                       <AvatarFallback className="bg-primary/10 text-primary text-sm">
@@ -1090,25 +1451,56 @@ function GuideDashboard() {
   const displayName = user?.firstName || "there";
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
 
-  const { data: myTours, isLoading } = useQuery<RecentBooking[]>({
+  const {
+    data: myTours,
+    isLoading,
+    isError: myToursError,
+    error: myToursQueryError,
+    refetch: refetchMyTours,
+  } = useQuery<RecentBooking[]>({
     queryKey: ["/api/bookings/my-tours"],
   });
 
-  const { data: guideProfile } = useQuery<Guide>({
+  const {
+    data: guideProfile,
+    isError: guideProfileError,
+    refetch: refetchGuideProfile,
+  } = useQuery<Guide>({
     queryKey: ["/api/guides/me"],
   });
 
-  const { data: guideAvailability } = useQuery<GuideAvailabilitySummary>({
+  const {
+    data: guideAvailability,
+    isError: guideAvailabilityError,
+    refetch: refetchGuideAvailability,
+  } = useQuery<GuideAvailabilitySummary>({
     queryKey: ["/api/guides/me/availability"],
   });
 
-  const { data: trainingStats } = useQuery<TrainingStatsSummary>({
+  const {
+    data: trainingStats,
+    isError: trainingStatsError,
+    refetch: refetchTrainingStats,
+  } = useQuery<TrainingStatsSummary>({
     queryKey: ["/api/training/stats"],
     retry: false,
   });
 
-  const { data: guideEarnings } = useQuery<GuideEarningsSummary>({
+  const {
+    data: guideEarnings,
+    isError: guideEarningsError,
+    refetch: refetchGuideEarnings,
+  } = useQuery<GuideEarningsSummary>({
     queryKey: ["/api/guides/me/earnings"],
+  });
+
+  const { data: tourReports } = useQuery<GuideTourReport[]>({
+    queryKey: ["/api/guides/me/tour-reports"],
+  });
+
+  const { data: guideUnreadNotifications } = useQuery<{ count: number }>({
+    queryKey: ["/api/notifications/unread-count"],
+    refetchInterval: 30000,
   });
 
   const startTourMutation = useMutation({
@@ -1155,11 +1547,31 @@ function GuideDashboard() {
     return <DashboardSkeleton />;
   }
 
+  if (myToursError) {
+    return (
+      <PageContainer className="page-spacing">
+        <PageHeader
+          title="Guide Dashboard"
+          description={`Welcome back, ${displayName}. Your assignments could not be loaded.`}
+        />
+        <DataErrorState
+          title="Guide dashboard unavailable"
+          description={myToursQueryError instanceof Error ? myToursQueryError.message : "Could not load your assigned tours."}
+          onRetry={() => refetchMyTours()}
+          className="py-16"
+        />
+      </PageContainer>
+    );
+  }
+
   const todayKey = new Date().toDateString();
   const upcomingTours = myTours?.filter((tour) =>
     new Date(tour.visitDate).toDateString() === todayKey
     && (tour.status === "confirmed" || tour.status === "in_progress")
   ) || [];
+  const activeTour = upcomingTours.find((tour) => tour.status === "in_progress") || null;
+  const nextConfirmedTour = upcomingTours.find((tour) => tour.status === "confirmed") || null;
+  const currentTour = activeTour || nextConfirmedTour;
   const averageRating = guideProfile?.totalRatings && guideProfile.totalRatings > 0
     ? guideProfile.rating || 0
     : 0;
@@ -1189,6 +1601,71 @@ function GuideDashboard() {
     : payoutSummary?.lastPaidAt
       ? `Last paid ${formatDate(payoutSummary.lastPaidAt)}`
       : "No payout records yet";
+  const reportsByBookingId = new Set((tourReports || []).map((report) => report.bookingId));
+  const postTourReportsDue = (myTours || []).filter((tour) => tour.status === "completed" && !reportsByBookingId.has(tour.id));
+  const guideActionItems: DashboardActionItem[] = [
+    postTourReportsDue.length > 0 && {
+      id: "post-tour-reports",
+      severity: "critical" as const,
+      title: "Post-tour reports due",
+      description: "Submit reports for completed tours so coordinators can review follow-ups.",
+      href: "/my-tours?tab=completed",
+      icon: FileText,
+      count: postTourReportsDue.length,
+    },
+    trainingStats && trainingPercentage < 100 && {
+      id: "training-incomplete",
+      severity: "warning" as const,
+      title: "Training incomplete",
+      description: `${trainingStats.completed} of ${trainingStats.total} modules complete.`,
+      href: "/guide-training",
+      icon: BookOpen,
+      count: `${trainingPercentage}%`,
+    },
+    guideAvailabilityError && {
+      id: "availability-unavailable",
+      severity: "warning" as const,
+      title: "Availability needs review",
+      description: "Availability could not be loaded. Reopen it before accepting new work.",
+      href: "/my-availability",
+      icon: Calendar,
+    },
+    guideAvailability && !availableToday && {
+      id: "availability-off-today",
+      severity: "info" as const,
+      title: "You are marked off today",
+      description: "Update availability if you can accept work today.",
+      href: "/my-availability",
+      icon: Calendar,
+    },
+    payoutSummary?.pendingCount && {
+      id: "payout-pending",
+      severity: "info" as const,
+      title: "Payout pending",
+      description: `${formatCurrency(payoutSummary.pendingAmount)} across ${payoutSummary.pendingCount} payout item${payoutSummary.pendingCount === 1 ? "" : "s"}.`,
+      href: "/my-earnings",
+      icon: DollarSign,
+      count: payoutSummary.pendingCount,
+    },
+    (guideUnreadNotifications?.count || 0) > 0 && {
+      id: "guide-notifications",
+      severity: "warning" as const,
+      title: "Unread updates",
+      description: "Review assignment, message, and system notifications.",
+      href: "/messages",
+      icon: Bell,
+      count: guideUnreadNotifications?.count || 0,
+    },
+  ].filter(Boolean) as DashboardActionItem[];
+  const availabilityPreview = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() + index);
+    const key = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date).toLowerCase();
+    return {
+      label: new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(date),
+      available: guideAvailability?.availability?.[key] ?? true,
+    };
+  });
 
   const handleQRScan = (result: string) => {
     const reference = result.trim().toUpperCase();
@@ -1216,6 +1693,55 @@ function GuideDashboard() {
         description={`Welcome back, ${displayName}. Here are your assigned tours.`}
       />
 
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="secondary" size="sm" className={quickActionButtonClass} onClick={() => setIsQRScannerOpen(true)}>
+          <ScanLine className={quickActionIconClass} />
+          <span>Scan QR</span>
+        </Button>
+        <Link href="/my-tours">
+          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+            <CalendarDays className={quickActionIconClass} />
+            <span>My Tours</span>
+          </Button>
+        </Link>
+        <Link href="/calendar">
+          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+            <Calendar className={quickActionIconClass} />
+            <span>Schedule</span>
+          </Button>
+        </Link>
+        <Link href="/tasks">
+          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+            <ListTodo className={quickActionIconClass} />
+            <span>Tasks</span>
+          </Button>
+        </Link>
+        <Link href="/messages">
+          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+            <MessageCircle className={quickActionIconClass} />
+            <span>Messages</span>
+          </Button>
+        </Link>
+        <Link href="/my-availability">
+          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+            <Clock className={quickActionIconClass} />
+            <span>Availability</span>
+          </Button>
+        </Link>
+        <Link href="/guide-training">
+          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+            <BookOpen className={quickActionIconClass} />
+            <span>Training</span>
+          </Button>
+        </Link>
+        <Link href="/my-earnings">
+          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+            <DollarSign className={quickActionIconClass} />
+            <span>Earnings</span>
+          </Button>
+        </Link>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Today's Tours"
@@ -1225,20 +1751,20 @@ function GuideDashboard() {
         />
         <StatCard
           title="Completed Tours"
-          value={guideProfile?.completedTours || 0}
-          subtitle="All time"
+          value={guideProfileError ? "Unavailable" : (guideProfile?.completedTours || 0)}
+          subtitle={guideProfileError ? "Profile unavailable" : "All time"}
           icon={CheckCircle2}
         />
         <StatCard
           title="Average Rating"
-          value={averageRating > 0 ? averageRating.toFixed(1) : "Not rated"}
-          subtitle={guideProfile?.totalRatings ? `${guideProfile.totalRatings} reviews` : "No reviews yet"}
+          value={guideProfileError ? "Unavailable" : averageRating > 0 ? averageRating.toFixed(1) : "Not rated"}
+          subtitle={guideProfileError ? "Profile unavailable" : guideProfile?.totalRatings ? `${guideProfile.totalRatings} reviews` : "No reviews yet"}
           icon={Star}
         />
         <StatCard
           title="Total Earnings"
-          value={formatCurrency(guideProfile?.totalEarnings || 0)}
-          subtitle="All time"
+          value={guideProfileError ? "Unavailable" : formatCurrency(guideProfile?.totalEarnings || 0)}
+          subtitle={guideProfileError ? "Profile unavailable" : "All time"}
           icon={DollarSign}
         />
       </div>
@@ -1255,14 +1781,27 @@ function GuideDashboard() {
                 <div>
                   <div className="text-sm font-medium">Availability</div>
                   <div className="text-xs text-muted-foreground">
-                    {guideAvailability?.workingHours
+                    {guideAvailabilityError
+                      ? "Availability unavailable"
+                      : guideAvailability?.workingHours
                       ? `${guideAvailability.workingHours.start} - ${guideAvailability.workingHours.end}`
                       : "Default hours"}
                   </div>
                 </div>
-                <Badge variant={availableToday ? "default" : "secondary"}>
-                  {availableToday ? "Available today" : "Off today"}
+                <Badge variant={guideAvailabilityError ? "destructive" : availableToday ? "default" : "secondary"}>
+                  {guideAvailabilityError ? "Unavailable" : availableToday ? "Available today" : "Off today"}
                 </Badge>
+              </div>
+              <div className="mt-3 grid grid-cols-7 gap-1" aria-label="Next 7 days availability">
+                {availabilityPreview.map((day) => (
+                  <div
+                    key={day.label}
+                    className={`rounded-md border px-1 py-1.5 text-center text-[11px] ${day.available ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}
+                  >
+                    <div>{day.label}</div>
+                    <div className="mt-0.5 font-semibold">{day.available ? "On" : "Off"}</div>
+                  </div>
+                ))}
               </div>
               <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
                 <Link href="/my-availability">Update availability</Link>
@@ -1273,11 +1812,15 @@ function GuideDashboard() {
                 <div>
                   <div className="text-sm font-medium">Training</div>
                   <div className="text-xs text-muted-foreground">
-                    {trainingStats ? `${trainingStats.completed} of ${trainingStats.total} modules complete` : "Progress not loaded"}
+                    {trainingStatsError
+                      ? "Training unavailable"
+                      : trainingStats
+                        ? `${trainingStats.completed} of ${trainingStats.total} modules complete`
+                        : "Progress not loaded"}
                   </div>
                 </div>
-                <Badge variant={trainingPercentage >= 100 ? "default" : "outline"}>
-                  {trainingPercentage}% complete
+                <Badge variant={trainingStatsError ? "destructive" : trainingPercentage >= 100 ? "default" : "outline"}>
+                  {trainingStatsError ? "Unavailable" : `${trainingPercentage}% complete`}
                 </Badge>
               </div>
               <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
@@ -1288,10 +1831,10 @@ function GuideDashboard() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-medium">Payout status</div>
-                  <div className="text-xs text-muted-foreground">{payoutLabel}</div>
+                  <div className="text-xs text-muted-foreground">{guideEarningsError ? "Earnings unavailable" : payoutLabel}</div>
                 </div>
-                <Badge variant={payoutSummary?.pendingCount ? "secondary" : "outline"}>
-                  {payoutSummary?.pendingCount ? "Pending" : payoutSummary?.paidCount ? "Paid" : "Not started"}
+                <Badge variant={guideEarningsError ? "destructive" : payoutSummary?.pendingCount ? "secondary" : "outline"}>
+                  {guideEarningsError ? "Unavailable" : payoutSummary?.pendingCount ? "Pending" : payoutSummary?.paidCount ? "Paid" : "Not started"}
                 </Badge>
               </div>
               <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
@@ -1308,6 +1851,137 @@ function GuideDashboard() {
               </Button>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <DashboardActionList
+        title="Guide Action Required"
+        description="Reports, training, availability, payout, and notification items that need attention."
+        items={guideActionItems}
+      />
+
+      <Card>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="text-lg font-semibold">Current Tour Mode</CardTitle>
+            <CardDescription>Focused controls for the active or next confirmed tour today.</CardDescription>
+          </div>
+          <Button type="button" variant="outline" onClick={() => setIsQRScannerOpen(true)}>
+            <ScanLine className="mr-2 h-4 w-4" />
+            Scan QR
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {currentTour ? (
+            <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+              <div className="space-y-4 rounded-lg border p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="break-words text-lg font-semibold">{currentTour.visitorName}</h3>
+                      <StatusBadge status={currentTour.status || "confirmed"} />
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {formatTourType(currentTour.tourType)} · {formatTime(currentTour.visitTime)} · {currentTour.numberOfPeople} {currentTour.numberOfPeople === 1 ? "person" : "people"}
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/my-tours/${currentTour.id}`}>Open tour</Link>
+                  </Button>
+                </div>
+                <div className="grid gap-3 text-sm sm:grid-cols-2">
+                  <div className="rounded-md border bg-muted/30 p-3">
+                    <p className="text-xs font-medium text-muted-foreground">Meeting point</p>
+                    <p className="mt-1 break-words font-medium">{currentTour.meetingPointId || "Confirm in tour details"}</p>
+                  </div>
+                  <div className="rounded-md border bg-muted/30 p-3">
+                    <p className="text-xs font-medium text-muted-foreground">Visitor contact</p>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {currentTour.visitorPhone && (
+                        <Button size="sm" variant="outline" asChild>
+                          <a href={`tel:${currentTour.visitorPhone}`}>
+                            <Phone className="mr-2 h-3.5 w-3.5" />
+                            Call
+                          </a>
+                        </Button>
+                      )}
+                      {currentTour.visitorEmail && (
+                        <Button size="sm" variant="outline" asChild>
+                          <a href={`mailto:${currentTour.visitorEmail}`}>
+                            <Mail className="mr-2 h-3.5 w-3.5" />
+                            Email
+                          </a>
+                        </Button>
+                      )}
+                      <Button size="sm" variant="outline" asChild>
+                        <Link href="/messages">
+                          <MessageCircle className="mr-2 h-3.5 w-3.5" />
+                          Message
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <GuideDashboardTransportSummary request={currentTour.transportRequest} />
+              </div>
+              <div className="rounded-lg border p-4">
+                <p className="text-sm font-semibold">Tour controls</p>
+                <div className="mt-3 grid gap-2">
+                  {currentTour.status === "confirmed" && (
+                    <>
+                      <Button
+                        onClick={() => startTourMutation.mutate(currentTour.id)}
+                        disabled={startTourMutation.isPending}
+                      >
+                        {startTourMutation.isPending && startTourMutation.variables === currentTour.id ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Play className="mr-2 h-4 w-4" />
+                        )}
+                        Start tour
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="border-orange-200 text-orange-700 hover:bg-orange-50"
+                        onClick={() => noShowMutation.mutate(currentTour.id)}
+                        disabled={noShowMutation.isPending}
+                      >
+                        <UserX className="mr-2 h-4 w-4" />
+                        Mark no-show
+                      </Button>
+                    </>
+                  )}
+                  {currentTour.status === "in_progress" && (
+                    <Button
+                      onClick={() => completeTourMutation.mutate(currentTour.id)}
+                      disabled={completeTourMutation.isPending}
+                    >
+                      {completeTourMutation.isPending && completeTourMutation.variables === currentTour.id ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                      )}
+                      Complete tour
+                    </Button>
+                  )}
+                  <Button variant="outline" asChild>
+                    <Link href={`/my-tours/${currentTour.id}/itinerary`}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Open itinerary
+                    </Link>
+                  </Button>
+                  <ReportIncidentDialog bookingId={currentTour.id} triggerButton />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <EmptyState
+              icon={CalendarDays}
+              title="No current tour"
+              description="When a confirmed or in-progress tour is scheduled for today, focused controls will appear here."
+              className="py-8"
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -1505,22 +2179,61 @@ function GuideDashboard() {
 }
 
 function SecurityDashboard() {
-  const { data: activeVisits, isLoading: visitsLoading } = useQuery<RecentBooking[]>({
+  const {
+    data: activeVisits,
+    isLoading: visitsLoading,
+    isError: activeVisitsError,
+    error: activeVisitsQueryError,
+    refetch: refetchActiveVisits,
+  } = useQuery<RecentBooking[]>({
     queryKey: ["/api/bookings/active"],
   });
 
-  const { data: incidents, isLoading: incidentsLoading } = useQuery<Incident[]>({
+  const {
+    data: incidents,
+    isLoading: incidentsLoading,
+    isError: incidentsError,
+    error: incidentsQueryError,
+    refetch: refetchIncidents,
+  } = useQuery<Incident[]>({
     queryKey: ["/api/incidents"],
   });
 
-  const { data: todaysTours } = useQuery<RecentBooking[]>({
+  const {
+    data: todaysTours,
+    isLoading: todaysToursLoading,
+    isError: todaysToursError,
+    refetch: refetchTodaysTours,
+  } = useQuery<RecentBooking[]>({
     queryKey: ["/api/bookings/today"],
   });
 
-  const isLoading = visitsLoading || incidentsLoading;
+  const isLoading = visitsLoading || incidentsLoading || todaysToursLoading;
 
   if (isLoading) {
     return <DashboardSkeleton />;
+  }
+
+  if (activeVisitsError || incidentsError) {
+    const error = activeVisitsQueryError || incidentsQueryError;
+
+    return (
+      <PageContainer className="page-spacing">
+        <PageHeader
+          title="Security Dashboard"
+          description="Security dashboard data could not be loaded."
+        />
+        <DataErrorState
+          title="Security dashboard unavailable"
+          description={error instanceof Error ? error.message : "Could not load active visits or incident data."}
+          onRetry={() => {
+            void refetchActiveVisits();
+            void refetchIncidents();
+          }}
+          className="py-16"
+        />
+      </PageContainer>
+    );
   }
 
   const openIncidents = incidents?.filter(i => i.status === "reported" || i.status === "investigating") || [];
@@ -1543,14 +2256,14 @@ function SecurityDashboard() {
         />
         <StatCard
           title="Pending Check-ins"
-          value={pendingVerifications.length}
-          subtitle="Awaiting arrival"
+          value={todaysToursError ? "Unavailable" : pendingVerifications.length}
+          subtitle={todaysToursError ? "Booking feed unavailable" : "Awaiting arrival"}
           icon={Clock}
         />
         <StatCard
           title="Today's Check-ins"
-          value={todaysTours?.filter(t => t.checkInTime).length || 0}
-          subtitle={formatDate(new Date())}
+          value={todaysToursError ? "Unavailable" : todaysTours?.filter(t => t.checkInTime).length || 0}
+          subtitle={todaysToursError ? "Booking feed unavailable" : formatDate(new Date())}
           icon={CheckCircle2}
         />
         <StatCard
@@ -1560,6 +2273,14 @@ function SecurityDashboard() {
           icon={AlertTriangle}
         />
       </div>
+
+      {todaysToursError && (
+        <DataErrorState
+          title="Booking verification feed unavailable"
+          description="Today's booking feed could not be loaded. Retry before assuming there are no pending check-ins."
+          onRetry={() => refetchTodaysTours()}
+        />
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
@@ -1661,7 +2382,7 @@ function SecurityDashboard() {
               </Link>
             </Button>
             <Button variant="outline" className={dashboardActionCardClass} asChild>
-              <Link href="/security?tab=verification">
+              <Link href="/security?tab=verify">
                 <Shield className="h-5 w-5 text-primary" />
                 <div className="min-w-0">
                   <div className="font-medium">Verify booking</div>
@@ -1700,13 +2421,40 @@ function VisitorDashboard() {
   const queryClient = useQueryClient();
   const displayName = user?.firstName || "there";
 
-  const { data: myBookings, isLoading } = useQuery<RecentBooking[]>({
+  const {
+    data: myBookings,
+    isLoading,
+    isError: myBookingsError,
+    error: myBookingsQueryError,
+    refetch: refetchMyBookings,
+  } = useQuery<RecentBooking[]>({
     queryKey: ["/api/bookings/my-bookings"],
   });
 
   const { data: itineraries } = useQuery<{ bookingId: string }[]>({
     queryKey: ["/api/my-itineraries"],
     enabled: !!user,
+  });
+
+  const { data: savedItinerariesData } = useQuery<SavedItinerarySummary[]>({
+    queryKey: ["/api/visitors/saved-itineraries"],
+    enabled: !!user,
+  });
+
+  const { data: favoriteGuidesData } = useQuery<FavoriteGuideSummary[]>({
+    queryKey: ["/api/visitors/favorite-guides"],
+    enabled: !!user,
+  });
+
+  const { data: supportTicketsData } = useQuery<SupportTicket[]>({
+    queryKey: ["/api/support/tickets"],
+    enabled: !!user,
+  });
+
+  const { data: unreadNotificationsData } = useQuery<{ count: number }>({
+    queryKey: ["/api/notifications/unread-count"],
+    enabled: !!user,
+    refetchInterval: 30000,
   });
 
   const { data: zones } = useQuery<{ id: string; name: string }[]>({
@@ -1758,6 +2506,37 @@ function VisitorDashboard() {
       toast({ title: "Failed to rate guide", description: error.message, variant: "destructive" });
     },
   });
+
+  const toggleFavoriteMutation = useMutation({
+    mutationFn: async ({ guideId, isFavorite }: { guideId: string; isFavorite: boolean }) => {
+      if (isFavorite) {
+        await apiRequest("DELETE", `/api/visitors/favorite-guides/${guideId}`);
+      } else {
+        await apiRequest("POST", `/api/visitors/favorite-guides/${guideId}`);
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/visitors/favorite-guides"] });
+      toast({
+        title: variables.isFavorite ? "Removed from Favorites" : "Added to Favorites",
+        description: variables.isFavorite
+          ? "Guide has been removed from your favorites."
+          : "Guide has been added to your favorites.",
+      });
+    },
+    onError: (error: Error, variables) => {
+      toast({
+        title: variables.isFavorite ? "Failed to Remove" : "Failed to Add",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const isGuideFavorite = (guideId?: string | null) => {
+    if (!guideId || !favoriteGuidesData) return false;
+    return favoriteGuidesData.some((fav) => fav.guideId === guideId);
+  };
 
   const [selectedRating, setSelectedRating] = useState<{ bookingId: string; rating: number } | null>(null);
   const [showAllPastVisits, setShowAllPastVisits] = useState(false);
@@ -1830,10 +2609,31 @@ function VisitorDashboard() {
     return <DashboardSkeleton />;
   }
 
+  if (myBookingsError) {
+    return (
+      <PageContainer className="page-spacing">
+        <PageHeader
+          title={`Welcome, ${displayName}`}
+          description="Your visitor dashboard could not be loaded."
+        />
+        <DataErrorState
+          title="Visitor dashboard unavailable"
+          description={myBookingsQueryError instanceof Error ? myBookingsQueryError.message : "Could not load your bookings."}
+          onRetry={() => refetchMyBookings()}
+          className="py-16"
+        />
+      </PageContainer>
+    );
+  }
+
   const upcomingBookings = myBookings?.filter(b =>
     b.status === "pending" || b.status === "confirmed"
   ) || [];
   const completedBookings = myBookings?.filter(b => b.status === "completed") || [];
+  const savedItineraries = savedItinerariesData || [];
+  const favoriteGuides = (favoriteGuidesData || []).filter((favorite) => favorite.guide);
+  const supportTickets = supportTicketsData || [];
+  const unreadNotifications = unreadNotificationsData?.count || 0;
   const cancellationOrRefundBookings = (myBookings || [])
     .filter((booking) => booking.status === "cancelled" || booking.paymentStatus === "refunded")
     .sort((a, b) => new Date(b.updatedAt || b.visitDate).getTime() - new Date(a.updatedAt || a.visitDate).getTime())
@@ -1868,6 +2668,9 @@ function VisitorDashboard() {
     return new Date(aTime).getTime() - new Date(bTime).getTime();
   })[0];
   const nextVisitMeetingPoint = nextVisit ? getMeetingPointName(nextVisit.meetingPointId) : null;
+  const nextVisitMeetingPointAddress = nextVisit?.meetingPointId && meetingPoints
+    ? meetingPoints.find((point) => point.id === nextVisit.meetingPointId)?.address
+    : null;
   const nextVisitPaymentLabel = nextVisit?.paymentStatus === "paid"
     ? "Paid"
     : nextVisit?.paymentReference
@@ -1908,6 +2711,50 @@ function VisitorDashboard() {
         : "Contact support from the Help Center.",
     },
   ];
+  const visitorActionItems = buildVisitorActionItems({
+    bookings: myBookings || [],
+    supportTickets,
+    unreadNotifications,
+  });
+  const latestSupportTicket = [...supportTickets]
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0];
+  const latestUpdates = [
+    nextVisit?.assignedGuideId && {
+      id: `guide-${nextVisit.id}`,
+      icon: UserCheck,
+      title: "Guide assigned",
+      detail: getGuideName(nextVisit) || "Your assigned guide is visible in booking details.",
+      href: `/my-bookings/${nextVisit.id}`,
+    },
+    nextVisitTransport && {
+      id: `transport-${nextVisit.id}`,
+      icon: Car,
+      title: `Transport ${getTransportStatusLabel(nextVisitTransport.status)}`,
+      detail: nextVisitTransportDetail,
+      href: `/my-bookings/${nextVisit.id}`,
+    },
+    nextVisit && nextVisit.paymentStatus !== "paid" && {
+      id: `payment-${nextVisit?.id || "next"}`,
+      icon: DollarSign,
+      title: nextVisit?.paymentReference ? "Payment verification pending" : "Payment not reported",
+      detail: nextVisit ? nextVisitPaymentLabel : "No upcoming payment due.",
+      href: nextVisit ? `/my-bookings/${nextVisit.id}` : "/my-bookings",
+    },
+    nextVisit && itineraries?.some((i) => i.bookingId === nextVisit.id) && {
+      id: `itinerary-${nextVisit.id}`,
+      icon: FileDown,
+      title: "Itinerary ready",
+      detail: "Open your generated itinerary before arrival.",
+      href: `/my-bookings/${nextVisit.id}/itinerary`,
+    },
+    latestSupportTicket && {
+      id: `support-${latestSupportTicket.id}`,
+      icon: MessageCircle,
+      title: "Support status",
+      detail: `${latestSupportTicket.subject} is ${latestSupportTicket.status?.replace(/_/g, " ") || "open"}.`,
+      href: "/help?support=true",
+    },
+  ].filter(Boolean) as Array<{ id: string; icon: LucideIcon; title: string; detail: string; href: string }>;
 
   return (
     <PageContainer className="page-spacing overflow-x-hidden">
@@ -1915,6 +2762,63 @@ function VisitorDashboard() {
         title={`Welcome, ${displayName}`}
         description="Review your visits, tour details, payments, and support options."
       />
+
+      <DashboardActionList
+        title="Action Required"
+        description="Payment, transport, support, messages, ratings, and pre-visit tasks that may need your attention."
+        items={visitorActionItems}
+      />
+
+      <div className="flex flex-wrap gap-2">
+        <Link href="/my-bookings?book=true">
+          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+            <Ticket className={quickActionIconClass} />
+            <span>Book visit</span>
+          </Button>
+        </Link>
+        <Link href={nextVisit ? `/my-bookings/${nextVisit.id}` : "/my-bookings"}>
+          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+            <Calendar className={quickActionIconClass} />
+            <span>{nextVisit ? "Next booking" : "Bookings"}</span>
+          </Button>
+        </Link>
+        <Button variant="secondary" size="sm" className={quickActionButtonClass} asChild>
+          <a href="#arrival-pass">
+            <ScanLine className={quickActionIconClass} />
+            <span>Arrival pass</span>
+          </a>
+        </Button>
+        <Link href="/messages">
+          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+            <MessageCircle className={quickActionIconClass} />
+            <span>Messages</span>
+          </Button>
+        </Link>
+        <Link href="/help?support=true">
+          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+            <Shield className={quickActionIconClass} />
+            <span>Support</span>
+          </Button>
+        </Link>
+        <Link href="/saved-itineraries">
+          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+            <MapPin className={quickActionIconClass} />
+            <span>Saved plans</span>
+          </Button>
+        </Link>
+        <Link href="/favorite-guides">
+          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+            <Heart className={quickActionIconClass} />
+            <span>Favorite guides</span>
+          </Button>
+        </Link>
+        <Link href="/resources">
+          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
+            <BookOpen className={quickActionIconClass} />
+            <span>Resources</span>
+          </Button>
+        </Link>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard
@@ -1961,15 +2865,36 @@ function VisitorDashboard() {
                 </div>
               ))}
             </div>
-            <div className="rounded-lg border p-4">
-              <p className="text-sm font-semibold">Next best action</p>
+            <div id="arrival-pass" className="rounded-lg border p-4 scroll-mt-24">
+              <p className="text-sm font-semibold">Arrival Pass</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {nextVisit
-                  ? nextVisitMeetingPoint
-                    ? `Meet at ${nextVisitMeetingPoint}.`
-                    : "Confirm your meeting point before arrival."
-                  : "Create a booking request to plan your visit."}
+                  ? "Keep these arrival details ready for check-in."
+                  : "Your arrival pass will appear when you have a booking."}
               </p>
+              {nextVisit?.bookingReference && (nextVisit.status === "confirmed" || nextVisit.status === "pending") && (
+                <div className="mt-3 rounded-md border bg-background p-3">
+                  <QRCodeDisplay value={nextVisit.bookingReference} size={128} />
+                </div>
+              )}
+              <div className="mt-3 grid gap-2 text-sm">
+                <div className="rounded-md border bg-muted/30 p-3">
+                  <p className="text-xs font-medium text-muted-foreground">Meeting point</p>
+                  <p className="mt-1 break-words font-medium">{nextVisitMeetingPoint || "Confirm in booking details"}</p>
+                  {nextVisitMeetingPointAddress && (
+                    <p className="mt-1 break-words text-xs text-muted-foreground">{nextVisitMeetingPointAddress}</p>
+                  )}
+                </div>
+                <div className="rounded-md border bg-muted/30 p-3">
+                  <p className="text-xs font-medium text-muted-foreground">Guide</p>
+                  <p className="mt-1 break-words font-medium">{nextVisit ? getGuideName(nextVisit) || "Not assigned yet" : "No upcoming visit"}</p>
+                  {nextVisit && getGuidePhone(nextVisit) && (
+                    <Button variant="link" className="h-auto p-0 text-xs" asChild>
+                      <a href={`tel:${getGuidePhone(nextVisit)}`}>Call guide</a>
+                    </Button>
+                  )}
+                </div>
+              </div>
               {nextVisitTransport && (
                 <div className="mt-3 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm dark:border-sky-800 dark:bg-sky-950/30">
                   <div className="flex gap-2">
@@ -1988,11 +2913,32 @@ function VisitorDashboard() {
                             .join(" • ")}
                         </p>
                       )}
+                      {nextVisitTransport.driverPhone && (
+                        <Button variant="link" className="mt-2 h-auto p-0 text-xs" asChild>
+                          <a href={`tel:${nextVisitTransport.driverPhone}`}>Call driver</a>
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
               )}
               <div className="mt-4 grid gap-2">
+                {nextVisit && itineraries?.some((i) => i.bookingId === nextVisit.id) && (
+                  <Button variant="outline" className="w-full justify-start" asChild>
+                    <Link href={`/my-bookings/${nextVisit.id}/itinerary`}>
+                      <FileDown className="mr-2 h-4 w-4" />
+                      Open itinerary
+                    </Link>
+                  </Button>
+                )}
+                {nextVisit && (
+                  <Button variant="outline" className="w-full justify-start" asChild>
+                    <Link href={`/my-bookings/${nextVisit.id}`}>
+                      <ScanLine className="mr-2 h-4 w-4" />
+                      Open full pass
+                    </Link>
+                  </Button>
+                )}
                 {nextVisitTransport && (
                   <Button variant="outline" className="w-full justify-start" asChild>
                     <Link href={nextVisit ? `/my-bookings/${nextVisit.id}` : "/my-bookings"}>
@@ -2014,6 +2960,12 @@ function VisitorDashboard() {
                   </Link>
                 </Button>
                 <Button variant="outline" className="w-full justify-start" asChild>
+                  <a href="tel:+61498956715">
+                    <Phone className="mr-2 h-4 w-4" />
+                    Emergency contact
+                  </a>
+                </Button>
+                <Button variant="outline" className="w-full justify-start" asChild>
                   <Link href="/resources">
                     <BookOpen className="mr-2 h-4 w-4" />
                     Before you visit
@@ -2022,6 +2974,52 @@ function VisitorDashboard() {
               </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="text-lg font-semibold">Latest Updates</CardTitle>
+            <CardDescription>Recent booking, transport, payment, itinerary, and support signals.</CardDescription>
+          </div>
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/my-bookings">
+              View bookings
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {latestUpdates.length === 0 ? (
+            <EmptyState
+              icon={Bell}
+              title="No updates yet"
+              description="Your booking and support updates will appear here."
+              className="py-8"
+            />
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {latestUpdates.slice(0, 6).map((update) => {
+                const Icon = update.icon;
+                return (
+                  <Button key={update.id} variant="outline" className="h-auto justify-start p-0 text-left" asChild>
+                    <Link href={update.href}>
+                      <span className="flex w-full items-start gap-3 p-4">
+                        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                          <Icon className="h-4 w-4" aria-hidden="true" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block break-words text-sm font-semibold">{update.title}</span>
+                          <span className="mt-1 block break-words text-xs text-muted-foreground">{update.detail}</span>
+                        </span>
+                      </span>
+                    </Link>
+                  </Button>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -2167,14 +3165,37 @@ function VisitorDashboard() {
 
                     {/* Guide Info */}
                     {guideName && (
-                      <div className="flex items-start gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                        <UserCheck className="h-5 w-5 shrink-0 text-green-600" />
-                        <div className="min-w-0 flex-1">
-                          <div className="break-words text-sm font-medium text-green-700 dark:text-green-400">Your guide: {guideName}</div>
-                          {guidePhone && (
-                            <div className="break-words text-xs text-green-600 dark:text-green-500">Phone: {guidePhone}</div>
-                          )}
+                      <div className="flex items-start justify-between gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <UserCheck className="h-5 w-5 shrink-0 text-green-600 mt-0.5" />
+                          <div className="min-w-0 flex-1">
+                            <div className="break-words text-sm font-medium text-green-700 dark:text-green-400">Your guide: {guideName}</div>
+                            {guidePhone && (
+                              <div className="break-words text-xs text-green-600 dark:text-green-500">Phone: {guidePhone}</div>
+                            )}
+                          </div>
                         </div>
+                        {booking.assignedGuideId && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 hover:bg-green-100 dark:hover:bg-green-950/40 text-green-700 dark:text-green-400"
+                            onClick={() => {
+                              const isFav = isGuideFavorite(booking.assignedGuideId);
+                              toggleFavoriteMutation.mutate({ guideId: booking.assignedGuideId!, isFavorite: isFav });
+                            }}
+                            disabled={toggleFavoriteMutation.isPending}
+                            aria-label={isGuideFavorite(booking.assignedGuideId) ? "Remove guide from favorites" : "Add guide to favorites"}
+                          >
+                            <Heart
+                              className={`h-4 w-4 ${
+                                isGuideFavorite(booking.assignedGuideId)
+                                  ? "fill-current text-red-500"
+                                  : "text-green-700 dark:text-green-400"
+                              }`}
+                            />
+                          </Button>
+                        )}
                       </div>
                     )}
 
@@ -2227,7 +3248,7 @@ function VisitorDashboard() {
                       <div className="flex flex-wrap justify-end pt-2 border-t gap-2">
                         {itineraries?.some((i) => i.bookingId === booking.id) && (
                           <Button size="sm" variant="default" asChild>
-                            <Link href={`/bookings/${booking.id}/itinerary`}>
+                            <Link href={`/my-bookings/${booking.id}/itinerary`}>
                               <FileDown className="mr-2 h-4 w-4" /> View itinerary
                             </Link>
                           </Button>
@@ -2256,7 +3277,7 @@ function VisitorDashboard() {
                       <div className="flex flex-wrap justify-end pt-2 border-t gap-2">
                         {itineraries?.some((i) => i.bookingId === booking.id) && (
                           <Button size="sm" variant="default" asChild>
-                            <Link href={`/bookings/${booking.id}/itinerary`}>
+                            <Link href={`/my-bookings/${booking.id}/itinerary`}>
                               <FileDown className="mr-2 h-4 w-4" /> View itinerary
                             </Link>
                           </Button>
@@ -2276,6 +3297,92 @@ function VisitorDashboard() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="text-lg font-semibold">Your Saved Plans</CardTitle>
+            <CardDescription>Reuse saved itineraries or request a guide you liked.</CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/saved-itineraries">Saved itineraries</Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/favorite-guides">Favorite guides</Link>
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {savedItineraries.length === 0 && favoriteGuides.length === 0 ? (
+            <EmptyState
+              icon={Compass}
+              title="No saved plans yet"
+              description="Save an itinerary or favorite a guide after a visit to make repeat bookings faster."
+              className="py-8"
+              action={
+                <Button asChild className="mt-4">
+                  <Link href="/my-bookings?book=true">
+                    Book a visit
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              }
+            />
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-lg border p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">Saved itineraries</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{savedItineraries.length} plan{savedItineraries.length === 1 ? "" : "s"} saved</p>
+                  </div>
+                  <Badge variant="secondary" className="tabular-nums">{savedItineraries.length}</Badge>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {savedItineraries.slice(0, 2).map((itinerary) => (
+                    <div key={itinerary.id} className="rounded-md bg-muted/40 p-3">
+                      <p className="break-words text-sm font-medium">{itinerary.name}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{formatTourType(itinerary.tourType)}</p>
+                    </div>
+                  ))}
+                </div>
+                <Button variant="outline" className="mt-4 w-full justify-start" asChild>
+                  <Link href="/saved-itineraries">
+                    Book from saved itinerary
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+              <div className="rounded-lg border p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">Favorite guides</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{favoriteGuides.length} guide{favoriteGuides.length === 1 ? "" : "s"} saved</p>
+                  </div>
+                  <Badge variant="secondary" className="tabular-nums">{favoriteGuides.length}</Badge>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {favoriteGuides.slice(0, 2).map((favorite) => (
+                    <div key={favorite.id} className="rounded-md bg-muted/40 p-3">
+                      <p className="break-words text-sm font-medium">
+                        {favorite.guide ? `${favorite.guide.firstName} ${favorite.guide.lastName}`.trim() : "Saved guide"}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">Available for future requests</p>
+                    </div>
+                  ))}
+                </div>
+                <Button variant="outline" className="mt-4 w-full justify-start" asChild>
+                  <Link href="/favorite-guides">
+                    Request a favorite guide
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
@@ -2476,11 +3583,34 @@ function VisitorDashboard() {
                         </div>
 
                         {getGuideName(booking) && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <UserCheck className="h-4 w-4" />
-                            <span>
-                              Guided by <span className="font-medium text-foreground">{getGuideName(booking)}</span>
-                            </span>
+                          <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <UserCheck className="h-4 w-4 shrink-0" />
+                              <span>
+                                Guided by <span className="font-medium text-foreground">{getGuideName(booking)}</span>
+                              </span>
+                            </div>
+                            {booking.assignedGuideId && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 shrink-0 hover:bg-muted"
+                                onClick={() => {
+                                  const isFav = isGuideFavorite(booking.assignedGuideId);
+                                  toggleFavoriteMutation.mutate({ guideId: booking.assignedGuideId!, isFavorite: isFav });
+                                }}
+                                disabled={toggleFavoriteMutation.isPending}
+                                aria-label={isGuideFavorite(booking.assignedGuideId) ? "Remove guide from favorites" : "Add guide to favorites"}
+                              >
+                                <Heart
+                                  className={`h-4 w-4 ${
+                                    isGuideFavorite(booking.assignedGuideId)
+                                      ? "fill-current text-red-500"
+                                      : "text-muted-foreground"
+                                  }`}
+                                />
+                              </Button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -2488,7 +3618,7 @@ function VisitorDashboard() {
                       <div className="flex gap-2 pt-3 border-t">
                         {itineraries?.some((i) => i.bookingId === booking.id) && (
                           <Button size="sm" variant="outline" asChild>
-                            <Link href={`/bookings/${booking.id}/itinerary`}>
+                            <Link href={`/my-bookings/${booking.id}/itinerary`}>
                               <FileDown className="mr-2 h-4 w-4" /> Itinerary
                             </Link>
                           </Button>
@@ -2576,7 +3706,37 @@ function VisitorDashboard() {
                     Open support ticket
                   </Link>
                 </Button>
-                <ReportIncidentDialog />
+                <ReportIncidentDialog triggerButton />
+              </div>
+              <div className="mt-4 rounded-lg border bg-background p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">Support status</p>
+                    {latestSupportTicket ? (
+                      <>
+                        <p className="mt-1 break-words text-sm">{latestSupportTicket.subject}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Last updated {formatDate(latestSupportTicket.updatedAt || latestSupportTicket.createdAt || new Date())}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="mt-1 text-sm text-muted-foreground">No support tickets yet.</p>
+                    )}
+                  </div>
+                  {latestSupportTicket ? (
+                    <Badge variant="outline" className="capitalize">
+                      {latestSupportTicket.status?.replace(/_/g, " ") || "open"}
+                    </Badge>
+                  ) : null}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href="/help?support=true">Open support ticket</Link>
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href="/help">View all tickets</Link>
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

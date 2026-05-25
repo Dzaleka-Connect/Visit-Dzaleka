@@ -16,6 +16,7 @@ import { Plus, Pencil, Trash2, Eye, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { DataErrorState } from "@/components/data-error-state";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -33,9 +34,18 @@ export default function AdminBlog() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
-    const { data: posts, isLoading } = useQuery<BlogPost[]>({
+    const {
+        data: posts,
+        isLoading,
+        isError: postsIsError,
+        error: postsError,
+        refetch: refetchPosts,
+    } = useQuery<BlogPost[]>({
         queryKey: ["/api/blog"],
     });
+
+    const postsList = posts || [];
+    const postsErrorMessage = postsError instanceof Error ? postsError.message : "Blog posts could not be loaded.";
 
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
@@ -94,7 +104,15 @@ export default function AdminBlog() {
                                 <div key={i} className="h-12 bg-muted rounded animate-pulse" />
                             ))}
                         </div>
-                    ) : posts?.length === 0 ? (
+                    ) : postsIsError ? (
+                        <DataErrorState
+                            icon={FileText}
+                            title="Blog posts unavailable"
+                            description={`The editorial queue could not be loaded. ${postsErrorMessage}`}
+                            onRetry={() => refetchPosts()}
+                            className="py-12"
+                        />
+                    ) : postsList.length === 0 ? (
                         <div className="text-center py-12 text-muted-foreground">
                             <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
                             <p>No blog posts found. Create your first post!</p>
@@ -110,7 +128,7 @@ export default function AdminBlog() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {posts?.map((post) => (
+                                {postsList.map((post) => (
                                     <TableRow key={post.id}>
                                         <TableCell className="font-medium">
                                             <div className="flex flex-col">

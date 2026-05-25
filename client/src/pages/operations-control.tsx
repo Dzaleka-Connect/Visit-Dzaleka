@@ -24,6 +24,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { DataErrorState } from "@/components/data-error-state";
 
 type UserRole = "admin" | "coordinator" | "guide" | "security" | "visitor" | "transport_partner";
 type Priority = "low" | "normal" | "high" | "urgent";
@@ -120,7 +121,7 @@ export default function OperationsControlPage() {
   const queryClient = useQueryClient();
   const [settings, setSettings] = useState<OperationsSettings | null>(null);
 
-  const { data, isLoading } = useQuery<OperationsControlResponse>({
+  const { data, isLoading, isError, refetch } = useQuery<OperationsControlResponse>({
     queryKey: ["/api/operations-control"],
   });
 
@@ -200,12 +201,29 @@ export default function OperationsControlPage() {
     });
   };
 
-  if (isLoading || !settings || !data) {
+  if (isLoading) {
     return (
       <PageContainer className="page-spacing">
         <div className="flex min-h-[360px] items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
+      </PageContainer>
+    );
+  }
+
+  if (isError || !settings || !data) {
+    return (
+      <PageContainer className="page-spacing">
+        <SEO title="Operations Control" description="Manage operational delegation, approvals, and notification routing." robots="noindex" />
+        <PageHeader
+          title="Operations Control"
+          description="Set workflow owners, queue rules, approval guardrails, and internal notification routing."
+        />
+        <DataErrorState
+          title="Operations control unavailable"
+          description="Delegation, queue owner, escalation, and notification-routing settings could not be loaded. Retry before making changes."
+          onRetry={() => void refetch()}
+        />
       </PageContainer>
     );
   }
@@ -217,7 +235,7 @@ export default function OperationsControlPage() {
         title="Operations Control"
         description="Set workflow owners, queue rules, approval guardrails, and internal notification routing."
         actions={
-          <Button onClick={() => saveMutation.mutate(settings)} disabled={saveMutation.isPending} className="w-full sm:w-auto">
+          <Button onClick={() => saveMutation.mutate(settings)} disabled={saveMutation.isPending || !settings} className="w-full sm:w-auto">
             {saveMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
             Save controls
           </Button>

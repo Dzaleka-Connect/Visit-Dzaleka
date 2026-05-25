@@ -3,6 +3,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Shield, Users, MapPin, AlertTriangle, Scale } from "lucide-react";
+import { PublicHeader } from "@/components/public-header";
 
 export default function Disclaimer() {
     return (
@@ -14,21 +15,7 @@ export default function Disclaimer() {
             />
 
             {/* Header */}
-            <header className="border-b bg-background/95 backdrop-blur-md">
-                <div className="container mx-auto flex h-16 items-center px-4">
-                    <Link href="/">
-                        <div className="flex items-center gap-3 cursor-pointer">
-                            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Visit Dzaleka Logo" className="h-10 w-10 rounded-lg shadow-sm" />
-                            <div className="flex flex-col">
-                                <span className="text-sm font-bold tracking-tight">Visit Dzaleka</span>
-                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                                    Official Portal
-                                </span>
-                            </div>
-                        </div>
-                    </Link>
-                </div>
-            </header>
+            <PublicHeader activePath="/disclaimer" />
 
             <main className="flex-1 container mx-auto px-4 py-12 max-w-4xl">
                 <Button asChild variant="ghost" size="sm" className="mb-8 -ml-4">

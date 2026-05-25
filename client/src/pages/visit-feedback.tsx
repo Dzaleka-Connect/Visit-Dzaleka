@@ -26,7 +26,6 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface ReviewRequestDetails {
   bookingReference: string;
-  visitorName: string;
   visitDate: string;
   visitTime: string;
   status: string;
@@ -35,23 +34,6 @@ interface ReviewRequestDetails {
   review: {
     id: string;
     rating: number | null;
-    title: string | null;
-    comment: string | null;
-    tourGuideName: string | null;
-    country: string | null;
-    purposeOfVisit: string | null;
-    groupSize: string | null;
-    referralSource: string | null;
-    overallExperience: string | null;
-    guideExperience: string | null;
-    enjoyedMost: string | null;
-    improvementSuggestions: string | null;
-    wouldRecommend: string | null;
-    otherComments: string | null;
-    wouldVisitAgain: string | null;
-    consentPhotos: boolean | null;
-    consentTestimonial: boolean | null;
-    consentDataProcessing: boolean | null;
     status: string;
     submittedAt: string | null;
   } | null;
@@ -67,9 +49,9 @@ interface ReviewSubmitResponse {
   };
 }
 
-function initialBookingReference() {
+function initialReviewToken() {
   if (typeof window === "undefined") return "";
-  return new URLSearchParams(window.location.search).get("booking")?.trim() || "";
+  return new URLSearchParams(window.location.search).get("token")?.trim() || "";
 }
 
 function formatVisitDate(value?: string | null) {
@@ -163,9 +145,7 @@ function OptionRadioGroup({
 }
 
 export default function VisitFeedback() {
-  const startingReference = initialBookingReference();
-  const [referenceInput, setReferenceInput] = useState(startingReference);
-  const [activeReference, setActiveReference] = useState(startingReference);
+  const [activeToken] = useState(initialReviewToken);
   const [tourGuideName, setTourGuideName] = useState("");
   const [country, setCountry] = useState("");
   const [purposeOfVisit, setPurposeOfVisit] = useState("");
@@ -186,34 +166,18 @@ export default function VisitFeedback() {
   const firstErrorRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  const reviewQueryKey = activeReference
-    ? `/api/public/reviews/request?booking=${encodeURIComponent(activeReference)}`
+  const reviewQueryKey = activeToken
+    ? `/api/public/reviews/request?token=${encodeURIComponent(activeToken)}`
     : "";
 
   const { data, isLoading, isError } = useQuery<ReviewRequestDetails>({
     queryKey: [reviewQueryKey],
-    enabled: Boolean(activeReference),
+    enabled: Boolean(activeToken),
     retry: false,
   });
 
   useEffect(() => {
-    if (data?.review) {
-      setTourGuideName(data.review.tourGuideName || data.guideName || "");
-      setCountry(data.review.country || "");
-      setPurposeOfVisit(data.review.purposeOfVisit || "");
-      setGroupSize(data.review.groupSize || "");
-      setReferralSource(data.review.referralSource || "");
-      setOverallExperience(data.review.overallExperience || "");
-      setGuideExperience(data.review.guideExperience || "");
-      setEnjoyedMost(data.review.enjoyedMost || data.review.comment || "");
-      setImprovementSuggestions(data.review.improvementSuggestions || "");
-      setWouldRecommend(data.review.wouldRecommend || "");
-      setOtherComments(data.review.otherComments || "");
-      setWouldVisitAgain(data.review.wouldVisitAgain || "");
-      setConsentPhotos(Boolean(data.review.consentPhotos));
-      setConsentTestimonial(Boolean(data.review.consentTestimonial));
-      setConsentDataProcessing(Boolean(data.review.consentDataProcessing));
-    } else if (data) {
+    if (data) {
       setTourGuideName(data.guideName || "");
       setCountry("");
       setPurposeOfVisit("");
@@ -235,7 +199,8 @@ export default function VisitFeedback() {
   const submitReviewMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/public/reviews/request", {
-        bookingReference: activeReference,
+        bookingReference: data?.bookingReference || "",
+        token: activeToken,
         rating: experienceToRating(overallExperience),
         title: overallExperience ? `${overallExperience} Visit Dzaleka experience` : undefined,
         comment: enjoyedMost.trim() || otherComments.trim() || undefined,
@@ -273,13 +238,6 @@ export default function VisitFeedback() {
       });
     },
   });
-
-  const handleReferenceSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmed = referenceInput.trim();
-    setActiveReference(trimmed);
-    setSubmitted(false);
-  };
 
   const handleReviewSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -335,41 +293,24 @@ export default function VisitFeedback() {
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Find your booking</CardTitle>
+                <CardTitle>Secure feedback link</CardTitle>
               </CardHeader>
-              <CardContent>
-                <form onSubmit={handleReferenceSubmit} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-                  <div className="space-y-2">
-                    <Label htmlFor="booking-reference">Booking reference</Label>
-                    <Input
-                      id="booking-reference"
-                      name="bookingReference"
-                      value={referenceInput}
-                      onChange={(event) => setReferenceInput(event.target.value)}
-                      placeholder="DVS-2026-ABC123…"
-                      autoComplete="off"
-                      spellCheck={false}
-                      className="text-base"
-                    />
-                  </div>
-                  <Button type="submit" className="self-end" disabled={!referenceInput.trim()}>
-                    Load booking
-                  </Button>
-                </form>
+              <CardContent className="text-sm text-muted-foreground">
+                Feedback opens from the private link sent after a completed visit. This keeps booking references and visitor comments out of public lookup.
               </CardContent>
             </Card>
 
-            {!activeReference && (
+            {!activeToken && (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Booking reference needed</AlertTitle>
+                <AlertTitle>Feedback link needed</AlertTitle>
                 <AlertDescription>
-                  Open the feedback link from your email, or enter the booking reference shared by the Visit Dzaleka team.
+                  Open the feedback link from your email. If you cannot find it, contact the Visit Dzaleka team and include your visit date.
                 </AlertDescription>
               </Alert>
             )}
 
-            {activeReference && isLoading && (
+            {activeToken && isLoading && (
               <Card>
                 <CardContent className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -378,12 +319,12 @@ export default function VisitFeedback() {
               </Card>
             )}
 
-            {activeReference && isError && (
+            {activeToken && isError && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Booking not found</AlertTitle>
+                <AlertTitle>Feedback link unavailable</AlertTitle>
                 <AlertDescription>
-                  Check the reference and try again. If the problem continues, contact Visit Dzaleka from the Contact page.
+                  This feedback link may be expired or invalid. Contact Visit Dzaleka from the Contact page if you need a fresh link.
                 </AlertDescription>
               </Alert>
             )}
@@ -404,8 +345,8 @@ export default function VisitFeedback() {
                 <CardContent className="space-y-4">
                   <div className="grid gap-3 text-sm sm:grid-cols-2">
                     <div className="rounded-lg border p-3">
-                      <div className="text-muted-foreground">Visitor</div>
-                      <div className="mt-1 font-medium">{data.visitorName}</div>
+                      <div className="text-muted-foreground">Booking</div>
+                      <div className="mt-1 font-medium">{data.bookingReference}</div>
                     </div>
                     <div className="rounded-lg border p-3">
                       <div className="text-muted-foreground">Guide</div>
@@ -672,7 +613,7 @@ export default function VisitFeedback() {
                 <CardTitle>Need help?</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-muted-foreground">
-                <p>If your booking reference is not working, contact the team and include your visit date.</p>
+                <p>If your feedback link is not working, contact the team and include your visit date.</p>
                 <Button asChild variant="outline" className="w-full">
                   <Link href="/contact">Contact Visit Dzaleka</Link>
                 </Button>

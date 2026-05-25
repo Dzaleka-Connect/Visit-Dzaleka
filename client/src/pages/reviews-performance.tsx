@@ -299,7 +299,7 @@ export default function ReviewsPerformance() {
           </p>
         </div>
         <Button asChild variant="outline" className="w-full shrink-0 md:w-auto">
-          <Link href="/email-history">
+          <Link href="/send-email">
             <Mail className="mr-2 h-4 w-4" aria-hidden="true" />
             Email history
           </Link>

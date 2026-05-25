@@ -52,6 +52,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { DataErrorState } from "@/components/data-error-state";
 import { SEO } from "@/components/seo";
 import type { HelpArticle, SupportTicket, HelpCategory, HelpAudience, TicketStatus } from "@shared/schema";
 
@@ -84,13 +85,31 @@ export default function HelpAdmin() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
 
-    const { data: articles = [], isLoading: articlesLoading } = useQuery<HelpArticle[]>({
+    const {
+        data: articles,
+        isLoading: articlesLoading,
+        isError: articlesIsError,
+        error: articlesError,
+        refetch: refetchArticles,
+    } = useQuery<HelpArticle[]>({
         queryKey: ["/api/admin/help/articles"],
     });
 
-    const { data: tickets = [], isLoading: ticketsLoading } = useQuery<SupportTicket[]>({
+    const {
+        data: tickets,
+        isLoading: ticketsLoading,
+        isError: ticketsIsError,
+        error: ticketsError,
+        refetch: refetchTickets,
+    } = useQuery<SupportTicket[]>({
         queryKey: ["/api/support/tickets"],
     });
+
+    const articlesList = articles || [];
+    const ticketsList = tickets || [];
+    const openTicketCount = ticketsList.filter((t) => t.status === "open" || t.status === "in_progress").length;
+    const articlesErrorMessage = articlesError instanceof Error ? articlesError.message : "Help articles could not be loaded.";
+    const ticketsErrorMessage = ticketsError instanceof Error ? ticketsError.message : "Support tickets could not be loaded.";
 
     const createArticleMutation = useMutation({
         mutationFn: async (data: Partial<HelpArticle>) => {
@@ -226,7 +245,7 @@ export default function HelpAdmin() {
                         <p className="text-muted-foreground">Manage help articles and support tickets</p>
                     </div>
                     {activeTab === "articles" && (
-                        <Button onClick={openNewArticleDialog}>
+                        <Button onClick={openNewArticleDialog} disabled={articlesIsError}>
                             <Plus className="h-4 w-4 mr-2" />
                             New Article
                         </Button>
@@ -237,11 +256,11 @@ export default function HelpAdmin() {
                     <TabsList>
                         <TabsTrigger value="articles" className="gap-2">
                             <FileText className="h-4 w-4" />
-                            Articles ({articles.length})
+                            Articles {articlesIsError ? "(unavailable)" : `(${articlesList.length})`}
                         </TabsTrigger>
                         <TabsTrigger value="tickets" className="gap-2">
                             <MessageSquare className="h-4 w-4" />
-                            Tickets ({tickets.filter((t) => t.status === "open" || t.status === "in_progress").length} open)
+                            Tickets {ticketsIsError ? "(unavailable)" : `(${openTicketCount} open)`}
                         </TabsTrigger>
                     </TabsList>
 
@@ -251,7 +270,18 @@ export default function HelpAdmin() {
                             <div className="flex justify-center py-12">
                                 <Loader2 className="h-8 w-8 animate-spin" />
                             </div>
-                        ) : articles.length === 0 ? (
+                        ) : articlesIsError ? (
+                            <Card>
+                                <CardContent>
+                                    <DataErrorState
+                                        title="Help articles unavailable"
+                                        description={`Article content could not be loaded. ${articlesErrorMessage}`}
+                                        onRetry={() => refetchArticles()}
+                                        className="py-12"
+                                    />
+                                </CardContent>
+                            </Card>
+                        ) : articlesList.length === 0 ? (
                             <Card>
                                 <CardContent className="p-12 text-center">
                                     <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -276,7 +306,7 @@ export default function HelpAdmin() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {articles.map((article) => (
+                                        {articlesList.map((article) => (
                                             <TableRow key={article.id}>
                                                 <TableCell>
                                                     <div>
@@ -339,7 +369,18 @@ export default function HelpAdmin() {
                             <div className="flex justify-center py-12">
                                 <Loader2 className="h-8 w-8 animate-spin" />
                             </div>
-                        ) : tickets.length === 0 ? (
+                        ) : ticketsIsError ? (
+                            <Card>
+                                <CardContent>
+                                    <DataErrorState
+                                        title="Support tickets unavailable"
+                                        description={`The support queue could not be loaded. ${ticketsErrorMessage}`}
+                                        onRetry={() => refetchTickets()}
+                                        className="py-12"
+                                    />
+                                </CardContent>
+                            </Card>
+                        ) : ticketsList.length === 0 ? (
                             <Card>
                                 <CardContent className="p-12 text-center">
                                     <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -360,7 +401,7 @@ export default function HelpAdmin() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {tickets.map((ticket) => (
+                                        {ticketsList.map((ticket) => (
                                             <TableRow key={ticket.id}>
                                                 <TableCell>
                                                     <p className="font-medium">{ticket.subject}</p>

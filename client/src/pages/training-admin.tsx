@@ -60,6 +60,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { SEO } from "@/components/seo";
+import { DataErrorState } from "@/components/data-error-state";
 import type { TrainingModule, Guide } from "@shared/schema";
 
 interface GuideTrainingStats {
@@ -110,13 +111,30 @@ export default function TrainingAdmin() {
     const [deleteModule, setDeleteModule] = useState<TrainingModule | null>(null);
     const [formData, setFormData] = useState<ModuleFormData>(defaultFormData);
 
-    const { data: modules, isLoading } = useQuery<TrainingModule[]>({
+    const {
+        data: modules,
+        isLoading,
+        isError: modulesIsError,
+        error: modulesError,
+        refetch: refetchModules,
+    } = useQuery<TrainingModule[]>({
         queryKey: ["/api/training/modules"],
     });
 
-    const { data: guidesStats } = useQuery<GuideTrainingStats[]>({
+    const {
+        data: guidesStats,
+        isLoading: guidesStatsLoading,
+        isError: guidesStatsIsError,
+        error: guidesStatsError,
+        refetch: refetchGuidesStats,
+    } = useQuery<GuideTrainingStats[]>({
         queryKey: ["/api/training/guides-stats"],
     });
+
+    const modulesList = modules || [];
+    const guidesStatsList = guidesStats || [];
+    const modulesErrorMessage = modulesError instanceof Error ? modulesError.message : "Training modules could not be loaded.";
+    const guidesStatsErrorMessage = guidesStatsError instanceof Error ? guidesStatsError.message : "Guide training stats could not be loaded.";
 
     const createMutation = useMutation({
         mutationFn: async (data: ModuleFormData) => {
@@ -196,7 +214,7 @@ export default function TrainingAdmin() {
     };
 
     // Group modules by category
-    const groupedModules = (modules || []).reduce((acc, module) => {
+    const groupedModules = modulesList.reduce((acc, module) => {
         if (!acc[module.category]) {
             acc[module.category] = [];
         }
@@ -213,6 +231,7 @@ export default function TrainingAdmin() {
     }
 
     const isEditing = isCreateOpen || editingModule;
+    const moduleStatValue = (value: number | string) => modulesIsError ? "Unavailable" : value;
 
     return (
         <div className="space-y-6">
@@ -231,7 +250,7 @@ export default function TrainingAdmin() {
                 </div>
                 <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                     <DialogTrigger asChild>
-                        <Button>
+                        <Button disabled={modulesIsError}>
                             <Plus className="mr-2 h-4 w-4" />
                             Add Module
                         </Button>
@@ -243,14 +262,14 @@ export default function TrainingAdmin() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Card>
                     <CardContent className="p-4">
-                        <div className="text-2xl font-bold">{modules?.length || 0}</div>
+                        <div className="text-2xl font-bold">{moduleStatValue(modulesList.length)}</div>
                         <p className="text-sm text-muted-foreground">Total Modules</p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="p-4">
                         <div className="text-2xl font-bold text-blue-600">
-                            {modules?.filter(m => m.isRequired).length || 0}
+                            {moduleStatValue(modulesList.filter(m => m.isRequired).length)}
                         </div>
                         <p className="text-sm text-muted-foreground">Required</p>
                     </CardContent>
@@ -258,7 +277,7 @@ export default function TrainingAdmin() {
                 <Card>
                     <CardContent className="p-4">
                         <div className="text-2xl font-bold text-green-600">
-                            {Object.keys(groupedModules).length}
+                            {moduleStatValue(Object.keys(groupedModules).length)}
                         </div>
                         <p className="text-sm text-muted-foreground">Categories</p>
                     </CardContent>
@@ -266,7 +285,7 @@ export default function TrainingAdmin() {
                 <Card>
                     <CardContent className="p-4">
                         <div className="text-2xl font-bold text-purple-600">
-                            {modules?.reduce((sum, m) => sum + (m.estimatedMinutes || 0), 0) || 0}m
+                            {modulesIsError ? "Unavailable" : `${modulesList.reduce((sum, m) => sum + (m.estimatedMinutes || 0), 0)}m`}
                         </div>
                         <p className="text-sm text-muted-foreground">Total Time</p>
                     </CardContent>
@@ -290,20 +309,30 @@ export default function TrainingAdmin() {
                             <CardDescription>Track which guides have completed their training</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            {guidesStats && guidesStats.length > 0 ? (
+                            {guidesStatsLoading ? (
+                                <p className="text-center text-muted-foreground py-8">Loading guide progress…</p>
+                            ) : guidesStatsIsError ? (
+                                <DataErrorState
+                                    icon={Users}
+                                    title="Guide progress unavailable"
+                                    description={`Training progress could not be loaded. ${guidesStatsErrorMessage}`}
+                                    onRetry={() => refetchGuidesStats()}
+                                    className="py-8"
+                                />
+                            ) : guidesStatsList.length > 0 ? (
                                 <div className="space-y-6">
                                     {/* Summary stats */}
                                     <div className="grid gap-4 md:grid-cols-4">
                                         <Card>
                                             <CardContent className="p-4">
-                                                <div className="text-2xl font-bold">{guidesStats.length}</div>
+                                                <div className="text-2xl font-bold">{guidesStatsList.length}</div>
                                                 <p className="text-sm text-muted-foreground">Total Guides</p>
                                             </CardContent>
                                         </Card>
                                         <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
                                             <CardContent className="p-4">
                                                 <div className="text-2xl font-bold text-green-600">
-                                                    {guidesStats.filter(g => g.percentage === 100).length}
+                                                    {guidesStatsList.filter(g => g.percentage === 100).length}
                                                 </div>
                                                 <p className="text-sm text-muted-foreground">Fully Trained</p>
                                             </CardContent>
@@ -311,7 +340,7 @@ export default function TrainingAdmin() {
                                         <Card className="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
                                             <CardContent className="p-4">
                                                 <div className="text-2xl font-bold text-amber-600">
-                                                    {guidesStats.filter(g => g.percentage > 0 && g.percentage < 100).length}
+                                                    {guidesStatsList.filter(g => g.percentage > 0 && g.percentage < 100).length}
                                                 </div>
                                                 <p className="text-sm text-muted-foreground">In Progress</p>
                                             </CardContent>
@@ -319,7 +348,7 @@ export default function TrainingAdmin() {
                                         <Card className="bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
                                             <CardContent className="p-4">
                                                 <div className="text-2xl font-bold text-red-600">
-                                                    {guidesStats.filter(g => g.percentage === 0).length}
+                                                    {guidesStatsList.filter(g => g.percentage === 0).length}
                                                 </div>
                                                 <p className="text-sm text-muted-foreground">Not Started</p>
                                             </CardContent>
@@ -339,7 +368,7 @@ export default function TrainingAdmin() {
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
-                                                {guidesStats.map((stat) => (
+                                                {guidesStatsList.map((stat) => (
                                                     <TableRow key={stat.guide.id}>
                                                         <TableCell className="font-medium">
                                                             {stat.guide.firstName} {stat.guide.lastName}
@@ -388,7 +417,15 @@ export default function TrainingAdmin() {
 
                 <TabsContent value="content" className="space-y-6">
                     {/* Module List by Category */}
-                    {Object.entries(groupedModules).map(([category, categoryModules]) => (
+                    {modulesIsError ? (
+                        <DataErrorState
+                            icon={BookOpen}
+                            title="Training modules unavailable"
+                            description={`Training content could not be loaded. ${modulesErrorMessage}`}
+                            onRetry={() => refetchModules()}
+                            className="py-12"
+                        />
+                    ) : Object.entries(groupedModules).map(([category, categoryModules]) => (
                         <Card key={category}>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
@@ -456,7 +493,7 @@ export default function TrainingAdmin() {
                         </Card>
                     ))}
 
-                    {(!modules || modules.length === 0) && (
+                    {!modulesIsError && modulesList.length === 0 && (
                         <Card>
                             <CardContent className="p-12 text-center">
                                 <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />

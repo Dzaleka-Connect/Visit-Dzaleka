@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication & Roles - Visit Dzaleka Documentation</title>
+    <link rel="stylesheet" href="../styles/docs.css">
+</head>
+
+<body>
+    <div class="doc-content">
+        <div class="breadcrumb">
+            <a href="../index.html">Docs</a>
+            <span>/</span>
+            <span>User Guide</span>
+            <span>/</span>
+            <span>Authentication</span>
+        </div>
+
+        <h1>Authentication & Roles</h1>
+
+        <p>This page describes how users log in to the Visit Dzaleka system, session lifetimes, role permissions, and how passwords and resets are managed.</p>
+
+        <h2>Session Authentication</h2>
+        <p>The application uses cookie-based session authentication. When a user logs in:</p>
+        <ul>
+            <li>An encrypted session cookie is established in the browser containing the user's ID.</li>
+            <li>A CSRF token is generated and associated with the session. For any state-changing HTTP requests (POST, PUT, PATCH, DELETE), clients must supply this token in the <code>X-CSRF-Token</code> header.</li>
+            <li>By default, standard sessions are kept alive as long as active browser interaction occurs, matching the session middleware configuration.</li>
+        </ul>
+
+        <h2>User Roles & Authorization</h2>
+        <p>Visit Dzaleka implements Role-Based Access Control (RBAC). Every account is assigned a single role which governs what pages and API endpoints they can access:</p>
+
+        <table class="docs-table" style="width:100%; border-collapse:collapse; margin:20px 0;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border);">
+                    <th style="text-align:left; padding:10px;">Role</th>
+                    <th style="text-align:left; padding:10px;">Description & Permissions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding:10px; font-weight:bold;">Admin</td>
+                    <td style="padding:10px;">Full administrative rights. Access to all dashboards, audit logs, email history, scheduled reports, webhooks, database configuration, user management, and pricing controls.</td>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding:10px; font-weight:bold;">Coordinator</td>
+                    <td style="padding:10px;">Coordinates walking tours. Access to the master bookings list, guide assignments, calendar, and reports. Blocked from administrative tools (e.g. webhooks, API keys, audit logs).</td>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding:10px; font-weight:bold;">Guide</td>
+                    <td style="padding:10px;">Tour guides operating in the camp. Restricted to the "My Tours" dashboard, availability settings, guide profile page, guide training materials, and payout details. Blocked from the bookings list.</td>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding:10px; font-weight:bold;">Security</td>
+                    <td style="padding:10px;">Gate personnel. Restricted to check-in/out checkpoint tools, active visitor logs, incident reporting, and safety task boards. Blocked from billing, coordinator schedules, and master guides lists.</td>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding:10px; font-weight:bold;">Transport Partner</td>
+                    <td style="padding:10px;">Transport providers. Restricted to the Transport Partner Portal, availability updates, quote bidding, pricing configurations, and their own profile.</td>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding:10px; font-weight:bold;">Visitor</td>
+                    <td style="padding:10px;">General public visitors. Access to self-booking widgets, visit history, preparation resources, and customer support ticket submissions.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Password Management & Security</h2>
+        <h3>Password Hashing</h3>
+        <p>All passwords are encrypted and hashed on the server using industry-standard hashing functions (scrypt/argon2 equivalent) before being stored in the database. Raw passwords are never logged or stored in plain text.</p>
+
+        <h3>Changing Password</h3>
+        <p>Users can change their password from the <strong>Profile/Settings</strong> page. Changing a password requires verifying the current password to ensure account ownership.</p>
+
+        <h3>Password Reset Flow</h3>
+        <p>If a user forgets their password:</p>
+        <ol>
+            <li>They navigate to the login screen and click <strong>Forgot Password</strong>.</li>
+            <li>They enter their email address.</li>
+            <li>The system generates a secure, single-use, cryptographically strong reset token that expires in 1 hour.</li>
+            <li>An email is dispatched to the user containing the reset link: <code>/reset-password?token=...</code>.</li>
+            <li>The user opens the link, enters a new password, and submits. Once successful, the token is invalidated immediately.</li>
+        </ol>
+
+        <div class="next-page">
+            <a href="dashboard.html" class="next-link">
+                <span>Next: Dashboard Guide</span>
+                <span class="arrow">→</span>
+            </a>
+        </div>
+    </div>
+    <script src="../scripts/docs.js"></script>
+</body>
+
+</html>

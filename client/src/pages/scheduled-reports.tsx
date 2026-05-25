@@ -14,6 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
+import { DataErrorState } from "@/components/data-error-state";
 import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
 import { SEO } from "@/components/seo";
@@ -207,23 +208,36 @@ export default function ScheduledReports() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingReport, setEditingReport] = useState<ScheduledReportRecord | null>(null);
 
-  const { data: reports = [], isLoading } = useQuery<ScheduledReportRecord[]>({
+  const {
+    data: reports,
+    isLoading,
+    isError: reportsIsError,
+    error: reportsError,
+    refetch: refetchReports,
+  } = useQuery<ScheduledReportRecord[]>({
     queryKey: ["/api/scheduled-reports"],
   });
 
+  const reportsList = reports || [];
+  const reportsErrorMessage = reportsError instanceof Error
+    ? reportsError.message
+    : "Scheduled report configuration could not be loaded.";
+
   const stats = useMemo(() => {
     const now = new Date();
-    const active = reports.filter((report) => report.status === "active").length;
-    const paused = reports.filter((report) => report.status === "paused").length;
-    const ranThisMonth = reports.filter((report) => {
+    const active = reportsList.filter((report) => report.status === "active").length;
+    const paused = reportsList.filter((report) => report.status === "paused").length;
+    const ranThisMonth = reportsList.filter((report) => {
       if (!report.lastRunAt) return false;
       const date = new Date(report.lastRunAt);
       return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
     }).length;
-    const recipientTotal = reports.reduce((sum, report) => sum + recipientCount(report.recipients), 0);
+    const recipientTotal = reportsList.reduce((sum, report) => sum + recipientCount(report.recipients), 0);
 
     return { active, paused, ranThisMonth, recipientTotal };
-  }, [reports]);
+  }, [reportsList]);
+
+  const statValue = (value: number) => reportsIsError ? "Unavailable" : value;
 
   const saveMutation = useMutation({
     mutationFn: async (data: {
@@ -336,8 +350,8 @@ export default function ScheduledReports() {
             <CalendarClock className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold tabular-nums">{stats.active}</div>
-            <p className="text-xs text-muted-foreground">{stats.paused} paused</p>
+            <div className="text-2xl font-semibold tabular-nums">{statValue(stats.active)}</div>
+            <p className="text-xs text-muted-foreground">{reportsIsError ? "Configuration unavailable" : `${stats.paused} paused`}</p>
           </CardContent>
         </Card>
 
@@ -347,7 +361,7 @@ export default function ScheduledReports() {
             <Mail className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold tabular-nums">{stats.ranThisMonth}</div>
+            <div className="text-2xl font-semibold tabular-nums">{statValue(stats.ranThisMonth)}</div>
             <p className="text-xs text-muted-foreground">Based on last run</p>
           </CardContent>
         </Card>
@@ -358,7 +372,7 @@ export default function ScheduledReports() {
             <FileText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold tabular-nums">{stats.recipientTotal}</div>
+            <div className="text-2xl font-semibold tabular-nums">{statValue(stats.recipientTotal)}</div>
             <p className="text-xs text-muted-foreground">Across all reports</p>
           </CardContent>
         </Card>
@@ -386,7 +400,14 @@ export default function ScheduledReports() {
               <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden="true" />
               Loading scheduled reports…
             </div>
-          ) : reports.length === 0 ? (
+          ) : reportsIsError ? (
+            <DataErrorState
+              title="Scheduled reports unavailable"
+              description={`Report schedules could not be loaded. ${reportsErrorMessage}`}
+              onRetry={() => refetchReports()}
+              className="py-12"
+            />
+          ) : reportsList.length === 0 ? (
             <EmptyState
               icon={CalendarClock}
               title="No scheduled reports"
@@ -407,7 +428,7 @@ export default function ScheduledReports() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {reports.map((report) => {
+                  {reportsList.map((report) => {
                     const isRunningReport = runMutation.isPending && runMutation.variables === report.id;
                     const isDeletingReport = deleteMutation.isPending && deleteMutation.variables === report.id;
 

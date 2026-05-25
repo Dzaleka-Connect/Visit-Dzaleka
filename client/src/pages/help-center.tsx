@@ -415,8 +415,6 @@ function MyTicketsSection() {
         queryKey: ["/api/support/tickets"],
     });
 
-    if (isLoading || tickets.length === 0) return null;
-
     const statusColors: Record<string, string> = {
         open: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
         in_progress: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
@@ -434,8 +432,24 @@ function MyTicketsSection() {
                 <CardDescription>Track the status of your support requests</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="space-y-3">
-                    {tickets.map((ticket) => (
+                {isLoading ? (
+                    <div className="flex min-h-24 items-center justify-center text-sm text-muted-foreground">
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Loading tickets…
+                    </div>
+                ) : tickets.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-6 text-center">
+                        <p className="font-medium">No support tickets yet</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Your support requests will appear here after you contact the team.
+                        </p>
+                        <Button asChild className="mt-4" variant="outline">
+                            <a href="/help?support=true">Contact support</a>
+                        </Button>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {tickets.map((ticket) => (
                         <div
                             key={ticket.id}
                             className="flex items-center justify-between p-3 rounded-lg border"
@@ -451,8 +465,9 @@ function MyTicketsSection() {
                                     ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
                             </Badge>
                         </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                )}
             </CardContent>
         </Card>
     );

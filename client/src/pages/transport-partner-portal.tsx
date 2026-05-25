@@ -16,11 +16,13 @@ import {
   HelpCircle,
   History,
   Loader2,
+  LogOut,
   Mail,
   MapPin,
   Phone,
   Pencil,
   Plus,
+  RefreshCw,
   Save,
   Send,
   Settings,
@@ -54,11 +56,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/empty-state";
+import { DataErrorState } from "@/components/data-error-state";
 import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
 import { SEO } from "@/components/seo";
 import { StatCard } from "@/components/stat-card";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatCurrency, formatDate, formatTime, GROUP_SIZES, PRICING, TOUR_TYPES } from "@/lib/constants";
 import { DEFAULT_TRANSPORT_ROUTE_ID, getTransportRoute, TRANSPORT_ROUTES } from "@/lib/transport";
@@ -1423,6 +1427,7 @@ function HelpCenterPanel({ isAdmin }: { isAdmin: boolean }) {
 
 export default function TransportPartnerPortal() {
   const { toast } = useToast();
+  const { logout } = useAuth();
   const [location, navigate] = useLocation();
   const search = useSearch();
   const params = new URLSearchParams(search);
@@ -1450,42 +1455,50 @@ export default function TransportPartnerPortal() {
   const [adminPartnerForm, setAdminPartnerForm] = useState<PartnerForm>(initialPartnerForm);
   const [selfProfileForm, setSelfProfileForm] = useState<PartnerForm>(initialPartnerForm);
 
-  const { data: profile, isLoading: profileLoading } = useQuery<PartnerProfileResponse>({
+  const { data: profile, isLoading: profileLoading, isError: profileError, refetch: refetchProfile } = useQuery<PartnerProfileResponse>({
     queryKey: ["/api/transport-partner/me"],
   });
 
-  const { data: transportRequests = [], isLoading: requestsLoading } = useQuery<TransportRequest[]>({
+  const { data: transportRequestsData, isLoading: requestsLoading, isError: requestsError, refetch: refetchRequests } = useQuery<TransportRequest[]>({
     queryKey: ["/api/transport-partner/requests"],
   });
 
-  const { data: referrals = [], isLoading: referralsLoading } = useQuery<PartnerTourReferral[]>({
+  const { data: referralsData, isLoading: referralsLoading, isError: referralsError, refetch: refetchReferrals } = useQuery<PartnerTourReferral[]>({
     queryKey: ["/api/transport-partner/referrals"],
   });
 
-  const { data: drivers = [] } = useQuery<TransportPartnerDriver[]>({
+  const { data: driversData, isError: driversError, refetch: refetchDrivers } = useQuery<TransportPartnerDriver[]>({
     queryKey: ["/api/transport-partner/drivers"],
   });
 
-  const { data: vehicles = [] } = useQuery<TransportPartnerVehicle[]>({
+  const { data: vehiclesData, isError: vehiclesError, refetch: refetchVehicles } = useQuery<TransportPartnerVehicle[]>({
     queryKey: ["/api/transport-partner/vehicles"],
   });
 
-  const { data: blackouts = [] } = useQuery<TransportPartnerBlackout[]>({
+  const { data: blackoutsData, isError: blackoutsError, refetch: refetchBlackouts } = useQuery<TransportPartnerBlackout[]>({
     queryKey: ["/api/transport-partner/blackouts"],
   });
 
-  const { data: partnerPricing = [] } = useQuery<TransportPartnerPricing[]>({
+  const { data: partnerPricingData, isError: partnerPricingError, refetch: refetchPartnerPricing } = useQuery<TransportPartnerPricing[]>({
     queryKey: ["/api/transport-partner/pricing"],
   });
 
-  const { data: requestActivity = [] } = useQuery<TransportRequestActivity[]>({
+  const { data: requestActivityData } = useQuery<TransportRequestActivity[]>({
     queryKey: [`/api/transport-partner/requests/${selectedActivityRequestId}/activity`],
     enabled: !!selectedActivityRequestId,
   });
 
-  const { data: pricingConfigs = [] } = useQuery<PricingConfig[]>({
+  const { data: pricingConfigsData, isError: pricingConfigsError, refetch: refetchPricingConfigs } = useQuery<PricingConfig[]>({
     queryKey: ["/api/pricing"],
   });
+  const transportRequests = transportRequestsData || [];
+  const referrals = referralsData || [];
+  const drivers = driversData || [];
+  const vehicles = vehiclesData || [];
+  const blackouts = blackoutsData || [];
+  const partnerPricing = partnerPricingData || [];
+  const requestActivity = requestActivityData || [];
+  const pricingConfigs = pricingConfigsData || [];
 
   const userRole = profile?.user?.role;
   const isAdminView = userRole === "admin" || userRole === "coordinator";
@@ -1528,6 +1541,26 @@ export default function TransportPartnerPortal() {
   const scopedPartnerPricing = partnerPricing.filter((price) => !rosterPartnerId || price.partnerId === rosterPartnerId);
   const scopedTransportRequests = transportRequests.filter((request) => !rosterPartnerId || request.partnerId === rosterPartnerId);
   const scopedReferrals = referrals.filter((referral) => !rosterPartnerId || referral.partnerId === rosterPartnerId);
+  const rosterError = driversError || vehiclesError;
+  const availabilityError = blackoutsError;
+  const pricingError = partnerPricingError || pricingConfigsError;
+  const criticalDataIssues = [
+    requestsError
+      ? { title: "Transport requests unavailable", description: "Request queues could not be loaded. Retry before treating the transport desk as empty.", onRetry: () => void refetchRequests() }
+      : null,
+    referralsError
+      ? { title: "Tour referrals unavailable", description: "Referral queues could not be loaded. Retry before treating referrals as empty.", onRetry: () => void refetchReferrals() }
+      : null,
+    rosterError
+      ? { title: "Roster unavailable", description: "Driver or vehicle records could not be loaded. Retry before editing fleet records.", onRetry: () => { void refetchDrivers(); void refetchVehicles(); } }
+      : null,
+    availabilityError
+      ? { title: "Availability unavailable", description: "Blackout controls could not be loaded. Retry before assuming there are no blocked dates.", onRetry: () => void refetchBlackouts() }
+      : null,
+    pricingError
+      ? { title: "Pricing unavailable", description: "Partner route pricing could not be loaded. Retry before treating the pricing table as empty.", onRetry: () => { void refetchPartnerPricing(); void refetchPricingConfigs(); } }
+      : null,
+  ].filter(Boolean);
 
   useEffect(() => {
     if (!isAdminView && profile?.partner) {
@@ -1630,6 +1663,7 @@ export default function TransportPartnerPortal() {
         needsQuote: 0,
         issueRequests: 0,
         completedRequests: 0,
+        completedRevenue: 0,
         quotedRevenue: 0,
         quoteCurrency: "MWK",
         missingFleetDetails: 0,
@@ -1670,6 +1704,9 @@ export default function TransportPartnerPortal() {
     const activePrices = partnerPrices.filter((price) => price.status !== "inactive").length;
     const activeBlackouts = partnerBlackouts.filter((blackout) => blackout.status !== "cancelled").length;
     const completedRequests = transportRequests.filter((request) => request.status === "completed").length;
+    const completedRevenue = transportRequests
+      .filter((request) => request.status === "completed" && request.quotedAmount != null)
+      .reduce((total, request) => total + (request.quotedAmount || 0), 0);
     const quoteCurrency = profile?.partner?.defaultCurrency || transportRequests.find((request) => request.currency)?.currency || "MWK";
     const quotedRevenue = transportRequests
       .filter((request) => !["cancelled", "visitor_declined"].includes(request.status || "") && request.quotedAmount != null)
@@ -1743,6 +1780,7 @@ export default function TransportPartnerPortal() {
       activePrices,
       activeBlackouts,
       completedRequests,
+      completedRevenue,
       quotedRevenue,
       quoteCurrency,
       missingFleetDetails,
@@ -2393,6 +2431,55 @@ export default function TransportPartnerPortal() {
     },
   ];
 
+  if (profileError) {
+    return (
+      <PageContainer maxWidth="2xl">
+        <SEO title="Transport Partner Portal | Visit Dzaleka" />
+        <PageHeader
+          title="Transport Partner Portal"
+          description="Load your partner account before managing requests, roster, availability, or pricing."
+        />
+        <DataErrorState
+          title="Transport partner profile unavailable"
+          description="Your partner account could not be loaded. Retry before assuming there are no transport operations assigned."
+          onRetry={() => void refetchProfile()}
+        />
+      </PageContainer>
+    );
+  }
+
+  if (!isAdminView && !profileLoading && !profile?.partner) {
+    return (
+      <PageContainer maxWidth="2xl">
+        <SEO title="Transport Partner Setup Needed | Visit Dzaleka" />
+        <PageHeader
+          title="Transport Partner Setup Needed"
+          description="This user is not linked to an active transport partner record yet."
+        />
+        <EmptyState
+          icon={Car}
+          title="No linked transport partner"
+          description="Ask a Visit Dzaleka coordinator to link this account to a verified transport partner before using the operational portal."
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button type="button" variant="outline" onClick={() => void refetchProfile()}>
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                Retry
+              </Button>
+              <Button asChild>
+                <Link href="/help?support=true">Contact support</Link>
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => void logout()}>
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+                Sign out
+              </Button>
+            </div>
+          }
+        />
+      </PageContainer>
+    );
+  }
+
   return (
     <PageContainer maxWidth="2xl">
       <SEO
@@ -2419,6 +2506,19 @@ export default function TransportPartnerPortal() {
           </>
         ) : undefined}
       />
+
+      {criticalDataIssues.length > 0 && (
+        <div className="grid gap-3 md:grid-cols-2">
+          {criticalDataIssues.map((issue) => (
+            <DataErrorState
+              key={issue!.title}
+              title={issue!.title}
+              description={issue!.description}
+              onRetry={issue!.onRetry}
+            />
+          ))}
+        </div>
+      )}
 
       {isAdminView && (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -2829,6 +2929,95 @@ export default function TransportPartnerPortal() {
             </Card>
           </div>
 
+          <div className="grid gap-6 xl:grid-cols-3">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-primary" aria-hidden="true" />
+                  <CardTitle>Settlement status</CardTitle>
+                </div>
+                <CardDescription>Completed jobs that are ready for invoice or payout review.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border bg-background p-4">
+                  <div className="flex items-end justify-between gap-4">
+                    <div>
+                      <p className="text-3xl font-semibold tabular-nums">{partnerOperations.completedRequests}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">completed transport job{partnerOperations.completedRequests === 1 ? "" : "s"}</p>
+                    </div>
+                    <Badge variant={partnerOperations.completedRequests > 0 ? "secondary" : "outline"}>
+                      {partnerOperations.completedRequests > 0 ? "Review" : "None"}
+                    </Badge>
+                  </div>
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    Estimated completed value: {formatCurrency(partnerOperations.completedRevenue, partnerOperations.quoteCurrency)}.
+                  </p>
+                  <Button type="button" variant="outline" className="mt-4 w-full justify-start" onClick={() => navigateToSection("requests")}>
+                    Review completed jobs
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-primary" aria-hidden="true" />
+                  <CardTitle>Quote SLA</CardTitle>
+                </div>
+                <CardDescription>Requests older than 24 hours without a quote.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border bg-background p-4">
+                  <div className="flex items-end justify-between gap-4">
+                    <div>
+                      <p className="text-3xl font-semibold tabular-nums">{partnerOperations.staleQuoteRequests}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">quote SLA alert{partnerOperations.staleQuoteRequests === 1 ? "" : "s"}</p>
+                    </div>
+                    <Badge variant={partnerOperations.staleQuoteRequests > 0 ? "destructive" : "outline"}>
+                      {partnerOperations.staleQuoteRequests > 0 ? "Overdue" : "On track"}
+                    </Badge>
+                  </div>
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    Add quotes quickly so Visit Dzaleka can confirm transport with visitors.
+                  </p>
+                  <Button type="button" variant="outline" className="mt-4 w-full justify-start" onClick={() => navigateToSection("requests")}>
+                    Open quote queue
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
+                  <CardTitle>Pickup readiness</CardTitle>
+                </div>
+                <CardDescription>Confirmed pickups that still need driver or vehicle details.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border bg-background p-4">
+                  <div className="flex items-end justify-between gap-4">
+                    <div>
+                      <p className="text-3xl font-semibold tabular-nums">{partnerOperations.missingFleetDetails}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">pickup{partnerOperations.missingFleetDetails === 1 ? "" : "s"} need fleet details</p>
+                    </div>
+                    <Badge variant={partnerOperations.missingFleetDetails > 0 ? "secondary" : "outline"}>
+                      {partnerOperations.missingFleetDetails > 0 ? "Needs details" : "Ready"}
+                    </Badge>
+                  </div>
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    Driver name, phone, and vehicle details should be confirmed before pickup.
+                  </p>
+                  <Button type="button" variant="outline" className="mt-4 w-full justify-start" onClick={() => navigateToSection("requests")}>
+                    Confirm pickup details
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           <div className="grid gap-6 xl:grid-cols-2">
             <Card>
               <CardHeader>
@@ -3025,6 +3214,21 @@ export default function TransportPartnerPortal() {
                       <span className="flex flex-wrap items-center gap-2">
                         <span className="break-words font-medium">{request.visitorName}</span>
                         <StatusBadge status={request.status} />
+                        {(() => {
+                          const createdAt = request.createdAt ? new Date(request.createdAt).getTime() : Date.now();
+                          const isStaleQuote = ["pending", "sent_to_partner"].includes(request.status || "pending")
+                            && !Number.isNaN(createdAt)
+                            && createdAt < Date.now() - 24 * 60 * 60 * 1000;
+                          const missingFleet = ["visitor_approved", "confirmed"].includes(request.status || "")
+                            && (!request.driverName || !request.driverPhone || !request.vehicleDetails);
+
+                          return (
+                            <>
+                              {isStaleQuote && <Badge variant="destructive">SLA overdue</Badge>}
+                              {missingFleet && <Badge variant="secondary">Pickup details needed</Badge>}
+                            </>
+                          );
+                        })()}
                       </span>
                       <span className="mt-3 block text-xs font-semibold uppercase tracking-wide text-primary">
                         {getPartnerRequestAction(request)}
@@ -3093,6 +3297,12 @@ export default function TransportPartnerPortal() {
                   <Loader2 className="h-5 w-5 animate-spin text-primary" />
                   <span>Loading requests…</span>
                 </div>
+              ) : requestsError ? (
+                <DataErrorState
+                  title="Transport requests unavailable"
+                  description="Request queues could not be loaded. Retry before treating this tab as empty."
+                  onRetry={() => void refetchRequests()}
+                />
               ) : transportRequests.length === 0 ? (
                 <EmptyState
                   icon={Car}
@@ -3491,6 +3701,12 @@ export default function TransportPartnerPortal() {
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading referrals…
                     </div>
+                  ) : referralsError ? (
+                    <DataErrorState
+                      title="Tour referrals unavailable"
+                      description="Referral data could not be loaded. Retry before treating this tab as empty."
+                      onRetry={() => void refetchReferrals()}
+                    />
                   ) : referrals.length === 0 ? (
                     <EmptyState
                       icon={Users}
@@ -3582,6 +3798,13 @@ export default function TransportPartnerPortal() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {!rosterPartnerId && (
+                  <EmptyState
+                    icon={Users}
+                    title="Select or create a transport partner first"
+                    description="Driver records need a partner before they can be saved."
+                  />
+                )}
                 <form
                   className="space-y-3"
                   onSubmit={(event) => {
@@ -3593,6 +3816,7 @@ export default function TransportPartnerPortal() {
                     }
                   }}
                 >
+                  <fieldset disabled={!rosterPartnerId || driversError} className="space-y-3">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Input placeholder="Driver name…" value={driverForm.name} onChange={(event) => setDriverForm({ ...driverForm, name: event.target.value })} required />
                     <Input placeholder="+265…" inputMode="tel" value={driverForm.phone} onChange={(event) => setDriverForm({ ...driverForm, phone: event.target.value })} />
@@ -3620,9 +3844,28 @@ export default function TransportPartnerPortal() {
                       </Button>
                     )}
                   </div>
+                  </fieldset>
                 </form>
                 <div className="space-y-2">
-                  {scopedDrivers.map((driver) => (
+                  {driversError ? (
+                    <DataErrorState
+                      title="Driver roster unavailable"
+                      description="Saved drivers could not be loaded. Retry before treating this roster as empty."
+                      onRetry={() => void refetchDrivers()}
+                    />
+                  ) : !rosterPartnerId ? (
+                    <EmptyState
+                      icon={Users}
+                      title="Select or create a transport partner first"
+                      description="Driver records will appear after a partner is selected."
+                    />
+                  ) : scopedDrivers.length === 0 ? (
+                    <EmptyState
+                      icon={Users}
+                      title="No saved drivers"
+                      description="Save the first driver record so quotes can include clear pickup contact details."
+                    />
+                  ) : scopedDrivers.map((driver) => (
                     <div key={driver.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{driver.name}</p>
@@ -3654,6 +3897,13 @@ export default function TransportPartnerPortal() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {!rosterPartnerId && (
+                  <EmptyState
+                    icon={Car}
+                    title="Select or create a transport partner first"
+                    description="Vehicle records need a partner before they can be saved."
+                  />
+                )}
                 <form
                   className="space-y-3"
                   onSubmit={(event) => {
@@ -3665,6 +3915,7 @@ export default function TransportPartnerPortal() {
                     }
                   }}
                 >
+                  <fieldset disabled={!rosterPartnerId || vehiclesError} className="space-y-3">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Input placeholder="Vehicle label…" value={vehicleForm.label} onChange={(event) => setVehicleForm({ ...vehicleForm, label: event.target.value })} required />
                     <Input placeholder="Vehicle type…" value={vehicleForm.vehicleType} onChange={(event) => setVehicleForm({ ...vehicleForm, vehicleType: event.target.value })} />
@@ -3693,9 +3944,28 @@ export default function TransportPartnerPortal() {
                       </Button>
                     )}
                   </div>
+                  </fieldset>
                 </form>
                 <div className="space-y-2">
-                  {scopedVehicles.map((vehicle) => (
+                  {vehiclesError ? (
+                    <DataErrorState
+                      title="Vehicle roster unavailable"
+                      description="Saved vehicles could not be loaded. Retry before treating this roster as empty."
+                      onRetry={() => void refetchVehicles()}
+                    />
+                  ) : !rosterPartnerId ? (
+                    <EmptyState
+                      icon={Car}
+                      title="Select or create a transport partner first"
+                      description="Vehicle records will appear after a partner is selected."
+                    />
+                  ) : scopedVehicles.length === 0 ? (
+                    <EmptyState
+                      icon={Car}
+                      title="No saved vehicles"
+                      description="Save the first vehicle record so confirmed trips include vehicle details."
+                    />
+                  ) : scopedVehicles.map((vehicle) => (
                     <div key={vehicle.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{vehicle.label}</p>
@@ -3984,7 +4254,35 @@ export default function TransportPartnerPortal() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {scopedPartnerPricing.map((price) => {
+                    {pricingError ? (
+                      <TableRow>
+                        <TableCell colSpan={isAdminView ? 7 : 6} className="h-32 text-center">
+                          <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
+                            <p className="font-medium text-foreground">Route pricing unavailable</p>
+                            <p>Partner pricing could not be loaded. Retry before treating this table as empty.</p>
+                            <Button type="button" variant="outline" size="sm" onClick={() => {
+                              void refetchPartnerPricing();
+                              void refetchPricingConfigs();
+                            }}>
+                              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                              Retry
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : !rosterPartnerId ? (
+                      <TableRow>
+                        <TableCell colSpan={isAdminView ? 7 : 6} className="h-24 text-center text-sm text-muted-foreground">
+                          Select or create a transport partner before adding route prices.
+                        </TableCell>
+                      </TableRow>
+                    ) : scopedPartnerPricing.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={isAdminView ? 7 : 6} className="h-24 text-center text-sm text-muted-foreground">
+                          No route prices configured{isAdminView && selectedOperationsPartner ? ` for ${selectedOperationsPartner.companyName}` : ""}. Save the first route price to make quoting faster.
+                        </TableCell>
+                      </TableRow>
+                    ) : scopedPartnerPricing.map((price) => {
                       const routeInfo = getTransportRoute(price.route);
                       const displayLabel = price.label === "Lilongwe round trip" && routeInfo.id !== DEFAULT_TRANSPORT_ROUTE_ID
                         ? routeInfo.shortLabel
@@ -4212,35 +4510,86 @@ export function TransportPartnerRecordPage() {
   const [, params] = useRoute("/transport-partner/partners/:partnerId");
   const partnerId = params?.partnerId ? decodeURIComponent(params.partnerId) : "";
 
-  const { data: profile, isLoading: profileLoading } = useQuery<PartnerProfileResponse>({
+  const {
+    data: profile,
+    isLoading: profileLoading,
+    isError: profileError,
+    refetch: refetchProfile,
+  } = useQuery<PartnerProfileResponse>({
     queryKey: ["/api/transport-partner/me"],
   });
 
-  const { data: transportRequests = [], isLoading: requestsLoading } = useQuery<TransportRequest[]>({
+  const {
+    data: transportRequestsData,
+    isLoading: requestsLoading,
+    isError: requestsError,
+    refetch: refetchRequests,
+  } = useQuery<TransportRequest[]>({
     queryKey: ["/api/transport-partner/requests"],
   });
 
-  const { data: referrals = [], isLoading: referralsLoading } = useQuery<PartnerTourReferral[]>({
+  const {
+    data: referralsData,
+    isLoading: referralsLoading,
+    isError: referralsError,
+    refetch: refetchReferrals,
+  } = useQuery<PartnerTourReferral[]>({
     queryKey: ["/api/transport-partner/referrals"],
   });
 
-  const { data: drivers = [], isLoading: driversLoading } = useQuery<TransportPartnerDriver[]>({
+  const {
+    data: driversData,
+    isLoading: driversLoading,
+    isError: driversError,
+    refetch: refetchDrivers,
+  } = useQuery<TransportPartnerDriver[]>({
     queryKey: ["/api/transport-partner/drivers"],
   });
 
-  const { data: vehicles = [], isLoading: vehiclesLoading } = useQuery<TransportPartnerVehicle[]>({
+  const {
+    data: vehiclesData,
+    isLoading: vehiclesLoading,
+    isError: vehiclesError,
+    refetch: refetchVehicles,
+  } = useQuery<TransportPartnerVehicle[]>({
     queryKey: ["/api/transport-partner/vehicles"],
   });
 
-  const { data: blackouts = [], isLoading: blackoutsLoading } = useQuery<TransportPartnerBlackout[]>({
+  const {
+    data: blackoutsData,
+    isLoading: blackoutsLoading,
+    isError: blackoutsError,
+    refetch: refetchBlackouts,
+  } = useQuery<TransportPartnerBlackout[]>({
     queryKey: ["/api/transport-partner/blackouts"],
   });
 
-  const { data: partnerPricing = [], isLoading: pricingLoading } = useQuery<TransportPartnerPricing[]>({
+  const {
+    data: partnerPricingData,
+    isLoading: pricingLoading,
+    isError: pricingError,
+    refetch: refetchPricing,
+  } = useQuery<TransportPartnerPricing[]>({
     queryKey: ["/api/transport-partner/pricing"],
   });
 
   const loading = profileLoading || requestsLoading || referralsLoading || driversLoading || vehiclesLoading || blackoutsLoading || pricingLoading;
+  const hasDataError = profileError || requestsError || referralsError || driversError || vehiclesError || blackoutsError || pricingError;
+  const retryPartnerRecord = () => {
+    void refetchProfile();
+    void refetchRequests();
+    void refetchReferrals();
+    void refetchDrivers();
+    void refetchVehicles();
+    void refetchBlackouts();
+    void refetchPricing();
+  };
+  const transportRequests = transportRequestsData || [];
+  const referrals = referralsData || [];
+  const drivers = driversData || [];
+  const vehicles = vehiclesData || [];
+  const blackouts = blackoutsData || [];
+  const partnerPricing = partnerPricingData || [];
   const partners = profile?.partners || [];
   const partner = partners.find((item) => item.id === partnerId) || null;
 
@@ -4279,6 +4628,18 @@ export function TransportPartnerRecordPage() {
           <CardContent className="flex items-center gap-2 p-6 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             Loading partner profile…
+          </CardContent>
+        </Card>
+      ) : hasDataError ? (
+        <Card>
+          <CardContent>
+            <DataErrorState
+              icon={Car}
+              title="Partner record unavailable"
+              description="This transport partner record could not be fully loaded. Retry before reviewing fleet, pricing, availability, requests, or referrals."
+              onRetry={retryPartnerRecord}
+              className="py-12"
+            />
           </CardContent>
         </Card>
       ) : !partner ? (

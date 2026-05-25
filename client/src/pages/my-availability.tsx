@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Calendar, Clock, Save, Loader2 } from "lucide-react";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 
 const DAYS_OF_WEEK = [
     { key: "sunday", label: "Sunday", short: "Sun" },
@@ -38,6 +39,7 @@ export default function MyAvailability() {
     const [localAvailability, setLocalAvailability] = useState<Record<string, boolean>>({});
     const [localWorkingHours, setLocalWorkingHours] = useState({ start: "08:00", end: "17:00" });
     const [hasChanges, setHasChanges] = useState(false);
+    useUnsavedChanges(hasChanges);
 
     useEffect(() => {
         if (!data || hasChanges) return;

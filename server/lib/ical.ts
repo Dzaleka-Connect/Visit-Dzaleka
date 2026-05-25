@@ -2,8 +2,16 @@ import ical, { ICalCalendarMethod } from 'ical-generator';
 import nodeIcal from 'node-ical';
 import { Booking, type ExternalCalendar } from '@shared/schema';
 
+type IcalFeedOptions = {
+    includeSensitiveDetails?: boolean;
+};
+
 // Generate an iCal feed for our bookings
-export function generateIcalFeed(bookings: Booking[], calendarName: string = "Dzaleka Booking System"): string {
+export function generateIcalFeed(
+    bookings: Booking[],
+    calendarName: string = "Dzaleka Booking System",
+    options: IcalFeedOptions = {},
+): string {
     const calendar = ical({
         name: calendarName,
         method: ICalCalendarMethod.PUBLISH
@@ -22,11 +30,19 @@ export function generateIcalFeed(bookings: Booking[], calendarName: string = "Dz
             end = new Date(start.getTime() + booking.customDuration * 60 * 1000);
         }
 
+        const includeSensitiveDetails = options.includeSensitiveDetails === true;
+        const summary = includeSensitiveDetails
+            ? `Booking: ${booking.visitorName} (${booking.groupSize})`
+            : `Visit Dzaleka tour (${booking.groupSize})`;
+        const description = includeSensitiveDetails
+            ? `Reference: ${booking.bookingReference}\nTour: ${booking.tourType}\nPeople: ${booking.numberOfPeople}`
+            : `Tour: ${booking.tourType}\nPeople: ${booking.numberOfPeople}`;
+
         calendar.createEvent({
             start,
             end,
-            summary: `Booking: ${booking.visitorName} (${booking.groupSize})`,
-            description: `Reference: ${booking.bookingReference}\nTour: ${booking.tourType}\nPeople: ${booking.numberOfPeople}`,
+            summary,
+            description,
             location: 'Dzaleka Refugee Camp',
             id: booking.id,
         });

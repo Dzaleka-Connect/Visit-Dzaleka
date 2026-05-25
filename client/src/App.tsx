@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation, Redirect } from "wouter";
+import { Switch, Route, useLocation, useSearch, Redirect } from "wouter";
 import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -53,7 +53,6 @@ import CMSPage from "@/pages/cms";
 import SecurityAdmin from "@/pages/security-admin";
 import IncidentDetails from "@/pages/incident-details";
 import SystemHealth from "@/pages/system-health";
-import Webhooks from "@/pages/webhooks";
 import ScheduledReports from "@/pages/scheduled-reports";
 import AcceptInvite from "@/pages/accept-invite";
 import GuideTraining from "@/pages/guide-training";
@@ -229,9 +228,64 @@ function ExternalCommunityRedirect() {
   );
 }
 
+function getAuthenticatedHomePath(role?: string | null) {
+  if (role === "transport_partner") return "/transport-partner/dashboard";
+  return "/";
+}
+
+const PROTECTED_ROUTE_PREFIXES = [
+  "/admin",
+  "/analytics",
+  "/audit-logs",
+  "/bookings",
+  "/calendar",
+  "/channel-manager",
+  "/customers",
+  "/developer",
+  "/email-history",
+  "/email-settings",
+  "/favorite-guides",
+  "/getyourguide",
+  "/guide",
+  "/guide-performance",
+  "/guides",
+  "/help-admin",
+  "/itinerary-builder",
+  "/live-ops",
+  "/messages",
+  "/my-availability",
+  "/my-bookings",
+  "/my-earnings",
+  "/my-guide-profile",
+  "/my-tours",
+  "/payments",
+  "/profile",
+  "/recurring-bookings",
+  "/reports",
+  "/resources",
+  "/visitor-resources",
+  "/revenue",
+  "/saved-itineraries",
+  "/security",
+  "/settings",
+  "/share-photos",
+  "/tasks",
+  "/transport-partner",
+  "/users",
+  "/visitors",
+  "/zones",
+];
+
+function isKnownProtectedPath(path: string) {
+  const routePath = path.split(/[?#]/)[0];
+  return PROTECTED_ROUTE_PREFIXES.some((prefix) => routePath === prefix || routePath.startsWith(`${prefix}/`));
+}
+
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const [location] = useLocation();
+  const search = useSearch();
+  const currentLocation = search ? `${location}?${search}` : location;
 
   // Track page views for analytics
   usePageTracker();
@@ -336,7 +390,13 @@ function Router() {
         <Route path="/contact" component={ContactUs} />
         <Route path="/visit/feedback" component={VisitFeedback} />
         <Route path="/transport-quote/:token" component={TransportQuote} />
-        <Route component={Landing} />
+        <Route>
+          {isKnownProtectedPath(location) ? (
+            <Redirect to={`/login?next=${encodeURIComponent(currentLocation)}`} />
+          ) : (
+            <Landing />
+          )}
+        </Route>
       </Switch>
     );
   }
@@ -344,11 +404,15 @@ function Router() {
   return (
     <AuthenticatedLayout>
       <Switch>
+        <Route path="/login">
+          <Redirect to={getAuthenticatedHomePath(user?.role)} replace />
+        </Route>
         <Route path="/" component={Dashboard} />
-        <ProtectedRoute path="/bookings" component={Bookings} allowedRoles={["admin", "coordinator", "guide", "security"]} />
-        <Route path="/bookings/:id" component={BookingDetails} />
-        <Route path="/bookings/:id/itinerary" component={ItineraryView} />
+        <ProtectedRoute path="/bookings" component={Bookings} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/bookings/:id/itinerary" component={ItineraryView} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/bookings/:id" component={BookingDetails} allowedRoles={["admin", "coordinator", "security"]} />
         <ProtectedRoute path="/recurring-bookings" component={RecurringBookingsPage} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/my-bookings/:bookingId/itinerary" component={ItineraryView} allowedRoles={["visitor"]} />
         <ProtectedRoute path="/my-bookings/:bookingId" component={MyBookingDetails} allowedRoles={["visitor"]} />
         <ProtectedRoute path="/my-bookings" component={MyBookings} allowedRoles={["visitor"]} />
         <ProtectedRoute path="/saved-itineraries" component={SavedItineraries} allowedRoles={["visitor"]} />
@@ -379,6 +443,7 @@ function Router() {
         <ProtectedRoute path="/marketing-strategy" component={MarketingStrategy} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/continuous-improvement" component={ContinuousImprovement} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/financial-framework" component={FinancialFramework} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/my-tours/:bookingId/itinerary" component={ItineraryView} allowedRoles={["guide"]} />
         <ProtectedRoute path="/my-tours/:bookingId" component={GuideTourDetails} allowedRoles={["guide"]} />
         <ProtectedRoute path="/my-tours" component={MyTours} allowedRoles={["guide"]} />
         <ProtectedRoute path="/my-earnings" component={MyEarnings} allowedRoles={["guide"]} />
@@ -388,14 +453,19 @@ function Router() {
         <ProtectedRoute path="/zones" component={Zones} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/security" component={Security} allowedRoles={["admin", "coordinator", "security"]} />
         <ProtectedRoute path="/security/incidents/:id" component={IncidentDetails} allowedRoles={["admin", "coordinator", "security"]} />
-        <ProtectedRoute path="/admin/system-health" component={SystemHealth} allowedRoles={["admin"]} />
-        <ProtectedRoute path="/admin/webhooks" component={Webhooks} allowedRoles={["admin"]} />
+        <ProtectedRoute path="/admin/system-health" component={SystemHealth} allowedRoles={["admin", "coordinator"]} />
+        <Route path="/admin/webhooks">
+          <Redirect to="/developer?tab=webhooks" />
+        </Route>
         <ProtectedRoute path="/admin/scheduled-reports" component={ScheduledReports} allowedRoles={["admin"]} />
         <ProtectedRoute path="/share-photos" component={SharePhotos} allowedRoles={["visitor"]} />
         <ProtectedRoute path="/users" component={UsersPage} allowedRoles={["admin"]} />
         <ProtectedRoute path="/settings" component={Settings} allowedRoles={["admin"]} />
         <Route path="/profile" component={Profile} />
         <ProtectedRoute path="/send-email" component={EmailHistory} allowedRoles={["admin", "coordinator"]} />
+        <Route path="/email-history">
+          <Redirect to="/send-email" />
+        </Route>
         <ProtectedRoute path="/email-settings" component={EmailSettings} allowedRoles={["admin"]} />
         <ProtectedRoute path="/revenue" component={Revenue} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/payments" component={PaymentsPage} allowedRoles={["admin"]} />
@@ -403,13 +473,15 @@ function Router() {
         <ProtectedRoute path="/transport-partner/:section" component={TransportPartnerPortal} allowedRoles={["admin", "coordinator", "transport_partner"]} />
         <ProtectedRoute path="/transport-partner" component={TransportPartnerPortal} allowedRoles={["admin", "coordinator", "transport_partner"]} />
         <ProtectedRoute path="/audit-logs" component={AuditLogs} allowedRoles={["admin"]} />
-        <ProtectedRoute path="/analytics" component={Analytics} allowedRoles={["admin", "coordinator"]} />
+        <ProtectedRoute path="/analytics" component={Analytics} allowedRoles={["admin"]} />
         <ProtectedRoute path="/reports" component={Reports} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/visitors" component={VisitorsPage} allowedRoles={["admin", "coordinator"]} />
         <ProtectedRoute path="/cms" component={CMSPage} allowedRoles={["admin"]} />
         <ProtectedRoute path="/security-admin" component={SecurityAdmin} allowedRoles={["admin"]} />
         <ProtectedRoute path="/resources" component={VisitorResources} allowedRoles={["visitor"]} />
-        <ProtectedRoute path="/visitor-resources" component={VisitorResources} allowedRoles={["visitor"]} />
+        <Route path="/visitor-resources">
+          <Redirect to="/resources" />
+        </Route>
         <ProtectedRoute path="/tasks" component={Tasks} allowedRoles={["admin", "coordinator", "guide", "security"]} />
         <ProtectedRoute path="/task-admin" component={TaskAdmin} allowedRoles={["admin", "coordinator"]} />
         <Route path="/messages" component={Messages} />

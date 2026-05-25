@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { verifyPassword } from "../auth";
 import { storage } from "../storage";
 import type { ApiKey, User } from "@shared/schema";
+import { logger } from "../lib/logger";
 
 /**
  * API Key Authentication Middleware
@@ -143,8 +144,11 @@ export async function verifyApiKey(
   }
 
   // Increment usage count (fire-and-forget — don't block the request)
-  storage.incrementApiKeyUsage(apiKey.id).catch(() => {
-    // Silently ignore counter errors; they should not block API calls
+  storage.incrementApiKeyUsage(apiKey.id).catch((error) => {
+    logger.warn("Failed to increment API key usage", {
+      apiKeyId: apiKey.id,
+      requestId: req.requestId,
+    }, error);
   });
 
   return { ok: true, apiKey, user };

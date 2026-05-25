@@ -34,7 +34,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/hooks/useAuth";
-import { Redirect } from "wouter";
+import { Redirect, Link } from "wouter";
 import {
     ChartContainer,
     ChartTooltip,
@@ -134,16 +134,19 @@ export default function Analytics() {
     const { data: liveData } = useQuery<{ count: number }>({
         queryKey: ["/api/analytics/live"],
         refetchInterval: 30000,
+        enabled: user?.role === "admin",
     });
 
-    const { data, isLoading, refetch: refetchPageviews } = useQuery<PageViewStats>({
+    const { data, isLoading, error: pageviewsError, refetch: refetchPageviews } = useQuery<PageViewStats>({
         queryKey: [`/api/analytics/pageviews${dateParams}`],
         staleTime: 60 * 1000,
+        enabled: user?.role === "admin",
     });
 
-    const { data: bookingKpis, isLoading: kpisLoading, refetch: refetchKpis } = useQuery<BookingKPIs>({
+    const { data: bookingKpis, isLoading: kpisLoading, error: kpisError, refetch: refetchKpis } = useQuery<BookingKPIs>({
         queryKey: [`/api/analytics/booking-kpis${dateParams}`],
         staleTime: 60 * 1000,
+        enabled: user?.role === "admin",
     });
 
     const handleRefresh = () => {
@@ -154,9 +157,33 @@ export default function Analytics() {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
-    // Only admins can view analytics - placed after hooks to comply with React rules
-    if (user?.role !== "admin") {
-        return <Redirect to="/dashboard" />;
+    const isForbidden = user?.role !== "admin" ||
+        (pageviewsError instanceof Error && pageviewsError.message.startsWith("403:")) ||
+        (kpisError instanceof Error && kpisError.message.startsWith("403:"));
+
+    if (isForbidden) {
+        return (
+            <div className="flex min-h-[60vh] flex-col items-center justify-center p-4">
+                <Card className="w-full max-w-md border-border/40 bg-background/95 backdrop-blur-md shadow-2xl">
+                    <CardHeader className="text-center pb-4">
+                        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                            <Ban className="h-6 w-6" />
+                        </div>
+                        <CardTitle className="text-2xl font-bold tracking-tight text-foreground">
+                            Access Denied
+                        </CardTitle>
+                        <CardDescription className="text-sm text-muted-foreground mt-2">
+                            You do not have the required permissions to view website analytics. Please contact your administrator if you believe this is an error.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex justify-center pb-6">
+                        <Button asChild className="w-full transition-colors" data-testid="back-to-dashboard">
+                            <Link href="/">Return to Dashboard</Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+        );
     }
 
     if (isLoading) {

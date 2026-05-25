@@ -38,3 +38,6 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+[functions."process-webhooks"]
+  schedule = "* * * * *"

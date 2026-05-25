@@ -80,9 +80,9 @@ export default function GuideProfile() {
                 <h2 className="text-xl font-semibold">Guide Not Found</h2>
                 <p className="text-muted-foreground">The guide you're looking for doesn't exist.</p>
                 <Button asChild>
-                    <Link href="/guides">
+                    <Link href={isAdmin ? "/guides" : "/"}>
                         <ArrowLeft className="mr-2 h-4 w-4" />
-                        Back to Guides
+                        {isAdmin ? "Back to Guides" : "Back to Dashboard"}
                     </Link>
                 </Button>
             </div>
@@ -120,9 +120,9 @@ export default function GuideProfile() {
             {/* Header with Back Button */}
             <div className="flex items-center justify-between">
                 <Button variant="ghost" asChild>
-                    <Link href="/guides">
+                    <Link href={isAdmin ? "/guides" : "/"}>
                         <ArrowLeft className="mr-2 h-4 w-4" />
-                        Back to Guides
+                        {isAdmin ? "Back to Guides" : "Back to Dashboard"}
                     </Link>
                 </Button>
                 {isAdmin && (

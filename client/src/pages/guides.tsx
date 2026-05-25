@@ -26,6 +26,8 @@ import {
   FileText,
   Loader2,
   XCircle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -174,6 +176,12 @@ export default function Guides() {
   const { user } = useAuth();
   const searchString = useSearch();
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 25;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGuide, setEditingGuide] = useState<Guide | null>(null);
   const [deleteGuide, setDeleteGuide] = useState<Guide | null>(null);
@@ -411,6 +419,11 @@ export default function Guides() {
       guide.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       guide.phone.includes(searchQuery)
   );
+
+  const paginatedGuides = filteredGuides?.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  ) || [];
 
   const handleEdit = (guide: Guide) => {
     setEditingGuide(guide);
@@ -720,7 +733,7 @@ export default function Guides() {
         />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredGuides.map((guide) => (
+          {paginatedGuides.map((guide) => (
             <Card
               key={guide.id}
               className="hover-elevate"
@@ -963,6 +976,72 @@ export default function Guides() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {filteredGuides && filteredGuides.length > ITEMS_PER_PAGE && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border rounded-lg bg-card mt-6">
+          <div className="text-sm text-muted-foreground font-medium">
+            Showing <span className="font-semibold text-foreground">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> to{" "}
+            <span className="font-semibold text-foreground">
+              {Math.min(currentPage * ITEMS_PER_PAGE, filteredGuides.length)}
+            </span>{" "}
+            of <span className="font-semibold text-foreground">{filteredGuides.length}</span> entries
+          </div>
+          <nav className="flex items-center gap-1" aria-label="Pagination Navigation">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              aria-label="Previous Page"
+              className="h-9 w-9 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            {Array.from({ length: Math.ceil(filteredGuides.length / ITEMS_PER_PAGE) }, (_, i) => i + 1)
+              .filter((page, _, arr) => {
+                const totalPages = arr.length;
+                return (
+                  page === 1 ||
+                  page === totalPages ||
+                  Math.abs(page - currentPage) <= 1
+                );
+              })
+              .map((page, index, array) => {
+                const showEllipsis = index > 0 && page - array[index - 1] > 1;
+                return (
+                  <div key={page} className="flex items-center">
+                    {showEllipsis && (
+                      <span className="px-2 text-muted-foreground select-none" aria-hidden="true">
+                        …
+                      </span>
+                    )}
+                    <Button
+                      variant={currentPage === page ? "default" : "outline"}
+                      onClick={() => setCurrentPage(page)}
+                      aria-label={`Page ${page}`}
+                      aria-current={currentPage === page ? "page" : undefined}
+                      className={`h-9 w-9 p-0 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary ${
+                        currentPage === page ? "pointer-events-none" : ""
+                      }`}
+                    >
+                      {page}
+                    </Button>
+                  </div>
+                );
+              })}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setCurrentPage((p) => Math.min(Math.ceil(filteredGuides.length / ITEMS_PER_PAGE), p + 1))}
+              disabled={currentPage === Math.ceil(filteredGuides.length / ITEMS_PER_PAGE)}
+              aria-label="Next Page"
+              className="h-9 w-9 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </nav>
         </div>
       )}
 

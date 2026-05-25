@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -29,6 +29,8 @@ import {
   FileDown,
   Sparkles,
   Star,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -394,6 +396,12 @@ export default function Bookings() {
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 25;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilters, dateFrom, dateTo]);
   const [selectedBookingIds, setSelectedBookingIds] = useState<Set<string>>(new Set());
   const [selectedBooking, setSelectedBooking] = useState<BookingWithGuide | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -893,6 +901,11 @@ export default function Bookings() {
     const matchesDateTo = !dateTo || booking.visitDate <= dateTo;
     return matchesSearch && matchesStatus && matchesDateFrom && matchesDateTo;
   });
+
+  const paginatedBookings = filteredBookings?.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  ) || [];
 
   const handleViewDetails = (booking: BookingWithGuide) => {
     setLocation(`/bookings/${booking.id}`);
@@ -1567,12 +1580,16 @@ export default function Bookings() {
                     <TableRow>
                       <TableHead className="w-10">
                         <Checkbox
-                          checked={filteredBookings?.length > 0 && selectedBookingIds.size === filteredBookings?.length}
+                          checked={paginatedBookings.length > 0 && paginatedBookings.every(b => selectedBookingIds.has(b.id))}
                           onCheckedChange={(checked) => {
                             if (checked) {
-                              setSelectedBookingIds(new Set(filteredBookings?.map(b => b.id) || []));
+                              const newSet = new Set(selectedBookingIds);
+                              paginatedBookings.forEach(b => newSet.add(b.id));
+                              setSelectedBookingIds(newSet);
                             } else {
-                              setSelectedBookingIds(new Set());
+                              const newSet = new Set(selectedBookingIds);
+                              paginatedBookings.forEach(b => newSet.delete(b.id));
+                              setSelectedBookingIds(newSet);
                             }
                           }}
                         />
@@ -1588,7 +1605,7 @@ export default function Bookings() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredBookings.map((booking) => (
+                    {paginatedBookings.map((booking) => (
                       <TableRow
                         key={booking.id}
                         className="hover-elevate"
@@ -1751,6 +1768,71 @@ export default function Bookings() {
               </div>
             )}
 
+            {filteredBookings && filteredBookings.length > ITEMS_PER_PAGE && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-border bg-card">
+                <div className="text-sm text-muted-foreground font-medium">
+                  Showing <span className="font-semibold text-foreground">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> to{" "}
+                  <span className="font-semibold text-foreground">
+                    {Math.min(currentPage * ITEMS_PER_PAGE, filteredBookings.length)}
+                  </span>{" "}
+                  of <span className="font-semibold text-foreground">{filteredBookings.length}</span> entries
+                </div>
+                <nav className="flex items-center gap-1" aria-label="Pagination Navigation">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    aria-label="Previous Page"
+                    className="h-9 w-9 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  {Array.from({ length: Math.ceil(filteredBookings.length / ITEMS_PER_PAGE) }, (_, i) => i + 1)
+                    .filter((page, _, arr) => {
+                      const totalPages = arr.length;
+                      return (
+                        page === 1 ||
+                        page === totalPages ||
+                        Math.abs(page - currentPage) <= 1
+                      );
+                    })
+                    .map((page, index, array) => {
+                      const showEllipsis = index > 0 && page - array[index - 1] > 1;
+                      return (
+                        <div key={page} className="flex items-center">
+                          {showEllipsis && (
+                            <span className="px-2 text-muted-foreground select-none" aria-hidden="true">
+                              …
+                            </span>
+                          )}
+                          <Button
+                            variant={currentPage === page ? "default" : "outline"}
+                            onClick={() => setCurrentPage(page)}
+                            aria-label={`Page ${page}`}
+                            aria-current={currentPage === page ? "page" : undefined}
+                            className={`h-9 w-9 p-0 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary ${
+                              currentPage === page ? "pointer-events-none" : ""
+                            }`}
+                          >
+                            {page}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCurrentPage((p) => Math.min(Math.ceil(filteredBookings.length / ITEMS_PER_PAGE), p + 1))}
+                    disabled={currentPage === Math.ceil(filteredBookings.length / ITEMS_PER_PAGE)}
+                    aria-label="Next Page"
+                    className="h-9 w-9 touch-manipulation focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </nav>
+              </div>
+            )}
           </Card>
         </>
       )}

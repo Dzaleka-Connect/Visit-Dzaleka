@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { SEO } from "@/components/seo";
+import { DataErrorState } from "@/components/data-error-state";
 
 const contentSchema = z.object({
   hero_title: z.string().min(1, "Hero title is required"),
@@ -57,13 +58,19 @@ type ContentFormData = z.infer<typeof contentSchema>;
 
 export default function CMSPage() {
   const { toast } = useToast();
-  const { data: content, isLoading } = useQuery<ContentFormData>({
+  const {
+    data: content,
+    isLoading,
+    isError: contentIsError,
+    error: contentError,
+    refetch: refetchContent,
+  } = useQuery<ContentFormData>({
     queryKey: ["/api/content"],
   });
 
   const { register, handleSubmit, formState: { errors, isDirty } } = useForm<ContentFormData>({
     resolver: zodResolver(contentSchema),
-    values: content as ContentFormData, // Auto-populate when data loads
+    values: content, // Auto-populate when data loads
   });
 
   // Warn user before leaving with unsaved changes
@@ -86,6 +93,31 @@ export default function CMSPage() {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (contentIsError || !content) {
+    const contentErrorMessage = contentError instanceof Error
+      ? contentError.message
+      : "Landing page content could not be loaded.";
+
+    return (
+      <div className="space-y-6">
+        <SEO title="Content Management" description="Manage landing page content." />
+        <div className="flex flex-col gap-2">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Content Management</h1>
+          <p className="text-muted-foreground">
+            Update the text and messaging on your public landing page.
+          </p>
+        </div>
+        <DataErrorState
+          icon={LayoutTemplate}
+          title="Content unavailable"
+          description={`The editor is blocked until current content loads. ${contentErrorMessage}`}
+          onRetry={() => refetchContent()}
+          className="py-16"
+        />
       </div>
     );
   }
@@ -280,7 +312,7 @@ export default function CMSPage() {
           </Card>
 
           <div className="flex justify-end">
-            <Button type="submit" disabled={mutation.isPending} size="lg">
+            <Button type="submit" disabled={mutation.isPending || !content || contentIsError} size="lg">
               {mutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (

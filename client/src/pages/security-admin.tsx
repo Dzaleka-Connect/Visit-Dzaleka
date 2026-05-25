@@ -72,6 +72,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { SEO } from "@/components/seo";
+import { DataErrorState } from "@/components/data-error-state";
 
 // Types
 interface AllowedIp {
@@ -145,19 +146,19 @@ export default function SecurityAdmin() {
     const [emailFilter, setEmailFilter] = useState<"all" | "sent" | "failed">("all");
 
     // Queries
-    const { data: allowedIps, isLoading: ipsLoading } = useQuery<AllowedIp[]>({
+    const { data: allowedIps, isLoading: ipsLoading, isError: ipsError, refetch: refetchIps } = useQuery<AllowedIp[]>({
         queryKey: ["/api/security/ip-whitelist"],
     });
 
-    const { data: loginHistory, isLoading: historyLoading } = useQuery<LoginHistory[]>({
+    const { data: loginHistory, isLoading: historyLoading, isError: historyError, refetch: refetchHistory } = useQuery<LoginHistory[]>({
         queryKey: ["/api/security/login-history"],
     });
 
-    const { data: invites, isLoading: invitesLoading } = useQuery<UserInvite[]>({
+    const { data: invites, isLoading: invitesLoading, isError: invitesError, refetch: refetchInvites } = useQuery<UserInvite[]>({
         queryKey: ["/api/invites"],
     });
 
-    const { data: emailLogs, isLoading: emailLogsLoading } = useQuery<EmailLog[]>({
+    const { data: emailLogs, isLoading: emailLogsLoading, isError: emailLogsError, refetch: refetchEmailLogs } = useQuery<EmailLog[]>({
         queryKey: ["/api/email-logs"],
     });
 
@@ -270,7 +271,7 @@ export default function SecurityAdmin() {
         if (emailFilter === "sent") return entry.status === "sent" || entry.status === "accepted";
         if (emailFilter === "failed") return entry.status === "failed";
         return true;
-    });
+    }) || [];
 
     // Device icon helper
     const getDeviceIcon = (deviceType: string | null) => {
@@ -334,7 +335,9 @@ export default function SecurityAdmin() {
                             <div>
                                 <CardTitle>IP Whitelist</CardTitle>
                                 <CardDescription>
-                                    {allowedIps?.length === 0
+                                    {ipsError
+                                        ? "IP whitelist is unavailable"
+                                        : allowedIps?.length === 0
                                         ? "No IPs whitelisted. All IPs are currently allowed."
                                         : `${allowedIps?.length || 0} IP addresses whitelisted`
                                     }
@@ -342,7 +345,7 @@ export default function SecurityAdmin() {
                             </div>
                             <Dialog open={isAddIpOpen} onOpenChange={setIsAddIpOpen}>
                                 <DialogTrigger asChild>
-                                    <Button>
+                                    <Button disabled={ipsError}>
                                         <Plus className="mr-2 h-4 w-4" />
                                         Add IP
                                     </Button>
@@ -393,6 +396,12 @@ export default function SecurityAdmin() {
                                 <div className="flex items-center justify-center py-8">
                                     <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
                                 </div>
+                            ) : ipsError ? (
+                                <DataErrorState
+                                    title="IP whitelist unavailable"
+                                    description="The whitelist could not be loaded. Retry before adding or removing IP restrictions."
+                                    onRetry={() => void refetchIps()}
+                                />
                             ) : allowedIps?.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center py-8 text-center">
                                     <Shield className="h-12 w-12 text-muted-foreground mb-4" />
@@ -422,7 +431,7 @@ export default function SecurityAdmin() {
                                                 <TableCell className="text-right">
                                                     <AlertDialog>
                                                         <AlertDialogTrigger asChild>
-                                                            <Button variant="ghost" size="icon">
+                                                            <Button variant="ghost" size="icon" disabled={!allowedIps}>
                                                                 <Trash2 className="h-4 w-4 text-destructive" />
                                                             </Button>
                                                         </AlertDialogTrigger>
@@ -507,6 +516,12 @@ export default function SecurityAdmin() {
                                 <div className="flex items-center justify-center py-8">
                                     <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
                                 </div>
+                            ) : historyError ? (
+                                <DataErrorState
+                                    title="Login history unavailable"
+                                    description="Login attempts could not be loaded. Retry before treating this security log as empty."
+                                    onRetry={() => void refetchHistory()}
+                                />
                             ) : filteredHistory?.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center py-8 text-center">
                                     <History className="h-12 w-12 text-muted-foreground mb-4" />
@@ -605,7 +620,13 @@ export default function SecurityAdmin() {
                                 <div className="flex items-center justify-center py-8">
                                     <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
                                 </div>
-                            ) : filteredEmails?.length === 0 ? (
+                            ) : emailLogsError ? (
+                                <DataErrorState
+                                    title="Email history unavailable"
+                                    description="Email deliveries could not be loaded. Retry before treating this delivery log as empty."
+                                    onRetry={() => void refetchEmailLogs()}
+                                />
+                            ) : filteredEmails.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center py-8 text-center">
                                     <MailOpen className="h-12 w-12 text-muted-foreground mb-4" />
                                     <p className="text-lg font-medium">No emails sent</p>
@@ -626,7 +647,7 @@ export default function SecurityAdmin() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {filteredEmails?.map((email) => (
+                                        {filteredEmails.map((email) => (
                                             <TableRow key={email.id}>
                                                 <TableCell>
                                                     {email.status === "sent" || email.status === "accepted" ? (
@@ -690,7 +711,7 @@ export default function SecurityAdmin() {
                             </div>
                             <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
                                 <DialogTrigger asChild>
-                                    <Button>
+                                    <Button disabled={invitesError}>
                                         <Mail className="mr-2 h-4 w-4" />
                                         Send Invite
                                     </Button>
@@ -748,6 +769,12 @@ export default function SecurityAdmin() {
                                 <div className="flex items-center justify-center py-8">
                                     <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
                                 </div>
+                            ) : invitesError ? (
+                                <DataErrorState
+                                    title="Invitations unavailable"
+                                    description="User invitations could not be loaded. Retry before sending, resending, or deleting invites."
+                                    onRetry={() => void refetchInvites()}
+                                />
                             ) : invites?.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center py-8 text-center">
                                     <UserPlus className="h-12 w-12 text-muted-foreground mb-4" />

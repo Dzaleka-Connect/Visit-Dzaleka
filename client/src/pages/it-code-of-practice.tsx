@@ -9,6 +9,7 @@ import { SEO } from "@/components/seo";
 import { SiteFooter } from "@/components/site-footer";
 import { useAuth } from "@/hooks/useAuth";
 import { DocumentReviewMeta } from "@/components/document-review-meta";
+import { PublicHeader } from "@/components/public-header";
 
 // Structured Data for SEO
 const structuredData = {
@@ -49,33 +50,7 @@ export default function ITCodeOfPractice() {
             />
 
             {/* Header */}
-            <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
-                <div className="container mx-auto flex h-16 items-center justify-between px-4">
-                    <Link href="/">
-                        <div className="flex items-center gap-3 cursor-pointer">
-                            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Visit Dzaleka Logo" className="h-10 w-10 rounded-lg shadow-sm" />
-                            <div className="flex flex-col">
-                                <span className="text-sm font-bold tracking-tight">Visit Dzaleka</span>
-                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Official Portal</span>
-                            </div>
-                        </div>
-                    </Link>
-
-                    <nav className="hidden md:flex items-center gap-4">
-                        <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">Home</Link>
-                        <Link href="/plan-your-trip" className="text-sm font-medium hover:text-primary transition-colors">Plan Your Trip</Link>
-                        <Button asChild size="sm">
-                            <Link href={primaryHref}>{primaryLabel}</Link>
-                        </Button>
-                    </nav>
-
-                    <div className="md:hidden">
-                        <Button asChild size="sm" variant="outline">
-                            <Link href={primaryHref}>{primaryLabel}</Link>
-                        </Button>
-                    </div>
-                </div>
-            </header>
+            <PublicHeader activePath="/it-code-of-practice" />
 
             <main className="flex-1">
                 {/* Hero Section */}

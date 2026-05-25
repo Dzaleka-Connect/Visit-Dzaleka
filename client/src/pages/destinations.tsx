@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { ArrowLeft, MapPin, Mountain, Home, Building2, Users, Tent, ArrowRight, Menu, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
+import { PublicHeader } from "@/components/public-header";
 
 const DESTINATIONS_OG_IMAGE = "https://services.dzaleka.com/images/20241023_205851_3.jpg";
 
@@ -119,8 +120,6 @@ const destinations = [
 ];
 
 export default function Destinations() {
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
     const featuredDestinations = destinations.filter(d => d.featured);
     const otherDestinations = destinations.filter(d => !d.featured);
 
@@ -161,57 +160,7 @@ export default function Destinations() {
             />
 
             {/* Header */}
-            <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
-                <div className="container mx-auto flex h-16 items-center justify-between px-4">
-                    <Link href="/">
-                        <div className="flex items-center gap-3 cursor-pointer">
-                            <img src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png" alt="Visit Dzaleka Logo" className="h-10 w-10 rounded-lg shadow-sm" />
-                            <div className="flex flex-col">
-                                <span className="text-sm font-bold tracking-tight">Visit Dzaleka</span>
-                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                                    Official Portal
-                                </span>
-                            </div>
-                        </div>
-                    </Link>
-
-                    {/* Desktop Nav */}
-                    <nav className="hidden md:flex items-center gap-4">
-                        <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">Home</Link>
-                        <Link href="/destinations" className="text-sm font-medium text-primary transition-colors">Destinations</Link>
-                        <Link href="/things-to-do" className="text-sm font-medium hover:text-primary transition-colors">Things To Do</Link>
-                        <Link href="/blog" className="text-sm font-medium hover:text-primary transition-colors">Blog</Link>
-                        <div className="flex items-center gap-2 ml-2">
-                            <Button asChild size="sm">
-                                <Link href="/login">Book Now</Link>
-                            </Button>
-                        </div>
-                    </nav>
-
-                    {/* Mobile Menu Toggle */}
-                    <button
-                        className="md:hidden p-2"
-                        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                    >
-                        {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-                    </button>
-                </div>
-
-                {/* Mobile Nav */}
-                {mobileMenuOpen && (
-                    <div className="md:hidden border-t bg-background p-4 space-y-3">
-                        <Link href="/" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Home</Link>
-                        <Link href="/destinations" className="block text-sm font-medium py-1 text-primary" onClick={() => setMobileMenuOpen(false)}>Destinations</Link>
-                        <Link href="/things-to-do" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Things To Do</Link>
-                        <Link href="/blog" className="block text-sm font-medium py-1" onClick={() => setMobileMenuOpen(false)}>Blog</Link>
-                        <div className="flex gap-2 pt-2">
-                            <Button asChild className="flex-1">
-                                <Link href="/login">Book Now</Link>
-                            </Button>
-                        </div>
-                    </div>
-                )}
-            </header>
+            <PublicHeader activePath="/destinations" />
 
             <main className="flex-1">
                 {/* Hero Section */}

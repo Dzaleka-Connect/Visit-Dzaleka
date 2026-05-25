@@ -14,6 +14,8 @@ import {
     DollarSign,
     UserCheck,
     Loader2,
+    AlertTriangle,
+    RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -113,16 +115,50 @@ function getTierBadgeColor(tier: string): string {
     }
 }
 
+function DataErrorState({
+    title,
+    description,
+    onRetry,
+}: {
+    title: string;
+    description: string;
+    onRetry: () => void;
+}) {
+    return (
+        <EmptyState
+            icon={AlertTriangle}
+            title={title}
+            description={description}
+            action={
+                <Button type="button" variant="outline" onClick={onRetry}>
+                    <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Retry
+                </Button>
+            }
+        />
+    );
+}
+
 export default function CustomersPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [ltvSearchQuery, setLtvSearchQuery] = useState("");
     const [tierFilter, setTierFilter] = useState<string>("all");
 
-    const { data: customers, isLoading } = useQuery<Customer[]>({
+    const {
+        data: customers,
+        isLoading,
+        isError: customersError,
+        refetch: refetchCustomers,
+    } = useQuery<Customer[]>({
         queryKey: ["/api/customers"],
     });
 
-    const { data: ltvData, isLoading: ltvLoading } = useQuery<LTVData>({
+    const {
+        data: ltvData,
+        isLoading: ltvLoading,
+        isError: ltvError,
+        refetch: refetchLtv,
+    } = useQuery<LTVData>({
         queryKey: ["/api/analytics/visitor-ltv"],
     });
 
@@ -180,13 +216,17 @@ export default function CustomersPage() {
                                 <div>
                                     <CardTitle>Visitor Database</CardTitle>
                                     <CardDescription>
-                                        Total Customers: {customers?.length || 0}
+                                        {isLoading
+                                            ? "Loading customers…"
+                                            : customersError
+                                                ? "Unable to load customer records"
+                                                : `Total Customers: ${customers?.length || 0}`}
                                     </CardDescription>
                                 </div>
                                 <div className="relative flex-1 md:w-64 md:max-w-xs">
                                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                     <Input
-                                        placeholder="Search customers..."
+                                        placeholder="Search customers…"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         className="pl-9"
@@ -199,6 +239,12 @@ export default function CustomersPage() {
                                 <div className="flex h-40 items-center justify-center">
                                     <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
                                 </div>
+                            ) : customersError ? (
+                                <DataErrorState
+                                    title="Customer records failed to load"
+                                    description="The visitor database could not be loaded. Retry before treating this list as empty."
+                                    onRetry={() => void refetchCustomers()}
+                                />
                             ) : !filteredCustomers || filteredCustomers.length === 0 ? (
                                 <EmptyState
                                     icon={Users}
@@ -304,127 +350,135 @@ export default function CustomersPage() {
 
                 {/* LTV Analytics Tab */}
                 <TabsContent value="ltv" className="space-y-6">
-                    {/* Summary Cards */}
-                    <div className="grid gap-4 md:grid-cols-4">
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Total Visitors</CardTitle>
-                                <Users className="h-4 w-4 text-muted-foreground" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">{ltvData?.summary?.totalVisitors || 0}</div>
-                                <p className="text-xs text-muted-foreground">Unique booking visitors</p>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">VIP Visitors</CardTitle>
-                                <Crown className="h-4 w-4 text-amber-500" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold text-amber-600">{ltvData?.summary?.vipCount || 0}</div>
-                                <p className="text-xs text-muted-foreground">High-value customers</p>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                                <DollarSign className="h-4 w-4 text-green-500" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold text-green-600">{formatCurrency(ltvData?.summary?.totalRevenue || 0)}</div>
-                                <p className="text-xs text-muted-foreground">From all visitors</p>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Average LTV</CardTitle>
-                                <TrendingUp className="h-4 w-4 text-blue-500" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">{formatCurrency(ltvData?.summary?.averageLTV || 0)}</div>
-                                <p className="text-xs text-muted-foreground">Per visitor</p>
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    {/* Tier Distribution */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Visitor Tier Distribution</CardTitle>
-                            <CardDescription>Breakdown of visitors by lifetime value tier</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="flex gap-4 flex-wrap">
-                                <div className="flex items-center gap-2 p-4 bg-amber-50 dark:bg-amber-950/20 rounded-lg flex-1 min-w-[200px]">
-                                    <Crown className="h-8 w-8 text-amber-500" />
-                                    <div>
-                                        <div className="text-2xl font-bold">{ltvData?.summary?.vipCount || 0}</div>
-                                        <div className="text-sm text-muted-foreground">VIP (≥5 visits or ≥200,000 MWK)</div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg flex-1 min-w-[200px]">
-                                    <UserCheck className="h-8 w-8 text-blue-500" />
-                                    <div>
-                                        <div className="text-2xl font-bold">{ltvData?.summary?.regularCount || 0}</div>
-                                        <div className="text-sm text-muted-foreground">Regular (2+ visits)</div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2 p-4 bg-gray-50 dark:bg-gray-950/20 rounded-lg flex-1 min-w-[200px]">
-                                    <Users className="h-8 w-8 text-gray-500" />
-                                    <div>
-                                        <div className="text-2xl font-bold">{ltvData?.summary?.newCount || 0}</div>
-                                        <div className="text-sm text-muted-foreground">New (1 visit)</div>
-                                    </div>
-                                </div>
+                    {ltvError ? (
+                        <DataErrorState
+                            title="Visitor lifetime value failed to load"
+                            description="LTV analytics could not be loaded. Retry before treating visitor value data as empty."
+                            onRetry={() => void refetchLtv()}
+                        />
+                    ) : (
+                        <>
+                            {/* Summary Cards */}
+                            <div className="grid gap-4 md:grid-cols-4">
+                                <Card>
+                                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                        <CardTitle className="text-sm font-medium">Total Visitors</CardTitle>
+                                        <Users className="h-4 w-4 text-muted-foreground" />
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="text-2xl font-bold">{ltvData?.summary?.totalVisitors || 0}</div>
+                                        <p className="text-xs text-muted-foreground">Unique booking visitors</p>
+                                    </CardContent>
+                                </Card>
+                                <Card>
+                                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                        <CardTitle className="text-sm font-medium">VIP Visitors</CardTitle>
+                                        <Crown className="h-4 w-4 text-amber-500" />
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="text-2xl font-bold text-amber-600">{ltvData?.summary?.vipCount || 0}</div>
+                                        <p className="text-xs text-muted-foreground">High-value customers</p>
+                                    </CardContent>
+                                </Card>
+                                <Card>
+                                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                        <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                                        <DollarSign className="h-4 w-4 text-green-500" />
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="text-2xl font-bold text-green-600">{formatCurrency(ltvData?.summary?.totalRevenue || 0)}</div>
+                                        <p className="text-xs text-muted-foreground">From all visitors</p>
+                                    </CardContent>
+                                </Card>
+                                <Card>
+                                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                        <CardTitle className="text-sm font-medium">Average LTV</CardTitle>
+                                        <TrendingUp className="h-4 w-4 text-blue-500" />
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="text-2xl font-bold">{formatCurrency(ltvData?.summary?.averageLTV || 0)}</div>
+                                        <p className="text-xs text-muted-foreground">Per visitor</p>
+                                    </CardContent>
+                                </Card>
                             </div>
-                        </CardContent>
-                    </Card>
 
-                    {/* Visitor LTV Table */}
-                    <Card>
-                        <CardHeader>
-                            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                                <div>
-                                    <CardTitle>Visitor Lifetime Value</CardTitle>
-                                    <CardDescription>All visitors ranked by total spend</CardDescription>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Select value={tierFilter} onValueChange={setTierFilter}>
-                                        <SelectTrigger className="w-32 h-9">
-                                            <SelectValue placeholder="All Tiers" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">All Tiers</SelectItem>
-                                            <SelectItem value="vip">VIP</SelectItem>
-                                            <SelectItem value="regular">Regular</SelectItem>
-                                            <SelectItem value="new">New</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <div className="relative md:w-64">
-                                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                        <Input
-                                            placeholder="Search visitors\u2026"
-                                            value={ltvSearchQuery}
-                                            onChange={(e) => setLtvSearchQuery(e.target.value)}
-                                            className="pl-9"
+                            {/* Tier Distribution */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Visitor Tier Distribution</CardTitle>
+                                    <CardDescription>Breakdown of visitors by lifetime value tier</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="flex gap-4 flex-wrap">
+                                        <div className="flex items-center gap-2 p-4 bg-amber-50 dark:bg-amber-950/20 rounded-lg flex-1 min-w-[200px]">
+                                            <Crown className="h-8 w-8 text-amber-500" />
+                                            <div>
+                                                <div className="text-2xl font-bold">{ltvData?.summary?.vipCount || 0}</div>
+                                                <div className="text-sm text-muted-foreground">VIP (≥5 visits or ≥200,000 MWK)</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg flex-1 min-w-[200px]">
+                                            <UserCheck className="h-8 w-8 text-blue-500" />
+                                            <div>
+                                                <div className="text-2xl font-bold">{ltvData?.summary?.regularCount || 0}</div>
+                                                <div className="text-sm text-muted-foreground">Regular (2+ visits)</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 p-4 bg-gray-50 dark:bg-gray-950/20 rounded-lg flex-1 min-w-[200px]">
+                                            <Users className="h-8 w-8 text-gray-500" />
+                                            <div>
+                                                <div className="text-2xl font-bold">{ltvData?.summary?.newCount || 0}</div>
+                                                <div className="text-sm text-muted-foreground">New (1 visit)</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Visitor LTV Table */}
+                            <Card>
+                                <CardHeader>
+                                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                                        <div>
+                                            <CardTitle>Visitor Lifetime Value</CardTitle>
+                                            <CardDescription>All visitors ranked by total spend</CardDescription>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Select value={tierFilter} onValueChange={setTierFilter}>
+                                                <SelectTrigger className="w-32 h-9">
+                                                    <SelectValue placeholder="All Tiers" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">All Tiers</SelectItem>
+                                                    <SelectItem value="vip">VIP</SelectItem>
+                                                    <SelectItem value="regular">Regular</SelectItem>
+                                                    <SelectItem value="new">New</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <div className="relative md:w-64">
+                                                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                                <Input
+                                                    placeholder="Search visitors…"
+                                                    value={ltvSearchQuery}
+                                                    onChange={(e) => setLtvSearchQuery(e.target.value)}
+                                                    className="pl-9"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    {ltvLoading ? (
+                                        <div className="flex h-40 items-center justify-center">
+                                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                        </div>
+                                    ) : !filteredLtvVisitors || filteredLtvVisitors.length === 0 ? (
+                                        <EmptyState
+                                            icon={TrendingUp}
+                                            title="No visitor data"
+                                            description="Visitor LTV data will appear once bookings are completed."
                                         />
-                                    </div>
-                                </div>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            {ltvLoading ? (
-                                <div className="flex h-40 items-center justify-center">
-                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                                </div>
-                            ) : !filteredLtvVisitors || filteredLtvVisitors.length === 0 ? (
-                                <EmptyState
-                                    icon={TrendingUp}
-                                    title="No visitor data"
-                                    description="Visitor LTV data will appear once bookings are completed."
-                                />
-                            ) : (
+                                    ) : (
                                 <div className="rounded-md border overflow-x-auto">
                                     <Table>
                                         <TableHeader>
@@ -503,9 +557,11 @@ export default function CustomersPage() {
                                         </TableBody>
                                     </Table>
                                 </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </>
+                    )}
                 </TabsContent>
             </Tabs>
         </div>

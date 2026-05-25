@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Search,
@@ -17,7 +17,7 @@ import {
   Filter,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Link } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,6 +83,13 @@ const incidentFormSchema = z.object({
 
 type IncidentFormValues = z.infer<typeof incidentFormSchema>;
 
+const SECURITY_TABS = new Set(["verify", "active", "incidents"]);
+
+function normalizeSecurityTab(value: string | null) {
+  if (value === "verification") return "verify";
+  return value && SECURITY_TABS.has(value) ? value : "verify";
+}
+
 const severityColors: Record<string, { bg: string; text: string }> = {
   low: { bg: "bg-blue-100 dark:bg-blue-900/30", text: "text-blue-800 dark:text-blue-400" },
   medium: { bg: "bg-yellow-100 dark:bg-yellow-900/30", text: "text-yellow-800 dark:text-yellow-400" },
@@ -99,7 +106,12 @@ const statusColors: Record<string, { bg: string; text: string }> = {
 
 export default function Security() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("verify");
+  const [, setLocation] = useLocation();
+  const search = useSearch();
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window === "undefined") return "verify";
+    return normalizeSecurityTab(new URLSearchParams(window.location.search).get("tab"));
+  });
   const [searchReference, setSearchReference] = useState("");
   const [verifiedBooking, setVerifiedBooking] = useState<BookingWithGuide | null>(null);
   const [isIncidentFormOpen, setIsIncidentFormOpen] = useState(false);
@@ -109,6 +121,16 @@ export default function Security() {
   const [incidentSeverityFilter, setIncidentSeverityFilter] = useState<string>("all");
   const [incidentStatusFilter, setIncidentStatusFilter] = useState<string>("all");
   const [incidentSearch, setIncidentSearch] = useState("");
+
+  useEffect(() => {
+    setActiveTab(normalizeSecurityTab(new URLSearchParams(search).get("tab")));
+  }, [search]);
+
+  const handleTabChange = (value: string) => {
+    const nextTab = normalizeSecurityTab(value);
+    setActiveTab(nextTab);
+    setLocation(`/security?tab=${nextTab}`);
+  };
 
   const { data: activeVisits, isLoading: activeLoading } = useQuery<BookingWithGuide[]>({
     queryKey: ["/api/bookings/active"],
@@ -417,7 +439,7 @@ export default function Security() {
         </Card>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="w-full sm:w-auto grid grid-cols-3 sm:flex">
           <TabsTrigger value="verify" data-testid="tab-verify" className="text-xs sm:text-sm px-2 sm:px-4">
             <Shield className="h-4 w-4 sm:mr-2" />
