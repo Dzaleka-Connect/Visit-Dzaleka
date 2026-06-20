@@ -163,6 +163,7 @@ type RequestDraft = Partial<{
   partnerId: string | null;
   status: TransportRequestStatus;
   quotedAmount: string;
+  currency: string;
   estimatedPickupTime: string;
   driverName: string;
   driverPhone: string;
@@ -176,6 +177,27 @@ type RequestDraft = Partial<{
   rescheduleNotes: string;
   cancellationReason: string;
 }>;
+
+function requestToDraft(request: TransportRequest): RequestDraft {
+  return {
+    partnerId: request.partnerId || null,
+    status: request.status || "pending",
+    quotedAmount: request.quotedAmount != null ? String(request.quotedAmount) : "",
+    currency: request.currency || "MWK",
+    estimatedPickupTime: request.estimatedPickupTime || "",
+    driverName: request.driverName || "",
+    driverPhone: request.driverPhone || "",
+    vehicleDetails: request.vehicleDetails || "",
+    partnerNotes: request.partnerNotes || "",
+    adminNotes: request.adminNotes || "",
+    driverId: request.driverId || null,
+    vehicleId: request.vehicleId || null,
+    requestedPickupTime: request.requestedPickupTime || "",
+    requestedVisitDate: request.requestedVisitDate || "",
+    rescheduleNotes: request.rescheduleNotes || "",
+    cancellationReason: request.cancellationReason || "",
+  };
+}
 
 type DriverForm = {
   name: string;
@@ -330,6 +352,11 @@ function humanizeStatus(status?: string | null) {
 function transportPartnerSectionHref(section: string, isAdmin: boolean) {
   if (isAdmin) return `/transport-partner?tab=${section}`;
   return section === "dashboard" ? "/transport-partner/dashboard" : `/transport-partner/${section}`;
+}
+
+function transportPartnerRequestHref(requestId: string, isAdmin: boolean) {
+  const baseHref = transportPartnerSectionHref("requests", isAdmin);
+  return `${baseHref}${baseHref.includes("?") ? "&" : "?"}request=${encodeURIComponent(requestId)}`;
 }
 
 function getGroupSizeLabel(groupSize: string) {
@@ -1434,6 +1461,7 @@ export default function TransportPartnerPortal() {
   const pathSection = location.match(/^\/transport-partner\/([^/?#]+)/)?.[1] || "";
   const requestedTab = pathSection || params.get("tab");
   const requestedPartnerId = params.get("partner");
+  const requestedRequestId = params.get("request");
   const [referralForm, setReferralForm] = useState(initialReferralForm);
   const [requestDrafts, setRequestDrafts] = useState<Record<string, RequestDraft>>({});
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
@@ -1508,6 +1536,59 @@ export default function TransportPartnerPortal() {
     : ["dashboard", "requests", "referrals", "roster", "availability", "pricing", "profile", "help"];
   const activeTab = availableTabs.includes(requestedTab || "") ? requestedTab! : isAdminView ? "requests" : "dashboard";
   const navigateToSection = (section: string) => navigate(transportPartnerSectionHref(section, isAdminView));
+  const activeRequest = activeRequestId
+    ? transportRequests.find((request) => request.id === activeRequestId) || null
+    : null;
+  const activeRequestDraft = activeRequest
+    ? requestDrafts[activeRequest.id] || requestToDraft(activeRequest)
+    : {};
+  const activeRequestStatus = (activeRequestDraft.status || activeRequest?.status || "pending") as TransportRequestStatus;
+  const requestStatusOptions: TransportRequestStatus[] = isAdminView
+    ? transportStatuses
+    : ["sent_to_partner", "quote_sent", "reschedule_requested"];
+  const activeRequestStatusOptions = requestStatusOptions.includes(activeRequestStatus)
+    ? requestStatusOptions
+    : [activeRequestStatus, ...requestStatusOptions];
+  const partnerEditableRequestStatuses: TransportRequestStatus[] = ["pending", "sent_to_partner", "quote_sent", "reschedule_requested"];
+  const canEditActiveRequestStatus = isAdminView || partnerEditableRequestStatuses.includes((activeRequest?.status || "pending") as TransportRequestStatus);
+  const openRequestManager = (request: TransportRequest) => {
+    setRequestDrafts((current) => ({
+      ...current,
+      [request.id]: current[request.id] || requestToDraft(request),
+    }));
+    navigate(transportPartnerRequestHref(request.id, isAdminView));
+  };
+  const closeRequestManager = () => {
+    setActiveRequestId(null);
+    setSelectedActivityRequestId("");
+    navigate(transportPartnerSectionHref("requests", isAdminView));
+  };
+  const updateActiveRequestDraft = (updates: RequestDraft) => {
+    if (!activeRequest) return;
+    setRequestDrafts((current) => ({
+      ...current,
+      [activeRequest.id]: {
+        ...(current[activeRequest.id] || requestToDraft(activeRequest)),
+        ...updates,
+      },
+    }));
+  };
+  const saveActiveRequest = () => {
+    if (!activeRequest) return;
+    const updates = {
+      ...(requestDrafts[activeRequest.id] || requestToDraft(activeRequest)),
+    };
+    if (
+      updates.status === activeRequest.status ||
+      (!isAdminView && updates.status && !requestStatusOptions.includes(updates.status))
+    ) {
+      delete updates.status;
+    }
+    updateRequestMutation.mutate({
+      id: activeRequest.id,
+      updates,
+    });
+  };
   const partners = useMemo(() => (
     profile?.partners?.length
       ? profile.partners
@@ -1595,6 +1676,25 @@ export default function TransportPartnerPortal() {
     }
     setAdminPartnerForm(partnerToForm(partners.find((partner) => partner.id === adminPartnerId)));
   }, [adminPartnerId, isAdminView, partners, requestedPartnerId]);
+
+  useEffect(() => {
+    if (!requestedRequestId) {
+      if (activeRequestId) {
+        setActiveRequestId(null);
+        setSelectedActivityRequestId("");
+      }
+      return;
+    }
+    if (activeRequestId === requestedRequestId) return;
+    const request = transportRequests.find((item) => item.id === requestedRequestId);
+    if (!request) return;
+    setRequestDrafts((current) => ({
+      ...current,
+      [request.id]: current[request.id] || requestToDraft(request),
+    }));
+    setActiveRequestId(request.id);
+    setSelectedActivityRequestId(request.id);
+  }, [activeRequestId, requestedRequestId, transportRequests]);
 
   const pricingGuide = useMemo(() => {
     const configsByGroup = new Map(pricingConfigs.map((config) => [config.groupSize, config]));
@@ -1922,7 +2022,8 @@ export default function TransportPartnerPortal() {
         return next;
       });
       queryClient.invalidateQueries({ queryKey: ["/api/transport-partner/requests"] });
-      setActiveRequestId(null);
+      queryClient.invalidateQueries({ queryKey: [`/api/transport-partner/requests/${variables.id}/activity`] });
+      closeRequestManager();
       toast({
         title: "Transport request saved",
         description: data?.driverDetailsEmail?.sent
@@ -3385,8 +3486,9 @@ export default function TransportPartnerPortal() {
                                   variant="outline"
                                   size="sm"
                                   className="h-8 hover:bg-primary hover:text-primary-foreground border-muted/50 transition-all duration-200"
-                                  onClick={() => setActiveRequestId(request.id)}
+                                  onClick={() => openRequestManager(request)}
                                 >
+                                  <Pencil className="h-4 w-4" aria-hidden="true" />
                                   Manage
                                 </Button>
                               </TableCell>
@@ -3431,8 +3533,9 @@ export default function TransportPartnerPortal() {
                               variant="outline"
                               size="sm"
                               className="w-full text-xs h-9 hover:bg-primary hover:text-primary-foreground border-muted/50 transition-all duration-200"
-                              onClick={() => setActiveRequestId(request.id)}
+                              onClick={() => openRequestManager(request)}
                             >
+                              <Pencil className="h-4 w-4" aria-hidden="true" />
                               Manage Request
                             </Button>
                           </div>
@@ -4495,6 +4598,269 @@ export default function TransportPartnerPortal() {
         )}
         </Tabs>
       )}
+
+      <Sheet
+        open={Boolean(activeRequest)}
+        onOpenChange={(open) => {
+          if (!open) closeRequestManager();
+        }}
+      >
+        <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
+          {activeRequest && (
+            <div className="space-y-6">
+              <SheetHeader>
+                <SheetTitle>Manage transport request</SheetTitle>
+                <SheetDescription>
+                  Quote, pickup, driver, vehicle, and internal workflow details for {activeRequest.visitorName}.
+                </SheetDescription>
+              </SheetHeader>
+
+              <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2">
+                <InfoBlock label="Visitor" value={activeRequest.visitorName} />
+                <InfoBlock label="Status">
+                  <StatusBadge status={activeRequest.status || "pending"} />
+                </InfoBlock>
+                <InfoBlock label="Route" value={getTransportRoute(activeRequest.route).shortLabel} />
+                <InfoBlock label="Schedule" value={formatRequestSchedule(activeRequest)} />
+                <InfoBlock label="Pickup" value={activeRequest.pickupLocation || "Pickup location not recorded"} />
+                <InfoBlock label="Partner" value={partnerNameFor(activeRequestDraft.partnerId ?? activeRequest.partnerId)} />
+                <InfoBlock label="Visitor email" value={activeRequest.visitorEmail} />
+                <InfoBlock label="Visitor phone" value={activeRequest.visitorPhone || "Not provided"} />
+              </div>
+
+              <form
+                className="space-y-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  saveActiveRequest();
+                }}
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {isAdminView && (
+                    <div className="space-y-2">
+                      <Label htmlFor="request-manager-partner">Assigned partner</Label>
+                      <Select
+                        value={activeRequestDraft.partnerId || "unassigned"}
+                        onValueChange={(partnerId) => updateActiveRequestDraft({ partnerId: partnerId === "unassigned" ? null : partnerId })}
+                      >
+                        <SelectTrigger id="request-manager-partner">
+                          <SelectValue placeholder="Choose partner…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unassigned">Unassigned</SelectItem>
+                          {partners.map((partner) => (
+                            <SelectItem key={partner.id} value={partner.id}>
+                              {partner.companyName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="request-manager-status">Status</Label>
+                    <Select
+                      value={activeRequestStatus}
+                      onValueChange={(status: TransportRequestStatus) => updateActiveRequestDraft({ status })}
+                      disabled={!canEditActiveRequestStatus}
+                    >
+                      <SelectTrigger id="request-manager-status">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {activeRequestStatusOptions.map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {humanizeStatus(status)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!isAdminView && !canEditActiveRequestStatus && (
+                      <p className="text-xs text-muted-foreground">
+                        This status is controlled by the visitor or Visit Dzaleka staff.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="request-manager-quote">Quote amount</Label>
+                    <Input
+                      id="request-manager-quote"
+                      name="quotedAmount"
+                      type="number"
+                      min="0"
+                      inputMode="numeric"
+                      value={activeRequestDraft.quotedAmount ?? ""}
+                      onChange={(event) => updateActiveRequestDraft({ quotedAmount: event.target.value })}
+                      placeholder="MWK amount…"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="request-manager-currency">Currency</Label>
+                    <Input
+                      id="request-manager-currency"
+                      name="currency"
+                      value={activeRequestDraft.currency || "MWK"}
+                      onChange={(event) => updateActiveRequestDraft({ currency: event.target.value.toUpperCase() })}
+                      placeholder="MWK…"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="request-manager-pickup-time">Pickup time</Label>
+                    <Input
+                      id="request-manager-pickup-time"
+                      name="estimatedPickupTime"
+                      type="time"
+                      value={activeRequestDraft.estimatedPickupTime || ""}
+                      onChange={(event) => updateActiveRequestDraft({ estimatedPickupTime: event.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="request-manager-driver-name">Driver name</Label>
+                    <Input
+                      id="request-manager-driver-name"
+                      name="driverName"
+                      value={activeRequestDraft.driverName || ""}
+                      onChange={(event) => updateActiveRequestDraft({ driverName: event.target.value })}
+                      placeholder="Driver full name…"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="request-manager-driver-phone">Driver phone</Label>
+                    <Input
+                      id="request-manager-driver-phone"
+                      name="driverPhone"
+                      inputMode="tel"
+                      value={activeRequestDraft.driverPhone || ""}
+                      onChange={(event) => updateActiveRequestDraft({ driverPhone: event.target.value })}
+                      placeholder="+265…"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="request-manager-vehicle">Vehicle details</Label>
+                    <Input
+                      id="request-manager-vehicle"
+                      name="vehicleDetails"
+                      value={activeRequestDraft.vehicleDetails || ""}
+                      onChange={(event) => updateActiveRequestDraft({ vehicleDetails: event.target.value })}
+                      placeholder="Toyota Hiace, plate, color…"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="request-manager-partner-notes">Partner notes</Label>
+                  <Textarea
+                    id="request-manager-partner-notes"
+                    name="partnerNotes"
+                    value={activeRequestDraft.partnerNotes || ""}
+                    onChange={(event) => updateActiveRequestDraft({ partnerNotes: event.target.value })}
+                    placeholder="Quote terms, pickup instructions, waiting time, route notes…"
+                  />
+                </div>
+
+                {activeRequestStatus === "reschedule_requested" && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="request-manager-new-date">Requested new date</Label>
+                      <Input
+                        id="request-manager-new-date"
+                        name="requestedVisitDate"
+                        type="date"
+                        value={activeRequestDraft.requestedVisitDate || ""}
+                        onChange={(event) => updateActiveRequestDraft({ requestedVisitDate: event.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="request-manager-new-time">Requested new pickup time</Label>
+                      <Input
+                        id="request-manager-new-time"
+                        name="requestedPickupTime"
+                        type="time"
+                        value={activeRequestDraft.requestedPickupTime || ""}
+                        onChange={(event) => updateActiveRequestDraft({ requestedPickupTime: event.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="request-manager-reschedule-notes">Reschedule notes</Label>
+                      <Textarea
+                        id="request-manager-reschedule-notes"
+                        name="rescheduleNotes"
+                        value={activeRequestDraft.rescheduleNotes || ""}
+                        onChange={(event) => updateActiveRequestDraft({ rescheduleNotes: event.target.value })}
+                        placeholder="Explain the requested timing change…"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {isAdminView && (
+                  <div className="space-y-2">
+                    <Label htmlFor="request-manager-admin-notes">Admin notes</Label>
+                    <Textarea
+                      id="request-manager-admin-notes"
+                      name="adminNotes"
+                      value={activeRequestDraft.adminNotes || ""}
+                      onChange={(event) => updateActiveRequestDraft({ adminNotes: event.target.value })}
+                      placeholder="Internal notes for coordinators…"
+                    />
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" disabled={updateRequestMutation.isPending}>
+                    {updateRequestMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Save className="h-4 w-4" aria-hidden="true" />
+                    )}
+                    Save request
+                  </Button>
+                  <Button type="button" variant="outline" onClick={closeRequestManager}>
+                    Close
+                  </Button>
+                </div>
+              </form>
+
+              <div className="space-y-3 rounded-lg border p-4">
+                <div>
+                  <h3 className="text-sm font-semibold">Activity history</h3>
+                  <p className="text-xs text-muted-foreground">Recent quote, assignment, and status changes for this request.</p>
+                </div>
+                {requestActivity.length === 0 ? (
+                  <p className="rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">No activity has been recorded yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {requestActivity.map((activity) => (
+                      <div key={activity.id} className="rounded-md border bg-background p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-medium">{humanizeStatus(activity.action)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {activity.createdAt ? formatDate(activity.createdAt) : "Date not recorded"}
+                          </p>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {activity.oldStatus || activity.newStatus
+                            ? `${activity.oldStatus ? humanizeStatus(activity.oldStatus) : "none"} -> ${activity.newStatus ? humanizeStatus(activity.newStatus) : "none"}`
+                            : activity.actorRole
+                              ? `Updated by ${humanizeStatus(activity.actorRole)}`
+                              : "Request updated"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {stats.confirmedRequests > 0 && (isAdminView || activeTab === "dashboard") && (
         <div className="mt-4 flex items-center gap-2 rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">

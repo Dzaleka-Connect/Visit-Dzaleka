@@ -2668,7 +2668,7 @@ async function getBookingsForCalendarFeed(calendar: { feedOwnerUserId?: string |
     return guide ? bookings.filter((booking) => isBookingAssignedToGuide(booking, guide)) : [];
   }
   if (owner.role === "visitor") {
-    return bookings.filter((booking) => booking.visitorUserId === owner.id || booking.visitorEmail === owner.email);
+    return bookings.filter((booking) => visitorOwnsBooking(booking, owner));
   }
 
   return [];
@@ -2709,7 +2709,7 @@ async function userCanAccessBooking(userId: string, booking: Booking): Promise<b
   }
 
   if (user.role === "visitor") {
-    return booking.visitorUserId === user.id || booking.visitorEmail === user.email;
+    return visitorOwnsBooking(booking, user);
   }
 
   if (user.role === "guide") {
@@ -3096,7 +3096,7 @@ async function sendTransportStatusEmails(options: {
   const seen = new Set<string>();
 
   if (options.audiences.includes("visitor") && options.request.visitorEmail) {
-    seen.add(options.request.visitorEmail.toLowerCase());
+    seen.add(normalizedEmail(options.request.visitorEmail));
     recipients.push({
       name: options.request.visitorName,
       email: options.request.visitorEmail,
@@ -3104,8 +3104,8 @@ async function sendTransportStatusEmails(options: {
     });
   }
 
-  if (options.audiences.includes("partner") && options.partner?.email && !seen.has(options.partner.email.toLowerCase())) {
-    seen.add(options.partner.email.toLowerCase());
+  if (options.audiences.includes("partner") && options.partner?.email && !seen.has(normalizedEmail(options.partner.email))) {
+    seen.add(normalizedEmail(options.partner.email));
     recipients.push({
       name: options.partner.contactName || options.partner.companyName,
       email: options.partner.email,
@@ -3998,6 +3998,15 @@ function normalizedEmail(email?: string | null): string {
   return (email || "").trim().toLowerCase();
 }
 
+function visitorOwnsBooking(
+  booking: Pick<Booking, "visitorUserId" | "visitorEmail">,
+  visitor?: Pick<User, "id" | "email"> | null
+): boolean {
+  if (!visitor) return false;
+  const visitorEmail = normalizedEmail(visitor.email);
+  return booking.visitorUserId === visitor.id || (!!visitorEmail && normalizedEmail(booking.visitorEmail) === visitorEmail);
+}
+
 async function getTransportPartnerForUser(user: User) {
   const byUserId = await storage.getTransportPartnerByUserId(user.id);
   if (byUserId) return byUserId;
@@ -4513,7 +4522,7 @@ export async function registerRoutes(
 
       const visitors = users.filter(u => u.role === "visitor");
       const customerStats = visitors.map(user => {
-        const userBookings = bookings.filter(b => b.visitorUserId === user.id || b.visitorEmail === user.email);
+        const userBookings = bookings.filter(b => visitorOwnsBooking(b, user));
         const totalVisits = userBookings.filter(b => b.status === "completed").length;
         const totalSpend = userBookings.reduce((sum, b) => sum + getRecognizedBookingRevenue(b), 0);
         const lastVisit = userBookings
@@ -4549,7 +4558,7 @@ export async function registerRoutes(
       if (!user) return res.status(404).json({ message: "Customer not found" });
 
       const bookings = await storage.getBookings();
-      const userBookings = bookings.filter(b => b.visitorUserId === user.id || b.visitorEmail === user.email);
+      const userBookings = bookings.filter(b => visitorOwnsBooking(b, user));
 
       const stats = {
         totalVisits: userBookings.filter(b => b.status === "completed").length,
@@ -5877,9 +5886,7 @@ export async function registerRoutes(
 
       // Get bookings by visitor user ID or email
       const allBookings = await storage.getBookings();
-      const myBookings = allBookings.filter(b =>
-        b.visitorUserId === userId || b.visitorEmail === user.email
-      );
+      const myBookings = allBookings.filter(b => visitorOwnsBooking(b, user));
 
       // Add guide and visitor-safe transport details to each booking
       const bookingIds = myBookings.map((booking) => booking.id);
@@ -6045,7 +6052,7 @@ export async function registerRoutes(
       // Get all completed bookings for this user
       const allBookings = await storage.getBookings();
       const completedBookings = allBookings.filter(b =>
-        (b.visitorUserId === userId || b.visitorEmail === user.email) &&
+        visitorOwnsBooking(b, user) &&
         b.status === "completed"
       );
 
@@ -6178,10 +6185,7 @@ export async function registerRoutes(
 
       // Check ownership or admin role
       const user = await storage.getUser(req.session?.userId || "");
-      const isIdMatch = booking.visitorUserId && req.session?.userId && booking.visitorUserId.toString() === req.session.userId.toString();
-      const isEmailMatch = user && booking.visitorEmail === user.email;
-
-      const isOwner = isIdMatch || isEmailMatch;
+      const isOwner = visitorOwnsBooking(booking, user);
       const isAdmin = user && (user.role === "admin" || user.role === "coordinator");
 
       if (!isOwner && !isAdmin) {
@@ -6231,7 +6235,7 @@ export async function registerRoutes(
       const isGuide = user.role === "guide";
       const isAdminOrCoord = ["admin", "coordinator", "security"].includes(user.role || "");
 
-      if (isVisitor && booking.visitorUserId !== user.id && booking.visitorEmail !== user.email) {
+      if (isVisitor && !visitorOwnsBooking(booking, user)) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
@@ -6245,7 +6249,7 @@ export async function registerRoutes(
       // If not admin/coord and access not granted above, block (though logic above handles visitor/guide specific checks)
       // Actually simpler:
       if (!isAdminOrCoord) {
-        if (isVisitor && booking.visitorUserId !== user.id && booking.visitorEmail !== user.email) {
+        if (isVisitor && !visitorOwnsBooking(booking, user)) {
           return res.status(403).json({ message: "Forbidden" });
         }
         if (isGuide) {
@@ -6306,7 +6310,7 @@ export async function registerRoutes(
 	        return res.status(401).json({ message: "Unauthorized" });
 	      }
 
-	      const isOwner = user.role === "visitor" && (booking.visitorUserId === user.id || booking.visitorEmail === user.email);
+	      const isOwner = user.role === "visitor" && visitorOwnsBooking(booking, user);
 	      const canManage = user.role === "admin" || user.role === "coordinator";
 	      if (!isOwner && !canManage) {
 	        return res.status(403).json({ message: "Only the booking visitor or staff can update community highlights" });
@@ -6358,6 +6362,8 @@ export async function registerRoutes(
     try {
       const transportPayload = transportRequestPayloadSchema.parse(req.body);
       const bookingData = insertBookingSchema.parse(req.body);
+      const bookingVisitorEmail = normalizedEmail(bookingData.visitorEmail) || bookingData.visitorEmail.trim();
+      const linkedVisitor = bookingVisitorEmail ? await storage.getUserByEmail(bookingVisitorEmail) : undefined;
       const baseTotalAmount = await calculateTotalAmount(
         bookingData.groupSize,
         bookingData.tourType,
@@ -6373,6 +6379,8 @@ export async function registerRoutes(
       const { totalAmount, discountAmount } = applySpecialOfferAmount(baseTotalAmount, specialOffer);
       const booking = await storage.createBooking({
         ...bookingData,
+        visitorEmail: bookingVisitorEmail,
+        visitorUserId: bookingData.visitorUserId || linkedVisitor?.id || null,
         totalAmount,
         paymentDetails: {
           ...(bookingData.paymentDetails as Record<string, unknown> | null || {}),
@@ -6579,7 +6587,7 @@ export async function registerRoutes(
       if (isTransportQuoteExpired(request)) {
         return res.status(410).json({ message: "This transport quote link has expired" });
       }
-      if (payload.confirmationEmail.toLowerCase() !== request.visitorEmail.toLowerCase()) {
+      if (normalizedEmail(payload.confirmationEmail) !== normalizedEmail(request.visitorEmail)) {
         logger.warn("Transport quote email confirmation failed", {
           requestId: req.requestId,
           requestIdHash: tokenFingerprint(request.id),
@@ -7351,7 +7359,7 @@ export async function registerRoutes(
             updated.partnerId ? storage.getTransportPartner(updated.partnerId) : Promise.resolve(undefined),
             updated.bookingId ? storage.getBooking(updated.bookingId) : Promise.resolve(undefined),
           ]);
-          const visitorEmail = updated.visitorEmail.toLowerCase();
+          const visitorEmail = normalizedEmail(updated.visitorEmail);
           const existingVisitor = await storage.getUserByEmail(visitorEmail);
           const inviteResult = existingVisitor ? null : await ensureVisitorInvite(visitorEmail, user.id);
           const quoteReviewUrl = quoteApprovalTokenForEmail
@@ -7534,7 +7542,7 @@ export async function registerRoutes(
     try {
       const user = (req as any).currentUser as User;
       const payload = partnerReferralSchema.parse(req.body);
-      const visitorEmail = payload.visitorEmail.toLowerCase();
+      const visitorEmail = normalizedEmail(payload.visitorEmail);
       const existingVisitor = await storage.getUserByEmail(visitorEmail);
       const partner = user.role === "transport_partner"
         ? await getCurrentTransportPartner(user)
@@ -7723,8 +7731,10 @@ export async function registerRoutes(
         selectedZones,
       } = req.body;
 
+      const normalizedVisitorEmail = normalizedEmail(visitorEmail);
+
       // Validate required fields
-      if (!visitorName || !visitorEmail || !visitDate) {
+      if (!visitorName || !normalizedVisitorEmail || !visitDate) {
         return res.status(400).json({ message: "Visitor name, email, and visit date are required" });
       }
 
@@ -7735,6 +7745,7 @@ export async function registerRoutes(
       }
 
       // Calculate amount if not provided
+      const existingVisitor = normalizedVisitorEmail ? await storage.getUserByEmail(normalizedVisitorEmail) : undefined;
       const finalAmount = totalAmount || await calculateTotalAmount(
         groupSize || "individual",
         tourType || "standard",
@@ -7744,7 +7755,8 @@ export async function registerRoutes(
       // Create the booking with completed status
       const booking = await storage.createBooking({
         visitorName,
-        visitorEmail,
+        visitorEmail: normalizedVisitorEmail,
+        visitorUserId: existingVisitor?.id || null,
         visitorPhone: visitorPhone || "",
         visitorCountry: visitorCountry || null,
         visitDate,
@@ -8747,7 +8759,7 @@ export async function registerRoutes(
 
       const user = userId ? await storage.getUser(userId) : null;
       // Verify this booking belongs to the current user
-      if (booking.visitorUserId !== userId && booking.visitorEmail !== user?.email) {
+      if (!visitorOwnsBooking(booking, user)) {
         return res.status(403).json({ message: "Not authorized to update this booking" });
       }
 
@@ -8818,7 +8830,7 @@ export async function registerRoutes(
 
       // Verify this booking belongs to the current user
       const user = await storage.getUser(userId);
-      if (!user || (booking.visitorUserId !== userId && booking.visitorEmail !== user.email)) {
+      if (!visitorOwnsBooking(booking, user)) {
         return res.status(403).json({ message: "Not authorized to cancel this booking" });
       }
 
@@ -8892,7 +8904,7 @@ export async function registerRoutes(
 
       // Check if booking belongs to current user
       const user = await storage.getUser(userId);
-      if (!user || (booking.visitorUserId !== userId && booking.visitorEmail !== user.email)) {
+      if (!visitorOwnsBooking(booking, user)) {
         return res.status(403).json({ message: "Not authorized to rate this booking" });
       }
 
@@ -10630,9 +10642,7 @@ export async function registerRoutes(
       }
 
       // Verify the user owns this booking
-      const normalizedVisitorEmail = booking.visitorEmail.toLowerCase();
-      const normalizedUserEmail = user.email.toLowerCase();
-      const isOwner = booking.visitorUserId === user.id || normalizedVisitorEmail === normalizedUserEmail;
+      const isOwner = visitorOwnsBooking(booking, user);
       const canManagePayments = user.role === "admin" || user.role === "coordinator";
 
       if (!isOwner && !canManagePayments) {
@@ -11319,9 +11329,7 @@ export async function registerRoutes(
 
       // Get user's bookings
       const allBookings = await storage.getBookings();
-      const userBookings = allBookings.filter(b =>
-        b.visitorUserId === req.params.id || b.visitorEmail === user.email
-      );
+      const userBookings = allBookings.filter(b => visitorOwnsBooking(b, user));
 
       // Get guide profile if user is a guide
       const guides = await storage.getGuides();
@@ -15628,7 +15636,8 @@ export async function registerRoutes(
       // 6. Repeat Booking Rate
       const emailCounts: Record<string, number> = {};
       allBookings.forEach(b => {
-        const email = b.visitorEmail.toLowerCase();
+        const email = normalizedEmail(b.visitorEmail);
+        if (!email) return;
         emailCounts[email] = (emailCounts[email] || 0) + 1;
       });
       const repeatVisitors = Object.values(emailCounts).filter(count => count > 1).length;
