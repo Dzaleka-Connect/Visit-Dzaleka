@@ -199,6 +199,49 @@ function requestToDraft(request: TransportRequest): RequestDraft {
   };
 }
 
+function nullableDraftField(value: string | null | undefined): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === "") return null;
+  return value;
+}
+
+function requestDraftToPatchPayload(updates: RequestDraft, isAdminView: boolean): Record<string, unknown> {
+  const quotedAmount =
+    updates.quotedAmount === "" || updates.quotedAmount == null
+      ? null
+      : Math.trunc(Number(updates.quotedAmount));
+
+  const payload: Record<string, unknown> = {
+    status: updates.status,
+    quotedAmount: Number.isFinite(quotedAmount as number) ? quotedAmount : null,
+    currency: updates.currency?.trim() || undefined,
+    estimatedPickupTime: nullableDraftField(updates.estimatedPickupTime),
+    requestedPickupTime: nullableDraftField(updates.requestedPickupTime),
+    requestedVisitDate: nullableDraftField(updates.requestedVisitDate),
+    driverId: updates.driverId,
+    vehicleId: updates.vehicleId,
+    driverName: nullableDraftField(updates.driverName),
+    driverPhone: nullableDraftField(updates.driverPhone),
+    vehicleDetails: nullableDraftField(updates.vehicleDetails),
+    partnerNotes: nullableDraftField(updates.partnerNotes),
+    rescheduleNotes: nullableDraftField(updates.rescheduleNotes),
+    cancellationReason: nullableDraftField(updates.cancellationReason),
+  };
+
+  if (isAdminView) {
+    payload.partnerId = updates.partnerId;
+    payload.adminNotes = nullableDraftField(updates.adminNotes);
+  }
+
+  for (const key of Object.keys(payload)) {
+    if (payload[key] === undefined) {
+      delete payload[key];
+    }
+  }
+
+  return payload;
+}
+
 type DriverForm = {
   name: string;
   phone: string;
@@ -2009,10 +2052,11 @@ export default function TransportPartnerPortal() {
 
   const updateRequestMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: RequestDraft }) => {
-      const response = await apiRequest("PATCH", `/api/transport-partner/requests/${id}`, {
-        ...updates,
-        quotedAmount: updates.quotedAmount === "" || updates.quotedAmount == null ? null : Number(updates.quotedAmount),
-      });
+      const response = await apiRequest(
+        "PATCH",
+        `/api/transport-partner/requests/${id}`,
+        requestDraftToPatchPayload(updates, isAdminView),
+      );
       return response.json();
     },
     onSuccess: (data, variables) => {
@@ -2033,10 +2077,10 @@ export default function TransportPartnerPortal() {
             : undefined,
       });
     },
-    onError: () => {
+    onError: (error: Error) => {
       toast({
         title: "Could not update request",
-        description: "Please try again or contact the Visit Dzaleka team.",
+        description: error.message || "Please try again or contact the Visit Dzaleka team.",
         variant: "destructive",
       });
     },
