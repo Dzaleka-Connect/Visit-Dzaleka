@@ -26,3 +26,17 @@ cookies.txt
 # IDE
 .idea
 .vscode
+
+# AI assistant tooling - local developer config, not part of the product
+.agent
+.agents
+.claude
+.cursor
+.gemini
+.windsurf
+
+# Replit-era chat attachments
+attached_assets
+
+# Native app, tracked separately
+ios
