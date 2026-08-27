@@ -35,6 +35,13 @@ cookies.txt
 .gemini
 .windsurf
 
+# Generated audit and gap reports - working notes, kept local
+AUDIT_REPORT.md
+COMPREHENSIVE_AUDIT_REPORT.md
+DASHBOARD_IMPROVEMENT_RECOMMENDATIONS.md
+FRONTEND_ADMIN_CONTROL_GAP_REPORT.md
+FRONTEND_COMPONENTS_GAP_REPORT.md
+
 # Replit-era chat attachments
 attached_assets
 
