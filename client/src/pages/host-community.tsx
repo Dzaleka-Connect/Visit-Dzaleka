@@ -112,11 +112,11 @@ export default function HostCommunity() {
                     <div className="absolute inset-0 bg-black/60" />
 
                     <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-white/30 bg-white/10 text-white rounded-full uppercase tracking-widest font-semibold flex items-center justify-center w-fit mx-auto backdrop-blur-sm">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-white/30 bg-white/10 text-white rounded-full font-semibold flex items-center justify-center w-fit mx-auto backdrop-blur-sm">
                             <Handshake className="mr-2 h-3.5 w-3.5" />
                             Coexistence & Culture
                         </Badge>
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6 text-white">
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6 text-white">
                             Host Community & Culture
                         </h1>
                         <p className="text-lg md:text-xl text-white/90 leading-relaxed max-w-2xl mx-auto drop-shadow-sm">
@@ -137,7 +137,7 @@ export default function HostCommunity() {
                     {/* Malawian Culture Grid */}
                     <section>
                         <div className="text-center mb-12">
-                            <h2 className="text-3xl font-bold tracking-tight mb-4">Malawian Traditions & Etiquette</h2>
+                            <h2 className="text-3xl font-semibold mb-4">Malawian Traditions & Etiquette</h2>
                             <p className="text-muted-foreground max-w-2xl mx-auto">
                                 Understanding these cultural pillars will deepen your connection with the local community in Dowa.
                             </p>
@@ -149,7 +149,7 @@ export default function HostCommunity() {
                                         <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                                             <item.icon className="h-7 w-7 text-primary" />
                                         </div>
-                                        <h3 className="text-lg font-bold mb-2">{item.title}</h3>
+                                        <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
                                         <p className="text-muted-foreground text-sm">{item.description}</p>
                                     </CardContent>
                                 </Card>
@@ -175,7 +175,7 @@ export default function HostCommunity() {
                                 <Heart className="h-5 w-5" />
                                 <span>Integration & Economy</span>
                             </div>
-                            <h2 className="text-3xl font-bold tracking-tight">A Symbiotic Relationship</h2>
+                            <h2 className="text-3xl font-semibold">A Symbiotic Relationship</h2>
                             <p className="text-muted-foreground text-lg">
                                 The relationship between Dzaleka and Dowa is complex but vital. The camp acts as a major economic engine, creating a market for local farmers and businesses, while hosting a diverse workforce that contributes to the district's development.
                             </p>

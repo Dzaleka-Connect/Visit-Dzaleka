@@ -45,9 +45,9 @@ export const GROUP_SIZES = [
 
 // Pricing in MWK
 export const PRICING = {
-  individual: 15000,
-  small_group: 50000,
-  large_group: 80000,
+  individual: 20000,
+  small_group: 55000,
+  large_group: 85000,
   custom: 100000,
   additional_hour: 10000,
 } as const;

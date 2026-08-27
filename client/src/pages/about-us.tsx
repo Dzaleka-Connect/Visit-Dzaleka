@@ -32,11 +32,11 @@ export default function AboutUs() {
                 {/* Hero Section */}
                 <div className="relative py-16 sm:py-24 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
                     <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full uppercase tracking-widest font-semibold flex items-center justify-center w-fit mx-auto">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full font-semibold flex items-center justify-center w-fit mx-auto">
                             <Sparkles className="mr-2 h-3.5 w-3.5" />
                             Refugee-Led Tourism
                         </Badge>
-                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6">
+                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold mb-6">
                             About Visit Dzaleka
                         </h1>
                         <p className="text-base sm:text-lg md:text-xl text-muted-foreground leading-relaxed max-w-3xl mx-auto">
@@ -52,7 +52,7 @@ export default function AboutUs() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Target className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Our Mission</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Our Mission</h2>
                         </div>
                         <div className="prose prose-sm sm:prose max-w-none text-muted-foreground">
                             <p className="text-sm sm:text-base leading-relaxed">
@@ -65,7 +65,7 @@ export default function AboutUs() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Globe className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">What We Do</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">What We Do</h2>
                         </div>
                         <div className="grid gap-4 sm:gap-6 md:grid-cols-3">
                             <Card>
@@ -108,7 +108,7 @@ export default function AboutUs() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Heart className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Our Story</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Our Story</h2>
                         </div>
                         <div className="prose prose-sm sm:prose max-w-none text-muted-foreground space-y-4">
                             <p className="text-sm sm:text-base leading-relaxed">
@@ -124,19 +124,19 @@ export default function AboutUs() {
                     <section className="bg-primary/5 rounded-2xl p-6 sm:p-8">
                         <div className="flex items-center gap-3 mb-6">
                             <Sparkles className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Our Impact</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Our Impact</h2>
                         </div>
                         <div className="grid gap-6 sm:grid-cols-3 text-center">
                             <div>
-                                <div className="text-3xl sm:text-4xl font-bold text-primary mb-2">100%</div>
+                                <div className="text-3xl sm:text-4xl font-semibold text-primary mb-2">100%</div>
                                 <p className="text-sm text-muted-foreground">Tour income goes directly to guides</p>
                             </div>
                             <div>
-                                <div className="text-3xl sm:text-4xl font-bold text-primary mb-2">10+</div>
+                                <div className="text-3xl sm:text-4xl font-semibold text-primary mb-2">10+</div>
                                 <p className="text-sm text-muted-foreground">Active local guides</p>
                             </div>
                             <div>
-                                <div className="text-3xl sm:text-4xl font-bold text-primary mb-2">4.9★</div>
+                                <div className="text-3xl sm:text-4xl font-semibold text-primary mb-2">4.9★</div>
                                 <p className="text-sm text-muted-foreground">Average visitor rating</p>
                             </div>
                         </div>
@@ -146,17 +146,17 @@ export default function AboutUs() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Handshake className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Our Partners</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Our Partners</h2>
                         </div>
                         <div className="grid gap-4 sm:grid-cols-2">
-                            <a href="https://www.getyourguide.com/mbalame-l265219/dzaleka-refugee-camp-guided-walking-tour-t1188868/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                            <a href="https://www.getyourguide.com/mbalame-l265219/dzaleka-refugee-camp-guided-walking-tour-t1188868/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-4 border rounded-lg hover:bg-muted/50">
                                 <ExternalLink className="h-6 w-6 text-primary shrink-0" />
                                 <div>
                                     <p className="font-semibold">GetYourGuide</p>
                                     <p className="text-sm text-muted-foreground">International booking platform</p>
                                 </div>
                             </a>
-                            <a href="https://services.dzaleka.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                            <a href="https://services.dzaleka.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-4 border rounded-lg hover:bg-muted/50">
                                 <ExternalLink className="h-6 w-6 text-primary shrink-0" />
                                 <div>
                                     <p className="font-semibold">Dzaleka Online Services</p>
@@ -170,7 +170,7 @@ export default function AboutUs() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Mail className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Get in Touch</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Get in Touch</h2>
                         </div>
                         <Card>
                             <CardContent className="p-6">
@@ -197,7 +197,7 @@ export default function AboutUs() {
 
                     {/* CTA Section */}
                     <section className="bg-primary/5 rounded-2xl p-6 sm:p-8 md:p-12 text-center">
-                        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4">Ready to Experience Dzaleka?</h2>
+                        <h2 className="text-2xl sm:text-3xl font-semibold mb-4">Ready to Experience Dzaleka?</h2>
                         <p className="text-muted-foreground mb-6 max-w-2xl mx-auto text-sm sm:text-base">
                             Book a tour and support refugee-led tourism. Every visit makes a difference.
                         </p>

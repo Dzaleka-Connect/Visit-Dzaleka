@@ -112,11 +112,11 @@ export default function ContactUs() {
             <main className="flex-1">
                 <section className="relative py-16 sm:py-20 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
                     <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full uppercase tracking-widest font-semibold">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full font-semibold">
                             <MessageCircle className="mr-2 h-3.5 w-3.5" />
                             Get In Touch
                         </Badge>
-                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6">
+                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold mb-6">
                             Contact Us
                         </h1>
                         <p className="text-base sm:text-lg md:text-xl text-muted-foreground leading-relaxed max-w-3xl mx-auto">
@@ -130,7 +130,7 @@ export default function ContactUs() {
                     <div className="container mx-auto px-4">
                         <div className="grid lg:grid-cols-2 gap-12 items-start max-w-6xl mx-auto">
                             <div>
-                                <h2 className="text-2xl font-bold mb-6">Contact Information</h2>
+                                <h2 className="text-2xl font-semibold mb-6">Contact Information</h2>
                                 <div className="space-y-6 mb-8">
                                     {contactInfo.map((item, index) => (
                                         <div key={index} className="flex items-start gap-4">
@@ -140,7 +140,7 @@ export default function ContactUs() {
                                             <div>
                                                 <div className="text-sm text-muted-foreground mb-1">{item.label}</div>
                                                 {item.href ? (
-                                                    <a href={item.href} className="font-medium hover:text-primary transition-colors">
+                                                    <a href={item.href} className="font-medium hover:text-primary">
                                                         {item.value}
                                                     </a>
                                                 ) : (
@@ -163,7 +163,7 @@ export default function ContactUs() {
                                                 href={social.href}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
+                                                className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground"
                                                 aria-label={social.label}
                                             >
                                                 <social.icon className="h-4 w-4" />

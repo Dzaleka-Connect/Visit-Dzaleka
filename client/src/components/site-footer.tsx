@@ -19,7 +19,7 @@ export function SiteFooter() {
                     <div className="col-span-1 md:col-span-2">
                         <div className="flex items-center gap-2 mb-4">
                             <MapPin className="h-5 w-5 text-primary" />
-                            <span className="font-bold text-lg">Visit Dzaleka</span>
+                            <span className="font-semibold text-lg">Visit Dzaleka</span>
                         </div>
                         <p className="text-muted-foreground max-w-xs mb-6">
                             Connecting visitors with resident guides and community-led tours in Dzaleka Refugee Camp.
@@ -32,7 +32,7 @@ export function SiteFooter() {
                                     href={social.href}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
+                                    className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground"
                                     aria-label={social.label}
                                 >
                                     <social.icon className="h-4 w-4" />
@@ -73,6 +73,13 @@ export function SiteFooter() {
                             <li>info@mail.dzaleka.com</li>
                             <li>Dowa District, Malawi</li>
                             <li><Link href="/contact" className="hover:text-primary">Contact Us</Link></li>
+                            <li><Link href="/developers" className="hover:text-primary">Developers &amp; API</Link></li>
+                            <li>
+                                <a href="/openapi.json" className="hover:text-primary">API reference</a>
+                            </li>
+                            <li>
+                                <a href="/llms.txt" className="hover:text-primary">llms.txt</a>
+                            </li>
                             <li className="pt-2">
                                 <Link href="/login" className="hover:text-primary font-medium">Book a Tour →</Link>
                             </li>
@@ -86,6 +93,7 @@ export function SiteFooter() {
                         <strong>Disclaimer:</strong> Visit Dzaleka is a community-led tourism initiative.
                         All tours follow established safety protocols and camp regulations.
                         <Link href="/disclaimer" className="text-primary hover:underline ml-1">Read full disclaimer</Link> |
+                        <Link href="/privacy" className="text-primary hover:underline ml-1">Privacy policy</Link> |
                         <Link href="/cookie-notice" className="text-primary hover:underline ml-1">Cookie policy</Link>
                     </p>
                 </div>

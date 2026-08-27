@@ -249,11 +249,11 @@ export default function FriendsOfDzaleka() {
                 {/* Hero Section */}
                 <section className="relative py-20 md:py-28 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
                     <div className="container relative z-10 mx-auto px-4 text-center max-w-4xl">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full uppercase tracking-widest font-semibold">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full font-semibold">
                             <Heart className="mr-2 h-3.5 w-3.5" />
                             Community Storytelling
                         </Badge>
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6 text-foreground">
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6 text-foreground">
                             Friends of Dzaleka
                         </h1>
                         <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed animate-in fade-in slide-in-from-bottom-3 duration-500">
@@ -269,10 +269,10 @@ export default function FriendsOfDzaleka() {
                         <div className="grid gap-12 md:grid-cols-12 items-center">
                             {/* Mission Description */}
                             <div className="md:col-span-7 space-y-6">
-                                <Badge variant="secondary" className="px-3 py-1 text-xs text-primary bg-primary/10 rounded-full font-semibold uppercase tracking-wider">
+                                <Badge variant="secondary" className="px-3 py-1 text-xs text-primary bg-primary/10 rounded-full font-semibold">
                                     Our Mission
                                 </Badge>
-                                <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+                                <h2 className="text-3xl md:text-4xl font-semibold text-foreground">
                                     A Community-Led Initiative
                                 </h2>
                                 <p className="text-lg text-muted-foreground leading-relaxed">
@@ -292,7 +292,7 @@ export default function FriendsOfDzaleka() {
                                             <div className="p-2 rounded-lg bg-primary/10 text-primary">
                                                 <Globe className="h-5 w-5" />
                                             </div>
-                                            <CardTitle className="text-lg font-bold">Why It Matters</CardTitle>
+                                            <CardTitle className="text-lg font-semibold">Why It Matters</CardTitle>
                                         </div>
                                     </CardHeader>
                                     <CardContent className="space-y-4">
@@ -336,10 +336,10 @@ export default function FriendsOfDzaleka() {
                 <section className="py-16 md:py-20 bg-muted/30 border-y border-muted/50">
                     <div className="container mx-auto px-4 max-w-5xl">
                         <div className="text-center max-w-2xl mx-auto mb-12">
-                            <Badge variant="outline" className="mb-3 px-3 py-1 text-xs text-primary border-primary/20 bg-primary/5 rounded-full font-semibold uppercase tracking-wider">
+                            <Badge variant="outline" className="mb-3 px-3 py-1 text-xs text-primary border-primary/20 bg-primary/5 rounded-full font-semibold">
                                 Getting Involved
                             </Badge>
-                            <h2 className="text-3xl font-bold tracking-tight mb-4">What the Program Involves</h2>
+                            <h2 className="text-3xl font-semibold mb-4">What the Program Involves</h2>
                             <p className="text-muted-foreground leading-relaxed">
                                 Share Dzaleka's narrative in your own way. There is no rigid script; you control the story you want to share.
                             </p>
@@ -354,7 +354,7 @@ export default function FriendsOfDzaleka() {
                                                 <item.icon className="h-6 w-6" />
                                             </div>
                                             <div>
-                                                <h3 className="font-bold text-lg mb-1">{item.title}</h3>
+                                                <h3 className="font-semibold text-lg mb-1">{item.title}</h3>
                                                 <p className="text-sm text-muted-foreground leading-relaxed">{item.description}</p>
                                             </div>
                                         </div>
@@ -364,7 +364,7 @@ export default function FriendsOfDzaleka() {
                         </div>
 
                         <div className="mt-12 p-6 rounded-xl border border-dashed border-muted-foreground/30 bg-background text-center max-w-3xl mx-auto">
-                            <h4 className="font-bold text-foreground mb-2 flex items-center justify-center gap-2">
+                            <h4 className="font-semibold text-foreground mb-2 flex items-center justify-center gap-2">
                                 <Users className="h-5 w-5 text-primary" /> Who can become a Friend?
                             </h4>
                             <p className="text-sm text-muted-foreground mb-4">
@@ -386,14 +386,14 @@ export default function FriendsOfDzaleka() {
                     <div className="container mx-auto px-4 max-w-7xl">
                         <div className="flex items-center gap-3 mb-8">
                             <Users className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Meet Our Friends</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Meet Our Friends</h2>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                             {currentFriends.map((friend, index) => (
                                 <Card key={friend.slug || index} className="group overflow-hidden border border-muted/60 shadow-sm hover:border-primary/20 transition-all duration-300 bg-background flex flex-col h-full">
                                     <div className="h-48 relative overflow-hidden bg-muted">
-                                        <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-primary/5 to-background flex items-center justify-center text-primary text-4xl font-bold tracking-tight">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-primary/5 to-background flex items-center justify-center text-primary text-4xl font-semibold">
                                             {friend.name.split(' ').map(n => n[0]).join('')}
                                         </div>
                                         {friend.image && (
@@ -403,13 +403,13 @@ export default function FriendsOfDzaleka() {
                                                 className="absolute inset-0 w-full h-full object-cover"
                                             />
                                         )}
-                                        <Badge className="absolute top-3 left-3 bg-background/80 hover:bg-background/90 text-foreground text-[10px] font-semibold border backdrop-blur-sm px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
+                                        <Badge className="absolute top-3 left-3 bg-background/80 hover:bg-background/90 text-foreground text-[10px] font-semibold border backdrop-blur-sm px-2 py-0.5 rounded-full shadow-sm">
                                             {friend.role}
                                         </Badge>
                                     </div>
                                     <CardContent className="p-5 flex flex-col flex-1">
                                         <div className="mb-3">
-                                            <h3 className="text-lg font-bold text-foreground mb-1 line-clamp-1 group-hover:text-primary transition-colors">{friend.name}</h3>
+                                            <h3 className="text-lg font-semibold text-foreground mb-1 line-clamp-1 group-hover:text-primary">{friend.name}</h3>
                                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                                 <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
                                                 {friend.location}
@@ -423,38 +423,38 @@ export default function FriendsOfDzaleka() {
                                         <div className="mt-auto pt-4 flex items-center justify-between border-t border-muted/50">
                                             <div className="flex gap-2.5">
                                                 {friend.social.website && (
-                                                    <a href={friend.social.website} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" aria-label="Website">
+                                                    <a href={friend.social.website} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary" aria-label="Website">
                                                         <Globe className="h-3.5 w-3.5" />
                                                     </a>
                                                 )}
                                                 {friend.social.instagram && (
-                                                    <a href={friend.social.instagram} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" aria-label="Instagram">
+                                                    <a href={friend.social.instagram} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary" aria-label="Instagram">
                                                         <Instagram className="h-3.5 w-3.5" />
                                                     </a>
                                                 )}
                                                 {friend.social.twitter && (
-                                                    <a href={friend.social.twitter} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" aria-label="Twitter">
+                                                    <a href={friend.social.twitter} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary" aria-label="Twitter">
                                                         <Twitter className="h-3.5 w-3.5" />
                                                     </a>
                                                 )}
                                                 {friend.social.facebook && (
-                                                    <a href={friend.social.facebook} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" aria-label="Facebook">
+                                                    <a href={friend.social.facebook} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary" aria-label="Facebook">
                                                         <Facebook className="h-3.5 w-3.5" />
                                                     </a>
                                                 )}
                                                 {friend.social.linkedin && (
-                                                    <a href={friend.social.linkedin} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" aria-label="LinkedIn">
+                                                    <a href={friend.social.linkedin} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary" aria-label="LinkedIn">
                                                         <Linkedin className="h-3.5 w-3.5" />
                                                     </a>
                                                 )}
                                                 {friend.social.youtube && (
-                                                    <a href={friend.social.youtube} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" aria-label="YouTube">
+                                                    <a href={friend.social.youtube} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary" aria-label="YouTube">
                                                         <Youtube className="h-3.5 w-3.5" />
                                                     </a>
                                                 )}
                                             </div>
                                             <Link href={`/friends-of-dzaleka/${friend.slug}`}>
-                                                <Button variant="link" className="p-0 h-auto text-xs font-semibold text-primary hover:text-primary/80 transition-colors">
+                                                <Button variant="link" className="p-0 h-auto text-xs font-semibold text-primary hover:text-primary/80">
                                                     Read Story <ArrowRight className="ml-1 h-3 w-3" />
                                                 </Button>
                                             </Link>
@@ -512,7 +512,7 @@ export default function FriendsOfDzaleka() {
                 <section className="py-16 bg-muted/30" id="apply-form">
                     <div className="container mx-auto px-4 max-w-2xl">
                         <div className="text-center mb-8">
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2">Join Friends of Dzaleka</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold mb-2">Join Friends of Dzaleka</h2>
                             <p className="text-muted-foreground">If you'd like to take part, please fill out the form below.</p>
                         </div>
 

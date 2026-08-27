@@ -74,7 +74,7 @@ export default function PlanYourTrip() {
                 description="Essential guide for visiting Dzaleka Refugee Camp: 2026 Visa updates, safety advice, best time to visit, and cultural etiquette."
                 keywords="Dzaleka visa 2026, Malawi e-visa, Dzaleka safety, best time to visit Malawi, Dzaleka transport, refugee camp tourism"
                 canonical="https://visit.dzaleka.com/plan-your-trip"
-                ogImage="https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg"
+                ogImage="/images/Badre_Bahaji_Tumaini_festival21_-31-1.jpg"
             />
 
             <script
@@ -89,11 +89,11 @@ export default function PlanYourTrip() {
                 {/* Hero Section */}
                 <div className="relative py-20 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
                     <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full uppercase tracking-widest font-semibold flex items-center justify-center w-fit mx-auto">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full font-semibold flex items-center justify-center w-fit mx-auto">
                             <MapPin className="mr-2 h-3.5 w-3.5" />
                             Official Travel Guide
                         </Badge>
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6">
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6">
                             Plan Your Trip
                         </h1>
                         <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
@@ -116,13 +116,13 @@ export default function PlanYourTrip() {
                     {/* 1. Pre-Trip Essentials (Visas & Health) */}
                     <section>
                         <div className="flex items-center gap-3 mb-6">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-bold text-xl">1</div>
-                            <h2 className="text-3xl font-bold tracking-tight">Pre-Trip Essentials</h2>
+                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold text-xl">1</div>
+                            <h2 className="text-3xl font-semibold">Pre-Trip Essentials</h2>
                         </div>
                         <div className="grid md:grid-cols-2 gap-8">
                             <Card className="border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/20">
                                 <CardHeader className="pb-3">
-                                    <CardTitle className="text-xl font-bold flex items-center gap-2 text-amber-800 dark:text-amber-500">
+                                    <CardTitle className="text-xl font-semibold flex items-center gap-2 text-amber-800 dark:text-amber-500">
                                         <AlertTriangle className="h-5 w-5" />
                                         Visa Policy Update (Jan 2026)
                                     </CardTitle>
@@ -142,7 +142,7 @@ export default function PlanYourTrip() {
 
                             <Card>
                                 <CardHeader className="pb-3">
-                                    <CardTitle className="text-xl font-bold flex items-center gap-2">
+                                    <CardTitle className="text-xl font-semibold flex items-center gap-2">
                                         <Shield className="h-5 w-5 text-primary" />
                                         Health & Vaccines
                                     </CardTitle>
@@ -164,13 +164,13 @@ export default function PlanYourTrip() {
                     {/* 2. Pick Your Timing */}
                     <section>
                         <div className="flex items-center gap-3 mb-6">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-bold text-xl">2</div>
-                            <h2 className="text-3xl font-bold tracking-tight">Pick Your Timing</h2>
+                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold text-xl">2</div>
+                            <h2 className="text-3xl font-semibold">Pick Your Timing</h2>
                         </div>
                         <div className="grid md:grid-cols-3 gap-6">
                             <Card className="bg-primary/5 border-primary/20">
                                 <CardHeader className="pb-2">
-                                    <CardTitle className="text-lg font-bold flex items-center gap-2">
+                                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
                                         <Thermometer className="h-5 w-5 text-primary" />
                                         Best Time (May-Aug)
                                     </CardTitle>
@@ -183,7 +183,7 @@ export default function PlanYourTrip() {
                             </Card>
                             <Card>
                                 <CardHeader className="pb-2">
-                                    <CardTitle className="text-lg font-bold flex items-center gap-2">
+                                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
                                         <Thermometer className="h-5 w-5 text-amber-500" />
                                         Hot Season (Sep-Oct)
                                     </CardTitle>
@@ -196,7 +196,7 @@ export default function PlanYourTrip() {
                             </Card>
                             <Card>
                                 <CardHeader className="pb-2">
-                                    <CardTitle className="text-lg font-bold flex items-center gap-2">
+                                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
                                         <UmbrellaIcon className="h-5 w-5 text-blue-500" />
                                         Wet Season (Nov-Apr)
                                     </CardTitle>
@@ -213,14 +213,14 @@ export default function PlanYourTrip() {
                     {/* 3. Safety & Etiquette */}
                     <section>
                         <div className="flex items-center gap-3 mb-6">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-bold text-xl">3</div>
-                            <h2 className="text-3xl font-bold tracking-tight">Safety & Etiquette</h2>
+                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold text-xl">3</div>
+                            <h2 className="text-3xl font-semibold">Safety & Etiquette</h2>
                         </div>
                         <div className="space-y-6">
                             <div className="flex gap-4 items-start">
                                 <Shield className="h-6 w-6 text-primary shrink-0 mt-1" />
                                 <div>
-                                    <h3 className="text-xl font-bold">Safety First</h3>
+                                    <h3 className="text-xl font-semibold">Safety First</h3>
                                     <p className="text-muted-foreground text-sm leading-relaxed">
                                         Like many urban areas, petty crime exists. <strong>Do not display expensive electronics</strong> or large amounts of cash. When in Dzaleka, always stay with your guide—they know the community and ensure your safety. Stick to official paths and avoid the camp periphery after dark.
                                     </p>
@@ -229,7 +229,7 @@ export default function PlanYourTrip() {
                             <div className="flex gap-4 items-start">
                                 <Camera className="h-6 w-6 text-primary shrink-0 mt-1" />
                                 <div>
-                                    <h3 className="text-xl font-bold">Photography Rule</h3>
+                                    <h3 className="text-xl font-semibold">Photography Rule</h3>
                                     <p className="text-muted-foreground text-sm leading-relaxed">
                                         <strong>Ask before you snap.</strong> Many residents have fled persecution and fear having their location shared online. Only take photos of people who have given explicit verbal consent, and avoid photographing government buildings or the camp entrance police post.
                                     </p>
@@ -238,7 +238,7 @@ export default function PlanYourTrip() {
                             <div className="flex gap-4 items-start">
                                 <Tag className="h-6 w-6 text-primary shrink-0 mt-1" />
                                 <div>
-                                    <h3 className="text-xl font-bold">Booking a Guide</h3>
+                                    <h3 className="text-xl font-semibold">Booking a Guide</h3>
                                     <p className="text-muted-foreground mb-3">
                                         It is essential to book a local guide through our online portal. This ensures your visit is respectful, and your tour fees directly support camp residents.
                                     </p>
@@ -256,8 +256,8 @@ export default function PlanYourTrip() {
                     {/* 4. Logistics (Money & Transport) */}
                     <section>
                         <div className="flex items-center gap-3 mb-6">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-bold text-xl">4</div>
-                            <h2 className="text-3xl font-bold tracking-tight">Logistics: Money & Transport</h2>
+                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold text-xl">4</div>
+                            <h2 className="text-3xl font-semibold">Logistics: Money & Transport</h2>
                         </div>
                         <div className="grid md:grid-cols-2 gap-6">
                             <Card className="bg-muted/30">
@@ -302,13 +302,13 @@ export default function PlanYourTrip() {
                     {/* 5. Packing Smart */}
                     <section>
                         <div className="flex items-center gap-3 mb-6">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-bold text-xl">5</div>
-                            <h2 className="text-3xl font-bold tracking-tight">Packing Smart</h2>
+                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold text-xl">5</div>
+                            <h2 className="text-3xl font-semibold">Packing Smart</h2>
                         </div>
                         <div className="grid md:grid-cols-2 gap-8">
                             <Card>
                                 <CardHeader className="pb-3">
-                                    <CardTitle className="text-lg font-bold flex items-center gap-2">
+                                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
                                         <Briefcase className="h-5 w-5 text-primary" />
                                         Clothing & Essentials
                                     </CardTitle>
@@ -324,7 +324,7 @@ export default function PlanYourTrip() {
                             </Card>
                             <Card>
                                 <CardHeader className="pb-3">
-                                    <CardTitle className="text-lg font-bold flex items-center gap-2">
+                                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
                                         <Zap className="h-5 w-5 text-primary" />
                                         Tech & Health
                                     </CardTitle>
@@ -344,25 +344,25 @@ export default function PlanYourTrip() {
                     {/* 6. Contact & Booking Links */}
                     <section className="bg-primary/5 rounded-2xl p-8 md:p-12 text-center mt-12">
                         <div className="flex items-center justify-center gap-3 mb-6">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary text-primary-foreground font-bold text-xl">6</div>
-                            <h2 className="text-3xl font-bold tracking-tight">Ready to Visit?</h2>
+                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary text-primary-foreground font-semibold text-xl">6</div>
+                            <h2 className="text-3xl font-semibold">Ready to Visit?</h2>
                         </div>
                         <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
                             <Button asChild size="lg" className="h-auto py-4 flex flex-col gap-1">
                                 <Link href="/login">
-                                    <span className="font-bold text-lg">Book Official Tour</span>
+                                    <span className="font-semibold text-lg">Book Official Tour</span>
                                     <span className="text-xs opacity-90 font-normal">Secure your guide</span>
                                 </Link>
                             </Button>
                             <Button asChild variant="secondary" size="lg" className="h-auto py-4 flex flex-col gap-1">
                                 <a href="https://tumainiletu.org/the-dzaleka-homestay-program/" target="_blank" rel="noopener noreferrer">
-                                    <span className="font-bold text-lg">Book Homestay</span>
+                                    <span className="font-semibold text-lg">Book Homestay</span>
                                     <span className="text-xs opacity-75 font-normal">Stay overnight</span>
                                 </a>
                             </Button>
                             <Button asChild variant="outline" size="lg" className="h-auto py-4 flex flex-col gap-1">
                                 <a href="https://tumainiletu.org/" target="_blank" rel="noopener noreferrer">
-                                    <span className="font-bold text-lg">Festival Updates</span>
+                                    <span className="font-semibold text-lg">Festival Updates</span>
                                     <span className="text-xs opacity-75 font-normal">Tumaini Official Site</span>
                                 </a>
                             </Button>

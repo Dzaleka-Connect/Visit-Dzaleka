@@ -5,9 +5,17 @@ import fs from "fs/promises";
 import { createApp } from "../server/app";
 import { serveStatic } from "../server/static";
 import { friends } from "../client/src/data/friends";
+import { buildRedirects } from "./lib/redirects";
+import { htmlToMarkdown } from "./lib/html-to-markdown";
+import { parseHTML } from "linkedom";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+/** Content detail pages, which carry less body text than a marketing page. */
+function isDynamicDetailRoute(route: string): boolean {
+    return /^\/(blog|whats-on|friends-of-dzaleka|impact-report|community-hub)\/.+/.test(route);
+}
 
 const FRIEND_ROUTES = friends.map((friend) => `/friends-of-dzaleka/${encodeURIComponent(friend.slug)}`);
 
@@ -41,6 +49,16 @@ const STATIC_ROUTES = [
     "/impact-report/2025",
     "/cookie-notice",
     "/disclaimer",
+    "/privacy",
+    "/developers",
+    "/things-to-do/dzaleka-refugee-camp-guided-walking-tour",
+    "/things-to-do/nature-outdoors",
+    "/things-to-do/dining-nightlife",
+    "/plan-your-trip/safe-travel",
+    "/plan-your-trip/public-holidays",
+    "/plan-your-trip/dzaleka-map",
+    "/plan-your-trip/transport",
+    "/newsletter",
 ];
 
 function sitemapEntry(route: string) {
@@ -93,6 +111,11 @@ async function appendRoutesToSitemap(publicDir: string, routes: string[]) {
 async function prerender() {
     console.log("Starts pre-rendering...");
 
+    // The crawler must be able to execute the app's own scripts, or every page is
+    // captured as an unhydrated shell. The generated HTML is served by the CDN,
+    // which applies the real security headers.
+    process.env.PRERENDER_DISABLE_CSP = "1";
+
     // 1. Start the server
     // We need to serve from dist/public, assuming build is done.
     const { app, httpServer } = await createApp();
@@ -142,6 +165,9 @@ async function prerender() {
     // Combine static and dynamic routes
     const allRoutes = [...STATIC_ROUTES, ...dynamicRoutes];
     const failedRoutes: string[] = [];
+    // Routes that rendered but produced too little text to be useful to a
+    // crawler. Reported at the end so a regression is visible in the build log.
+    const contentThin: string[] = [];
 
     // 3. Launch Puppeteer
     const browser = await puppeteer.launch({
@@ -169,15 +195,39 @@ async function prerender() {
                 console.log(`  Note: App root was not confirmed for ${route}`);
             });
 
-            // Wait for react-helmet to update the head tags
-            // This ensures SEO meta tags are properly captured
+            // Wait for the page to actually render its content, not just mount.
+            //
+            // The previous condition short-circuited on `pathname === '/'`, so the
+            // homepage was snapshotted while `useAuth()` was still pending and the
+            // router was showing a loading skeleton. The result was a ~7KB shell
+            // with no <h1> — which is what made the homepage look empty to
+            // crawlers that do not execute JavaScript.
+            // Event and blog detail pages are legitimately short, so they get a
+            // lower bar than the marketing pages. The homepage is held to the
+            // highest bar because it is what most crawlers sample.
+            const minimumText = route === "/" ? 800 : isDynamicDetailRoute(route) ? 250 : 500;
+
+            // textContent, not innerText: innerText forces a full layout pass on
+            // every poll, which on these long image-heavy pages cost seconds per
+            // check and dominated the build. textContent needs no layout, and for
+            // a length threshold the difference does not matter.
+            const rendered = await page.waitForFunction((minChars: number) => {
+                const main = document.querySelector("main") || document.querySelector("#root");
+                if (!main) return false;
+                const text = (main.textContent ?? "").trim();
+                return !!document.querySelector("h1") && text.length > minChars;
+            }, { timeout: 12000, polling: 500 }, minimumText).then(() => true).catch(() => false);
+
+            if (!rendered) {
+                console.warn(`  Warning: ${route} rendered no <h1> or under 500 characters.`);
+                contentThin.push(route);
+            }
+
+            // Wait for react-helmet to settle the head tags so per-page SEO is captured.
             await page.waitForFunction(() => {
-                const title = document.querySelector('title');
                 const ogUrl = document.querySelector('meta[property="og:url"]')?.getAttribute("content");
-                // Check if helmet has updated the title (won't be just the default)
-                return (title && !title.textContent?.includes('Visit Dzaleka - Cultural Tours & Experiences') && !!ogUrl) ||
-                    // Or if it's the landing page, the default is fine
-                    window.location.pathname === '/' || window.location.pathname === '/landing';
+                const canonical = document.querySelector('link[rel="canonical"]')?.getAttribute("href");
+                return !!ogUrl || !!canonical;
             }, { timeout: 10000 }).catch(() => {
                 console.log(`  Note: Using default SEO for ${route}`);
             });
@@ -203,6 +253,30 @@ async function prerender() {
             await fs.writeFile(outputPath, content);
             console.log(`Generated ${outputPath}`);
 
+            // Markdown twin, served by the Netlify edge function when a caller
+            // sends `Accept: text/markdown`.
+            const meta = await page.evaluate(() => ({
+                title: document.title || "",
+                description:
+                    document.querySelector('meta[name="description"]')?.getAttribute("content") || "",
+                main: (document.querySelector("main") || document.body)?.outerHTML || "",
+            }));
+
+            if (meta.main) {
+                const { document: parsed } = parseHTML(`<body>${meta.main}</body>`);
+                const rootEl = parsed.querySelector("main") || parsed.body;
+                const markdown = htmlToMarkdown(rootEl as any, {
+                    title: meta.title.replace(/\s*\|\s*Visit Dzaleka\s*$/, "").trim() || "Visit Dzaleka",
+                    description: meta.description,
+                    canonicalUrl: `https://visit.dzaleka.com${route === "/" ? "" : route}`,
+                });
+                const markdownPath = route === "/"
+                    ? join(publicDir, "md", "index.md")
+                    : join(publicDir, "md", `${route.replace(/^\//, "")}.md`);
+                await fs.mkdir(dirname(markdownPath), { recursive: true });
+                await fs.writeFile(markdownPath, markdown);
+            }
+
             await page.close();
         } catch (err) {
             console.error(`Failed to prerender ${route}:`, err);
@@ -219,7 +293,22 @@ async function prerender() {
         process.exit(1);
     }
 
+    if (contentThin.length > 0) {
+        console.warn(`Thin content on ${contentThin.length} route(s): ${contentThin.join(", ")}`);
+        // The homepage carrying real text is the difference between an AI crawler
+        // seeing the site and seeing an empty shell, so treat it as fatal.
+        if (contentThin.includes("/")) {
+            console.error("The homepage prerendered without meaningful content. Failing the build.");
+            process.exit(1);
+        }
+    }
+
     await appendRoutesToSitemap(publicDir, allRoutes);
+
+    // Netlify routing table. Written here because only now do we know every
+    // published blog post and event, which decides what may answer 200.
+    await fs.writeFile(join(publicDir, "_redirects"), buildRedirects({ prerenderedRoutes: allRoutes }));
+    console.log(`Wrote _redirects for ${allRoutes.length} known route(s).`);
 
     console.log("Pre-rendering complete.");
     process.exit(0);

@@ -1,6 +1,7 @@
 import { startTransition, useState, useEffect } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { usePricing } from "@/hooks/usePricing";
 import {
   Plus,
   Calendar,
@@ -598,6 +599,7 @@ function TransportDetailsCard({
 
 
 export default function MyBookings() {
+  const { pricing, price } = usePricing();
   const { toast } = useToast();
   const { user } = useAuth();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -1548,8 +1550,8 @@ export default function MyBookings() {
                         <SelectValue placeholder="Select tour type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="standard">Standard Tour (2 hours) - MWK 15,000</SelectItem>
-                        <SelectItem value="extended">Extended Tour (3-4 hours) - MWK 25,000</SelectItem>
+                        <SelectItem value="standard">Standard Tour (2 hours) - {price("individual")}</SelectItem>
+                        <SelectItem value="extended">Extended Tour (3-4 hours) - MWK {(pricing.individual + pricing.additional_hour * 2).toLocaleString("en-US")}</SelectItem>
                         <SelectItem value="custom">Custom Tour - Contact for pricing</SelectItem>
                       </SelectContent>
                     </Select>

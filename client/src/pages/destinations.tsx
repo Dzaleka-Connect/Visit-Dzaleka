@@ -171,10 +171,10 @@ export default function Destinations() {
                         </Button>
 
                         <div className="max-w-3xl">
-                            <Badge variant="outline" className="mb-4 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full uppercase tracking-widest font-semibold">
+                            <Badge variant="outline" className="mb-4 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full font-semibold">
                                 Explore the Camp
                             </Badge>
-                            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-6">
+                            <h1 className="text-4xl md:text-5xl font-semibold mb-6">
                                 Destinations in Dzaleka
                             </h1>
                             <p className="text-xl text-muted-foreground leading-relaxed">
@@ -188,7 +188,7 @@ export default function Destinations() {
                 {/* Featured Destinations */}
                 <section className="py-16">
                     <div className="container mx-auto px-4">
-                        <h2 className="text-2xl md:text-3xl font-bold tracking-tight mb-2">Featured Destinations</h2>
+                        <h2 className="text-2xl md:text-3xl font-semibold mb-2">Featured Destinations</h2>
                         <p className="text-muted-foreground mb-8">Key areas to explore during your visit</p>
 
                         <div className="grid gap-6 md:grid-cols-3">
@@ -226,7 +226,7 @@ export default function Destinations() {
                 {/* All Zones */}
                 <section className="py-16 bg-muted/30">
                     <div className="container mx-auto px-4">
-                        <h2 className="text-2xl md:text-3xl font-bold tracking-tight mb-2">All Zones</h2>
+                        <h2 className="text-2xl md:text-3xl font-semibold mb-2">All Zones</h2>
                         <p className="text-muted-foreground mb-8">Complete list of neighborhoods in Dzaleka</p>
 
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -254,7 +254,7 @@ export default function Destinations() {
                     <div className="container mx-auto px-4">
                         <Card className="bg-primary/5 border-primary/20">
                             <CardContent className="p-8 md:p-12 text-center">
-                                <h2 className="text-2xl md:text-3xl font-bold mb-4">Ready to Explore?</h2>
+                                <h2 className="text-2xl md:text-3xl font-semibold mb-4">Ready to Explore?</h2>
                                 <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
                                     Book a guided tour with a local guide who can take you through these destinations
                                     and share the stories, culture, and daily life of each neighborhood.

@@ -82,11 +82,11 @@ export default function DiningNightlife() {
                     />
                     <div className="absolute inset-0 bg-black/60" />
                     <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-white/30 bg-white/10 text-white rounded-full uppercase tracking-widest font-semibold flex items-center justify-center w-fit mx-auto backdrop-blur-sm">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-white/30 bg-white/10 text-white rounded-full font-semibold flex items-center justify-center w-fit mx-auto backdrop-blur-sm">
                             <Utensils className="mr-2 h-3.5 w-3.5" />
                             Culinary Journey
                         </Badge>
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6 text-white">
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6 text-white">
                             Dining & Nightlife
                         </h1>
                         <p className="text-lg md:text-xl text-white/90 leading-relaxed max-w-2xl mx-auto drop-shadow-sm">
@@ -100,7 +100,7 @@ export default function DiningNightlife() {
                     {/* Dining Options */}
                     <section>
                         <div className="text-center max-w-3xl mx-auto mb-16">
-                            <h2 className="text-3xl font-bold tracking-tight mb-6">A Fusion of Flavors</h2>
+                            <h2 className="text-3xl font-semibold mb-6">A Fusion of Flavors</h2>
                             <p className="text-muted-foreground text-lg leading-relaxed">
                                 The camp's culinary scene is a unique fusion of cuisines from across Africa, including Burundi, Rwanda, the Democratic Republic of Congo, Somalia, and Ethiopia.
                             </p>
@@ -113,7 +113,7 @@ export default function DiningNightlife() {
                                         <div className="h-12 w-12 rounded-xl bg-orange-100 dark:bg-orange-900/20 text-orange-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                                             <item.icon className="h-6 w-6" />
                                         </div>
-                                        <h3 className="text-xl font-bold group-hover:text-primary transition-colors">{item.title}</h3>
+                                        <h3 className="text-xl font-semibold group-hover:text-primary">{item.title}</h3>
                                         <p className="text-muted-foreground leading-relaxed">
                                             {item.description}
                                         </p>
@@ -126,7 +126,7 @@ export default function DiningNightlife() {
                     {/* Nightlife */}
                     <section className="bg-muted/30 py-16 rounded-3xl -mx-4 px-4 md:mx-0 md:px-12">
                         <div className="text-center max-w-3xl mx-auto mb-16">
-                            <h2 className="text-3xl font-bold tracking-tight mb-6">Nightlife & Entertainment</h2>
+                            <h2 className="text-3xl font-semibold mb-6">Nightlife & Entertainment</h2>
                             <p className="text-muted-foreground text-lg leading-relaxed">
                                 As the sun sets, social life extends into the evenings. Nightlife in Dzaleka is centered around social gathering spots, sports, and cultural events.
                             </p>
@@ -143,7 +143,7 @@ export default function DiningNightlife() {
                                         </div>
                                     </div>
                                     <div>
-                                        <h3 className="text-xl font-bold mb-2">{item.title}</h3>
+                                        <h3 className="text-xl font-semibold mb-2">{item.title}</h3>
                                         <p className="text-muted-foreground leading-relaxed">
                                             {item.description}
                                         </p>
@@ -155,7 +155,7 @@ export default function DiningNightlife() {
 
                     {/* CTA */}
                     <section className="text-center space-y-8">
-                        <h2 className="text-3xl font-bold">Taste the Culture</h2>
+                        <h2 className="text-3xl font-semibold">Taste the Culture</h2>
                         <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
                             Want to know the best spots for authentic Ethiopian coffee or local BBQ? Our guides live here and can show you the culinary gems hidden in Dzaleka.
                         </p>

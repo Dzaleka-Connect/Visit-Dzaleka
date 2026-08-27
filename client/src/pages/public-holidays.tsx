@@ -93,7 +93,7 @@ export default function PublicHolidays() {
                     </div>
                     <div className="relative container mx-auto h-full flex items-center justify-center text-center text-white">
                         <div className="max-w-2xl px-4 animate-fade-up">
-                            <h1 className="text-4xl md:text-6xl font-bold mb-4">
+                            <h1 className="text-4xl md:text-6xl font-semibold mb-4">
                                 Public Holidays
                             </h1>
                             <p className="text-lg md:text-xl text-gray-200">
@@ -106,7 +106,7 @@ export default function PublicHolidays() {
                 <div className="container mx-auto py-12 space-y-12">
                     {/* Intro Section */}
                     <div className="max-w-3xl mx-auto text-center space-y-4">
-                        <h2 className="text-3xl font-bold text-foreground">
+                        <h2 className="text-3xl font-semibold text-foreground">
                             Community Calendar
                         </h2>
                         <p className="text-lg text-muted-foreground">
@@ -123,12 +123,12 @@ export default function PublicHolidays() {
                             <div className="p-2 rounded-lg bg-primary/10 text-primary">
                                 <Calendar className="w-6 h-6" />
                             </div>
-                            <h2 className="text-2xl font-bold">Malawi National Holidays</h2>
+                            <h2 className="text-2xl font-semibold">Malawi National Holidays</h2>
                         </div>
 
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                             {holidays.map((holiday, index) => (
-                                <Card key={index} className="border-border hover:border-primary/50 transition-colors">
+                                <Card key={index} className="border-border hover:border-primary/50">
                                     <CardHeader className="pb-2">
                                         <CardTitle className="text-lg font-semibold text-primary">
                                             {holiday.date}
@@ -162,7 +162,7 @@ export default function PublicHolidays() {
                             <div className="p-2 rounded-lg bg-primary/10 text-primary">
                                 <Calendar className="w-6 h-6" />
                             </div>
-                            <h2 className="text-2xl font-bold">Significant Camp Observances</h2>
+                            <h2 className="text-2xl font-semibold">Significant Camp Observances</h2>
                         </div>
 
                         <div className="grid gap-6 md:grid-cols-2">
@@ -202,7 +202,7 @@ export default function PublicHolidays() {
 
                     {/* Important Notes */}
                     <div className="bg-card border border-border rounded-xl p-8 space-y-4">
-                        <h3 className="text-xl font-bold flex items-center gap-2">
+                        <h3 className="text-xl font-semibold flex items-center gap-2">
                             <Info className="w-5 h-5 text-primary" />
                             Visitor Note: Movement Restrictions
                         </h3>

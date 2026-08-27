@@ -1,7 +1,17 @@
 # Robots.txt for visit.dzaleka.com
+#
+# Agent guidance:  https://visit.dzaleka.com/llms.txt
+# API description: https://visit.dzaleka.com/openapi.json
+# Developer docs:  https://visit.dzaleka.com/developers
+#
+# Note on precedence: where an Allow and a Disallow both match, the longer rule
+# wins. Several Allow rules below exist to carve a public path out of a broader
+# Disallow (for example /developers out of /developer).
 
 User-agent: *
 Allow: /
+
+# Public content
 Allow: /blog
 Allow: /things-to-do
 Allow: /accommodation
@@ -10,10 +20,34 @@ Allow: /plan-your-trip
 Allow: /plan-your-trip/transport
 Allow: /login
 Allow: /about-dzaleka
+Allow: /about-us
 Allow: /life-in-dzaleka
 Allow: /destinations
+Allow: /contact
+Allow: /privacy
+Allow: /faq
 
-# Disallow admin and internal pages
+# Machine-readable files and developer documentation.
+# These must stay crawlable: they are how an agent discovers the API.
+Allow: /llms.txt
+Allow: /openapi.json
+Allow: /sitemap.xml
+Allow: /.well-known/
+Allow: /developers
+Allow: /md/
+
+# Public, unauthenticated API. The rest of /api/ is session- or key-protected
+# and is disallowed below.
+Allow: /api$
+Allow: /api/public/
+Allow: /api/blog
+Allow: /api/community/
+Allow: /api/openapi.json
+
+# The community hub is public; /community is a redirect to another property.
+Allow: /community-hub
+
+# Disallow authenticated and internal surfaces
 Disallow: /api/
 Disallow: /dashboard
 Disallow: /settings

@@ -10,7 +10,8 @@ const Card = React.forwardRef<
     ref={ref}
     className={cn(
       "group shadcn-card min-w-0 rounded-xl border border-border/60 bg-card text-card-foreground shadow-sm",
-      "transition-[border-color,box-shadow,transform] duration-150 ease-out",
+      // hover colour changes are immediate; only shadow/transform animate
+      "transition-[box-shadow,transform] duration-150 ease-out",
       "hover:shadow-md hover:border-border",
       className
     )}

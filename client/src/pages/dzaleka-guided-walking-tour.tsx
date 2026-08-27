@@ -1,3 +1,4 @@
+import { usePricing, type PricingMap } from "@/hooks/usePricing";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -53,10 +54,10 @@ const highlights = [
 ];
 
 const options = [
-  { title: "Individual", price: "MWK 15,000", detail: "One visitor, personal pace" },
-  { title: "Small group", price: "MWK 50,000", detail: "2-5 visitors" },
-  { title: "Medium group", price: "MWK 80,000", detail: "6-10 visitors" },
-  { title: "Large group", price: "MWK 100,000", detail: "10+ visitors or organizations" },
+  { title: "Individual", key: "individual" as const, detail: "One visitor, personal pace" },
+  { title: "Small group", key: "small_group" as const, detail: "2-5 visitors" },
+  { title: "Medium group", key: "large_group" as const, detail: "6-10 visitors" },
+  { title: "Large group", key: "custom" as const, detail: "10+ visitors or organizations" },
 ];
 
 const includes = [
@@ -78,7 +79,7 @@ const beforeYouGo = [
   "Duration: 2-3 hours.",
 ];
 
-const tourStructuredData = {
+const baseTourStructuredData = (pricing: PricingMap) => ({
   "@context": "https://schema.org",
   "@graph": [
     {
@@ -116,7 +117,7 @@ const tourStructuredData = {
         {
           "@type": "Offer",
           "name": "Individual guided walking tour",
-          "price": "15000",
+          "price": String(pricing.individual),
           "priceCurrency": "MWK",
           "availability": "https://schema.org/InStock",
           "priceValidUntil": "2026-12-31",
@@ -126,7 +127,7 @@ const tourStructuredData = {
         {
           "@type": "Offer",
           "name": "Small group guided walking tour",
-          "price": "50000",
+          "price": String(pricing.small_group),
           "priceCurrency": "MWK",
           "availability": "https://schema.org/InStock",
           "priceValidUntil": "2026-12-31",
@@ -136,7 +137,7 @@ const tourStructuredData = {
         {
           "@type": "Offer",
           "name": "Medium group guided walking tour",
-          "price": "80000",
+          "price": String(pricing.large_group),
           "priceCurrency": "MWK",
           "availability": "https://schema.org/InStock",
           "priceValidUntil": "2026-12-31",
@@ -146,7 +147,7 @@ const tourStructuredData = {
         {
           "@type": "Offer",
           "name": "Large group guided walking tour",
-          "price": "100000",
+          "price": String(pricing.custom),
           "priceCurrency": "MWK",
           "availability": "https://schema.org/InStock",
           "priceValidUntil": "2026-12-31",
@@ -156,10 +157,10 @@ const tourStructuredData = {
       ]
     }
   ]
-};
+});
 
-function buildTourStructuredData(reviews: PublicReview[]) {
-  const structuredData = JSON.parse(JSON.stringify(tourStructuredData)) as Record<string, any>;
+function buildTourStructuredData(reviews: PublicReview[], pricing: PricingMap) {
+  const structuredData = JSON.parse(JSON.stringify(baseTourStructuredData(pricing))) as Record<string, any>;
   const product = (structuredData["@graph"] as Array<Record<string, any>>).find(
     (item) => item["@id"] === `${tourUrl}#tour`
   );
@@ -223,6 +224,7 @@ function reviewStars(rating?: number | null) {
 }
 
 export default function DzalekaGuidedWalkingTour() {
+  const { pricing, price } = usePricing();
   const { data: specialOffers = [] } = useQuery<SpecialOffer[]>({
     queryKey: ["/api/public/special-offers"],
   });
@@ -231,7 +233,7 @@ export default function DzalekaGuidedWalkingTour() {
   });
 
   const featuredOffer = specialOffers[0];
-  const structuredData = buildTourStructuredData(publicReviews);
+  const structuredData = buildTourStructuredData(publicReviews, pricing);
 
   return (
     <div className="min-h-screen bg-background">
@@ -260,7 +262,7 @@ export default function DzalekaGuidedWalkingTour() {
                 <Badge className="bg-white text-foreground hover:bg-white">Official Visit Dzaleka listing</Badge>
                 <Badge variant="outline" className="border-white/50 bg-black/20 text-white">Guided walking tour</Badge>
               </div>
-              <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
+              <h1 className="text-4xl font-semibold sm:text-5xl lg:text-6xl">
                 Dzaleka Refugee Camp Guided Walking Tour
               </h1>
               <p className="mt-5 max-w-2xl text-lg leading-relaxed text-white/90">
@@ -533,7 +535,7 @@ export default function DzalekaGuidedWalkingTour() {
                         <div className="font-semibold">{option.title}</div>
                         <div className="text-sm text-muted-foreground">{option.detail}</div>
                       </div>
-                      <div className="text-right font-bold">{option.price}</div>
+                      <div className="text-right font-semibold">{price(option.key)}</div>
                     </div>
                   </div>
                 ))}

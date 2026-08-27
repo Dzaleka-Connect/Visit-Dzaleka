@@ -67,7 +67,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
 
 const HERO_IMAGE =
-  "https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg";
+  "/images/Website-Entrepreneurship-and-innovation-2048x1536.jpg";
 
 const defaultListingValues: InsertCommunityListing = {
   name: "",
@@ -375,7 +375,7 @@ export default function CommunityHub() {
               <Badge className="mb-3 bg-white/15 text-white hover:bg-white/20">
                 Community listings
               </Badge>
-              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+              <h1 className="text-3xl font-semibold sm:text-4xl lg:text-5xl">
                 Support Dzaleka makers, businesses, and projects
               </h1>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-white/85 sm:text-base">
@@ -670,7 +670,7 @@ export default function CommunityHub() {
         <section id="community-directory" className="container mx-auto scroll-mt-20 px-4 py-8 sm:py-12">
           <div className="mb-6 flex flex-col gap-4 border-b pb-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
-              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Community Directory</h2>
+              <h2 className="text-2xl font-semibold sm:text-3xl">Community Directory</h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
                 Browse approved listings and contact hosts directly. Availability, prices, and supply needs may change, so confirm details before your visit.
               </p>
@@ -827,7 +827,7 @@ export default function CommunityHub() {
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 max-w-2xl">
                 <Badge variant="outline" className="mb-3">Using the directory</Badge>
-                <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Know what happens next</h2>
+                <h2 className="text-xl font-semibold sm:text-2xl">Know what happens next</h2>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   The hub is a public directory, not an instant marketplace. Listings help visitors and providers connect, then details are confirmed directly or with support from Visit Dzaleka.
                 </p>

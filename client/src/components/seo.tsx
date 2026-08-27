@@ -1,4 +1,5 @@
 import { Helmet } from "react-helmet-async";
+import { usePricing } from "@/hooks/usePricing";
 
 interface SEOProps {
   title: string;
@@ -50,6 +51,7 @@ export function SEO({
   section,
   tags = [],
 }: SEOProps) {
+  const { pricing, priceValue } = usePricing();
   const defaultDescription = "Book a guided visit to Dzaleka Refugee Camp in Malawi. Meet local guides, artists, entrepreneurs, and community groups while supporting refugee-led work.";
   const defaultOgImage = "https://services.dzaleka.com/images/Visit_Dzaleka.png";
   const fullDescription = description || defaultDescription;
@@ -101,7 +103,7 @@ export function SEO({
         "availableLanguage": ["English", "French", "Swahili"],
         "tourBookingPage": "https://visit.dzaleka.com",
         "isAccessibleForFree": false,
-        "priceRange": "MWK 15,000 - MWK 80,000",
+        "priceRange": `MWK ${pricing.individual.toLocaleString("en-US")} - MWK ${pricing.large_group.toLocaleString("en-US")}`,
         "currenciesAccepted": "MWK",
         "paymentAccepted": "Cash, Mobile Money, Bank Transfer",
         "hasOfferCatalog": {
@@ -112,7 +114,7 @@ export function SEO({
               "@type": "Offer",
               "@id": "https://visit.dzaleka.com/#offer-individual-tour",
               "name": "Solo Explorer Tour",
-              "price": "15000",
+              "price": priceValue("individual"),
               "priceCurrency": "MWK",
               "availability": "https://schema.org/InStock",
               "url": "https://visit.dzaleka.com/login",
@@ -127,7 +129,7 @@ export function SEO({
               "@type": "Offer",
               "@id": "https://visit.dzaleka.com/#offer-small-group-tour",
               "name": "Small Group Tour",
-              "price": "50000",
+              "price": priceValue("small_group"),
               "priceCurrency": "MWK",
               "availability": "https://schema.org/InStock",
               "url": "https://visit.dzaleka.com/login",
@@ -142,7 +144,7 @@ export function SEO({
               "@type": "Offer",
               "@id": "https://visit.dzaleka.com/#offer-medium-group-tour",
               "name": "Medium Group Tour",
-              "price": "80000",
+              "price": priceValue("large_group"),
               "priceCurrency": "MWK",
               "availability": "https://schema.org/InStock",
               "url": "https://visit.dzaleka.com/login",
@@ -217,6 +219,50 @@ export function SEO({
             "name": "Tour Booking"
           }
         }
+      },
+      {
+        // Standalone Organization node so every page carries a verifiable
+        // identity: name, description, url, logo, contactPoint and address.
+        "@type": "Organization",
+        "@id": "https://visit.dzaleka.com/#organization",
+        "name": "Visit Dzaleka",
+        "legalName": "Dzaleka Connect",
+        "description": "Visit Dzaleka arranges resident-led guided tours of Dzaleka Refugee Camp in Dowa District, Malawi, and publishes practical travel information for visitors. Tour fees pay local guides and fund community-led work.",
+        "url": "https://visit.dzaleka.com",
+        "logo": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png",
+        "image": "https://services.dzaleka.com/images/Visit_Dzaleka.png",
+        "email": "contact@mail.dzaleka.com",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "Dzaleka Refugee Camp",
+          "addressLocality": "Dowa",
+          "addressRegion": "Central Region",
+          "addressCountry": "MW"
+        },
+        "contactPoint": [
+          {
+            "@type": "ContactPoint",
+            "contactType": "customer support",
+            "email": "contact@mail.dzaleka.com",
+            "url": "https://visit.dzaleka.com/contact",
+            "availableLanguage": ["English", "French", "Swahili", "Chichewa"],
+            "areaServed": "MW"
+          },
+          {
+            "@type": "ContactPoint",
+            "contactType": "technical support",
+            "email": "contact@mail.dzaleka.com",
+            "url": "https://visit.dzaleka.com/developers",
+            "availableLanguage": ["English"]
+          }
+        ],
+        "sameAs": [
+          "https://www.facebook.com/dzalekaonline/",
+          "https://www.instagram.com/dzalekaonline/",
+          "https://twitter.com/dzalekaconnect",
+          "https://www.linkedin.com/company/dzalekaconnect/",
+          "https://www.tiktok.com/@dzaleka"
+        ]
       },
       {
         "@type": "ItemList",

@@ -12,6 +12,8 @@ import connectPgSimple from "connect-pg-simple";
 import { requestIdMiddleware } from "./middleware/requestId";
 import { createCsrfMiddleware } from "./middleware/csrf";
 import { getSessionCookieOptions, getSessionSecret, SESSION_COOKIE_NAME } from "./auth";
+import { registerAgentRoutes, apiNotFoundHandler, apiErrorHandler } from "./agent";
+import { cspOption } from "./csp";
 
 // Export log function so it can be used here
 export function log(message: string, source = "express") {
@@ -67,9 +69,10 @@ export async function createApp() {
   // Trust the immediate hosting proxy for secure cookies and rate-limit IP parsing.
   app.set("trust proxy", 1);
 
-  // Security headers
+  // Security headers. The CSP lives in ./csp so it can be tested directly;
+  // see that file for why helmet's default policy could not be used.
   app.use(helmet({
-    contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+    contentSecurityPolicy: cspOption(process.env),
     crossOriginEmbedderPolicy: false,
   }));
 
@@ -229,7 +232,16 @@ export async function createApp() {
     next();
   });
 
+  // Discovery headers, /openapi.json, /.well-known/api-catalog and the /api index.
+  // Registered before the feature routes so nothing shadows them.
+  registerAgentRoutes(app);
+
   await registerRoutes(httpServer, app);
+
+  // Structured 404 + error responses for /api. These live here rather than in
+  // server/index.ts because the Netlify function only ever calls createApp().
+  app.use(apiNotFoundHandler);
+  app.use(apiErrorHandler);
 
   return { app, httpServer };
 }

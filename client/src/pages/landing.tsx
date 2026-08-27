@@ -35,6 +35,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SiteFooter } from "@/components/site-footer";
 import { PublicHeader } from "@/components/public-header";
 import { TRANSPORT_PARTNERS } from "@/lib/transport";
+import { usePricing } from "@/hooks/usePricing";
 
 const guidedTourPath = "/things-to-do/dzaleka-refugee-camp-guided-walking-tour";
 const guidedTourOptionsPath = `${guidedTourPath}#tour-options`;
@@ -113,29 +114,29 @@ const testimonials = [
 
 const pricing = [
   {
+    key: "individual" as const,
     title: "Individual",
-    price: "MWK 15,000",
     description: "A one-on-one visit shaped around your interests, with time for questions and a slower pace.",
     features: ["Personal itinerary", "Dedicated local guide", "Flexible pace", "1-on-1 conversation"],
     highlight: false
   },
   {
+    key: "small_group" as const,
     title: "Small Group",
-    price: "MWK 50,000",
     description: "For couples, families, or small teams of 2-5 people who want a shared visit that still feels personal.",
     features: ["Interactive tour", "Experienced guide", "Family-friendly", "Shared visit"],
     highlight: true
   },
   {
+    key: "large_group" as const,
     title: "Medium Group",
-    price: "MWK 80,000",
     description: "For groups of 6-10 people, with enough structure to keep the visit clear and manageable.",
     features: ["Structured route", "Senior guide", "Good for mixed ages", "Custom focus options"],
     highlight: false
   },
   {
+    key: "custom" as const,
     title: "Large Group",
-    price: "MWK 100,000",
     description: "For schools, organizations, or delegations of 10+ people, with extra coordination and guide support.",
     features: ["Logistics support", "Multiple guides", "Educational focus", "Q&A and debrief"],
     highlight: false
@@ -191,7 +192,7 @@ const dzalekaHighlights = [
   {
     title: "Arts & Culture Guide",
     description: "From Tumaini Festival to local theater groups",
-    image: "https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg",
+    image: "/images/Website-Entrepreneurship-and-innovation-2048x1536.jpg",
     link: "/things-to-do/arts-culture"
   },
   {
@@ -238,6 +239,7 @@ const featuredExperiences = [
 ];
 
 export default function Landing() {
+  const { price } = usePricing();
   const { data: content } = useQuery<Record<string, string>>({
     queryKey: ["/api/content"],
     staleTime: 10 * 1000, // Consider stale after 10 seconds
@@ -279,8 +281,8 @@ export default function Landing() {
     <div className="min-h-screen bg-background flex flex-col">
       <SEO
         title="Book Cultural Tours | Dzaleka Refugee Camp"
-        description="Book a guided visit to Dzaleka Refugee Camp in Malawi. Meet local guides, artists, entrepreneurs, and community groups. Tours from MWK 15,000."
-        ogImage="https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg"
+        description={`Book a guided visit to Dzaleka Refugee Camp in Malawi. Meet local guides, artists, entrepreneurs, and community groups. Tours from ${price("individual")}.`}
+        ogImage="/images/Badre_Bahaji_Tumaini_festival21_-31-1.jpg"
         canonical="https://visit.dzaleka.com/"
         keywords="book Dzaleka tour, Dzaleka refugee camp tours, cultural tourism Malawi, Tumaini Festival, guided tours Africa, visit Dzaleka, refugee camp experience, Malawi tourism booking, African cultural exchange"
       />
@@ -319,7 +321,7 @@ export default function Landing() {
           {/* Background Image - Full visibility */}
           <div
             className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-            style={{ backgroundImage: 'url(https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg)' }}
+            style={{ backgroundImage: 'url(/images/Badre_Bahaji_Tumaini_festival21_-31-1.jpg)' }}
           />
           {/* Gradient overlay - dark at bottom for text, transparent at top for image */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
@@ -332,7 +334,7 @@ export default function Landing() {
                 Refugee-Led Tourism
               </Badge>
 
-              <h1 className="mb-6 text-4xl font-extrabold tracking-tight text-white md:text-5xl lg:text-6xl drop-shadow-lg">
+              <h1 className="mb-6 text-4xl font-semibold text-white md:text-5xl lg:text-6xl drop-shadow-lg">
                 {getContent("hero_title", "Visit Dzaleka with local guides.")}
               </h1>
 
@@ -367,10 +369,10 @@ export default function Landing() {
               <div className="grid grid-cols-2 md:grid-cols-4 py-6">
                 {stats.map((stat, index) => (
                   <div key={stat.value} className="text-center px-4 py-2">
-                    <div className="text-2xl md:text-3xl font-bold text-foreground">
+                    <div className="text-2xl md:text-3xl font-semibold text-foreground">
                       {stat.value}
                     </div>
-                    <div className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                    <div className="text-xs md:text-sm font-medium text-muted-foreground">
                       {getContent(`stats_label_${index + 1}`, stat.defaultLabel)}
                     </div>
                   </div>
@@ -457,7 +459,7 @@ export default function Landing() {
         <section className="py-16 bg-background">
           <div className="container mx-auto px-4">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Dzaleka Highlights</h2>
+              <h2 className="text-2xl md:text-3xl font-semibold">Dzaleka Highlights</h2>
               <Button variant="ghost" asChild className="group">
                 <Link href="/things-to-do">
                   View All
@@ -475,12 +477,12 @@ export default function Landing() {
                         alt={highlight.title}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                         onError={(e) => {
-                          (e.target as HTMLImageElement).src = "https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg";
+                          (e.target as HTMLImageElement).src = "/images/Badre_Bahaji_Tumaini_festival21_-31-1.jpg";
                         }}
                       />
                     </div>
                     <CardContent className="p-4">
-                      <h3 className="font-semibold text-lg mb-1 group-hover:text-primary transition-colors">{highlight.title}</h3>
+                      <h3 className="font-semibold text-lg mb-1 group-hover:text-primary">{highlight.title}</h3>
                       <p className="text-sm text-muted-foreground">{highlight.description}</p>
                     </CardContent>
                   </Card>
@@ -494,7 +496,7 @@ export default function Landing() {
         <section className="py-16 bg-muted/30">
           <div className="container mx-auto px-4">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl md:text-3xl font-bold tracking-tight">What's On</h2>
+              <h2 className="text-2xl md:text-3xl font-semibold">What's On</h2>
               <Button variant="ghost" asChild className="group">
                 <Link href="/whats-on">
                   See All Events
@@ -542,11 +544,11 @@ export default function Landing() {
                     <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer group h-full">
                       <div className="aspect-[16/9] relative overflow-hidden">
                         <img
-                          src={event.image || "https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg"}
+                          src={event.image || "/images/Badre_Bahaji_Tumaini_festival21_-31-1.jpg"}
                           alt={event.title}
                           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                           onError={(e) => {
-                            (e.target as HTMLImageElement).src = "https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg";
+                            (e.target as HTMLImageElement).src = "/images/Badre_Bahaji_Tumaini_festival21_-31-1.jpg";
                           }}
                         />
                         <Badge className="absolute top-3 left-3 bg-primary text-primary-foreground">
@@ -558,7 +560,7 @@ export default function Landing() {
                         <div className="flex items-center justify-between mb-2">
                           <Badge variant="outline" className="text-xs font-normal border-primary/20 text-primary">{event.category}</Badge>
                         </div>
-                        <h3 className="font-semibold text-lg mb-1 group-hover:text-primary transition-colors">{event.title}</h3>
+                        <h3 className="font-semibold text-lg mb-1 group-hover:text-primary">{event.title}</h3>
 
                         <div className="flex items-center text-xs text-muted-foreground mb-2 flex-wrap">
                           <div className="flex items-center mr-3">
@@ -594,7 +596,7 @@ export default function Landing() {
         <section id="features" className="py-24 bg-background">
           <div className="container mx-auto px-4">
             <div className="mb-16 text-center max-w-3xl mx-auto">
-              <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
+              <h2 className="mb-4 text-3xl font-semibold md:text-4xl">
                 Plan a Visit Without Guesswork
               </h2>
               <p className="text-lg text-muted-foreground">
@@ -636,7 +638,7 @@ export default function Landing() {
           <div className="container mx-auto grid gap-8 px-4 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-center">
             <div className="min-w-0">
               <Badge variant="outline" className="mb-4">Transport partners</Badge>
-              <h2 className="max-w-3xl text-3xl font-bold tracking-tight md:text-4xl">
+              <h2 className="max-w-3xl text-3xl font-semibold md:text-4xl">
                 Need a reliable ride to Dzaleka?
               </h2>
               <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
@@ -689,7 +691,7 @@ export default function Landing() {
         <section id="why-dzaleka" className="py-24">
           <div className="container mx-auto px-4">
             <div className="mb-16 text-center max-w-3xl mx-auto">
-              <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
+              <h2 className="mb-4 text-3xl font-semibold md:text-4xl">
                 Why Visit Dzaleka?
               </h2>
               <p className="text-lg text-muted-foreground">
@@ -720,7 +722,7 @@ export default function Landing() {
         <section id="videos" className="py-24 bg-muted/30">
           <div className="container mx-auto px-4">
             <div className="mb-12 text-center max-w-3xl mx-auto">
-              <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
+              <h2 className="mb-4 text-3xl font-semibold md:text-4xl">
                 See Dzaleka
               </h2>
               <p className="text-lg text-muted-foreground">
@@ -755,7 +757,7 @@ export default function Landing() {
                     </div>
                   </div>
                   <CardContent className="p-4">
-                    <p className="font-semibold group-hover:text-primary transition-colors">Watch on YouTube →</p>
+                    <p className="font-semibold group-hover:text-primary">Watch on YouTube →</p>
                   </CardContent>
                 </Card>
               </a>
@@ -786,7 +788,7 @@ export default function Landing() {
                     </div>
                   </div>
                   <CardContent className="p-4">
-                    <p className="font-semibold group-hover:text-primary transition-colors">Watch on YouTube →</p>
+                    <p className="font-semibold group-hover:text-primary">Watch on YouTube →</p>
                   </CardContent>
                 </Card>
               </a>
@@ -800,7 +802,7 @@ export default function Landing() {
             <div className="grid lg:grid-cols-2 gap-12 items-center">
               {/* Text Content */}
               <div>
-                <h2 className="mb-6 text-3xl font-bold tracking-tight md:text-4xl">
+                <h2 className="mb-6 text-3xl font-semibold md:text-4xl">
                   A Camp With Many Communities
                 </h2>
                 <p className="mb-6 text-lg text-muted-foreground leading-relaxed">
@@ -854,7 +856,7 @@ export default function Landing() {
         <section id="experiences" className="py-24 bg-muted/30">
           <div className="container mx-auto px-4">
             <div className="mb-12 text-center max-w-3xl mx-auto">
-              <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
+              <h2 className="mb-4 text-3xl font-semibold md:text-4xl">
                 Top Experiences
               </h2>
               <p className="text-lg text-muted-foreground">
@@ -877,7 +879,7 @@ export default function Landing() {
                         alt={experience.title}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                         onError={(e) => {
-                          (e.target as HTMLImageElement).src = "https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg";
+                          (e.target as HTMLImageElement).src = "/images/Badre_Bahaji_Tumaini_festival21_-31-1.jpg";
                         }}
                       />
                       {/* Duration badge */}
@@ -896,7 +898,7 @@ export default function Landing() {
                         <span className="font-semibold text-sm">{experience.rating}</span>
                         <span className="text-sm text-muted-foreground">(Reviews)</span>
                       </div>
-                      <h3 className="font-semibold text-lg mb-2 group-hover:text-primary transition-colors line-clamp-2">
+                      <h3 className="font-semibold text-lg mb-2 group-hover:text-primary line-clamp-2">
                         {experience.title}
                       </h3>
                       <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{experience.description}</p>
@@ -924,7 +926,7 @@ export default function Landing() {
             <div className="container mx-auto px-4">
               <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h2 className="text-2xl md:text-3xl font-bold tracking-tight">From the Blog</h2>
+                  <h2 className="text-2xl md:text-3xl font-semibold">From the Blog</h2>
                   <p className="text-muted-foreground mt-2">Stories, tips, and inspiration for your visit</p>
                 </div>
                 <Button variant="ghost" asChild className="group hidden sm:flex">
@@ -945,7 +947,7 @@ export default function Landing() {
                             alt={post.title}
                             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                             onError={(e) => {
-                              (e.target as HTMLImageElement).src = "https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg";
+                              (e.target as HTMLImageElement).src = "/images/Badre_Bahaji_Tumaini_festival21_-31-1.jpg";
                             }}
                           />
                         </div>
@@ -955,7 +957,7 @@ export default function Landing() {
                           <Calendar className="h-3 w-3" />
                           <span>{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Draft"}</span>
                         </div>
-                        <h3 className="font-semibold text-lg mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+                        <h3 className="font-semibold text-lg mb-2 line-clamp-2 group-hover:text-primary">
                           {post.title}
                         </h3>
                         <p className="text-sm text-muted-foreground line-clamp-2">
@@ -987,7 +989,7 @@ export default function Landing() {
                     <BadgePercent className="h-3.5 w-3.5" />
                     Limited-time offers
                   </Badge>
-                  <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Special prices for upcoming visits</h2>
+                  <h2 className="text-2xl font-semibold md:text-3xl">Special prices for upcoming visits</h2>
                   <p className="mt-2 max-w-2xl text-muted-foreground">
                     These discounts apply automatically when your selected visit date, tour type, and group size are eligible.
                   </p>
@@ -1040,7 +1042,7 @@ export default function Landing() {
         <section id="pricing" className="py-24">
           <div className="container mx-auto px-4">
             <div className="mb-16 text-center max-w-3xl mx-auto">
-              <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
+              <h2 className="mb-4 text-3xl font-semibold md:text-4xl">
                 {getContent("pricing_title", "Transparent Pricing")}
               </h2>
               <p className="text-lg text-muted-foreground">
@@ -1065,7 +1067,7 @@ export default function Landing() {
                   </CardHeader>
                   <CardContent className="flex-1">
                     <div className="mb-6">
-                      <span className="text-3xl font-bold">{plan.price}</span>
+                      <span className="text-3xl font-semibold">{price(plan.key)}</span>
                       <span className="text-muted-foreground">/visit</span>
                     </div>
                     <ul className="space-y-3">
@@ -1092,7 +1094,7 @@ export default function Landing() {
         <section id="testimonials" className="py-24 bg-muted/30">
           <div className="container mx-auto px-4">
             <div className="mb-16 text-center max-w-3xl mx-auto">
-              <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
+              <h2 className="mb-4 text-3xl font-semibold md:text-4xl">
                 Visitor Stories
               </h2>
               <p className="text-lg text-muted-foreground">
@@ -1111,7 +1113,7 @@ export default function Landing() {
                       "{getContent(`testimonial_${index + 1}_quote`, testimonial.defaultQuote)}"
                     </p>
                     <div className="flex items-center gap-4">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center font-semibold text-primary">
                         {getContent(`testimonial_${index + 1}_author`, testimonial.defaultAuthor)[0]}
                       </div>
                       <div>
@@ -1135,7 +1137,7 @@ export default function Landing() {
         <section className="py-16 bg-muted/30">
           <div className="container mx-auto px-4">
             <div className="text-center mb-12">
-              <h2 className="mb-4 text-2xl font-bold tracking-tight md:text-3xl">
+              <h2 className="mb-4 text-2xl font-semibold md:text-3xl">
                 Book with Confidence
               </h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
@@ -1170,7 +1172,7 @@ export default function Landing() {
                 <Camera className="mr-2 h-3.5 w-3.5" />
                 Community Gallery
               </Badge>
-              <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
+              <h2 className="mb-4 text-3xl font-semibold md:text-4xl">
                 Share Your Dzaleka Experience
               </h2>
               <p className="mb-8 text-lg text-muted-foreground">
@@ -1199,7 +1201,7 @@ export default function Landing() {
         <section className="py-24 relative overflow-hidden">
           <div className="absolute inset-0 bg-primary/5" />
           <div className="container relative mx-auto px-4 text-center">
-            <h2 className="mb-6 text-3xl font-bold tracking-tight md:text-4xl">
+            <h2 className="mb-6 text-3xl font-semibold md:text-4xl">
               {getContent("cta_title", "Ready to Plan Your Visit?")}
             </h2>
             <p className="mb-8 text-lg text-muted-foreground max-w-2xl mx-auto">

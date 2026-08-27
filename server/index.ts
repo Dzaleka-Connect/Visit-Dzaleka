@@ -1,34 +1,11 @@
 import { createApp, log } from "./app";
 import { serveStatic } from "./static";
-import { type Request, Response, NextFunction } from "express";
+import { apiErrorHandler } from "./agent";
 import { startReminderScheduler } from "./lib/reminder-scheduler";
 import { ReportScheduler } from "./lib/report-scheduler";
-import { logger } from "./lib/logger";
 
 (async () => {
   const { app, httpServer } = await createApp();
-
-  app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-    if (res.headersSent) {
-      return next(err);
-    }
-
-    const status = err.status || err.statusCode || 500;
-    const isProduction = process.env.NODE_ENV === "production";
-    const message = isProduction && status >= 500
-      ? "Internal Server Error"
-      : err.message || "Internal Server Error";
-    const requestId = req.requestId;
-
-    logger.withRequest(requestId).error("Unhandled request error", err, {
-      method: req.method,
-      path: req.path,
-      status,
-    });
-
-    res.status(status).json({ message, requestId });
-    // Don't throw here - response already sent, would cause unhandled rejection
-  });
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
@@ -39,6 +16,12 @@ import { logger } from "./lib/logger";
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }
+
+  // Express only looks for error handlers registered *after* the middleware that
+  // failed, so the copy inside createApp() cannot catch a fault in the static
+  // layer above. Registering it again here closes that gap; it is a no-op unless
+  // something throws.
+  app.use(apiErrorHandler);
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.

@@ -111,7 +111,7 @@ export default function Accommodation() {
                 description="Find accommodation options for your visit to Dzaleka Refugee Camp. Stay with a local family through the Homestay Program ($20/night) or choose premium hotels like Kalipano."
                 keywords="Dzaleka accommodation, homestay Malawi, Tumaini Letu, Mponela hotels, Kalipano Hotel, refugee camp visit"
                 canonical="https://visit.dzaleka.com/accommodation"
-                ogImage="https://tumainiletu.org/wp-content/uploads/2024/10/Dzaleka_107-min.jpg"
+                ogImage="/images/Dzaleka_107-min.jpg"
             />
             {/* Inject Structured Data */}
             <script
@@ -125,11 +125,11 @@ export default function Accommodation() {
                 {/* Hero Section */}
                 <div className="relative py-20 overflow-hidden bg-muted/20">
                     <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full uppercase tracking-widest font-semibold flex items-center justify-center w-fit mx-auto">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full font-semibold flex items-center justify-center w-fit mx-auto">
                             <Bed className="mr-2 h-3.5 w-3.5" />
                             Where to Stay
                         </Badge>
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6">
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6">
                             Accommodation Options
                         </h1>
                         <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
@@ -146,7 +146,7 @@ export default function Accommodation() {
                         <div className="order-2 md:order-1 relative">
                             <div className="aspect-square md:aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl bg-muted">
                                 <img
-                                    src="https://tumainiletu.org/wp-content/uploads/2024/10/Dzaleka_107-min.jpg"
+                                    src="/images/Dzaleka_107-min.jpg"
                                     alt="Dzaleka Homestay Program"
                                     className="w-full h-full object-cover"
                                 />
@@ -158,7 +158,7 @@ export default function Accommodation() {
                                 <Home className="h-5 w-5" />
                                 <span>Immersive Experience</span>
                             </div>
-                            <h2 className="text-3xl font-bold tracking-tight">Dzaleka Homestay Program</h2>
+                            <h2 className="text-3xl font-semibold">Dzaleka Homestay Program</h2>
                             <p className="text-muted-foreground text-lg">
                                 This program is run by the non-profit organization <strong>Tumaini Letu</strong>, the organizers of the annual Tumaini Festival. It provides visitors with a unique opportunity to stay with vetted refugee families, directly supporting their livelihoods and fostering meaningful connections.
                             </p>
@@ -194,7 +194,7 @@ export default function Accommodation() {
                             <div className="md:flex">
                                 <div className="md:w-1/3 bg-black/20 relative min-h-[200px]">
                                     <img
-                                        src="https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg"
+                                        src="/images/Website-Entrepreneurship-and-innovation-2048x1536.jpg"
                                         className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-80"
                                         alt="Cultural Exchange"
                                     />
@@ -203,7 +203,7 @@ export default function Accommodation() {
                                     </div>
                                 </div>
                                 <div className="md:w-2/3 p-8">
-                                    <h3 className="text-2xl font-bold mb-2">Book Your Homestay</h3>
+                                    <h3 className="text-2xl font-semibold mb-2">Book Your Homestay</h3>
                                     <p className="text-primary-foreground/90 mb-6 text-lg">
                                         You can apply and find more information on the Tumaini Letu website. For specific dates or longer stays, you can also email the program coordinator.
                                     </p>
@@ -231,7 +231,7 @@ export default function Accommodation() {
                                 <Hotel className="h-5 w-5" />
                                 <span>Nearby Options</span>
                             </div>
-                            <h2 className="text-3xl font-bold tracking-tight mb-4">Accommodation Outside the Camp</h2>
+                            <h2 className="text-3xl font-semibold mb-4">Accommodation Outside the Camp</h2>
                             <p className="text-muted-foreground text-lg">
                                 If you prefer more conventional amenities, there are hotels and lodges in nearby towns like Mponela or in Lilongwe (about an hour away).
                             </p>
@@ -240,7 +240,7 @@ export default function Accommodation() {
                         <div className="space-y-12 max-w-5xl mx-auto">
                             {externalHotels.map((group, groupIndex) => (
                                 <div key={groupIndex}>
-                                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                                    <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
                                         <MapPin className="h-5 w-5 text-primary" />
                                         {group.category}
                                     </h3>
@@ -250,7 +250,7 @@ export default function Accommodation() {
                                                 <CardContent className="p-6">
                                                     <div className="flex items-start justify-between mb-3">
                                                         <div>
-                                                            <h3 className="text-xl font-bold">{hotel.name}</h3>
+                                                            <h3 className="text-xl font-semibold">{hotel.name}</h3>
                                                             <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                                                                 <MapPin className="h-3.5 w-3.5" /> {hotel.location}
                                                             </p>
@@ -284,7 +284,7 @@ export default function Accommodation() {
                     {/* Travel Tips */}
                     <section className="bg-muted/30 rounded-3xl p-8 md:p-12 max-w-4xl mx-auto">
                         <div className="text-center mb-8">
-                            <h3 className="text-2xl font-bold mb-2">Travel Tips</h3>
+                            <h3 className="text-2xl font-semibold mb-2">Travel Tips</h3>
                             <p className="text-muted-foreground">Things to consider when planning your stay</p>
                         </div>
                         <div className="grid sm:grid-cols-3 gap-6">

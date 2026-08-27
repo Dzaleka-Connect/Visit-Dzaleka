@@ -8,6 +8,28 @@
   <!-- Default title only - other meta tags injected by react-helmet per page -->
   <title>Visit Dzaleka - Cultural Tours & Experiences in Malawi</title>
 
+  <!-- Entity-resolution defaults. react-helmet overrides these per page; having
+       them statically means an agent that does not run JS still sees them. -->
+  <link rel="canonical" href="https://visit.dzaleka.com/" />
+  <meta name="description"
+    content="Book a guided visit to Dzaleka Refugee Camp in Malawi. Meet local guides, artists, entrepreneurs, and community groups while supporting refugee-led work." />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Visit Dzaleka" />
+  <meta property="og:url" content="https://visit.dzaleka.com/" />
+  <meta property="og:title" content="Visit Dzaleka - Cultural Tours & Experiences in Malawi" />
+  <meta property="og:description"
+    content="Book a guided visit to Dzaleka Refugee Camp in Malawi. Meet local guides, artists, entrepreneurs, and community groups while supporting refugee-led work." />
+  <meta property="og:image" content="https://services.dzaleka.com/images/Visit_Dzaleka.png" />
+  <meta property="og:image:alt" content="Visit Dzaleka - guided cultural tours of Dzaleka Refugee Camp" />
+  <meta property="og:locale" content="en_GB" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://services.dzaleka.com/images/Visit_Dzaleka.png" />
+
+  <!-- Agent discovery -->
+  <link rel="alternate" type="text/plain" href="/llms.txt" title="Agent instructions" />
+  <link rel="service-desc" type="application/openapi+json" href="/openapi.json" title="Public API" />
+  <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+
   <!-- Geo tags for local SEO (same for all pages) -->
   <meta name="geo.region" content="MW" />
   <meta name="geo.placename" content="Dzaleka, Dowa, Malawi" />
@@ -65,9 +87,39 @@
         },
         {
           "@type": "Organization",
+          "@id": "https://visit.dzaleka.com/#organization",
           "name": "Visit Dzaleka",
+          "legalName": "Dzaleka Connect",
+          "description": "Visit Dzaleka arranges resident-led guided tours of Dzaleka Refugee Camp in Dowa District, Malawi, and publishes practical travel information for visitors. Tour fees pay local guides and fund community-led work.",
           "url": "https://visit.dzaleka.com",
           "logo": "https://services.dzaleka.com/images/dzaleka-digital-heritage.png",
+          "image": "https://services.dzaleka.com/images/Visit_Dzaleka.png",
+          "email": "contact@mail.dzaleka.com",
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "Dzaleka Refugee Camp",
+            "addressLocality": "Dowa",
+            "addressRegion": "Central Region",
+            "postalCode": "-",
+            "addressCountry": "MW"
+          },
+          "contactPoint": [
+            {
+              "@type": "ContactPoint",
+              "contactType": "customer support",
+              "email": "contact@mail.dzaleka.com",
+              "url": "https://visit.dzaleka.com/contact",
+              "availableLanguage": ["English", "French", "Swahili", "Chichewa"],
+              "areaServed": "MW"
+            },
+            {
+              "@type": "ContactPoint",
+              "contactType": "technical support",
+              "email": "contact@mail.dzaleka.com",
+              "url": "https://visit.dzaleka.com/developers",
+              "availableLanguage": ["English"]
+            }
+          ],
           "sameAs": [
             "https://www.facebook.com/dzalekaonline/",
             "https://www.instagram.com/dzalekaonline/",

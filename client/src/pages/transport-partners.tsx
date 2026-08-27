@@ -192,7 +192,7 @@ export default function TransportPartners() {
           <div className="container relative mx-auto flex min-h-[560px] items-end px-4 pb-12 pt-28">
             <div className="max-w-3xl">
               <Badge className="mb-4 bg-white text-foreground hover:bg-white">Verified transport network</Badge>
-              <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
+              <h1 className="text-4xl font-semibold sm:text-5xl lg:text-6xl">
                 Visit Dzaleka transport partners
               </h1>
               <p className="mt-5 max-w-2xl text-lg leading-relaxed text-white/90">
@@ -232,7 +232,7 @@ export default function TransportPartners() {
             <section id="featured-partners" aria-labelledby="partners-heading" className="scroll-mt-24 space-y-5">
               <div>
                 <Badge variant="outline" className="mb-3">Featured transport partners</Badge>
-                <h2 id="partners-heading" className="text-3xl font-bold tracking-tight">
+                <h2 id="partners-heading" className="text-3xl font-semibold">
                   Trusted operators for Dzaleka visitor journeys
                 </h2>
                 <p className="mt-3 max-w-3xl text-muted-foreground">
@@ -284,7 +284,7 @@ export default function TransportPartners() {
             <section aria-labelledby="transfer-heading" className="space-y-5">
               <div>
                 <Badge variant="outline" className="mb-3">Transport services</Badge>
-                <h2 id="transfer-heading" className="text-3xl font-bold tracking-tight">
+                <h2 id="transfer-heading" className="text-3xl font-semibold">
                   Transfers and add-on routes
                 </h2>
               </div>
@@ -304,7 +304,7 @@ export default function TransportPartners() {
             <section id="routes" aria-labelledby="routes-heading" className="scroll-mt-24 space-y-5">
               <div>
                 <Badge variant="outline" className="mb-3">Route options</Badge>
-                <h2 id="routes-heading" className="text-3xl font-bold tracking-tight">
+                <h2 id="routes-heading" className="text-3xl font-semibold">
                   Transport routes visitors can request
                 </h2>
               </div>
@@ -329,13 +329,13 @@ export default function TransportPartners() {
 
             <section aria-labelledby="handoff-heading" className="rounded-lg border bg-muted/30 p-6">
               <Badge variant="outline" className="mb-3">How it works</Badge>
-              <h2 id="handoff-heading" className="text-2xl font-bold tracking-tight">
+              <h2 id="handoff-heading" className="text-2xl font-semibold">
                 A simple referral flow
               </h2>
               <ol className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                 {handoffSteps.map((step, index) => (
                   <li key={step} className="rounded-lg border bg-background p-4">
-                    <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+                    <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
                       {index + 1}
                     </div>
                     <p className="break-words text-sm text-muted-foreground">{step}</p>
@@ -347,7 +347,7 @@ export default function TransportPartners() {
             <section aria-labelledby="network-heading" className="space-y-5">
               <div>
                 <Badge variant="outline" className="mb-3">What this network represents</Badge>
-                <h2 id="network-heading" className="text-3xl font-bold tracking-tight">
+                <h2 id="network-heading" className="text-3xl font-semibold">
                   A structured transport ecosystem for cultural tourism
                 </h2>
                 <p className="mt-3 max-w-3xl text-muted-foreground">

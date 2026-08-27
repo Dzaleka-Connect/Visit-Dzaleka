@@ -52,7 +52,7 @@ interface EventsResponse {
 const ITEMS_PER_PAGE = 6;
 const SITE_URL = "https://visit.dzaleka.com";
 const EVENTS_QUERY_KEY = ["/api/community/events"];
-const DEFAULT_EVENT_IMAGE = "https://tumainiletu.org/wp-content/uploads/2024/10/9L1A6757-1.jpg";
+const DEFAULT_EVENT_IMAGE = "/images/9L1A6757-1.jpg";
 
 async function fetchEvents() {
     const res = await fetch("/api/community/events");
@@ -283,7 +283,7 @@ export default function WhatsOn() {
                 description="Discover upcoming events, festivals, and cultural activities in Dzaleka Refugee Camp. From the famous Tumaini Festival to local sports and art exhibitions."
                 keywords="Dzaleka events, Tumaini Festival, Dzaleka culture, refugee camp events, Malawi events, cultural festival Dzaleka"
                 canonical="https://visit.dzaleka.com/whats-on"
-                ogImage="https://tumainiletu.org/wp-content/uploads/2024/10/9L1A6757-1.jpg"
+                ogImage="/images/9L1A6757-1.jpg"
                 structuredData={structuredData || undefined}
             />
             {/* Header */}
@@ -293,11 +293,11 @@ export default function WhatsOn() {
                 {/* Hero Section */}
                 <div className="relative py-20 overflow-hidden bg-muted/20">
                     <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full uppercase tracking-widest font-semibold flex items-center justify-center w-fit mx-auto">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full font-semibold flex items-center justify-center w-fit mx-auto">
                             <Calendar className="mr-2 h-3.5 w-3.5" />
                             Events & Culture
                         </Badge>
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6">
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6">
                             What's On
                         </h1>
                         <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
@@ -326,7 +326,7 @@ export default function WhatsOn() {
                             <section>
                                 <div className="flex items-center gap-2 mb-8">
                                     <div className="h-8 w-1 bg-primary rounded-full" />
-                                    <h2 className="text-2xl font-bold">Upcoming Events</h2>
+                                    <h2 className="text-2xl font-semibold">Upcoming Events</h2>
                                 </div>
 
                                 {upcomingEvents.length > 0 ? (
@@ -360,7 +360,7 @@ export default function WhatsOn() {
                                 <section id="past-events">
                                     <div className="flex items-center gap-2 mb-8">
                                         <div className="h-8 w-1 bg-muted-foreground rounded-full" />
-                                        <h2 className="text-2xl font-bold text-muted-foreground">Past Events</h2>
+                                        <h2 className="text-2xl font-semibold text-muted-foreground">Past Events</h2>
                                     </div>
                                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 opacity-75 grayscale-[0.3] hover:grayscale-0 transition-all duration-500 mb-8">
                                         {paginatedPastEvents.map((event) => (
@@ -463,7 +463,7 @@ export function WhatsOnEventDetail() {
                 />
                 <PublicHeader />
                 <main className="container mx-auto px-4 py-20 text-center">
-                    <h1 className="text-3xl font-bold">Event not found</h1>
+                    <h1 className="text-3xl font-semibold">Event not found</h1>
                     <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
                         This event may have been removed or the link may be incorrect.
                     </p>
@@ -515,7 +515,7 @@ export function WhatsOnEventDetail() {
                                     <Badge variant={isPast ? "secondary" : "default"}>{isPast ? "Past event" : "Upcoming"}</Badge>
                                     <Badge variant="outline">{event.category}</Badge>
                                 </div>
-                                <h1 className="mt-4 break-words text-4xl font-extrabold tracking-tight md:text-5xl">
+                                <h1 className="mt-4 break-words text-4xl font-semibold md:text-5xl">
                                     {event.title}
                                 </h1>
                                 <p className="mt-4 max-w-3xl text-lg leading-relaxed text-muted-foreground">
@@ -613,7 +613,7 @@ function EventCard({ event }: { event: Event }) {
                         }}
                     />
                     <div className="absolute top-4 left-4">
-                        <Badge variant={isPast ? "secondary" : "default"} className="uppercase text-[10px] font-bold tracking-wider">
+                        <Badge variant={isPast ? "secondary" : "default"} className="text-[10px] font-semibold">
                             {event.category}
                         </Badge>
                     </div>
@@ -627,7 +627,7 @@ function EventCard({ event }: { event: Event }) {
                         {format(new Date(event.date), "EEE, MMM d, yyyy • h:mm a")}
                     </span>
                 </div>
-                <CardTitle className="line-clamp-2 leading-tight group-hover:text-primary transition-colors">
+                <CardTitle className="line-clamp-2 leading-tight group-hover:text-primary">
                     <Link href={detailHref}>{event.title}</Link>
                 </CardTitle>
                 <div className="flex items-center text-xs text-muted-foreground mt-2 gap-2">

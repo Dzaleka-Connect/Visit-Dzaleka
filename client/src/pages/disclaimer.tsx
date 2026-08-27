@@ -22,7 +22,7 @@ export default function Disclaimer() {
                     <Link href="/"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Home</Link>
                 </Button>
 
-                <h1 className="text-4xl font-bold tracking-tight mb-8">Disclaimer</h1>
+                <h1 className="text-4xl font-semibold mb-8">Disclaimer</h1>
 
                 <div className="prose prose-slate dark:prose-invert max-w-none">
                     <p className="text-lg text-muted-foreground mb-8">

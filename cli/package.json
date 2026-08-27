@@ -1,0 +1,40 @@
+{
+  "name": "visit-dzaleka",
+  "version": "1.0.0",
+  "description": "Command line access to the Visit Dzaleka public API: tour pricing, camp zones, meeting points, community events and blog content for Dzaleka Refugee Camp, Malawi.",
+  "keywords": [
+    "dzaleka",
+    "malawi",
+    "tourism",
+    "refugee-camp",
+    "cli",
+    "travel",
+    "api"
+  ],
+  "homepage": "https://visit.dzaleka.com/developers",
+  "bugs": {
+    "url": "https://github.com/Dzaleka-Connect/Visit-Dzaleka/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Dzaleka-Connect/Visit-Dzaleka.git",
+    "directory": "cli"
+  },
+  "license": "MIT",
+  "author": "Dzaleka Connect <contact@mail.dzaleka.com>",
+  "type": "module",
+  "bin": {
+    "visit-dzaleka": "src/index.js"
+  },
+  "main": "src/index.js",
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

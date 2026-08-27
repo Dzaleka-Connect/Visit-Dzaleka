@@ -151,7 +151,7 @@ export default function EmbedBooking() {
                 <Card className={isDark ? "bg-gray-800 border-gray-700" : ""}>
                     <CardContent className="pt-6 text-center">
                         <CheckCircle className="h-16 w-16 mx-auto mb-4" style={{ color: primaryColor }} />
-                        <h2 className="text-2xl font-bold mb-2">Booking Submitted!</h2>
+                        <h2 className="text-2xl font-semibold mb-2">Booking Submitted!</h2>
                         <p className={isDark ? "text-gray-300" : "text-muted-foreground"}>
                             We'll confirm your visit shortly via email.
                         </p>

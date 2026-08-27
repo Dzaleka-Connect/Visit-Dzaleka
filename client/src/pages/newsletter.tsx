@@ -76,11 +76,11 @@ export default function Newsletter() {
                 <div className="relative py-24 overflow-hidden bg-gradient-to-br from-primary/10 via-background to-primary/5">
                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5" />
                     <div className="container mx-auto px-4 text-center relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm rounded-full uppercase tracking-widest font-semibold">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm rounded-full font-semibold">
                             <Mail className="mr-2 h-3.5 w-3.5" />
                             Stay Connected
                         </Badge>
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6">
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6">
                             Subscribe to Our Newsletter
                         </h1>
                         <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
@@ -120,7 +120,7 @@ export default function Newsletter() {
                     {/* Benefits Section */}
                     <div className="space-y-8">
                         <div className="text-center">
-                            <h2 className="text-3xl font-bold tracking-tight mb-4">What You'll Receive</h2>
+                            <h2 className="text-3xl font-semibold mb-4">What You'll Receive</h2>
                             <p className="text-muted-foreground max-w-2xl mx-auto">
                                 By subscribing, you'll get exclusive access to updates, stories, and opportunities
                                 from the Dzaleka community.
@@ -129,11 +129,11 @@ export default function Newsletter() {
 
                         <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
                             {benefits.map((benefit, index) => (
-                                <div key={index} className="text-center p-6 rounded-2xl bg-muted/30 hover:bg-muted/50 transition-colors">
+                                <div key={index} className="text-center p-6 rounded-2xl bg-muted/30 hover:bg-muted/50">
                                     <div className="h-14 w-14 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
                                         <benefit.icon className="h-7 w-7 text-primary" />
                                     </div>
-                                    <h3 className="text-lg font-bold mb-2">{benefit.title}</h3>
+                                    <h3 className="text-lg font-semibold mb-2">{benefit.title}</h3>
                                     <p className="text-sm text-muted-foreground">{benefit.description}</p>
                                 </div>
                             ))}

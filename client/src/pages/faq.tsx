@@ -200,7 +200,7 @@ export default function FAQPage() {
                         <div className="inline-flex items-center justify-center p-3 mb-6 rounded-full bg-primary/10 text-primary">
                             <HelpCircle className="w-8 h-8" />
                         </div>
-                        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-6">
+                        <h1 className="text-4xl md:text-5xl font-semibold mb-6">
                             Frequently Asked Questions
                         </h1>
                         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
@@ -214,14 +214,14 @@ export default function FAQPage() {
                     <div className="space-y-12">
                         {faqCategories.map((category, index) => (
                             <div key={index} id={category.title.toLowerCase().replace(/\s+/g, '-')}>
-                                <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+                                <h2 className="text-2xl font-semibold mb-6 flex items-center gap-3">
                                     {category.title}
                                     <span className="h-px flex-1 bg-border hidden sm:block"></span>
                                 </h2>
                                 <Accordion type="single" collapsible className="w-full">
                                     {category.questions.map((faq, i) => (
                                         <AccordionItem key={i} value={`item-${index}-${i}`}>
-                                            <AccordionTrigger className="text-left text-lg font-medium hover:text-primary transition-colors">
+                                            <AccordionTrigger className="text-left text-lg font-medium hover:text-primary">
                                                 {faq.q}
                                             </AccordionTrigger>
                                             <AccordionContent className="text-muted-foreground text-base leading-relaxed">
@@ -236,7 +236,7 @@ export default function FAQPage() {
 
                     {/* Still have questions? */}
                     <div className="mt-20 text-center bg-primary/5 rounded-2xl p-8 md:p-12">
-                        <h3 className="text-2xl font-bold mb-4">Still have questions?</h3>
+                        <h3 className="text-2xl font-semibold mb-4">Still have questions?</h3>
                         <p className="text-muted-foreground mb-8 max-w-lg mx-auto">
                             Can't find the answer you're looking for? Please get in touch.
                         </p>

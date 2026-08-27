@@ -35,10 +35,46 @@
   to = "/whats-on/:eventId/index.html"
   status = 200
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
 [functions."process-webhooks"]
   schedule = "* * * * *"
+
+# Content negotiation (Accept: text/markdown) and Vary/Link headers.
+# Static assets cannot vary on a request header on their own.
+[[edge_functions]]
+  function = "agent"
+  path = "/*"
+
+# Machine-readable files: correct content types, and Vary so a CDN never serves
+# the HTML variant to an agent that asked for markdown.
+[[headers]]
+  for = "/llms.txt"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+    Cache-Control = "public, max-age=3600"
+    Vary = "Accept, Accept-Encoding"
+
+[[headers]]
+  for = "/openapi.json"
+  [headers.values]
+    Content-Type = "application/openapi+json"
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/.well-known/api-catalog"
+  [headers.values]
+    Content-Type = "application/linkset+json"
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/md/*"
+  [headers.values]
+    Content-Type = "text/markdown; charset=utf-8"
+    Vary = "Accept, Accept-Encoding"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Vary = "Accept, Accept-Encoding"
+    Link = "</llms.txt>; rel=\"describedby\"; type=\"text/plain\", </openapi.json>; rel=\"service-desc\"; type=\"application/openapi+json\", </developers>; rel=\"service-doc\"; type=\"text/html\", </sitemap.xml>; rel=\"index\"; type=\"application/xml\", </.well-known/api-catalog>; rel=\"api-catalog\""

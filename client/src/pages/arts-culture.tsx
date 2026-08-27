@@ -43,7 +43,7 @@ export default function ArtsCulture() {
                 description="Discover Dzaleka's vibrant arts scene. From the Tumaini Festival to murals, fashion shows, and music studios - experience African creativity at its finest."
                 keywords="Dzaleka arts, Tumaini Festival, Dzaleka Art Project, African culture, refugee artists, Fashion in the Dust, Menes La Plume"
                 canonical="https://visit.dzaleka.com/things-to-do/arts-culture"
-                ogImage="https://tumainiletu.org/wp-content/uploads/2024/10/9L1A6757-1.jpg"
+                ogImage="/images/9L1A6757-1.jpg"
             />
 
             {/* Header */}
@@ -56,16 +56,16 @@ export default function ArtsCulture() {
                     {/* Background Image */}
                     <div
                         className="absolute inset-0 bg-cover bg-center"
-                        style={{ backgroundImage: 'url(https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg)' }}
+                        style={{ backgroundImage: 'url(/images/Badre_Bahaji_Tumaini_festival21_-31-1.jpg)' }}
                     />
                     <div className="absolute inset-0 bg-black/60" />
 
                     <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-white/30 bg-white/10 text-white rounded-full uppercase tracking-widest font-semibold flex items-center justify-center w-fit mx-auto backdrop-blur-sm">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-white/30 bg-white/10 text-white rounded-full font-semibold flex items-center justify-center w-fit mx-auto backdrop-blur-sm">
                             <Palette className="mr-2 h-3.5 w-3.5" />
                             Arts & Culture
                         </Badge>
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6 text-white">
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6 text-white">
                             Arts, Culture & Creativity in Dzaleka
                         </h1>
                         <p className="text-lg md:text-xl text-white/90 leading-relaxed max-w-2xl mx-auto drop-shadow-sm">
@@ -86,7 +86,7 @@ export default function ArtsCulture() {
                     {/* Highlights Grid */}
                     <section>
                         <div className="text-center mb-12">
-                            <h2 className="text-3xl font-bold tracking-tight mb-4">Cultural Highlights</h2>
+                            <h2 className="text-3xl font-semibold mb-4">Cultural Highlights</h2>
                             <p className="text-muted-foreground max-w-2xl mx-auto">
                                 From world-class festivals to grassroots art projects, Dzaleka offers a rich tapestry of creative experiences.
                             </p>
@@ -100,7 +100,7 @@ export default function ArtsCulture() {
                                                 <item.icon className="h-6 w-6 text-primary" />
                                             </div>
                                             <div className="flex-1">
-                                                <h3 className="text-xl font-bold mb-2">{item.title}</h3>
+                                                <h3 className="text-xl font-semibold mb-2">{item.title}</h3>
                                                 <p className="text-muted-foreground mb-4">{item.description}</p>
                                                 {item.link && (
                                                     <Button asChild variant="outline" size="sm">
@@ -122,7 +122,7 @@ export default function ArtsCulture() {
                         <div className="relative">
                             <div className="aspect-square md:aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl bg-muted">
                                 <img
-                                    src="https://tumainiletu.org/wp-content/uploads/2024/10/9L1A6757-1.jpg"
+                                    src="/images/9L1A6757-1.jpg"
                                     alt="Tumaini Festival Performance"
                                     className="w-full h-full object-cover"
                                 />
@@ -134,7 +134,7 @@ export default function ArtsCulture() {
                                 <Calendar className="h-5 w-5" />
                                 <span>Annual Event</span>
                             </div>
-                            <h2 className="text-3xl font-bold tracking-tight">The Tumaini Festival</h2>
+                            <h2 className="text-3xl font-semibold">The Tumaini Festival</h2>
                             <p className="text-muted-foreground text-lg">
                                 The crown jewel of Dzaleka's cultural calendar. Established in 2014 by refugee poet Menes La Plume, it is the first large-scale international arts festival held within a refugee camp.
                             </p>
@@ -169,7 +169,7 @@ export default function ArtsCulture() {
                                 <Palette className="h-5 w-5" />
                                 <span>Visual Arts</span>
                             </div>
-                            <h2 className="text-3xl font-bold tracking-tight">Dzaleka Art Project</h2>
+                            <h2 className="text-3xl font-semibold">Dzaleka Art Project</h2>
                             <p className="text-muted-foreground text-lg">
                                 For year-round creativity, the Dzaleka Art Project is a must-visit. This community-led initiative uses visual arts to tell the stories of its residents.
                             </p>
@@ -198,7 +198,7 @@ export default function ArtsCulture() {
                         <div className="order-1 md:order-2 relative">
                             <div className="aspect-square md:aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl bg-muted">
                                 <img
-                                    src="https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg"
+                                    src="/images/Website-Entrepreneurship-and-innovation-2048x1536.jpg"
                                     alt="Dzaleka Art Project Murals"
                                     className="w-full h-full object-cover"
                                 />
@@ -210,7 +210,7 @@ export default function ArtsCulture() {
                     {/* Music & Fashion Section */}
                     <section className="bg-muted/30 rounded-3xl p-8 md:p-12">
                         <div className="text-center mb-12">
-                            <h2 className="text-3xl font-bold tracking-tight mb-4">Music, Fashion & Innovation</h2>
+                            <h2 className="text-3xl font-semibold mb-4">Music, Fashion & Innovation</h2>
                             <p className="text-muted-foreground max-w-2xl mx-auto">
                                 Creativity in Dzaleka takes many forms—from recording studios to runway shows to tech hubs.
                             </p>
@@ -253,7 +253,7 @@ export default function ArtsCulture() {
                             <div className="md:flex">
                                 <div className="md:w-1/3 bg-black/20 relative min-h-[200px]">
                                     <img
-                                        src="https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg"
+                                        src="/images/Badre_Bahaji_Tumaini_festival21_-31-1.jpg"
                                         className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-80"
                                         alt="Cultural Tour"
                                     />
@@ -262,7 +262,7 @@ export default function ArtsCulture() {
                                     </div>
                                 </div>
                                 <div className="md:w-2/3 p-8">
-                                    <h3 className="text-2xl font-bold mb-2">Book a Cultural & Arts Tour</h3>
+                                    <h3 className="text-2xl font-semibold mb-2">Book a Cultural & Arts Tour</h3>
                                     <p className="text-primary-foreground/90 mb-6 text-lg">
                                         To get the most out of Dzaleka's arts scene, we recommend booking a specialized Cultural & Arts Tour with a local guide who can introduce you to artists, musicians, and creative spaces.
                                     </p>

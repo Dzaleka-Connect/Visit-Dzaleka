@@ -57,11 +57,11 @@ export default function ShoppingMarkets() {
                     <div className="absolute inset-0 bg-black/60" />
 
                     <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-white/30 bg-white/10 text-white rounded-full uppercase tracking-widest font-semibold flex items-center justify-center w-fit mx-auto backdrop-blur-sm">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-white/30 bg-white/10 text-white rounded-full font-semibold flex items-center justify-center w-fit mx-auto backdrop-blur-sm">
                             <ShoppingBag className="mr-2 h-3.5 w-3.5" />
                             Local Economy
                         </Badge>
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6 text-white">
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6 text-white">
                             Shopping & Markets in Dzaleka
                         </h1>
                         <p className="text-lg md:text-xl text-white/90 leading-relaxed max-w-2xl mx-auto drop-shadow-sm">
@@ -82,7 +82,7 @@ export default function ShoppingMarkets() {
                     {/* Market Highlights Grid */}
                     <section>
                         <div className="text-center mb-12">
-                            <h2 className="text-3xl font-bold tracking-tight mb-4">Market Days & Locations</h2>
+                            <h2 className="text-3xl font-semibold mb-4">Market Days & Locations</h2>
                             <p className="text-muted-foreground max-w-2xl mx-auto">
                                 The camp's economy revolves around these key trading times and sectors.
                             </p>
@@ -94,7 +94,7 @@ export default function ShoppingMarkets() {
                                         <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                                             <item.icon className="h-7 w-7 text-primary" />
                                         </div>
-                                        <h3 className="text-lg font-bold mb-2">{item.title}</h3>
+                                        <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
                                         <p className="text-muted-foreground text-sm">{item.description}</p>
                                     </CardContent>
                                 </Card>
@@ -109,7 +109,7 @@ export default function ShoppingMarkets() {
                                 <Store className="h-5 w-5" />
                                 <span>Products & Services</span>
                             </div>
-                            <h2 className="text-3xl font-bold tracking-tight">What You Can Buy</h2>
+                            <h2 className="text-3xl font-semibold">What You Can Buy</h2>
                             <p className="text-muted-foreground text-lg">
                                 The stalls await with a diverse range of products. Beyond physical goods, Dzaleka is a hub for skilled services.
                             </p>
@@ -151,7 +151,7 @@ export default function ShoppingMarkets() {
                                     <Monitor className="h-5 w-5" />
                                     <span>Digital Economy</span>
                                 </div>
-                                <h2 className="text-2xl font-bold">Shop Dzaleka Online</h2>
+                                <h2 className="text-2xl font-semibold">Shop Dzaleka Online</h2>
                                 <p className="text-muted-foreground">
                                     Browse products and services from refugee entrepreneurs online. Discover the vibrant digital marketplace of Dzaleka.
                                 </p>
@@ -178,7 +178,7 @@ export default function ShoppingMarkets() {
                     <section className="bg-primary/5 rounded-3xl p-8 md:p-12">
                         <div className="grid md:grid-cols-2 gap-12 items-center">
                             <div>
-                                <h2 className="text-3xl font-bold tracking-tight mb-4">Supporting Livelihoods</h2>
+                                <h2 className="text-3xl font-semibold mb-4">Supporting Livelihoods</h2>
                                 <p className="text-lg text-muted-foreground mb-6">
                                     Shopping in Dzaleka empowers residents. The Tumaini Festival alone generates significant funds for the local economy.
                                 </p>
@@ -200,27 +200,27 @@ export default function ShoppingMarkets() {
                             <div className="relative">
                                 <Card className="border-none shadow-lg">
                                     <CardContent className="p-8">
-                                        <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                                        <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
                                             <Wallet className="h-5 w-5 text-primary" />
                                             Tips for Shopping
                                         </h3>
                                         <ul className="space-y-4">
                                             <li className="flex items-start gap-3">
-                                                <div className="h-6 w-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 flex items-center justify-center shrink-0 font-bold text-xs">1</div>
+                                                <div className="h-6 w-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 flex items-center justify-center shrink-0 font-semibold text-xs">1</div>
                                                 <div>
                                                     <span className="font-medium block">Cash is King</span>
                                                     <span className="text-sm text-muted-foreground">While there are ATMs in the camp, we strongly recommend bringing enough Malawian Kwacha (MWK) cash for your purchases as standard availability can vary.</span>
                                                 </div>
                                             </li>
                                             <li className="flex items-start gap-3">
-                                                <div className="h-6 w-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 flex items-center justify-center shrink-0 font-bold text-xs">2</div>
+                                                <div className="h-6 w-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 flex items-center justify-center shrink-0 font-semibold text-xs">2</div>
                                                 <div>
                                                     <span className="font-medium block">Haggling is Welcome</span>
                                                     <span className="text-sm text-muted-foreground">Haggling is a common practice and part of the vibrant market experience.</span>
                                                 </div>
                                             </li>
                                             <li className="flex items-start gap-3">
-                                                <div className="h-6 w-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 flex items-center justify-center shrink-0 font-bold text-xs">3</div>
+                                                <div className="h-6 w-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 flex items-center justify-center shrink-0 font-semibold text-xs">3</div>
                                                 <div>
                                                     <span className="font-medium block">Ask Permission</span>
                                                     <span className="text-sm text-muted-foreground">Always ask before taking photos of stalls or people in the market.</span>
@@ -236,7 +236,7 @@ export default function ShoppingMarkets() {
                     {/* Economic Resilience Narrative Section */}
                     <section className="space-y-16">
                         <div className="text-center max-w-3xl mx-auto">
-                            <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+                            <h2 className="text-3xl md:text-5xl font-semibold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
                                 Economic Dynamics & Resilience
                             </h2>
                             <p className="text-xl text-muted-foreground leading-relaxed mb-4">
@@ -256,7 +256,7 @@ export default function ShoppingMarkets() {
                                     </div>
                                     <div className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
                                 </div>
-                                <h3 className="text-2xl font-bold group-hover:text-primary transition-colors">Navigating Systemic Barriers</h3>
+                                <h3 className="text-2xl font-semibold group-hover:text-primary">Navigating Systemic Barriers</h3>
                                 <p className="text-muted-foreground leading-relaxed text-lg">
                                     Doing business outside the camp boundaries presents significant risks, including property confiscation or detention. Despite these hurdles, entrepreneurs find innovative ways to operate, turning constraints into drivers for creative logistical solutions.
                                 </p>
@@ -270,7 +270,7 @@ export default function ShoppingMarkets() {
                                     </div>
                                     <div className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
                                 </div>
-                                <h3 className="text-2xl font-bold group-hover:text-primary transition-colors">From Scarcity to Strategy</h3>
+                                <h3 className="text-2xl font-semibold group-hover:text-primary">From Scarcity to Strategy</h3>
                                 <p className="text-muted-foreground leading-relaxed text-lg">
                                     Many businesses begin with minimal resources—sometimes initiated by trading a portion of monthly food rations for startup capital. This survivalist improvisation evolves into strategic intent, with entrepreneurs growing to source commodities from Lilongwe and neighboring countries.
                                 </p>
@@ -284,7 +284,7 @@ export default function ShoppingMarkets() {
                                     </div>
                                     <div className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
                                 </div>
-                                <h3 className="text-2xl font-bold group-hover:text-primary transition-colors">The Power of Networks</h3>
+                                <h3 className="text-2xl font-semibold group-hover:text-primary">The Power of Networks</h3>
                                 <p className="text-muted-foreground leading-relaxed text-lg">
                                     Social capital is as valuable as financial capital. Entrepreneurs leverage connections with diaspora relatives for funding and form critical partnerships with local Malawians. These "boundary-spanning" ties enable market access that would otherwise be legally out of reach.
                                 </p>
@@ -298,7 +298,7 @@ export default function ShoppingMarkets() {
                                     </div>
                                     <div className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
                                 </div>
-                                <h3 className="text-2xl font-bold group-hover:text-primary transition-colors">Strategic Diversification</h3>
+                                <h3 className="text-2xl font-semibold group-hover:text-primary">Strategic Diversification</h3>
                                 <p className="text-muted-foreground leading-relaxed text-lg">
                                     Successful entrepreneurs rarely rely on a single income stream. Most diversify their portfolio, perhaps running a hardware shop in Dzaleka, a restaurant in town, and a wholesale business simultaneously, buffering against shocks and regulatory uncertainty.
                                 </p>
@@ -309,7 +309,7 @@ export default function ShoppingMarkets() {
                     {/* Final CTA */}
                     <section className="mt-24 text-center space-y-8 bg-muted/30 py-16 rounded-3xl border border-border/50">
                         <div className="max-w-2xl mx-auto px-4">
-                            <h2 className="text-3xl font-bold mb-4">Experience the Market Energy</h2>
+                            <h2 className="text-3xl font-semibold mb-4">Experience the Market Energy</h2>
                             <p className="text-lg text-muted-foreground mb-8">
                                 There is no better way to understand Dzaleka's economy than to walk its streets. Join a guided tour to meet the entrepreneurs, taste local foods, and support these businesses directly.
                             </p>

@@ -44,7 +44,7 @@ export default function SupportOurWork() {
                         <div className="inline-flex items-center justify-center p-3 mb-6 rounded-full bg-primary/10 text-primary">
                             <Heart className="w-8 h-8 fill-current" />
                         </div>
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6 text-foreground">
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6 text-foreground">
                             Support Our Work
                         </h1>
                         <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-10">
@@ -62,7 +62,7 @@ export default function SupportOurWork() {
                 <section className="py-24 bg-background">
                     <div className="container mx-auto px-4">
                         <div className="text-center mb-16">
-                            <h2 className="text-3xl font-bold tracking-tight mb-4">Your Impact</h2>
+                            <h2 className="text-3xl font-semibold mb-4">Your Impact</h2>
                             <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
                                 We engage in research that centers refugee experiences and narratives.
                             </p>
@@ -115,7 +115,7 @@ export default function SupportOurWork() {
                 <section className="py-24 bg-muted/30">
                     <div className="container mx-auto px-4">
                         <div className="text-center mb-16">
-                            <h2 className="text-3xl font-bold tracking-tight mb-4">Ways to Support</h2>
+                            <h2 className="text-3xl font-semibold mb-4">Ways to Support</h2>
                             <div className="h-1 w-20 bg-primary mx-auto rounded-full" />
                         </div>
 

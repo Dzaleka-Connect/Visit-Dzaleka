@@ -28,7 +28,7 @@ export default function CookieNotice() {
                         <Cookie className="h-8 w-8 text-primary" />
                     </div>
                     <div>
-                        <h1 className="text-4xl font-bold tracking-tight">Cookie Notice</h1>
+                        <h1 className="text-4xl font-semibold">Cookie Notice</h1>
                         <p className="text-muted-foreground mt-1">How we use cookies and similar technologies</p>
                     </div>
                 </div>

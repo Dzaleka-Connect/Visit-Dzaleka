@@ -37,7 +37,7 @@ const dzalekaHighlights = [
     {
         title: "Arts & Culture Guide",
         description: "From Tumaini Festival to local theater groups",
-        image: "https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg",
+        image: "/images/Website-Entrepreneurship-and-innovation-2048x1536.jpg",
         link: "/things-to-do/arts-culture"
     },
     {
@@ -242,11 +242,11 @@ export default function BlogList() {
             <main className="flex-1">
                 <div className="container mx-auto px-4 py-8">
                     <div className="max-w-3xl mx-auto text-center mb-12">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full uppercase tracking-widest font-semibold">
-                            INSPIRATION
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full font-semibold">
+                            Inspiration
                         </Badge>
 
-                        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-8">
+                        <h1 className="text-4xl md:text-5xl font-semibold mb-8">
                             Searching for inspiration?
                         </h1>
 
@@ -314,7 +314,7 @@ export default function BlogList() {
                                                 <Calendar className="h-3 w-3" />
                                                 <span>{post.publishedAt ? format(new Date(post.publishedAt), "MMM d, yyyy") : "Draft"}</span>
                                             </div>
-                                            <CardTitle className="line-clamp-2 hover:text-primary transition-colors">
+                                            <CardTitle className="line-clamp-2 hover:text-primary">
                                                 <Link href={`/blog/${post.slug}`}>{post.title}</Link>
                                             </CardTitle>
                                         </CardHeader>
@@ -387,7 +387,7 @@ export default function BlogList() {
                 <section className="py-24 bg-muted/30">
                     <div className="container mx-auto px-4">
                         <div className="text-center mb-12">
-                            <h2 className="text-3xl font-bold tracking-tight mb-4">Start Planning Your Visit</h2>
+                            <h2 className="text-3xl font-semibold mb-4">Start Planning Your Visit</h2>
                             <p className="text-muted-foreground max-w-2xl mx-auto">
                                 Everything you need to know to prepare for an unforgettable experience at Dzaleka.
                             </p>
@@ -397,12 +397,12 @@ export default function BlogList() {
                                 <Card className="h-full overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer group">
                                     <div className="aspect-video relative overflow-hidden">
                                         <img
-                                            src="https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg"
+                                            src="/images/Badre_Bahaji_Tumaini_festival21_-31-1.jpg"
                                             alt="Plan Your Trip"
                                             className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105"
                                         />
-                                        <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                                            <h3 className="text-white text-3xl font-bold">Plan Your Trip</h3>
+                                        <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 flex items-center justify-center">
+                                            <h3 className="text-white text-3xl font-semibold">Plan Your Trip</h3>
                                         </div>
                                     </div>
                                     <CardContent className="p-6">
@@ -419,12 +419,12 @@ export default function BlogList() {
                                 <Card className="h-full overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer group">
                                     <div className="aspect-video relative overflow-hidden">
                                         <img
-                                            src="https://tumainiletu.org/wp-content/uploads/2024/10/Dzaleka_107-min.jpg"
+                                            src="/images/Dzaleka_107-min.jpg"
                                             alt="Accommodation"
                                             className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105"
                                         />
-                                        <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                                            <h3 className="text-white text-3xl font-bold">Where to Stay</h3>
+                                        <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 flex items-center justify-center">
+                                            <h3 className="text-white text-3xl font-semibold">Where to Stay</h3>
                                         </div>
                                     </div>
                                     <CardContent className="p-6">
@@ -445,7 +445,7 @@ export default function BlogList() {
                 <section className="py-24 bg-background border-t">
                     <div className="container mx-auto px-4">
                         <div className="flex items-center justify-between mb-8">
-                            <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Dzaleka Highlights</h2>
+                            <h2 className="text-2xl md:text-3xl font-semibold">Dzaleka Highlights</h2>
                             <Button variant="ghost" asChild className="group">
                                 <Link href="/things-to-do">
                                     View All
@@ -463,12 +463,12 @@ export default function BlogList() {
                                                 alt={highlight.title}
                                                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                                                 onError={(e) => {
-                                                    (e.target as HTMLImageElement).src = "https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg";
+                                                    (e.target as HTMLImageElement).src = "/images/Badre_Bahaji_Tumaini_festival21_-31-1.jpg";
                                                 }}
                                             />
                                         </div>
                                         <CardContent className="p-4">
-                                            <h3 className="font-semibold text-lg mb-1 group-hover:text-primary transition-colors">{highlight.title}</h3>
+                                            <h3 className="font-semibold text-lg mb-1 group-hover:text-primary">{highlight.title}</h3>
                                             <p className="text-sm text-muted-foreground">{highlight.description}</p>
                                         </CardContent>
                                     </Card>

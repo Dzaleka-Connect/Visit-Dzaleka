@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visit Dzaleka</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="popup.css">
+</head>
+
+<body>
+    <!-- Loading State -->
+    <div id="loading" class="loading-screen">
+        <div class="loading-spinner"></div>
+        <p>Loading…</p>
+    </div>
+
+    <!-- Login Prompt (shown when not authenticated) -->
+    <div id="login-prompt" class="screen hidden">
+        <div class="login-container">
+            <div class="login-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+            </div>
+            <h2>Visit Dzaleka</h2>
+            <p>Sign in to access your bookings, notifications, and more.</p>
+            <button id="btn-login" class="btn btn-primary btn-full">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                    <polyline points="10 17 15 12 10 7"></polyline>
+                    <line x1="15" y1="12" x2="3" y2="12"></line>
+                </svg>
+                Sign in
+            </button>
+            <a id="btn-register" class="link-subtle">Create an account →</a>
+
+            <!-- Booking Verifier (works without login) -->
+            <div class="verify-section">
+                <div class="divider"><span>or</span></div>
+                <p class="verify-label">Check your booking status</p>
+                <div class="verify-input-row">
+                    <input type="text" id="verify-ref-login" placeholder="Booking reference" class="input-field" />
+                    <button id="btn-verify-login" class="btn btn-primary btn-sm">Check</button>
+                </div>
+                <div id="verify-result-login" class="verify-result hidden"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App (shown when authenticated) -->
+    <div id="main-app" class="screen hidden">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                <span class="header-title">Visit Dzaleka</span>
+            </div>
+            <div class="header-right">
+                <button id="btn-theme" class="icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode">
+                    <svg id="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                    <svg id="icon-moon" class="hidden" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                </button>
+                <button id="btn-refresh" class="icon-btn" title="Refresh" aria-label="Refresh data">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                    </svg>
+                </button>
+                <button id="btn-open-site" class="icon-btn" title="Open full site" aria-label="Open full site">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Tab Navigation -->
+        <nav class="tab-nav">
+            <button class="tab-btn active" data-tab="dashboard">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="14" width="7" height="7"></rect>
+                    <rect x="3" y="14" width="7" height="7"></rect>
+                </svg>
+                Dashboard
+            </button>
+            <button class="tab-btn" data-tab="explore">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+                </svg>
+                Explore
+            </button>
+            <button class="tab-btn" data-tab="blog">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                </svg>
+                Blog
+            </button>
+            <button class="tab-btn" data-tab="notifications">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+                Alerts
+                <span id="notif-badge" class="badge hidden">0</span>
+            </button>
+        </nav>
+
+        <!-- Search Bar -->
+        <div class="search-bar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="search-input" placeholder="Search bookings, help, manual…" class="search-input" />
+        </div>
+
+        <!-- Search Results -->
+        <div id="search-results" class="search-results hidden"></div>
+
+        <!-- Tab Content -->
+        <main class="tab-content">
+            <!-- Dashboard Tab -->
+            <div id="tab-dashboard" class="tab-panel active">
+                <!-- User Card -->
+                <div class="user-card">
+                    <div class="user-avatar" id="user-avatar">?</div>
+                    <div class="user-info">
+                        <h3 id="user-name">Loading…</h3>
+                        <span class="user-role" id="user-role">—</span>
+                    </div>
+                </div>
+
+                <!-- Stats Row -->
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <span class="stat-value" id="stat-upcoming">—</span>
+                        <span class="stat-label">Upcoming</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="stat-completed">—</span>
+                        <span class="stat-label">Completed</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="stat-total">—</span>
+                        <span class="stat-label">Total</span>
+                    </div>
+                </div>
+
+                <!-- Workflow Hub -->
+                <div id="workflow-hub" class="workflow-hub hidden" aria-live="polite"></div>
+
+                <!-- Role-Specific Status Cards -->
+                <div id="role-status-cards" class="status-card-grid hidden" aria-live="polite"></div>
+
+                <!-- Guide Workflow Panel -->
+                <div id="guide-workflow-panel" class="section guide-workflow hidden" aria-live="polite"></div>
+
+                <!-- Quick Actions -->
+                <div class="section">
+                    <h4 class="section-title">Quick Actions</h4>
+                    <div id="quick-actions" class="actions-grid"></div>
+                </div>
+
+                <!-- Next Booking Countdown -->
+                <div class="section" id="next-booking-section">
+                    <h4 class="section-title">Next Booking</h4>
+                    <div id="countdown-banner" class="countdown-banner hidden">
+                        <div class="countdown-grid">
+                            <div class="countdown-unit">
+                                <span class="countdown-value" id="cd-days">0</span>
+                                <span class="countdown-label">days</span>
+                            </div>
+                            <div class="countdown-unit">
+                                <span class="countdown-value" id="cd-hours">0</span>
+                                <span class="countdown-label">hours</span>
+                            </div>
+                            <div class="countdown-unit">
+                                <span class="countdown-value" id="cd-mins">0</span>
+                                <span class="countdown-label">min</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="next-booking" class="booking-preview">
+                        <p class="empty-state">No upcoming bookings</p>
+                    </div>
+                </div>
+
+                <!-- Booking Verifier -->
+                <div class="section verify-card">
+                    <h4 class="section-title">Verify a Booking</h4>
+                    <div class="verify-input-row">
+                        <input type="text" id="verify-ref-main" placeholder="Booking reference…" class="input-field" />
+                        <button id="btn-verify-main" class="btn btn-primary btn-sm">Check</button>
+                    </div>
+                    <div id="verify-result-main" class="verify-result hidden"></div>
+                </div>
+            </div>
+
+            <!-- Explore Tab -->
+            <div id="tab-explore" class="tab-panel">
+                <div class="section">
+                    <h4 class="section-title">Camp Zones</h4>
+                    <div id="zones-list" class="explore-list">
+                        <div class="loading-inline">
+                            <div class="loading-spinner small"></div>
+                            <p>Loading zones…</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="section">
+                    <h4 class="section-title">Points of Interest</h4>
+                    <div id="poi-list" class="explore-list">
+                        <div class="loading-inline">
+                            <div class="loading-spinner small"></div>
+                            <p>Loading…</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Blog Tab -->
+            <div id="tab-blog" class="tab-panel">
+                <div id="blog-list" class="blog-list">
+                    <div class="loading-inline">
+                        <div class="loading-spinner small"></div>
+                        <p>Loading posts…</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notifications Tab -->
+            <div id="tab-notifications" class="tab-panel">
+                <div class="notif-header">
+                    <h4>Notifications</h4>
+                    <button id="btn-mark-all-read" class="btn btn-ghost btn-sm">Mark all read</button>
+                </div>
+                <div class="notif-tools">
+                    <select id="notif-filter" class="select-field" aria-label="Filter notifications">
+                        <option value="all">All notifications</option>
+                        <option value="unread">Unread only</option>
+                    </select>
+                    <button id="btn-snooze-notifications" class="btn btn-ghost btn-sm">Snooze 1h</button>
+                </div>
+                <div id="notif-snooze-status" class="snooze-status hidden"></div>
+                <div id="notif-list" class="notif-list">
+                    <div class="loading-inline">
+                        <div class="loading-spinner small"></div>
+                        <p>Loading notifications…</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <a id="footer-support" class="footer-link">Support</a>
+            <span class="footer-sep">·</span>
+            <a id="footer-privacy" class="footer-link">Disclaimer</a>
+            <span class="footer-sep">·</span>
+            <a id="footer-terms" class="footer-link">Cookies</a>
+            <span class="footer-sep">·</span>
+            <span class="footer-version">v1.0.0</span>
+        </footer>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>

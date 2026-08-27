@@ -92,11 +92,11 @@ export default function ImpactReport() {
                 {/* Hero */}
                 <section className="relative py-16 sm:py-20 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
                     <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full uppercase tracking-widest font-semibold">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full font-semibold">
                             <TrendingUp className="mr-2 h-3.5 w-3.5" />
                             Transparency & Accountability
                         </Badge>
-                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6">
+                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold mb-6">
                             Impact Reports
                         </h1>
                         <p className="text-base sm:text-lg md:text-xl text-muted-foreground leading-relaxed max-w-3xl mx-auto">
@@ -109,13 +109,13 @@ export default function ImpactReport() {
                 {/* Overall Stats */}
                 <section className="py-12 bg-background border-b">
                     <div className="container mx-auto px-4">
-                        <h2 className="text-lg font-semibold text-center mb-6 text-muted-foreground uppercase tracking-wider">Overall Performance</h2>
+                        <h2 className="text-lg font-semibold text-center mb-6 text-muted-foreground">Overall Performance</h2>
                         <div className="grid gap-4 sm:grid-cols-3 max-w-3xl mx-auto">
                             {overallStats.map((stat, index) => (
                                 <Card key={index} className="border-none shadow-md text-center">
                                     <CardContent className="p-6">
                                         <stat.icon className="h-8 w-8 mx-auto mb-3 text-primary" />
-                                        <div className="text-3xl font-bold mb-1">{stat.value}</div>
+                                        <div className="text-3xl font-semibold mb-1">{stat.value}</div>
                                         <div className="text-sm text-muted-foreground">{stat.label}</div>
                                     </CardContent>
                                 </Card>
@@ -129,7 +129,7 @@ export default function ImpactReport() {
                     <div className="container mx-auto px-4 max-w-4xl">
                         <div className="flex items-center gap-3 mb-6">
                             <Globe className="h-6 w-6 text-primary" />
-                            <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Where Our Visitors Come From</h2>
+                            <h2 className="text-xl sm:text-2xl font-semibold">Where Our Visitors Come From</h2>
                         </div>
                         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
                             {visitorOrigins.map((origin, index) => (
@@ -153,7 +153,7 @@ export default function ImpactReport() {
                         <div className="flex items-center justify-between mb-8">
                             <div className="flex items-center gap-3">
                                 <FileText className="h-6 w-6 text-primary" />
-                                <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Published Reports</h2>
+                                <h2 className="text-xl sm:text-2xl font-semibold">Published Reports</h2>
                             </div>
                             <Badge variant="secondary">{publishedReports.length} Reports</Badge>
                         </div>
@@ -226,7 +226,7 @@ export default function ImpactReport() {
                 {/* Report Categories */}
                 <section className="py-12 bg-muted/30">
                     <div className="container mx-auto px-4 max-w-4xl">
-                        <h2 className="text-lg font-semibold text-center mb-6 text-muted-foreground uppercase tracking-wider">Report Categories</h2>
+                        <h2 className="text-lg font-semibold text-center mb-6 text-muted-foreground">Report Categories</h2>
                         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
                             {impactCategories.map((category, index) => (
                                 <Card key={index} className="text-center">
@@ -244,7 +244,7 @@ export default function ImpactReport() {
                 {/* CTA */}
                 <section className="py-16 bg-primary/5">
                     <div className="container mx-auto px-4 max-w-3xl text-center">
-                        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4">Want to Support Our Impact?</h2>
+                        <h2 className="text-2xl sm:text-3xl font-semibold mb-4">Want to Support Our Impact?</h2>
                         <p className="text-muted-foreground mb-6">
                             Every tour booked and every donation directly supports refugee guides and community projects.
                         </p>

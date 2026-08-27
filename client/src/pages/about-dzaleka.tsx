@@ -243,11 +243,11 @@ export default function AboutDzaleka() {
                 {/* Hero Section */}
                 <div id="dzaleka-camp" className="relative py-16 sm:py-20 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
                     <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full uppercase tracking-widest font-semibold flex items-center justify-center w-fit mx-auto">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full font-semibold flex items-center justify-center w-fit mx-auto">
                             <MapPin className="mr-2 h-3.5 w-3.5" />
                             Dowa District, Malawi
                         </Badge>
-                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6">
+                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold mb-6">
                             Dzaleka Refugee Camp
                         </h1>
                         <p className="text-base sm:text-lg md:text-xl text-muted-foreground leading-relaxed max-w-3xl mx-auto">
@@ -263,22 +263,22 @@ export default function AboutDzaleka() {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                             <div className="text-center">
                                 <History className="h-6 w-6 mx-auto mb-2 text-primary" />
-                                <div className="text-2xl sm:text-3xl font-bold">1994</div>
+                                <div className="text-2xl sm:text-3xl font-semibold">1994</div>
                                 <div className="text-xs sm:text-sm text-muted-foreground">Established</div>
                             </div>
                             <div className="text-center">
                                 <Users className="h-6 w-6 mx-auto mb-2 text-primary" />
-                                <div className="text-2xl sm:text-3xl font-bold">56,000+</div>
+                                <div className="text-2xl sm:text-3xl font-semibold">56,000+</div>
                                 <div className="text-xs sm:text-sm text-muted-foreground">Population (2024)</div>
                             </div>
                             <div className="text-center">
                                 <MapPin className="h-6 w-6 mx-auto mb-2 text-primary" />
-                                <div className="text-2xl sm:text-3xl font-bold">201 ha</div>
+                                <div className="text-2xl sm:text-3xl font-semibold">201 ha</div>
                                 <div className="text-xs sm:text-sm text-muted-foreground">Original Area</div>
                             </div>
                             <div className="text-center">
                                 <Globe className="h-6 w-6 mx-auto mb-2 text-primary" />
-                                <div className="text-2xl sm:text-3xl font-bold">10-12k</div>
+                                <div className="text-2xl sm:text-3xl font-semibold">10-12k</div>
                                 <div className="text-xs sm:text-sm text-muted-foreground">Design Capacity</div>
                             </div>
                         </div>
@@ -291,7 +291,7 @@ export default function AboutDzaleka() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <History className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Establishment & Historical Context</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Establishment & Historical Context</h2>
                         </div>
                         <div className="prose prose-sm sm:prose max-w-none text-muted-foreground">
                             <p className="text-sm sm:text-base leading-relaxed">
@@ -310,7 +310,7 @@ export default function AboutDzaleka() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Users className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Demographics & Population</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Demographics & Population</h2>
                         </div>
                         <p className="text-muted-foreground mb-6 text-sm sm:text-base">
                             As of August 2024, Dzaleka houses <strong className="text-foreground">55,425 refugees and asylum-seekers</strong>, with design capacity long exceeded—approximately <strong className="text-foreground">5x the intended population</strong>.
@@ -362,7 +362,7 @@ export default function AboutDzaleka() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <MapPin className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Camp Zones</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Camp Zones</h2>
                         </div>
                         <p className="text-muted-foreground mb-6 text-sm sm:text-base">
                             The camp is divided into zones named after Malawian towns and cities, each with its own unique character. The government set up the zones for administrative purposes.
@@ -425,7 +425,7 @@ export default function AboutDzaleka() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Landmark className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Governance & Operational Framework</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Governance & Operational Framework</h2>
                         </div>
                         <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
                             <Card>
@@ -479,7 +479,7 @@ export default function AboutDzaleka() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Heart className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Services & Facilities</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Services & Facilities</h2>
                         </div>
                         <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
                             <Card id="dzaleka-health-centre">
@@ -524,7 +524,7 @@ export default function AboutDzaleka() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Scale className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Legal Framework</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Legal Framework</h2>
                         </div>
 
                         <div className="grid gap-4 md:grid-cols-2">
@@ -570,7 +570,7 @@ export default function AboutDzaleka() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <AlertTriangle className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Current Challenges</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Current Challenges</h2>
                         </div>
                         <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
                             <Card>
@@ -612,11 +612,11 @@ export default function AboutDzaleka() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <FileText className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Resources & References</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Resources & References</h2>
                         </div>
                         <div className="grid gap-3 sm:grid-cols-2">
                             <a href="https://www.unhcr.org/where-we-work/countries/malawi" target="_blank" rel="noopener noreferrer"
-                                className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                                className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted/50">
                                 <ExternalLink className="h-5 w-5 text-primary shrink-0" />
                                 <div>
                                     <p className="font-medium text-sm">UNHCR Malawi</p>
@@ -624,7 +624,7 @@ export default function AboutDzaleka() {
                                 </div>
                             </a>
                             <a href="https://inuaadvocacy.org/wp-content/uploads/2024/12/MALAWI-REFUGEE-GUIDE-DEC-2024-sm.pdf" target="_blank" rel="noopener noreferrer"
-                                className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                                className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted/50">
                                 <ExternalLink className="h-5 w-5 text-primary shrink-0" />
                                 <div>
                                     <p className="font-medium text-sm">Malawi Refugee Guide</p>
@@ -632,7 +632,7 @@ export default function AboutDzaleka() {
                                 </div>
                             </a>
                             <a href="https://services.dzaleka.com/data" target="_blank" rel="noopener noreferrer"
-                                className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                                className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted/50">
                                 <ExternalLink className="h-5 w-5 text-primary shrink-0" />
                                 <div>
                                     <p className="font-medium text-sm">Dzaleka Data Portal</p>
@@ -640,7 +640,7 @@ export default function AboutDzaleka() {
                                 </div>
                             </a>
                             <a href="https://services.dzaleka.com" target="_blank" rel="noopener noreferrer"
-                                className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                                className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted/50">
                                 <ExternalLink className="h-5 w-5 text-primary shrink-0" />
                                 <div>
                                     <p className="font-medium text-sm">Dzaleka Online Services</p>
@@ -652,7 +652,7 @@ export default function AboutDzaleka() {
 
                     {/* CTA Section */}
                     <section className="bg-primary/5 rounded-2xl p-6 sm:p-8 md:p-12 text-center">
-                        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4">Want to Learn More?</h2>
+                        <h2 className="text-2xl sm:text-3xl font-semibold mb-4">Want to Learn More?</h2>
                         <p className="text-muted-foreground mb-6 max-w-2xl mx-auto text-sm sm:text-base">
                             Explore daily life in Dzaleka or plan a guided visit to experience this remarkable community firsthand.
                         </p>

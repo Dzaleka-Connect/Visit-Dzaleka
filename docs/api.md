@@ -8,6 +8,54 @@ https://visit.dzaleka.com/api
 
 ---
 
+## Public API (no authentication)
+
+A read-only subset of this API is open to anyone — no key, no session. It covers
+tour pricing, camp zones, meeting points, community events and blog content, and
+is the surface AI agents and third-party integrations should use.
+
+| Resource | Where |
+|---|---|
+| Machine-readable spec | [`/openapi.json`](https://visit.dzaleka.com/openapi.json) (OpenAPI 3.1) |
+| Endpoint index | [`/api`](https://visit.dzaleka.com/api) |
+| Developer portal | [`/developers`](https://visit.dzaleka.com/developers) |
+| Agent guidance | [`/llms.txt`](https://visit.dzaleka.com/llms.txt) |
+| API catalogue | [`/.well-known/api-catalog`](https://visit.dzaleka.com/.well-known/api-catalog) |
+| CLI | `npx visit-dzaleka pricing` |
+
+```bash
+curl https://visit.dzaleka.com/api/public/pricing
+```
+
+Rate limit is 100 requests per minute per IP. Prices are integers in Malawi
+Kwacha (MWK) — read them live rather than caching, since administrators change
+them.
+
+The spec in `shared/openapi.ts` is the single source of truth: it is served at
+`/openapi.json` by the Express app and written to `client/public/openapi.json`
+at build time. Add a public endpoint there as well as in `server/routes.ts`, or
+agents will not discover it.
+
+### Error format
+
+Every `/api` failure returns JSON, never an HTML page:
+
+```json
+{
+  "error": true,
+  "code": "not_found",
+  "message": "No API endpoint matches GET /api/nope.",
+  "status": 404,
+  "hint": "Fetch https://visit.dzaleka.com/openapi.json for available operations.",
+  "requestId": "01M10T0C3P30ZRD86HME55NQEA",
+  "documentation": "https://visit.dzaleka.com/developers"
+}
+```
+
+Branch on `code`, which is stable. `message` is human-facing and may change.
+
+---
+
 ## Authentication
 
 Developer API endpoints require an API key in the `Authorization` header and the scope listed for that endpoint. Dashboard/admin UI routes use browser session authentication only unless this document explicitly lists API key support.

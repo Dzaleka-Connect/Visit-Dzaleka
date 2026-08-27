@@ -92,11 +92,11 @@ export default function NatureOutdoors() {
                     />
                     <div className="absolute inset-0 bg-black/50" />
                     <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-white/30 bg-white/10 text-white rounded-full uppercase tracking-widest font-semibold flex items-center justify-center w-fit mx-auto backdrop-blur-sm">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-white/30 bg-white/10 text-white rounded-full font-semibold flex items-center justify-center w-fit mx-auto backdrop-blur-sm">
                             <Trees className="mr-2 h-3.5 w-3.5" />
                             Eco-Tourism
                         </Badge>
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6 text-white">
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6 text-white">
                             Nature & Outdoors
                         </h1>
                         <p className="text-lg md:text-xl text-white/90 leading-relaxed max-w-2xl mx-auto drop-shadow-sm">
@@ -110,19 +110,19 @@ export default function NatureOutdoors() {
                     {/* Within the Camp */}
                     <section>
                         <div className="text-center mb-12">
-                            <h2 className="text-3xl font-bold tracking-tight mb-4">Within Dzaleka Refugee Camp</h2>
+                            <h2 className="text-3xl font-semibold mb-4">Within Dzaleka Refugee Camp</h2>
                             <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
                                 Outdoor activities here revolve around community resilience, sustainability, and connecting with the land.
                             </p>
                         </div>
                         <div className="grid md:grid-cols-3 gap-8">
                             {withinCamp.map((item, index) => (
-                                <Card key={index} className="border-none shadow-md bg-muted/40 hover:bg-muted/60 transition-colors">
+                                <Card key={index} className="border-none shadow-md bg-muted/40 hover:bg-muted/60">
                                     <CardContent className="p-8 space-y-4 text-center">
                                         <div className="h-14 w-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-2">
                                             <item.icon className="h-7 w-7" />
                                         </div>
-                                        <h3 className="text-xl font-bold">{item.title}</h3>
+                                        <h3 className="text-xl font-semibold">{item.title}</h3>
                                         <p className="text-muted-foreground leading-relaxed">
                                             {item.description}
                                         </p>
@@ -136,7 +136,7 @@ export default function NatureOutdoors() {
                     <section>
                         <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-4">
                             <div className="max-w-2xl">
-                                <h2 className="text-3xl font-bold tracking-tight mb-4">Nearby Natural Attractions</h2>
+                                <h2 className="text-3xl font-semibold mb-4">Nearby Natural Attractions</h2>
                                 <p className="text-muted-foreground text-lg">
                                     Dzaleka operates as a great base for exploring Malawi's "Warm Heart" natural wonders.
                                 </p>
@@ -161,10 +161,10 @@ export default function NatureOutdoors() {
                                     <div className="md:w-2/3 p-6 md:p-8 flex flex-col">
                                         <div className="flex justify-between items-start mb-2">
                                             <div>
-                                                <h3 className="text-2xl font-bold mb-1">{attraction.title}</h3>
+                                                <h3 className="text-2xl font-semibold mb-1">{attraction.title}</h3>
                                                 <div className="flex items-center gap-2 text-muted-foreground text-sm mb-3">
                                                     <MapPin className="h-4 w-4" />
-                                                    <a href={attraction.mapUrl} target="_blank" rel="noopener noreferrer" className="hover:text-primary hover:underline transition-colors flex items-center gap-1">
+                                                    <a href={attraction.mapUrl} target="_blank" rel="noopener noreferrer" className="hover:text-primary hover:underline flex items-center gap-1">
                                                         {attraction.location} <ExternalLink className="h-3 w-3" />
                                                     </a>
                                                     • {attraction.distance} from Dzaleka
@@ -177,7 +177,7 @@ export default function NatureOutdoors() {
                                         </p>
 
                                         <div className="mt-auto">
-                                            <Button asChild variant="outline" className="group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                                            <Button asChild variant="outline" className="group-hover:bg-primary group-hover:text-primary-foreground">
                                                 <a href={attraction.externalUrl} target="_blank" rel="noopener noreferrer">
                                                     Visit Official Site <ExternalLink className="ml-2 h-4 w-4" />
                                                 </a>
@@ -194,7 +194,7 @@ export default function NatureOutdoors() {
                         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
                         <div className="relative z-10 max-w-2xl mx-auto space-y-6">
                             <Sun className="h-12 w-12 mx-auto text-yellow-300" />
-                            <h2 className="text-3xl font-bold">Ready to Explore?</h2>
+                            <h2 className="text-3xl font-semibold">Ready to Explore?</h2>
                             <p className="text-lg text-primary-foreground/90">
                                 Whether you're looking for a quiet hike in the hills or a weekend safari, our local guides can help facilitate your travel plans and connect you with trusted transport.
                             </p>

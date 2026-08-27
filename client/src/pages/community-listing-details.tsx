@@ -53,7 +53,7 @@ import { apiRequest } from "@/lib/queryClient";
 
 const SITE_URL = "https://visit.dzaleka.com";
 const FALLBACK_IMAGE =
-  "https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg";
+  "/images/Website-Entrepreneurship-and-innovation-2048x1536.jpg";
 
 const defaultExperienceRequestValues: InsertCommunityExperienceRequest = {
   listingId: "",
@@ -228,7 +228,7 @@ export default function CommunityListingDetails() {
         <PublicHeader activePath="/community-hub" />
         <main className="flex flex-1 items-center justify-center px-4 py-16 text-center">
           <div className="max-w-md">
-            <h1 className="text-2xl font-bold">Listing not found</h1>
+            <h1 className="text-2xl font-semibold">Listing not found</h1>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               This listing may have been removed or is no longer public.
             </p>
@@ -291,7 +291,7 @@ export default function CommunityListingDetails() {
                   {listing.needs && <Badge variant="outline">Needs listed</Badge>}
                 </div>
 
-                <h1 className="mt-4 max-w-4xl break-words text-3xl font-bold tracking-tight sm:text-5xl">
+                <h1 className="mt-4 max-w-4xl break-words text-3xl font-semibold sm:text-5xl">
                   {listing.name}
                 </h1>
                 <p className="mt-4 flex items-start gap-2 break-words text-base text-muted-foreground">

@@ -11,6 +11,8 @@ import { PublicHeader } from "@/components/public-header";
 
 const guidedTourPath = "/things-to-do/dzaleka-refugee-camp-guided-walking-tour";
 const guidedTourOptionsPath = `${guidedTourPath}#tour-options`;
+import { usePricing, type PricingMap } from "@/hooks/usePricing";
+
 const guidedTourUrl = "https://visit.dzaleka.com/things-to-do/dzaleka-refugee-camp-guided-walking-tour";
 
 const experienceCategories = [
@@ -60,7 +62,7 @@ const experienceCategories = [
 
 // Structured Data for Google "Things to do" - TouristAttraction + TouristTrip
 // Using valid schema.org types only: https://schema.org/TouristAttraction
-const structuredData = {
+const buildStructuredData = (pricing: PricingMap) => ({
     "@context": "https://schema.org",
     "@graph": [
         // Organization - Provider info for rich snippets
@@ -108,7 +110,7 @@ const structuredData = {
             "description": "Guided cultural tours of Dzaleka Refugee Camp in Malawi. Experience diverse African cultures, meet local artisans, visit community markets, and learn about refugee resilience and innovation.",
             "url": "https://visit.dzaleka.com/things-to-do",
             "image": [
-                "https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg",
+                "/images/Website-Entrepreneurship-and-innovation-2048x1536.jpg",
                 "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhQC52NEfamRlqaUT7uLWcP8ZKNUDp3_opelPFqoO6E5hyphenhyphen09lp-zxRXXig5aEnaH3PbRsia1ciM8y-vOdzDe9RMvbQApON7rdM0SrBmtVVWAPIzmiId-jvcwSa46-Y-qRApCBTmozhIbWhNZWxcLFY3bp6Q4uNk_LFB5MpYFlXywwX7vYlUQeRoirJWm50/s16000-rw/533061219_1079243081018233_5344782622295089839_n.jpg"
             ],
             "address": {
@@ -157,7 +159,7 @@ const structuredData = {
             },
             "offers": {
                 "@type": "Offer",
-                "price": "15000",
+                "price": String(pricing.individual),
                 "priceCurrency": "MWK",
                 "availability": "https://schema.org/InStock",
                 "validFrom": "2024-01-01",
@@ -176,7 +178,7 @@ const structuredData = {
             "subjectOf": { "@id": "https://visit.dzaleka.com/things-to-do#attraction" },
             "offers": {
                 "@type": "Offer",
-                "price": "50000",
+                "price": String(pricing.small_group),
                 "priceCurrency": "MWK",
                 "availability": "https://schema.org/InStock",
                 "validFrom": "2024-01-01",
@@ -195,7 +197,7 @@ const structuredData = {
             "subjectOf": { "@id": "https://visit.dzaleka.com/things-to-do#attraction" },
             "offers": {
                 "@type": "Offer",
-                "price": "80000",
+                "price": String(pricing.large_group),
                 "priceCurrency": "MWK",
                 "availability": "https://schema.org/InStock",
                 "priceValidUntil": "2026-12-31",
@@ -227,7 +229,7 @@ const structuredData = {
             "@id": "https://visit.dzaleka.com/things-to-do#tumaini-festival",
             "name": "Tumaini Festival 2026",
             "description": "Annual arts and music festival celebrating refugee creativity and peaceful coexistence. Features international and local performances, dance, poetry, and theater.",
-            "image": "https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-35-1.jpg",
+            "image": "/images/Badre_Bahaji_Tumaini_festival21_-35-1.jpg",
             "startDate": "2026-11-01T09:00:00+02:00",
             "endDate": "2026-11-02T21:00:00+02:00",
             "eventStatus": "https://schema.org/EventScheduled",
@@ -272,7 +274,7 @@ const structuredData = {
             "name": "Dzaleka Homestay Program",
             "description": "Community-based tourism initiative connecting visitors with refugee families in Dzaleka Refugee Camp. Experience daily life, culture, and hospitality while contributing to intercultural exchange. $15 goes directly to the host family, $5 supports program management.",
             "url": "https://tumainiletu.org/the-dzaleka-homestay-program/",
-            "image": "https://tumainiletu.org/wp-content/uploads/2024/10/Dzaleka_107-min.jpg",
+            "image": "/images/Dzaleka_107-min.jpg",
             "address": {
                 "@type": "PostalAddress",
                 "addressLocality": "Dowa",
@@ -372,7 +374,7 @@ const structuredData = {
                     "name": "How much does a Dzaleka cultural tour cost?",
                     "acceptedAnswer": {
                         "@type": "Answer",
-                        "text": "Tour prices vary by group size: Individual tours start at MWK 15,000, Small Group (2-5 people) at MWK 50,000, Medium Group (6-10 people) at MWK 80,000, and Large Group (10+ people) at MWK 100,000."
+                        "text": `Tour prices vary by group size: Individual tours start at MWK ${pricing.individual.toLocaleString("en-US")}, Small Group (2-5 people) at MWK ${pricing.small_group.toLocaleString("en-US")}, Medium Group (6-10 people) at MWK ${pricing.large_group.toLocaleString("en-US")}, and Large Group (10+ people) at MWK ${pricing.custom.toLocaleString("en-US")}.`
                     }
                 },
                 {
@@ -451,9 +453,11 @@ const structuredData = {
             ]
         }
     ]
-};
+});
 
 export default function ThingsToDo() {
+    const { pricing, price } = usePricing();
+    const structuredData = buildStructuredData(pricing);
     return (
         <div className="min-h-screen bg-background flex flex-col">
             <SEO
@@ -461,7 +465,7 @@ export default function ThingsToDo() {
                 description="Explore guided tours, arts, markets, and cultural experiences in Dzaleka Refugee Camp. Book your visit and support the local community."
                 keywords="things to do Dzaleka, Dzaleka tours, arts and crafts Dzaleka, cultural exchange Malawi, visit Dzaleka market"
                 canonical="https://visit.dzaleka.com/things-to-do"
-                ogImage="https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg"
+                ogImage="/images/Website-Entrepreneurship-and-innovation-2048x1536.jpg"
             />
 
             {/* Structured Data JSON-LD for Google Things to do */}
@@ -485,11 +489,11 @@ export default function ThingsToDo() {
                     <div className="absolute inset-0 bg-black/60" />
 
                     <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-white/30 bg-white/10 text-white rounded-full uppercase tracking-widest font-semibold flex items-center justify-center w-fit mx-auto backdrop-blur-sm">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-white/30 bg-white/10 text-white rounded-full font-semibold flex items-center justify-center w-fit mx-auto backdrop-blur-sm">
                             <Globe className="mr-2 h-3.5 w-3.5" />
                             Explore & Experience
                         </Badge>
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6 text-white">
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6 text-white">
                             Things to do in Dzaleka
                         </h1>
                         <p className="text-lg md:text-xl text-white/90 leading-relaxed max-w-2xl mx-auto drop-shadow-sm">
@@ -501,7 +505,7 @@ export default function ThingsToDo() {
                 <div className="container mx-auto px-4 py-16 space-y-24">
                     <section className="space-y-8">
                         <div className="max-w-3xl">
-                            <h2 className="text-3xl font-bold tracking-tight">Explore by category</h2>
+                            <h2 className="text-3xl font-semibold">Explore by category</h2>
                             <p className="mt-3 text-muted-foreground text-lg">
                                 Use these sections to find the kind of visit you want to plan, from guided cultural routes to food, markets, outdoor spaces, and community connections.
                             </p>
@@ -545,7 +549,7 @@ export default function ThingsToDo() {
                                 <MapPin className="h-5 w-5" />
                                 <span>Cultural Exchange</span>
                             </div>
-                            <h2 className="text-3xl font-bold tracking-tight">Guided Tours & Cultural Exchange</h2>
+                            <h2 className="text-3xl font-semibold">Guided Tours & Cultural Exchange</h2>
                             <p className="text-muted-foreground text-lg">
                                 The clearest way to visit Dzaleka is with a resident guide who can explain context, coordinate access, and help visitors follow community expectations.
                             </p>
@@ -581,7 +585,7 @@ export default function ThingsToDo() {
                     {/* Tour Options - Explicit Inventory for Google Ads Compliance */}
                     <section className="space-y-12">
                         <div className="text-center max-w-3xl mx-auto">
-                            <h2 className="text-3xl font-bold tracking-tight mb-4">Tour Options</h2>
+                            <h2 className="text-3xl font-semibold mb-4">Tour Options</h2>
                             <p className="text-muted-foreground text-lg">
                                 Choose the experience that fits your group size and interests. All tours are led by certified local guides.
                             </p>
@@ -592,13 +596,13 @@ export default function ThingsToDo() {
                             <Card id="individual" className="flex flex-col h-full border-muted shadow-lg hover:shadow-xl transition-shadow scroll-mt-24">
                                 <CardContent className="p-6 flex flex-col h-full">
                                     <Badge className="w-fit mb-4" variant="secondary">Popular</Badge>
-                                    <h3 className="text-xl font-bold mb-2">Individual</h3>
+                                    <h3 className="text-xl font-semibold mb-2">Individual</h3>
                                     <p className="text-muted-foreground text-sm mb-4 flex-grow">
                                         A personal, one-on-one cultural immersion tailored to your interests. Connect deeply with your guide at your own pace.
                                     </p>
                                     <div className="mt-auto pt-4 border-t">
                                         <div className="flex items-baseline gap-1 mb-4">
-                                            <span className="text-2xl font-bold">MWK 15,000</span>
+                                            <span className="text-2xl font-semibold">{price("individual")}</span>
                                             <span className="text-muted-foreground text-sm">/ person</span>
                                         </div>
                                         <Button asChild className="w-full">
@@ -612,13 +616,13 @@ export default function ThingsToDo() {
                             <Card id="small-group" className="flex flex-col h-full border-muted shadow-lg hover:shadow-xl transition-shadow scroll-mt-24">
                                 <CardContent className="p-6 flex flex-col h-full">
                                     <Badge className="w-fit mb-4 bg-primary/10 text-primary hover:bg-primary/20">Best Value</Badge>
-                                    <h3 className="text-xl font-bold mb-2">Small Group</h3>
+                                    <h3 className="text-xl font-semibold mb-2">Small Group</h3>
                                     <p className="text-muted-foreground text-sm mb-4 flex-grow">
                                         Perfect for couples or small families (2-5 people) seeking an intimate, interactive experience.
                                     </p>
                                     <div className="mt-auto pt-4 border-t">
                                         <div className="flex items-baseline gap-1 mb-4">
-                                            <span className="text-2xl font-bold">MWK 50,000</span>
+                                            <span className="text-2xl font-semibold">{price("small_group")}</span>
                                             <span className="text-muted-foreground text-sm">/ group</span>
                                         </div>
                                         <Button asChild className="w-full">
@@ -632,13 +636,13 @@ export default function ThingsToDo() {
                             <Card id="medium-group" className="flex flex-col h-full border-muted shadow-lg hover:shadow-xl transition-shadow scroll-mt-24">
                                 <CardContent className="p-6 flex flex-col h-full">
                                     <Badge className="w-fit mb-4" variant="outline">Groups</Badge>
-                                    <h3 className="text-xl font-bold mb-2">Medium Group</h3>
+                                    <h3 className="text-xl font-semibold mb-2">Medium Group</h3>
                                     <p className="text-muted-foreground text-sm mb-4 flex-grow">
                                         Ideal for extended families, friend groups, or small teams (6-10 people). A balanced experience ensuring everyone engages.
                                     </p>
                                     <div className="mt-auto pt-4 border-t">
                                         <div className="flex items-baseline gap-1 mb-4">
-                                            <span className="text-2xl font-bold">MWK 80,000</span>
+                                            <span className="text-2xl font-semibold">{price("large_group")}</span>
                                             <span className="text-muted-foreground text-sm">/ group</span>
                                         </div>
                                         <Button asChild className="w-full">
@@ -652,13 +656,13 @@ export default function ThingsToDo() {
                             <Card id="large-group" className="flex flex-col h-full border-muted shadow-lg hover:shadow-xl transition-shadow scroll-mt-24">
                                 <CardContent className="p-6 flex flex-col h-full">
                                     <Badge className="w-fit mb-4" variant="outline">Educational</Badge>
-                                    <h3 className="text-xl font-bold mb-2">Large Group</h3>
+                                    <h3 className="text-xl font-semibold mb-2">Large Group</h3>
                                     <p className="text-muted-foreground text-sm mb-4 flex-grow">
                                         Designed for schools, organizations, or delegations (10+ people). Includes dedicated logistics and multiple guides.
                                     </p>
                                     <div className="mt-auto pt-4 border-t">
                                         <div className="flex items-baseline gap-1 mb-4">
-                                            <span className="text-2xl font-bold">MWK 100,000</span>
+                                            <span className="text-2xl font-semibold">{price("custom")}</span>
                                             <span className="text-muted-foreground text-sm">/ group</span>
                                         </div>
                                         <Button asChild className="w-full">
@@ -677,7 +681,7 @@ export default function ThingsToDo() {
                                 <Camera className="h-5 w-5" />
                                 <span>Creativity & Innovation</span>
                             </div>
-                            <h2 className="text-3xl font-bold tracking-tight">Arts and Entrepreneurship</h2>
+                            <h2 className="text-3xl font-semibold">Arts and Entrepreneurship</h2>
                             <p className="text-muted-foreground text-lg">
                                 Dzaleka has a thriving arts scene and a micro-economy driven by resilient entrepreneurs.
                             </p>
@@ -708,7 +712,7 @@ export default function ThingsToDo() {
                         <div className="relative">
                             <div className="aspect-square md:aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl bg-muted">
                                 <img
-                                    src="https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg"
+                                    src="/images/Website-Entrepreneurship-and-innovation-2048x1536.jpg"
                                     alt="Arts and Crafts in Dzaleka"
                                     className="w-full h-full object-cover"
                                 />
@@ -724,13 +728,13 @@ export default function ThingsToDo() {
                                 <Music className="h-5 w-5" />
                                 <span>Community Life</span>
                             </div>
-                            <h2 className="text-3xl font-bold tracking-tight mb-4">Events and Recreation</h2>
+                            <h2 className="text-3xl font-semibold mb-4">Events and Recreation</h2>
                         </div>
 
                         <div className="grid md:grid-cols-2 gap-8">
                             <Card className="bg-background border-none shadow-md">
                                 <CardContent className="p-6">
-                                    <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
+                                    <h3 className="text-xl font-semibold mb-3 flex items-center gap-2">
                                         <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
                                         Tumaini Festival
                                     </h3>
@@ -741,8 +745,8 @@ export default function ThingsToDo() {
                             </Card>
                             <Card className="bg-background border-none shadow-md">
                                 <CardContent className="p-6">
-                                    <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
-                                        <div className="h-5 w-5 rounded-full border-2 border-foreground flex items-center justify-center text-[10px] font-bold">⚽</div>
+                                    <h3 className="text-xl font-semibold mb-3 flex items-center gap-2">
+                                        <div className="h-5 w-5 rounded-full border-2 border-foreground flex items-center justify-center text-[10px] font-semibold">⚽</div>
                                         Sports
                                     </h3>
                                     <p className="text-muted-foreground">
@@ -755,21 +759,21 @@ export default function ThingsToDo() {
 
                     {/* Section 4: Accommodation */}
                     <section className="text-center max-w-4xl mx-auto">
-                        <h2 className="text-3xl font-bold tracking-tight mb-6">Accommodation</h2>
+                        <h2 className="text-3xl font-semibold mb-6">Accommodation</h2>
                         <Card className="bg-primary text-primary-foreground overflow-hidden">
                             <div className="md:flex">
                                 <div className="md:w-1/3 bg-black/20 relative min-h-[200px]">
                                     <img
-                                        src="https://tumainiletu.org/wp-content/uploads/2024/10/Dzaleka_107-min.jpg"
+                                        src="/images/Dzaleka_107-min.jpg"
                                         className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-80"
                                         alt="Homestay"
                                     />
                                     <div className="absolute inset-0 flex items-center justify-center">
-                                        <span className="text-4xl font-bold text-white/90">🏡</span>
+                                        <span className="text-4xl font-semibold text-white/90">🏡</span>
                                     </div>
                                 </div>
                                 <div className="md:w-2/3 p-8 text-left">
-                                    <h3 className="text-2xl font-bold mb-2">Tumaini Letu Homestay Program</h3>
+                                    <h3 className="text-2xl font-semibold mb-2">Tumaini Letu Homestay Program</h3>
                                     <p className="text-primary-foreground/90 mb-6 text-lg">
                                         For an immersive stay, consider the Tumaini Letu Homestay Program. This allows you to stay with a vetted local family, directly contributing to their income and fostering a deeper cultural exchange.
                                     </p>

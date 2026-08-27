@@ -123,11 +123,11 @@ export default function LifeInDzaleka() {
                 {/* Hero Section */}
                 <div className="relative py-16 sm:py-20 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
                     <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full uppercase tracking-widest font-semibold flex items-center justify-center w-fit mx-auto">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full font-semibold flex items-center justify-center w-fit mx-auto">
                             <Heart className="mr-2 h-3.5 w-3.5" />
                             Understanding Dzaleka
                         </Badge>
-                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6">
+                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold mb-6">
                             A City in Waiting
                         </h1>
                         <p className="text-base sm:text-lg md:text-xl text-muted-foreground leading-relaxed max-w-3xl mx-auto">
@@ -144,7 +144,7 @@ export default function LifeInDzaleka() {
                             {stats.map((stat, index) => (
                                 <div key={index} className="text-center">
                                     <stat.icon className="h-6 w-6 mx-auto mb-2 text-primary" />
-                                    <div className="text-2xl sm:text-3xl font-bold">{stat.value}</div>
+                                    <div className="text-2xl sm:text-3xl font-semibold">{stat.value}</div>
                                     <div className="text-xs sm:text-sm text-muted-foreground">{stat.label}</div>
                                 </div>
                             ))}
@@ -165,7 +165,7 @@ export default function LifeInDzaleka() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Droplets className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Survival: The Daily Reality</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Survival: The Daily Reality</h2>
                         </div>
                         <p className="text-muted-foreground mb-6 text-sm sm:text-base leading-relaxed">
                             For the average resident, each day is a negotiation for basic necessities. The camp infrastructure is overwhelmed, and most families survive on a WFP monthly stipend of roughly <strong className="text-foreground">$9 per person</strong>—barely enough to cover basic food needs for two weeks.
@@ -214,7 +214,7 @@ export default function LifeInDzaleka() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Store className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">The Informal Economy</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">The Informal Economy</h2>
                         </div>
 
                         <div className="grid gap-4 md:grid-cols-2 mb-6">
@@ -251,21 +251,21 @@ export default function LifeInDzaleka() {
                         </p>
 
                         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            <div className="flex gap-3 items-start p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                            <div className="flex gap-3 items-start p-3 border rounded-lg hover:bg-muted/50">
                                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-lg">🪡</div>
                                 <div>
                                     <p className="font-semibold text-foreground">Kibébé</p>
                                     <p className="text-xs text-muted-foreground">A social enterprise where artisans craft high-quality upcycled products involved in the global market.</p>
                                 </div>
                             </div>
-                            <div className="flex gap-3 items-start p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                            <div className="flex gap-3 items-start p-3 border rounded-lg hover:bg-muted/50">
                                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-lg">🫓</div>
                                 <div>
                                     <p className="font-semibold text-foreground">King's Chapati</p>
                                     <p className="text-xs text-muted-foreground">A legendary local bakery that has become a culinary staple of the camp's daily life.</p>
                                 </div>
                             </div>
-                            <div className="flex gap-3 items-start p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                            <div className="flex gap-3 items-start p-3 border rounded-lg hover:bg-muted/50">
                                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-lg">🧺</div>
                                 <div>
                                     <p className="font-semibold text-foreground">Umoja Crafts</p>
@@ -279,7 +279,7 @@ export default function LifeInDzaleka() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <GraduationCap className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Education & Youth</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Education & Youth</h2>
                         </div>
                         <p className="text-muted-foreground mb-6 text-sm sm:text-base">
                             With a massive youth population, education is a race against overcrowding. Classroom ratios can reach <strong className="text-foreground">1:88</strong>, yet students remain determined.
@@ -287,19 +287,19 @@ export default function LifeInDzaleka() {
 
                         <div className="space-y-4">
                             <div className="relative border-l-4 border-primary pl-6 py-2">
-                                <h3 className="font-bold text-lg mb-1">Primary & Secondary</h3>
+                                <h3 className="font-semibold text-lg mb-1">Primary & Secondary</h3>
                                 <p className="text-sm text-muted-foreground">
                                     JRS operates schools where children often attend in shifts. The <strong className="text-foreground">Dzaleka Community Day Secondary School</strong> is a beacon of excellence, consistently performing well in national exams despite limited resources.
                                 </p>
                             </div>
                             <div className="relative border-l-4 border-primary pl-6 py-2">
-                                <h3 className="font-bold text-lg mb-1">Digital Skills</h3>
+                                <h3 className="font-semibold text-lg mb-1">Digital Skills</h3>
                                 <p className="text-sm text-muted-foreground">
                                     <strong className="text-foreground">TakenoLAB</strong> and AppFactory are refugee-led tech hubs teaching coding. For many youth, digital work offers a rare legal loophole to earn an income remotely.
                                 </p>
                             </div>
                             <div className="relative border-l-4 border-primary pl-6 py-2">
-                                <h3 className="font-bold text-lg mb-1">Higher Learning</h3>
+                                <h3 className="font-semibold text-lg mb-1">Higher Learning</h3>
                                 <p className="text-sm text-muted-foreground">
                                     <strong className="text-foreground">Jesuit Worldwide Learning (JWL)</strong> provides online diploma courses, offering one of the few pathways to accredited higher education for adults in the camp.
                                 </p>
@@ -311,7 +311,7 @@ export default function LifeInDzaleka() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Music className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Culture & Resilience</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Culture & Resilience</h2>
                         </div>
 
                         <div className="prose prose-sm sm:prose max-w-none text-muted-foreground mb-8">
@@ -366,7 +366,7 @@ export default function LifeInDzaleka() {
 
                     {/* CTA Section */}
                     <section className="bg-primary/5 rounded-2xl p-6 sm:p-8 md:p-12 text-center">
-                        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4">Experience Dzaleka Firsthand</h2>
+                        <h2 className="text-2xl sm:text-3xl font-semibold mb-4">Experience Dzaleka Firsthand</h2>
                         <p className="text-muted-foreground mb-6 max-w-2xl mx-auto text-sm sm:text-base">
                             Book a guided tour to see beyond the statistics and connect with the real people and stories of this remarkable community.
                         </p>

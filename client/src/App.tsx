@@ -75,6 +75,8 @@ import HostCommunity from "@/pages/host-community";
 import WhatsOn, { WhatsOnEventDetail } from "@/pages/whats-on";
 import PlanYourTrip from "@/pages/plan-your-trip";
 import VisitorEssentials from "@/pages/visitor-essentials";
+import Developers from "@/pages/developers";
+import Privacy from "@/pages/privacy";
 import LifeInDzaleka from "@/pages/life-in-dzaleka";
 import AboutDzaleka from "@/pages/about-dzaleka";
 import AboutUs from "@/pages/about-us";
@@ -206,6 +208,8 @@ const PUBLIC_ROUTES = [
   "/impact-report",
   "/it-code-of-practice",
   "/contact",
+  "/developers",
+  "/privacy",
   "/auth",
 ];
 
@@ -324,6 +328,8 @@ function Router() {
         <Route path="/accommodation" component={Accommodation} />
         <Route path="/disclaimer" component={Disclaimer} />
         <Route path="/cookie-notice" component={CookieNotice} />
+        <Route path="/privacy" component={Privacy} />
+        <Route path="/developers" component={Developers} />
         <Route path="/destinations" component={Destinations} />
         <Route path="/partner-with-us" component={PartnerWithUs} />
         <Route path="/friends-of-dzaleka" component={FriendsOfDzaleka} />

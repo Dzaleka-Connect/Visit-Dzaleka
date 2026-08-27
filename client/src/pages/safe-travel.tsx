@@ -178,11 +178,11 @@ export default function SafeTravel() {
                 <div className="relative py-24 overflow-hidden bg-gradient-to-br from-red-500/10 via-background to-orange-500/5">
                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-geometric.png')] opacity-5" />
                     <div className="container mx-auto px-4 text-center relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm rounded-full uppercase tracking-widest font-semibold border-red-500/30 bg-red-500/10 text-red-600">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm rounded-full font-semibold border-red-500/30 bg-red-500/10 text-red-600">
                             <Shield className="mr-2 h-3.5 w-3.5" />
                             Safety First
                         </Badge>
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6">
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6">
                             Safe Travel & Emergency Info
                         </h1>
                         <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
@@ -197,7 +197,7 @@ export default function SafeTravel() {
                         <div className="flex items-start gap-4">
                             <AlertTriangle className="h-6 w-6 text-amber-600 shrink-0 mt-0.5" />
                             <div>
-                                <h3 className="font-bold text-amber-800 dark:text-amber-200 mb-2">Important Note</h3>
+                                <h3 className="font-semibold text-amber-800 dark:text-amber-200 mb-2">Important Note</h3>
                                 <p className="text-amber-700 dark:text-amber-300 text-sm">
                                     Emergency response in Malawi is categorized by local and national services. While national "99x" numbers exist,
                                     response times can vary. For localized incidents in Dzaleka, contacting the Dowa District Police or
@@ -213,18 +213,18 @@ export default function SafeTravel() {
                             <div className="p-2 rounded-lg bg-red-500/10 text-red-600">
                                 <Phone className="w-6 h-6" />
                             </div>
-                            <h2 className="text-2xl font-bold">National Emergency Numbers</h2>
+                            <h2 className="text-2xl font-semibold">National Emergency Numbers</h2>
                         </div>
 
                         <div className="grid md:grid-cols-3 gap-6">
                             {nationalEmergencyNumbers.map((item, index) => (
-                                <Card key={index} className="border-2 border-red-200 dark:border-red-900 hover:border-red-400 transition-colors">
+                                <Card key={index} className="border-2 border-red-200 dark:border-red-900 hover:border-red-400">
                                     <CardContent className="p-6 text-center">
                                         <div className="h-14 w-14 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
                                             <item.icon className="h-7 w-7 text-red-600" />
                                         </div>
-                                        <h3 className="text-lg font-bold mb-2">{item.service}</h3>
-                                        <p className="text-3xl font-bold text-red-600 mb-1">{item.number}</p>
+                                        <h3 className="text-lg font-semibold mb-2">{item.service}</h3>
+                                        <p className="text-3xl font-semibold text-red-600 mb-1">{item.number}</p>
                                         {item.note && (
                                             <p className="text-xs text-muted-foreground">{item.note}</p>
                                         )}
@@ -240,12 +240,12 @@ export default function SafeTravel() {
                             <div className="p-2 rounded-lg bg-primary/10 text-primary">
                                 <MapPin className="w-6 h-6" />
                             </div>
-                            <h2 className="text-2xl font-bold">Dzaleka & Local Area Contacts</h2>
+                            <h2 className="text-2xl font-semibold">Dzaleka & Local Area Contacts</h2>
                         </div>
 
                         <div className="grid md:grid-cols-2 gap-6">
                             {localContacts.map((contact, index) => (
-                                <Card key={index} className="border-border hover:border-primary/50 transition-colors">
+                                <Card key={index} className="border-border hover:border-primary/50">
                                     <CardHeader className="pb-3">
                                         <div>
                                             <CardTitle className="text-lg">{contact.name}</CardTitle>
@@ -287,7 +287,7 @@ export default function SafeTravel() {
                                 <Stethoscope className="w-6 h-6" />
                             </div>
                             <div>
-                                <h2 className="text-2xl font-bold">Major Medical Centers (Lilongwe)</h2>
+                                <h2 className="text-2xl font-semibold">Major Medical Centers (Lilongwe)</h2>
                                 <p className="text-sm text-muted-foreground">Approx. 1 hour from Dzaleka — for critical care or private assistance</p>
                             </div>
                         </div>
@@ -296,7 +296,7 @@ export default function SafeTravel() {
                             {lilongweHospitals.map((hospital, index) => (
                                 <Card key={index} className="border-border">
                                     <CardContent className="p-6">
-                                        <h3 className="font-bold text-lg mb-3">{hospital.name}</h3>
+                                        <h3 className="font-semibold text-lg mb-3">{hospital.name}</h3>
                                         <p className="text-sm text-muted-foreground mb-4">{hospital.description}</p>
                                         <div className="bg-muted/50 rounded-lg p-3">
                                             <div className="flex items-center justify-between">
@@ -317,7 +317,7 @@ export default function SafeTravel() {
                         <div className="flex items-start gap-4">
                             <CreditCard className="h-6 w-6 text-blue-600 shrink-0 mt-0.5" />
                             <div>
-                                <h3 className="font-bold text-blue-800 dark:text-blue-200 mb-2">Travel Insurance Recommendation</h3>
+                                <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">Travel Insurance Recommendation</h3>
                                 <p className="text-blue-700 dark:text-blue-300 text-sm">
                                     Having international travel insurance that includes emergency medical evacuation is highly recommended for travel in Malawi,
                                     as local facilities may not meet all international standards. Private air ambulance services are available but costly.
@@ -333,7 +333,7 @@ export default function SafeTravel() {
                                 <Plane className="w-6 h-6" />
                             </div>
                             <div>
-                                <h2 className="text-2xl font-bold">Private Medical Evacuation Services</h2>
+                                <h2 className="text-2xl font-semibold">Private Medical Evacuation Services</h2>
                                 <p className="text-sm text-muted-foreground">Contact directly for quotes — costs vary based on medical need and distance</p>
                             </div>
                         </div>
@@ -369,7 +369,7 @@ export default function SafeTravel() {
                                 <CreditCard className="w-6 h-6" />
                             </div>
                             <div>
-                                <h2 className="text-2xl font-bold">Emergency Card Template</h2>
+                                <h2 className="text-2xl font-semibold">Emergency Card Template</h2>
                                 <p className="text-sm text-muted-foreground">Print this wallet-sized card to carry with you</p>
                             </div>
                         </div>
@@ -377,7 +377,7 @@ export default function SafeTravel() {
                         <div className="max-w-2xl mx-auto">
                             <Card id="emergency-card" className="border-2 border-red-200 dark:border-red-900 print:border-black">
                                 <CardHeader className="bg-red-600 text-white print:bg-white print:text-black pb-3">
-                                    <CardTitle className="text-center text-lg uppercase tracking-wider">
+                                    <CardTitle className="text-center text-lg">
                                         🚨 Malawi Emergency Contacts
                                     </CardTitle>
                                 </CardHeader>
@@ -385,19 +385,19 @@ export default function SafeTravel() {
                                     <div className="grid grid-cols-2 gap-3 text-sm">
                                         <div className="flex justify-between border-b pb-1">
                                             <span className="font-medium">National Police</span>
-                                            <span className="font-bold">997 / 990</span>
+                                            <span className="font-semibold">997 / 990</span>
                                         </div>
                                         <div className="flex justify-between border-b pb-1">
                                             <span className="font-medium">Ambulance</span>
-                                            <span className="font-bold">998</span>
+                                            <span className="font-semibold">998</span>
                                         </div>
                                         <div className="flex justify-between border-b pb-1">
                                             <span className="font-medium">Road Accident</span>
-                                            <span className="font-bold">118</span>
+                                            <span className="font-semibold">118</span>
                                         </div>
                                         <div className="flex justify-between border-b pb-1">
                                             <span className="font-medium">MRI Malawi</span>
-                                            <span className="font-bold">992</span>
+                                            <span className="font-semibold">992</span>
                                         </div>
                                     </div>
 
@@ -424,7 +424,7 @@ export default function SafeTravel() {
                                     </div>
 
                                     <div className="border-t pt-4 space-y-3">
-                                        <h4 className="font-bold text-sm uppercase tracking-wide">Personal Information</h4>
+                                        <h4 className="font-semibold text-sm">Personal Information</h4>
                                         <div className="grid gap-3 text-sm">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-muted-foreground w-32 shrink-0">Name:</span>
@@ -602,7 +602,7 @@ export default function SafeTravel() {
                             <div className="p-2 rounded-lg bg-primary/10 text-primary">
                                 <AlertTriangle className="w-6 h-6" />
                             </div>
-                            <h2 className="text-2xl font-bold">Safety Tips</h2>
+                            <h2 className="text-2xl font-semibold">Safety Tips</h2>
                         </div>
 
                         <div className="grid md:grid-cols-3 gap-6 mb-8">
@@ -636,7 +636,7 @@ export default function SafeTravel() {
                             <div className="p-2 rounded-lg bg-red-500/10 text-red-600">
                                 <Shield className="w-6 h-6" />
                             </div>
-                            <h2 className="text-2xl font-bold">Malawi Security Protocols (2026)</h2>
+                            <h2 className="text-2xl font-semibold">Malawi Security Protocols (2026)</h2>
                         </div>
 
                         <div className="grid md:grid-cols-2 gap-6">
@@ -646,7 +646,7 @@ export default function SafeTravel() {
                                         <protocol.icon className="h-6 w-6 text-red-600" />
                                     </div>
                                     <div>
-                                        <h3 className="font-bold mb-2">{protocol.title}</h3>
+                                        <h3 className="font-semibold mb-2">{protocol.title}</h3>
                                         <p className="text-sm text-muted-foreground">{protocol.description}</p>
                                     </div>
                                 </div>
@@ -660,7 +660,7 @@ export default function SafeTravel() {
                             <div className="p-2 rounded-lg bg-primary/10 text-primary">
                                 <MapPin className="w-6 h-6" />
                             </div>
-                            <h2 className="text-2xl font-bold">Dzaleka-Specific Visitor Guidelines</h2>
+                            <h2 className="text-2xl font-semibold">Dzaleka-Specific Visitor Guidelines</h2>
                         </div>
 
                         <div className="grid md:grid-cols-3 gap-6">
@@ -670,7 +670,7 @@ export default function SafeTravel() {
                                         <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
                                             <guideline.icon className="h-6 w-6 text-primary" />
                                         </div>
-                                        <h3 className="font-bold mb-2">{guideline.title}</h3>
+                                        <h3 className="font-semibold mb-2">{guideline.title}</h3>
                                         <p className="text-sm text-muted-foreground">{guideline.description}</p>
                                     </CardContent>
                                 </Card>
@@ -681,7 +681,7 @@ export default function SafeTravel() {
                     {/* CTA */}
                     <section className="bg-primary text-primary-foreground rounded-3xl p-8 md:p-12 text-center">
                         <Shield className="h-12 w-12 mx-auto mb-6 opacity-80" />
-                        <h2 className="text-3xl font-bold mb-4">Plan a Safe Visit</h2>
+                        <h2 className="text-3xl font-semibold mb-4">Plan a Safe Visit</h2>
                         <p className="text-lg text-primary-foreground/90 max-w-2xl mx-auto mb-6">
                             For additional guidance on visiting Dzaleka safely, check our Visitor Essentials page or book a tour with a verified local guide.
                         </p>

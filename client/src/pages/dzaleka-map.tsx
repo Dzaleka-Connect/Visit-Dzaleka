@@ -120,7 +120,7 @@ export default function DzalekaMap() {
                 <Map className="h-3.5 w-3.5" />
                 Visitor orientation map
               </Badge>
-              <h1 className="max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl">
+              <h1 className="max-w-3xl text-4xl font-semibold sm:text-5xl">
                 Explore Dzaleka before you arrive
               </h1>
               <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
@@ -246,7 +246,7 @@ export default function DzalekaMap() {
                 <Layers className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold tracking-tight">What the map helps show</h2>
+                <h2 className="text-2xl font-semibold">What the map helps show</h2>
                 <p className="text-sm text-muted-foreground">Layers of community infrastructure and orientation context.</p>
               </div>
             </div>
@@ -273,7 +273,7 @@ export default function DzalekaMap() {
               <Users className="h-3.5 w-3.5" />
               Community mapping
             </Badge>
-            <h2 className="text-3xl font-bold tracking-tight">Mapped by people connected to the place</h2>
+            <h2 className="text-3xl font-semibold">Mapped by people connected to the place</h2>
             <p className="mt-4 text-muted-foreground">
               In 2021, MapMalawi received a Humanitarian OpenStreetMap Team Community Impact Microgrant to support detailed mapping of Dzaleka. The work involved local youth, TakenoLAB, and geospatial contributors who helped document infrastructure that is often missing from mainstream maps.
             </p>

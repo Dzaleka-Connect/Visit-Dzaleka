@@ -1,0 +1,28 @@
+{
+  "linkset": [
+    {
+      "anchor": "https://visit.dzaleka.com",
+      "service-desc": [
+        {
+          "href": "https://visit.dzaleka.com/openapi.json",
+          "type": "application/openapi+json",
+          "title": "Visit Dzaleka Public API"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://visit.dzaleka.com/developers",
+          "type": "text/html",
+          "title": "Developer portal"
+        }
+      ],
+      "describedby": [
+        {
+          "href": "https://visit.dzaleka.com/llms.txt",
+          "type": "text/plain",
+          "title": "Agent instructions"
+        }
+      ]
+    }
+  ]
+}

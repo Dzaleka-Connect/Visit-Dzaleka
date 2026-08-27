@@ -2454,9 +2454,9 @@ async function getPricingMap(): Promise<PricingMap> {
 
 // Default fallback prices if database is empty
 const DEFAULT_PRICING: PricingMap = {
-  individual: { basePrice: 15000, additionalHourPrice: 10000 },
-  small_group: { basePrice: 50000, additionalHourPrice: 10000 },
-  large_group: { basePrice: 80000, additionalHourPrice: 10000 },
+  individual: { basePrice: 20000, additionalHourPrice: 10000 },
+  small_group: { basePrice: 55000, additionalHourPrice: 10000 },
+  large_group: { basePrice: 85000, additionalHourPrice: 10000 },
   custom: { basePrice: 100000, additionalHourPrice: 10000 },
 };
 
@@ -11911,6 +11911,17 @@ export async function registerRoutes(
   });
 
   // Pricing endpoints
+  // Public pricing so the marketing pages can render live prices without a session
+  app.get("/api/public/pricing", async (req, res) => {
+    try {
+      const configs = await storage.getPricingConfigs();
+      res.json(configs.filter((c) => c.isActive !== false));
+    } catch (error) {
+      logError("Error fetching public pricing", error, req.requestId);
+      res.status(500).json({ message: "Failed to fetch pricing" });
+    }
+  });
+
   app.get("/api/pricing", isAuthenticated, async (req, res) => {
     try {
       const configs = await storage.getPricingConfigs();
@@ -11953,9 +11964,9 @@ export async function registerRoutes(
     try {
       const configs = await storage.getPricingConfigs();
       const pricing = {
-        individual: configs.find(c => c.groupSize === "individual")?.basePrice || 15000,
-        small_group: configs.find(c => c.groupSize === "small_group")?.basePrice || 50000,
-        large_group: configs.find(c => c.groupSize === "large_group")?.basePrice || 80000,
+        individual: configs.find(c => c.groupSize === "individual")?.basePrice || 20000,
+        small_group: configs.find(c => c.groupSize === "small_group")?.basePrice || 55000,
+        large_group: configs.find(c => c.groupSize === "large_group")?.basePrice || 85000,
         custom: configs.find(c => c.groupSize === "custom")?.basePrice || 100000,
       };
 

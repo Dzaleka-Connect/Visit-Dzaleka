@@ -1,3 +1,4 @@
+import { usePricing, type PricingMap } from "@/hooks/usePricing";
 import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { PublicHeader } from "@/components/public-header";
 
 // Structured Data for Google Search (TouristAttraction + FAQPage + HowTo + Event schema)
-const structuredData = {
+const buildStructuredData = (pricing: PricingMap) => ({
     "@context": "https://schema.org",
     "@graph": [
         {
@@ -80,7 +81,7 @@ const structuredData = {
                     "name": "How much does a tour cost?",
                     "acceptedAnswer": {
                         "@type": "Answer",
-                        "text": "Individual tours cost MWK 15,000, Small Groups (2-5) cost MWK 50,000, Medium Groups (6-10) cost MWK 80,000, and Large Groups (10+) cost MWK 100,000. Payment is accepted via Cash (MWK), Airtel Money, or TNM Mpamba."
+                        "text": `Individual tours cost MWK ${pricing.individual.toLocaleString("en-US")}, Small Groups (2-5) cost MWK ${pricing.small_group.toLocaleString("en-US")}, Medium Groups (6-10) cost MWK ${pricing.large_group.toLocaleString("en-US")}, and Large Groups (10+) cost MWK ${pricing.custom.toLocaleString("en-US")}. Payment is accepted via Cash (MWK), Airtel Money, or TNM Mpamba.`
                     }
                 },
                 {
@@ -172,9 +173,11 @@ const structuredData = {
             ]
         }
     ]
-};
+});
 
 export default function VisitorEssentials() {
+    const { pricing, price } = usePricing();
+    const structuredData = buildStructuredData(pricing);
     return (
         <div className="min-h-screen bg-background flex flex-col">
             <SEO
@@ -182,7 +185,7 @@ export default function VisitorEssentials() {
                 description="Essential information for visiting Dzaleka Refugee Camp. Authorization requirements, documentation, dress code, photography rules, transport options, and booking information."
                 keywords="Dzaleka visitor guide, Dzaleka authorization, Dzaleka travel, refugee camp visit, Malawi tourism, ethical tourism"
                 canonical="https://visit.dzaleka.com/plan-your-trip/visitor-essentials"
-                ogImage="https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg"
+                ogImage="/images/Badre_Bahaji_Tumaini_festival21_-31-1.jpg"
             />
 
             {/* Inject Structured Data */}
@@ -198,11 +201,11 @@ export default function VisitorEssentials() {
                 {/* Hero Section */}
                 <div className="relative py-16 sm:py-20 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
                     <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full uppercase tracking-widest font-semibold flex items-center justify-center w-fit mx-auto">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full font-semibold flex items-center justify-center w-fit mx-auto">
                             <Shield className="mr-2 h-3.5 w-3.5" />
                             Visitor Guide
                         </Badge>
-                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6">
+                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold mb-6">
                             Visitor Essentials
                         </h1>
                         <p className="text-base sm:text-lg md:text-xl text-muted-foreground leading-relaxed max-w-3xl mx-auto">
@@ -220,7 +223,7 @@ export default function VisitorEssentials() {
                             <div className="flex gap-4 items-start">
                                 <AlertTriangle className="h-6 w-6 text-amber-600 shrink-0 mt-0.5" />
                                 <div>
-                                    <h2 className="font-bold text-lg mb-2 text-amber-800 dark:text-amber-400">Important Notice</h2>
+                                    <h2 className="font-semibold text-lg mb-2 text-amber-800 dark:text-amber-400">Important Notice</h2>
                                     <p className="text-amber-700 dark:text-amber-300 text-sm sm:text-base">
                                         Dzaleka is a humanitarian site, <strong>not a standard tourist destination</strong>. For those wanting a tour through Visit Dzaleka, arrangements must be made <strong className="text-amber-900 dark:text-amber-100">at least 48 hours in advance</strong>. Visiting is a privilege that requires careful planning and strict adherence to ethical guidelines.
                                     </p>
@@ -233,7 +236,7 @@ export default function VisitorEssentials() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Shield className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Essential Requirements</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Essential Requirements</h2>
                         </div>
                         <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
                             <Card>
@@ -313,7 +316,7 @@ export default function VisitorEssentials() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Calendar className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Booking & Visitor Information</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Booking & Visitor Information</h2>
                         </div>
                         <p className="text-muted-foreground mb-6 text-sm sm:text-base">
                             The Visit Dzaleka initiative manages cultural tours, ensuring that fees directly support the refugee guides and community projects. There is no physical "Booking Centre" outside the camp; all arrangements are handled digitally.
@@ -332,7 +335,7 @@ export default function VisitorEssentials() {
                                     <TableBody>
                                         <TableRow>
                                             <TableCell className="font-medium text-xs sm:text-sm">Individual (1)</TableCell>
-                                            <TableCell className="text-xs sm:text-sm font-semibold">MWK 15,000</TableCell>
+                                            <TableCell className="text-xs sm:text-sm font-semibold">{price("individual")}</TableCell>
                                             <TableCell className="text-xs sm:text-sm text-muted-foreground">
                                                 A personal, one-on-one cultural immersion tailored to your interests.
                                                 <br /><span className="font-medium text-foreground/80">Includes:</span> Fully Personalized Itinerary, Dedicated Local Host, Flexible Pace.
@@ -343,7 +346,7 @@ export default function VisitorEssentials() {
                                                 Small Group (2-5)
                                                 <Badge variant="secondary" className="ml-2 text-[10px]">Most Popular</Badge>
                                             </TableCell>
-                                            <TableCell className="text-xs sm:text-sm font-semibold">MWK 50,000</TableCell>
+                                            <TableCell className="text-xs sm:text-sm font-semibold">{price("small_group")}</TableCell>
                                             <TableCell className="text-xs sm:text-sm text-muted-foreground">
                                                 Intimate, interactive experience perfect for couples or small families.
                                                 <br /><span className="font-medium text-foreground/80">Includes:</span> Interactive Group Tour, Experienced Guide, Shared Experience.
@@ -351,7 +354,7 @@ export default function VisitorEssentials() {
                                         </TableRow>
                                         <TableRow>
                                             <TableCell className="font-medium text-xs sm:text-sm">Medium Group (6-10)</TableCell>
-                                            <TableCell className="text-xs sm:text-sm font-semibold">MWK 80,000</TableCell>
+                                            <TableCell className="text-xs sm:text-sm font-semibold">{price("large_group")}</TableCell>
                                             <TableCell className="text-xs sm:text-sm text-muted-foreground">
                                                 Balanced experience for extended families or teams ensuring everyone engages.
                                                 <br /><span className="font-medium text-foreground/80">Includes:</span> Structured Experience, Senior Guide, Custom Focus Options.
@@ -359,7 +362,7 @@ export default function VisitorEssentials() {
                                         </TableRow>
                                         <TableRow>
                                             <TableCell className="font-medium text-xs sm:text-sm">Large Group (10+)</TableCell>
-                                            <TableCell className="text-xs sm:text-sm font-semibold">MWK 100,000</TableCell>
+                                            <TableCell className="text-xs sm:text-sm font-semibold">{price("custom")}</TableCell>
                                             <TableCell className="text-xs sm:text-sm text-muted-foreground">
                                                 Designed for schools or delegations with smooth logistics.
                                                 <br /><span className="font-medium text-foreground/80">Includes:</span> Full Logistics Support, Multiple Guides, Q&A Session.
@@ -376,42 +379,42 @@ export default function VisitorEssentials() {
                             </CardHeader>
                             <CardContent className="space-y-4 text-sm">
                                 <div className="flex gap-3">
-                                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">1</div>
+                                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-semibold shrink-0">1</div>
                                     <div>
                                         <strong>Create Your Account</strong>
                                         <p className="text-muted-foreground">Sign up on the <Link href="/login" className="text-primary hover:underline">Visit Dzaleka portal</Link> with your name, email, and phone number.</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-3">
-                                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">2</div>
+                                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-semibold shrink-0">2</div>
                                     <div>
                                         <strong>Choose Your Experience</strong>
                                         <p className="text-muted-foreground">Select your tour type (Standard 2-hour or Extended), group size, and preferred date/time at least 48 hours in advance.</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-3">
-                                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">3</div>
+                                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-semibold shrink-0">3</div>
                                     <div>
                                         <strong>Customize Your Tour</strong>
                                         <p className="text-muted-foreground">Select zones to visit (Market, Art District, Innovation Hub, etc.) and your interests (Food, Art, Tech, Music).</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-3">
-                                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">4</div>
+                                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-semibold shrink-0">4</div>
                                     <div>
                                         <strong>Pick Your Meeting Point</strong>
                                         <p className="text-muted-foreground">Choose where you'll meet your guide—main gate, market entrance, or another designated location.</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-3">
-                                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">5</div>
+                                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-semibold shrink-0">5</div>
                                     <div>
                                         <strong>Receive Confirmation</strong>
                                         <p className="text-muted-foreground">Get an email with your assigned guide's details, contact info, and meeting instructions.</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-3">
-                                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">6</div>
+                                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-semibold shrink-0">6</div>
                                     <div>
                                         <strong>Pay on Arrival</strong>
                                         <p className="text-muted-foreground">Pay your guide directly via <strong>Cash (MWK)</strong>, <strong>Airtel Money</strong>, or <strong>TNM Mpamba</strong>.</p>
@@ -430,21 +433,21 @@ export default function VisitorEssentials() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Bus className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Travelling to Dzaleka</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Travelling to Dzaleka</h2>
                         </div>
 
                         <div className="space-y-6">
                             <div className="relative border-l-2 border-primary/30 ml-4 space-y-8 pl-8 py-2">
                                 <div className="relative">
-                                    <div className="absolute -left-[41px] top-0 h-8 w-8 rounded-full border-4 border-background bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold">1</div>
-                                    <h3 className="text-lg sm:text-xl font-bold mb-2">Route</h3>
+                                    <div className="absolute -left-[41px] top-0 h-8 w-8 rounded-full border-4 border-background bg-primary flex items-center justify-center text-primary-foreground text-sm font-semibold">1</div>
+                                    <h3 className="text-lg sm:text-xl font-semibold mb-2">Route</h3>
                                     <p className="text-muted-foreground text-sm sm:text-base">
                                         From Lilongwe, take the M1 road north towards Kasungu, then turn onto the M16 towards Dowa. The camp is approximately <strong className="text-foreground">45-50km</strong> from the capital.
                                     </p>
                                 </div>
                                 <div className="relative">
-                                    <div className="absolute -left-[41px] top-0 h-8 w-8 rounded-full border-4 border-background bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold">2</div>
-                                    <h3 className="text-lg sm:text-xl font-bold mb-2 flex items-center gap-2">
+                                    <div className="absolute -left-[41px] top-0 h-8 w-8 rounded-full border-4 border-background bg-primary flex items-center justify-center text-primary-foreground text-sm font-semibold">2</div>
+                                    <h3 className="text-lg sm:text-xl font-semibold mb-2 flex items-center gap-2">
                                         <Bus className="h-4 w-4" /> By Minibus
                                     </h3>
                                     <p className="text-muted-foreground text-sm sm:text-base">
@@ -452,8 +455,8 @@ export default function VisitorEssentials() {
                                     </p>
                                 </div>
                                 <div className="relative">
-                                    <div className="absolute -left-[41px] top-0 h-8 w-8 rounded-full border-4 border-background bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold">3</div>
-                                    <h3 className="text-lg sm:text-xl font-bold mb-2">By Taxi</h3>
+                                    <div className="absolute -left-[41px] top-0 h-8 w-8 rounded-full border-4 border-background bg-primary flex items-center justify-center text-primary-foreground text-sm font-semibold">3</div>
+                                    <h3 className="text-lg sm:text-xl font-semibold mb-2">By Taxi</h3>
                                     <p className="text-muted-foreground text-sm sm:text-base">
                                         Private taxis can be hired from Lilongwe (approx. 45-60 mins). <strong className="text-foreground">Arrange a return trip in advance</strong>, as finding a taxi at the camp for the return journey can be difficult.
                                     </p>
@@ -466,7 +469,7 @@ export default function VisitorEssentials() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Footprints className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Getting Around & Accessibility</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Getting Around & Accessibility</h2>
                         </div>
 
                         <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
@@ -500,7 +503,7 @@ export default function VisitorEssentials() {
                                 <div className="flex gap-4 items-start">
                                     <AlertTriangle className="h-6 w-6 text-amber-600 shrink-0 mt-0.5" />
                                     <div>
-                                        <h3 className="font-bold text-lg mb-2 text-amber-800 dark:text-amber-400">Accessibility Warning</h3>
+                                        <h3 className="font-semibold text-lg mb-2 text-amber-800 dark:text-amber-400">Accessibility Warning</h3>
                                         <p className="text-amber-700 dark:text-amber-300 text-sm sm:text-base">
                                             Accessibility is <strong>extremely limited</strong>. The camp consists largely of unpaved dirt roads that become muddy during the rainy season. There are few, if any, wheelchair-accessible facilities or paved sidewalks. Visitors with mobility challenges should <Link href="/login" className="text-primary hover:underline font-medium">contact Visit Dzaleka in advance</Link> to discuss feasibility.
                                         </p>
@@ -514,7 +517,7 @@ export default function VisitorEssentials() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Shield className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Safety & Health</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Safety & Health</h2>
                         </div>
                         <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
                             <Card>
@@ -552,7 +555,7 @@ export default function VisitorEssentials() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Users className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Ethical Considerations</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Ethical Considerations</h2>
                         </div>
                         <Card className="bg-muted/30">
                             <CardContent className="p-6">
@@ -603,7 +606,7 @@ export default function VisitorEssentials() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <MapPin className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Malawi Travel Info</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Malawi Travel Info</h2>
                         </div>
                         <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
                             <Card>
@@ -700,21 +703,21 @@ export default function VisitorEssentials() {
                     <section>
                         <div className="flex items-center gap-3 mb-6">
                             <Music className="h-6 w-6 text-primary" />
-                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Major Annual Event</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Major Annual Event</h2>
                         </div>
 
                         <Card className="overflow-hidden">
                             <div className="md:flex">
                                 <div className="md:w-2/5">
                                     <img
-                                        src="https://tumainiletu.org/wp-content/uploads/2024/10/Badre_Bahaji_Tumaini_festival21_-31-1.jpg"
+                                        src="/images/Badre_Bahaji_Tumaini_festival21_-31-1.jpg"
                                         alt="Tumaini Festival Performance"
                                         className="w-full h-48 md:h-full object-cover"
                                     />
                                 </div>
                                 <CardContent className="p-6 md:w-3/5">
                                     <Badge variant="secondary" className="mb-3">Oct 30 - Nov 1, 2025</Badge>
-                                    <h3 className="text-xl sm:text-2xl font-bold mb-3">Tumaini Festival</h3>
+                                    <h3 className="text-xl sm:text-2xl font-semibold mb-3">Tumaini Festival</h3>
                                     <p className="text-muted-foreground mb-4 text-sm sm:text-base">
                                         This is the <strong className="text-foreground">world's only music festival hosted within a refugee camp</strong>. It attracts thousands of visitors for music, poetry, and dance. During the festival, a specific <strong className="text-foreground">Homestay Program</strong> allows visitors to stay overnight with refugee families.
                                     </p>
@@ -742,7 +745,7 @@ export default function VisitorEssentials() {
 
                     {/* CTA Section */}
                     <section className="bg-primary/5 rounded-2xl p-6 sm:p-8 md:p-12 text-center">
-                        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4">Ready to Visit?</h2>
+                        <h2 className="text-2xl sm:text-3xl font-semibold mb-4">Ready to Visit?</h2>
                         <p className="text-muted-foreground mb-6 max-w-2xl mx-auto text-sm sm:text-base">
                             Book your authorized tour through our official portal and experience Dzaleka with a local guide.
                         </p>

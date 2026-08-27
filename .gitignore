@@ -1,1 +1,28 @@
+# Dependencies
 node_modules
+dist
+
+# OS files
+.DS_Store
+
+# Build artifacts
+server/public
+vite.config.ts.*
+*.tar.gz
+*.log
+server.log
+check_log.txt
+cookies.txt
+
+# Environment variables - IMPORTANT: Never commit secrets
+.env
+.env.local
+.env.production
+.env*.local
+
+# Database
+*.sql.backup
+
+# IDE
+.idea
+.vscode

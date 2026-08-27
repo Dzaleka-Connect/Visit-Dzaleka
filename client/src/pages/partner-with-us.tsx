@@ -20,7 +20,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { PublicHeader } from "@/components/public-header";
 
-const PARTNER_OG_IMAGE = "https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg";
+const PARTNER_OG_IMAGE = "/images/Website-Entrepreneurship-and-innovation-2048x1536.jpg";
 
 const benefits = [
     {
@@ -106,13 +106,13 @@ export default function PartnerWithUs() {
                 <section className="relative py-24 md:py-32 overflow-hidden bg-muted/30">
                     <div className="absolute inset-0 z-0 opacity-10">
                         <img
-                            src="https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg"
+                            src="/images/Website-Entrepreneurship-and-innovation-2048x1536.jpg"
                             alt="Background Pattern"
                             className="w-full h-full object-cover grayscale"
                         />
                     </div>
                     <div className="container relative z-10 mx-auto px-4 text-center">
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6 text-foreground">
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6 text-foreground">
                             Partner with Dzaleka Visit
                         </h1>
                         <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
@@ -125,7 +125,7 @@ export default function PartnerWithUs() {
                 <section className="py-24 bg-background">
                     <div className="container mx-auto px-4">
                         <div className="text-center mb-16">
-                            <h2 className="text-3xl font-bold tracking-tight mb-4">Why Collaborate With Us?</h2>
+                            <h2 className="text-3xl font-semibold mb-4">Why Collaborate With Us?</h2>
                             <p className="text-muted-foreground max-w-2xl mx-auto">
                                 We believe in partnerships that are mutually beneficial, transparent, and impact-driven.
                             </p>
@@ -138,7 +138,7 @@ export default function PartnerWithUs() {
                                         <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 text-primary">
                                             <benefit.icon className="h-6 w-6" />
                                         </div>
-                                        <CardTitle className="text-xl font-bold">{benefit.title}</CardTitle>
+                                        <CardTitle className="text-xl font-semibold">{benefit.title}</CardTitle>
                                     </CardHeader>
                                     <CardContent>
                                         <p className="text-muted-foreground leading-relaxed">
@@ -157,7 +157,7 @@ export default function PartnerWithUs() {
                         <div className="grid lg:grid-cols-2 gap-12 items-start max-w-6xl mx-auto">
                             {/* Left Side: Content */}
                             <div>
-                                <h2 className="text-3xl font-bold tracking-tight mb-6">Let's Build Something Together</h2>
+                                <h2 className="text-3xl font-semibold mb-6">Let's Build Something Together</h2>
                                 <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
                                     Are you a tour operator, travel agent, or educational institution? We can help you plan visits with clear expectations, practical logistics, and direct community benefit.
                                 </p>

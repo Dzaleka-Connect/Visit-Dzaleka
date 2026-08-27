@@ -130,8 +130,7 @@ function OptionRadioGroup({
             <Label
               key={option}
               htmlFor={id}
-              className={`relative flex min-h-11 cursor-pointer items-center justify-center rounded-md border px-3 py-2 text-sm transition-colors focus-within:ring-2 focus-within:ring-ring ${
-                value === option ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted"
+              className={`relative flex min-h-11 cursor-pointer items-center justify-center rounded-md border px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-ring ${ value === option ?"border-primary bg-primary/10 text-primary" : "hover:bg-muted"
               }`}
             >
               <RadioGroupItem id={id} value={option} className="absolute inset-0 h-full w-full rounded-md opacity-0" />
@@ -282,7 +281,7 @@ export default function VisitFeedback() {
               <MessageSquareText className="h-3.5 w-3.5" />
               Verified visitor feedback
             </Badge>
-            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Share your Visit Dzaleka experience</h1>
+            <h1 className="text-3xl font-semibold sm:text-4xl">Share your Visit Dzaleka experience</h1>
             <p className="mt-3 max-w-2xl text-muted-foreground">
               Your review helps the team improve the tour, support guides, and give future visitors a clearer picture of what to expect.
             </p>

@@ -111,7 +111,7 @@ export default function ImpactReportView() {
                     robots="noindex"
                 />
                 <FileText className="h-16 w-16 text-muted-foreground mb-4" />
-                <h1 className="text-2xl font-bold mb-2">Report Not Found</h1>
+                <h1 className="text-2xl font-semibold mb-2">Report Not Found</h1>
                 <p className="text-muted-foreground mb-6">The report you're looking for doesn't exist.</p>
                 <Button asChild>
                     <Link href="/impact-report">
@@ -158,7 +158,7 @@ export default function ImpactReportView() {
                             </Badge>
                             <Badge variant="outline">{report.type}</Badge>
                         </div>
-                        <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight mb-4">
+                        <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold mb-4">
                             {report.title}
                         </h1>
                         <div className="flex items-center gap-4 text-muted-foreground mb-6">
@@ -191,7 +191,7 @@ export default function ImpactReportView() {
                 {/* Stats */}
                 <section className="py-12 bg-background border-b">
                     <div className="container mx-auto px-4 max-w-4xl">
-                        <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                        <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
                             <TrendingUp className="h-5 w-5 text-primary" />
                             Key Metrics
                         </h2>
@@ -200,7 +200,7 @@ export default function ImpactReportView() {
                                 <Card key={index} className="text-center">
                                     <CardContent className="p-6">
                                         <stat.icon className="h-8 w-8 mx-auto mb-3 text-primary" />
-                                        <div className="text-3xl font-bold mb-1">{stat.value}</div>
+                                        <div className="text-3xl font-semibold mb-1">{stat.value}</div>
                                         <div className="text-sm text-muted-foreground">{stat.label}</div>
                                     </CardContent>
                                 </Card>
@@ -212,7 +212,7 @@ export default function ImpactReportView() {
                 {/* Visitor Origins */}
                 <section className="py-12 bg-muted/30">
                     <div className="container mx-auto px-4 max-w-4xl">
-                        <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                        <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
                             <Globe className="h-5 w-5 text-primary" />
                             Visitor Origins
                         </h2>
@@ -235,7 +235,7 @@ export default function ImpactReportView() {
                 {/* Highlights */}
                 <section className="py-12 bg-background">
                     <div className="container mx-auto px-4 max-w-4xl">
-                        <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                        <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
                             <CheckCircle2 className="h-5 w-5 text-primary" />
                             Highlights
                         </h2>
@@ -254,7 +254,7 @@ export default function ImpactReportView() {
                 {report.tourStories && report.tourStories.length > 0 && (
                     <section className="py-12 bg-muted/30">
                         <div className="container mx-auto px-4 max-w-4xl">
-                            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
                                 <BookOpen className="h-5 w-5 text-primary" />
                                 Tour Stories
                             </h2>
@@ -279,7 +279,7 @@ export default function ImpactReportView() {
                 {/* CTA */}
                 <section className="py-12 bg-primary/5">
                     <div className="container mx-auto px-4 max-w-3xl text-center">
-                        <h2 className="text-2xl font-bold mb-4">Be Part of Our Next Report</h2>
+                        <h2 className="text-2xl font-semibold mb-4">Be Part of Our Next Report</h2>
                         <p className="text-muted-foreground mb-6">
                             Book a tour and contribute to the growing impact of refugee-led tourism.
                         </p>

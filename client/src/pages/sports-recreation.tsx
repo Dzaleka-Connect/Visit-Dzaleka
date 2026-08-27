@@ -75,11 +75,11 @@ export default function SportsRecreation() {
                     <div className="absolute inset-0 bg-black/60" />
 
                     <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-white/30 bg-white/10 text-white rounded-full uppercase tracking-widest font-semibold flex items-center justify-center w-fit mx-auto backdrop-blur-sm">
+                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-white/30 bg-white/10 text-white rounded-full font-semibold flex items-center justify-center w-fit mx-auto backdrop-blur-sm">
                             <Trophy className="mr-2 h-3.5 w-3.5" />
                             Youth Empowerment
                         </Badge>
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6 text-white">
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6 text-white">
                             Sports & Recreation
                         </h1>
                         <p className="text-lg md:text-xl text-white/90 leading-relaxed max-w-2xl mx-auto drop-shadow-sm">
@@ -100,7 +100,7 @@ export default function SportsRecreation() {
                     {/* Sports Programs Grid */}
                     <section>
                         <div className="text-center mb-12">
-                            <h2 className="text-3xl font-bold tracking-tight mb-4">Sports Programs & Organizations</h2>
+                            <h2 className="text-3xl font-semibold mb-4">Sports Programs & Organizations</h2>
                             <p className="text-muted-foreground max-w-2xl mx-auto">
                                 From local leagues to international partnerships, these programs drive talent and discipline.
                             </p>
@@ -112,7 +112,7 @@ export default function SportsRecreation() {
                                         <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                                             <item.icon className="h-7 w-7 text-primary" />
                                         </div>
-                                        <h3 className="text-lg font-bold mb-2">{item.title}</h3>
+                                        <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
                                         <p className="text-muted-foreground text-sm">{item.description}</p>
                                     </CardContent>
                                 </Card>
@@ -127,7 +127,7 @@ export default function SportsRecreation() {
                                 <Rocket className="h-5 w-5" />
                                 <span>Active Living</span>
                             </div>
-                            <h2 className="text-3xl font-bold tracking-tight">Recreational Activities</h2>
+                            <h2 className="text-3xl font-semibold">Recreational Activities</h2>
                             <p className="text-muted-foreground text-lg">
                                 Beyond competitive sports, these initiatives build leadership and provide essential social outlets.
                             </p>
@@ -161,12 +161,12 @@ export default function SportsRecreation() {
                         <div className="absolute top-0 right-0 p-32 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
                         <div className="grid md:grid-cols-2 gap-12 items-center relative z-10">
                             <div>
-                                <h2 className="text-3xl font-bold tracking-tight mb-4">Join the Energy</h2>
+                                <h2 className="text-3xl font-semibold mb-4">Join the Energy</h2>
                                 <p className="text-lg text-primary-foreground/90 mb-6">
                                     Visitors are encouraged to engage with these activities. It's one of the best ways to experience the camp's spirit and support the community.
                                 </p>
                                 <div className="flex flex-col gap-4 sm:flex-row">
-                                    <Button asChild size="lg" variant="secondary" className="font-bold text-primary">
+                                    <Button asChild size="lg" variant="secondary" className="font-semibold text-primary">
                                         <Link href="/contact">Contact to Visit</Link>
                                     </Button>
                                     <Button asChild size="lg" variant="outline" className="bg-transparent border-primary-foreground/20 hover:bg-primary-foreground/10 text-primary-foreground">
@@ -180,7 +180,7 @@ export default function SportsRecreation() {
                                         <Calendar className="h-5 w-5" />
                                     </div>
                                     <div>
-                                        <h4 className="font-bold text-lg">Attend Matches</h4>
+                                        <h4 className="font-semibold text-lg">Attend Matches</h4>
                                         <p className="text-primary-foreground/80">Watching weekend football tournaments is an electrifying experience.</p>
                                     </div>
                                 </div>
@@ -189,7 +189,7 @@ export default function SportsRecreation() {
                                         <MapPin className="h-5 w-5" />
                                     </div>
                                     <div>
-                                        <h4 className="font-bold text-lg">Hire Local Guides</h4>
+                                        <h4 className="font-semibold text-lg">Hire Local Guides</h4>
                                         <p className="text-primary-foreground/80">Book a tour to navigate safely and find current sports schedules.</p>
                                     </div>
                                 </div>
@@ -198,7 +198,7 @@ export default function SportsRecreation() {
                                         <Heart className="h-5 w-5" />
                                     </div>
                                     <div>
-                                        <h4 className="font-bold text-lg">Support Local Teams</h4>
+                                        <h4 className="font-semibold text-lg">Support Local Teams</h4>
                                         <p className="text-primary-foreground/80">Many teams rely on donations for kits and equipment. Your support goes a long way.</p>
                                     </div>
                                 </div>

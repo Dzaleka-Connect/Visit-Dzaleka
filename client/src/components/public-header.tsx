@@ -86,8 +86,8 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
               className="h-10 w-10 rounded-lg shadow-sm"
             />
             <div className="flex flex-col">
-              <span className="text-sm font-bold tracking-tight">Visit Dzaleka</span>
-              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+              <span className="text-sm font-semibold">Visit Dzaleka</span>
+              <span className="text-[10px] text-muted-foreground">
                 Official Portal
               </span>
             </div>
@@ -114,7 +114,7 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
               <NavigationMenuContent>
                 <ul className="grid w-[400px] gap-1 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
                   <li className="col-span-2 pb-2 mb-2 border-b">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">About</span>
+                    <span className="text-xs font-semibold text-muted-foreground">About</span>
                   </li>
                   <ListItem href="/about-dzaleka" title="About Dzaleka">
                     Learn about the camp's history
@@ -133,7 +133,7 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
                   </ListItem>
 
                   <li className="col-span-2 py-2 mt-2 border-t border-b">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Things To Do</span>
+                    <span className="text-xs font-semibold text-muted-foreground">Things To Do</span>
                   </li>
                   <ListItem href="/things-to-do" title="All Experiences">
                     Browse all activities
@@ -268,7 +268,7 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
 
             {/* Discover Section */}
             <div className="pt-3 pb-1">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3">Discover</span>
+              <span className="text-xs font-semibold text-muted-foreground px-3">Discover</span>
             </div>
             <MobileNavLink href="/about-dzaleka" onClick={() => setMobileMenuOpen(false)} active={isActive("/about-dzaleka")}>
               About Dzaleka
@@ -324,7 +324,7 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
 
             {/* Plan Section */}
             <div className="pt-3 pb-1 border-t mt-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3">Plan Your Trip</span>
+              <span className="text-xs font-semibold text-muted-foreground px-3">Plan Your Trip</span>
             </div>
             <MobileNavLink href="/plan-your-trip" onClick={() => setMobileMenuOpen(false)} active={currentPath === "/plan-your-trip"}>
               Trip Planner
@@ -350,7 +350,7 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
 
             {/* Support Section */}
             <div className="pt-3 pb-1 border-t mt-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3">Support</span>
+              <span className="text-xs font-semibold text-muted-foreground px-3">Support</span>
             </div>
             <MobileNavLink href="/faq" onClick={() => setMobileMenuOpen(false)} active={isActive("/faq")}>
               FAQ
@@ -396,7 +396,7 @@ const ListItem = ({
         <Link
           href={href}
           className={cn(
-            "block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+            "block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
             className
           )}
         >
@@ -427,7 +427,7 @@ const MobileNavLink = ({
       href={href}
       onClick={onClick}
       className={cn(
-        "block px-3 py-2 text-sm font-medium rounded-md transition-colors",
+        "block px-3 py-2 text-sm font-medium rounded-md",
         active ? "bg-primary/10 text-primary" : "hover:bg-muted"
       )}
     >

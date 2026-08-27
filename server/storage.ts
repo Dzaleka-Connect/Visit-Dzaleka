@@ -1094,6 +1094,9 @@ export class SupabaseStorage implements IStorage {
         });
       }
     }
+
+    // Pricing is cached for 15 minutes, so drop it or admin edits stay invisible
+    cache.invalidate(CACHE_KEYS.PRICING);
   }
 
   // Special offer operations

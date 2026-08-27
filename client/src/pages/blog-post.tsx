@@ -90,7 +90,7 @@ export default function BlogPostPage() {
                     description="The article you are looking for does not exist."
                     robots="noindex"
                 />
-                <h1 className="text-2xl font-bold mb-4">Blog Post Not Found</h1>
+                <h1 className="text-2xl font-semibold mb-4">Blog Post Not Found</h1>
                 <p className="text-muted-foreground mb-6">The article you are looking for does not exist or has been removed.</p>
                 <Button asChild>
                     <Link href="/blog">Back to Blog</Link>
@@ -241,11 +241,11 @@ export default function BlogPostPage() {
                 <div className="bg-muted/30 border-b">
                     <div className="container mx-auto px-4 max-w-4xl py-3">
                         <nav className="flex items-center gap-2 text-sm text-muted-foreground" aria-label="Breadcrumb">
-                            <Link href="/" className="flex items-center hover:text-foreground transition-colors">
+                            <Link href="/" className="flex items-center hover:text-foreground">
                                 <Home className="h-4 w-4" />
                             </Link>
                             <ChevronRight className="h-3 w-3" />
-                            <Link href="/blog" className="hover:text-foreground transition-colors">Blog</Link>
+                            <Link href="/blog" className="hover:text-foreground">Blog</Link>
                             <ChevronRight className="h-3 w-3" />
                             <span className="text-foreground truncate max-w-[200px]">{post.title}</span>
                         </nav>
@@ -265,7 +265,7 @@ export default function BlogPostPage() {
                                 <span>•</span>
                                 <span className="flex items-center"><Clock className="mr-1.5 h-4 w-4" /> {readingMinutes} min read</span>
                             </div>
-                            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-foreground leading-tight">{post.title}</h1>
+                            <h1 className="text-4xl md:text-5xl font-semibold text-foreground leading-tight">{post.title}</h1>
                             {post.excerpt && <p className="text-xl text-muted-foreground leading-relaxed">{post.excerpt}</p>}
 
                             {/* Social Sharing - Top */}
@@ -310,7 +310,7 @@ export default function BlogPostPage() {
                                 <button
                                     type="button"
                                     onClick={handleCopyLink}
-                                    className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
+                                    className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground"
                                     aria-label="Copy link"
                                 >
                                     {copied ? <IoCheckmark className="h-4 w-4 text-green-500" /> : <IoCopyOutline className="h-4 w-4" />}
@@ -370,7 +370,7 @@ export default function BlogPostPage() {
                             <button
                                 type="button"
                                 onClick={handleCopyLink}
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-muted text-sm font-medium hover:bg-primary hover:text-primary-foreground transition-colors"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-muted text-sm font-medium hover:bg-primary hover:text-primary-foreground"
                             >
                                 {copied ? <IoCheckmark className="h-4 w-4 text-green-500" /> : <IoCopyOutline className="h-4 w-4" />}
                                 {copied ? "Copied!" : "Copy Link"}
@@ -384,7 +384,7 @@ export default function BlogPostPage() {
                     <Card className="bg-primary/5 border-primary/20">
                         <CardContent className="p-6 md:p-8 flex flex-col md:flex-row items-center gap-6">
                             <div className="flex-1">
-                                <h3 className="text-xl font-bold mb-2">Ready to Experience Dzaleka?</h3>
+                                <h3 className="text-xl font-semibold mb-2">Ready to Experience Dzaleka?</h3>
                                 <p className="text-muted-foreground">
                                     Book a guided tour and discover the vibrant culture, creativity, and resilience of Dzaleka Refugee Camp firsthand.
                                 </p>
@@ -403,7 +403,7 @@ export default function BlogPostPage() {
                     <div className="container mx-auto px-4 max-w-4xl pb-20">
                         <div className="border-t pt-12">
                             <div className="flex items-center justify-between mb-8">
-                                <h2 className="text-2xl font-bold flex items-center gap-2">
+                                <h2 className="text-2xl font-semibold flex items-center gap-2">
                                     <BookOpen className="h-6 w-6 text-primary" />
                                     More Articles
                                 </h2>
@@ -431,7 +431,7 @@ export default function BlogPostPage() {
                                                     <Calendar className="h-3 w-3" />
                                                     <span>{relatedPost.publishedAt ? format(new Date(relatedPost.publishedAt), "MMM d, yyyy") : "Draft"}</span>
                                                 </div>
-                                                <h3 className="font-semibold line-clamp-2 group-hover:text-primary transition-colors">
+                                                <h3 className="font-semibold line-clamp-2 group-hover:text-primary">
                                                     {relatedPost.title}
                                                 </h3>
                                             </CardContent>

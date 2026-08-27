@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const HERO_IMAGE =
-  "https://tumainiletu.org/wp-content/uploads/2021/07/Website-Entrepreneurship-and-innovation-2048x1536.jpg";
+  "/images/Website-Entrepreneurship-and-innovation-2048x1536.jpg";
 
 /* ─────────────────────────────────────────────
    How the guide-led flow works (for visitors)
@@ -236,7 +236,7 @@ export default function CommunityHubGuide() {
               <Badge className="mb-3 bg-white/15 text-white hover:bg-white/20">
                 Public guide
               </Badge>
-              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+              <h1 className="text-3xl font-semibold sm:text-4xl lg:text-5xl">
                 How the Community Hub works
               </h1>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-white/85 sm:text-base">
@@ -290,7 +290,7 @@ export default function CommunityHubGuide() {
         <section className="container mx-auto px-4 py-10 sm:py-12">
           <div className="mb-7 max-w-3xl">
             <Badge variant="outline" className="mb-3">Step by step</Badge>
-            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">How each role fits in</h2>
+            <h2 className="text-2xl font-semibold sm:text-3xl">How each role fits in</h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
               Visitors book a tour. Guides curate the route. Providers keep their listings accurate. Everyone has a clear role.
             </p>
@@ -344,7 +344,7 @@ export default function CommunityHubGuide() {
           <div className="container mx-auto px-4 py-10 sm:py-12">
             <div className="mb-7 max-w-3xl">
               <Badge variant="outline" className="mb-3">Tour coordination</Badge>
-              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">How a community stop happens</h2>
+              <h2 className="text-2xl font-semibold sm:text-3xl">How a community stop happens</h2>
               <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
                 Your guide coordinates everything behind the scenes so each community stop feels natural and well-prepared.
               </p>
@@ -369,7 +369,7 @@ export default function CommunityHubGuide() {
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Visitor checklist */}
             <div className="min-w-0 rounded-lg border p-5 sm:p-6">
-              <h2 className="flex items-center gap-2 text-xl font-bold tracking-tight">
+              <h2 className="flex items-center gap-2 text-xl font-semibold">
                 <Compass className="h-5 w-5 text-primary" aria-hidden="true" />
                 Visitors should
               </h2>
@@ -382,7 +382,7 @@ export default function CommunityHubGuide() {
 
             {/* Guide checklist */}
             <div className="min-w-0 rounded-lg border border-primary/20 bg-primary/5 p-5 sm:p-6">
-              <h2 className="flex items-center gap-2 text-xl font-bold tracking-tight">
+              <h2 className="flex items-center gap-2 text-xl font-semibold">
                 <Users className="h-5 w-5 text-primary" aria-hidden="true" />
                 Guides should
               </h2>
@@ -395,7 +395,7 @@ export default function CommunityHubGuide() {
 
             {/* Provider checklist */}
             <div className="min-w-0 rounded-lg border p-5 sm:p-6">
-              <h2 className="flex items-center gap-2 text-xl font-bold tracking-tight">
+              <h2 className="flex items-center gap-2 text-xl font-semibold">
                 <Package className="h-5 w-5 text-primary" aria-hidden="true" />
                 Providers should include
               </h2>
@@ -420,7 +420,7 @@ export default function CommunityHubGuide() {
           <div className="container mx-auto px-4 py-10 sm:py-12">
             <div className="mb-7 max-w-3xl">
               <Badge variant="outline" className="mb-3">Questions</Badge>
-              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Quick answers</h2>
+              <h2 className="text-2xl font-semibold sm:text-3xl">Quick answers</h2>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               {faqItems.map((item) => (
