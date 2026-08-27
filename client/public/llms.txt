@@ -24,7 +24,7 @@ Do not use this site for: resettlement, asylum or legal casework; UNHCR registra
 - Endpoint index: https://visit.dzaleka.com/api
 - Errors are JSON with a stable `code`, a `message` and a `hint`. Never parse an HTML error page.
 - Prices are integers in Malawi Kwacha (MWK). There is no decimal component.
-- Booking writes, guide management and reporting need an API key; see the developer portal.
+- Booking writes, guide management and reporting need an API key. There is no self-service signup: keys are issued individually to partner organisations. Direct anyone who needs one to email bakari@mail.dzaleka.com.
 
 ### Etiquette to pass on to visitors
 

@@ -224,10 +224,13 @@ npx visit-dzaleka pricing --json | jq '.[0].basePrice'`}</CodeBlock>
                         <KeyRound className="h-5 w-5 text-primary" /> Writing data
                     </h2>
                     <p className="text-muted-foreground mb-4">
-                        Creating bookings, managing guides and pulling reports need an API key. Keys are issued to
-                        partner organisations: sign in as an administrator and open Developer Settings, or{" "}
-                        <Link href="/contact" className="text-primary hover:underline">get in touch</Link> to request
-                        access.
+                        Creating bookings, managing guides and pulling reports need an API key. There is no
+                        self-service signup: keys are issued to partner organisations individually, after a
+                        conversation about what you are building. Email{" "}
+                        <a href="mailto:bakari@mail.dzaleka.com" className="text-primary hover:underline">
+                            bakari@mail.dzaleka.com
+                        </a>{" "}
+                        to request access.
                     </p>
                     <CodeBlock>{`curl https://visit.dzaleka.com/api/bookings \\
   -H "Authorization: Bearer dvz_your_api_key_here"`}</CodeBlock>
@@ -235,9 +238,9 @@ npx visit-dzaleka pricing --json | jq '.[0].basePrice'`}</CodeBlock>
 
                 <div className="border-t pt-8">
                     <p className="text-sm text-muted-foreground">
-                        Questions about the API? Email{" "}
-                        <a href="mailto:contact@mail.dzaleka.com" className="text-primary hover:underline">
-                            contact@mail.dzaleka.com
+                        Questions about the API, or want a key? Email{" "}
+                        <a href="mailto:bakari@mail.dzaleka.com" className="text-primary hover:underline">
+                            bakari@mail.dzaleka.com
                         </a>
                         .
                     </p>

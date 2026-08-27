@@ -4,10 +4,10 @@
     "title": "Visit Dzaleka Public API",
     "version": "1.0.0",
     "summary": "Read-only access to tours, pricing, zones, events and community content in Dzaleka Refugee Camp, Malawi.",
-    "description": "The Visit Dzaleka public API exposes the information an agent needs to answer questions about\nvisiting Dzaleka Refugee Camp in Dowa District, Malawi, and to prepare a booking request:\ntour pricing, camp zones, meeting points, guided-tour availability, community events and blog content.\n\n**No authentication is required for any operation in this document.** Endpoints that create or\nmodify bookings require a session or an API key and are documented separately at /docs.\n\nAll prices are integers in Malawi Kwacha (MWK) with no decimal component.\nResponses are `application/json`. Errors use the `Error` schema with a stable `code` field.\n\nPlease send no more than 100 requests per minute per IP.",
+    "description": "The Visit Dzaleka public API exposes the information an agent needs to answer questions about\nvisiting Dzaleka Refugee Camp in Dowa District, Malawi, and to prepare a booking request:\ntour pricing, camp zones, meeting points, guided-tour availability, community events and blog content.\n\n**No authentication is required for any operation in this document.** Endpoints that create or\nmodify bookings require a session or an API key. There is no self-service signup for keys:\nthey are issued individually to partner organisations - email bakari@mail.dzaleka.com to ask.\n\nAll prices are integers in Malawi Kwacha (MWK) with no decimal component.\nResponses are `application/json`. Errors use the `Error` schema with a stable `code` field.\n\nPlease send no more than 100 requests per minute per IP.",
     "contact": {
-      "name": "Visit Dzaleka",
-      "email": "contact@mail.dzaleka.com",
+      "name": "Visit Dzaleka API",
+      "email": "bakari@mail.dzaleka.com",
       "url": "https://visit.dzaleka.com/developers"
     },
     "license": {

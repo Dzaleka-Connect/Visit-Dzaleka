@@ -67,11 +67,16 @@ curl -X GET "https://visit.dzaleka.com/api/bookings" \
 
 ### Getting an API Key
 
-1. Log in as an admin at [visit.dzaleka.com](https://visit.dzaleka.com)
-2. Navigate to **Developer Settings** in the sidebar
-3. Click **Create API Key**
-4. Select permissions (scopes) your application needs
-5. Copy the key immediately - it won't be shown again!
+There is no self-service signup. Keys are issued individually to partner
+organisations after a conversation about what you are building.
+
+**Email [bakari@mail.dzaleka.com](mailto:bakari@mail.dzaleka.com)** with what you
+need access to and why, and a key will be issued with the narrowest scopes that
+cover it.
+
+Key creation itself is an internal, admin-only operation performed from Developer
+Settings in the dashboard; it is not something an external developer can reach.
+Keys are shown once at creation and cannot be retrieved afterwards.
 
 ### Supported API Key Routes
 
@@ -357,11 +362,17 @@ Webhooks allow your application to receive real-time HTTP POST notifications whe
 
 ### Configuring Webhooks
 
-1. Log in as an admin at [visit.dzaleka.com](https://visit.dzaleka.com)
-2. Go to **Developer Settings** > **Webhooks**
-3. Click **Add Endpoint** and enter your payload URL (must use HTTPS)
-4. Choose the events you want to subscribe to and save
-5. Copy the generated **Signing Secret** to verify payloads in your app
+Endpoints are registered for you, not by you. Email
+[bakari@mail.dzaleka.com](mailto:bakari@mail.dzaleka.com) with:
+
+- your payload URL (must use HTTPS)
+- the events you want to subscribe to (see the list below)
+
+You will be sent the **signing secret** for verifying payloads. Keep it secret;
+it is the only thing proving a delivery came from Visit Dzaleka.
+
+Registration is performed internally from Developer Settings > Webhooks in the
+dashboard, which is admin-only.
 
 ### Active Webhook Events
 

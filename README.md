@@ -21,7 +21,7 @@ Visitors book resident-led guided tours; administrators and guides run them. Tou
 
 ## For developers and AI agents
 
-The site is built to be machine-readable. Nothing below needs a key.
+The site is built to be machine-readable. The read-only resources below need no key or signup.
 
 | Resource | URL |
 |---|---|
@@ -35,6 +35,11 @@ The site is built to be machine-readable. Nothing below needs a key.
 ```bash
 curl https://visit.dzaleka.com/api/public/pricing
 ```
+
+The read-only endpoints above are open to anyone. **Write access — bookings,
+guide management, reporting — needs an API key, and there is no self-service
+signup.** Keys are issued individually to partner organisations: email
+[bakari@mail.dzaleka.com](mailto:bakari@mail.dzaleka.com) with what you need and why.
 
 Prices are integers in Malawi Kwacha with no decimal component, and they change — read them live rather than caching a figure. Errors return JSON with a stable `code`, never an HTML page. Every public page also has a markdown representation:
 
@@ -57,10 +62,20 @@ Full endpoint reference in [`docs/api.md`](docs/api.md). The spec lives in [`sha
 
 ## Getting started
 
+> **This codebase is internal.** It is published for transparency, not for
+> self-service setup — running it needs Supabase credentials, a session secret
+> and other secrets that are not distributed. If you need access, want to
+> contribute, or are asking about a clone or fork, email
+> **[bakari@mail.dzaleka.com](mailto:bakari@mail.dzaleka.com)** rather than
+> working from these instructions alone.
+>
+> The steps below are for people who already have the credentials.
+
 ### Prerequisites
 
 - Node.js 18 or newer
 - A Supabase project (PostgreSQL)
+- Credentials for the environment you are working against
 
 ### Installation
 
@@ -176,6 +191,14 @@ Covers the route manifest, redirect generation, the agent endpoints, OpenAPI spe
 
 Dzaleka is a place where tens of thousands of people live, not an attraction. Visits are arranged with community agreement, photography requires consent, and access can be limited by UNHCR or partner guidance on the day. Anything built on this platform should carry that context to visitors.
 
+## Contact
+
+Access requests, API keys, partnership and anything about this codebase:
+**[bakari@mail.dzaleka.com](mailto:bakari@mail.dzaleka.com)**
+
+General visitor enquiries go through [visit.dzaleka.com/contact](https://visit.dzaleka.com/contact).
+
 ## License
 
-Private — all rights reserved.
+Private — all rights reserved. Internal codebase; not licensed for reuse,
+redistribution or deployment elsewhere.
