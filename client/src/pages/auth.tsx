@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
+import { getPostAuthPath } from "@/lib/authUtils";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,14 +16,14 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { SEO } from "@/components/seo";
 
 const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email"),
+  email: z.string().trim().email("Please enter a valid email"),
   password: z.string().min(1, "Password is required"),
 });
 
 const registerSchema = z.object({
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email("Please enter a valid email"),
+  firstName: z.string().trim().min(1, "First name is required"),
+  lastName: z.string().trim().min(1, "Last name is required"),
+  email: z.string().trim().email("Please enter a valid email"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   confirmPassword: z.string().min(1, "Please confirm your password"),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -31,7 +32,7 @@ const registerSchema = z.object({
 });
 
 const forgotPasswordSchema = z.object({
-  email: z.string().email("Please enter a valid email"),
+  email: z.string().trim().email("Please enter a valid email"),
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
@@ -43,6 +44,7 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const search = useSearch();
 
   const loginForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -77,12 +79,13 @@ export default function AuthPage() {
       return response.json();
     },
     onSuccess: (user) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.clear();
+      queryClient.setQueryData(["/api/auth/user"], user);
       toast({
         title: "Welcome back!",
         description: `Logged in as ${user.firstName} ${user.lastName}`,
       });
-      setLocation("/");
+      setLocation(getPostAuthPath(search, user.role), { replace: true });
     },
     onError: (error: Error) => {
       toast({
@@ -100,12 +103,13 @@ export default function AuthPage() {
       return response.json();
     },
     onSuccess: (user) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.clear();
+      queryClient.setQueryData(["/api/auth/user"], user);
       toast({
         title: "Account created!",
         description: `Welcome, ${user.firstName}! Your account has been created successfully.`,
       });
-      setLocation("/");
+      setLocation(getPostAuthPath(search, user.role), { replace: true });
     },
     onError: (error: Error) => {
       toast({

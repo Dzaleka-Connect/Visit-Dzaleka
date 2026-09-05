@@ -116,6 +116,7 @@ export function createCsrfMiddleware(allowedOrigins: string[]) {
 
         if (!safeEquals(requestToken, sessionToken)) {
             return res.status(403).json({
+                code: "CSRF_INVALID_TOKEN",
                 message: "Forbidden: Invalid CSRF token"
             });
         }

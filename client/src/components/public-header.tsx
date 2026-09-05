@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -67,6 +67,30 @@ interface PublicHeaderProps {
 export function PublicHeader({ activePath }: PublicHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [location] = useLocation();
+  const [skipTarget, setSkipTarget] = useState("main-content");
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    const main = document.querySelector("main");
+    if (main) {
+      if (!main.id) main.id = "main-content";
+      if (!main.hasAttribute("tabindex")) main.tabIndex = -1;
+      setSkipTarget(main.id);
+    }
+  }, [location]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobileMenuOpen(false);
+        menuToggleRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [mobileMenuOpen]);
   const currentPath = activePath || location;
 
   const isActive = (href: string) => {
@@ -76,13 +100,16 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
+      <a href={`#${skipTarget}`} className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-4 focus:py-3 focus:ring-2 focus:ring-ring">Skip to content</a>
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         {/* Logo */}
         <Link href="/">
           <div className="flex items-center gap-3 cursor-pointer">
             <img
-              src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png"
-              alt="Visit Dzaleka Logo"
+              src="/favicon.png"
+              alt=""
+              width={40}
+              height={40}
               className="h-10 w-10 rounded-lg shadow-sm"
             />
             <div className="flex flex-col">
@@ -95,7 +122,7 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
         </Link>
 
         {/* Desktop Navigation - Radix NavigationMenu for keyboard accessibility */}
-        <NavigationMenu className="hidden md:flex">
+        <NavigationMenu className="hidden xl:flex">
           <NavigationMenuList>
             <NavigationMenuItem>
               <NavigationMenuLink
@@ -238,7 +265,7 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
         </NavigationMenu>
 
         {/* Desktop CTA Buttons */}
-        <div className="hidden md:flex items-center gap-2">
+        <div className="hidden xl:flex items-center gap-2">
           <Button asChild variant="outline" size="sm">
             <Link href="/login">Sign In</Link>
           </Button>
@@ -249,7 +276,10 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
 
         {/* Mobile Menu Toggle */}
         <button
-          className="md:hidden p-2"
+          ref={menuToggleRef}
+          type="button"
+          aria-controls="public-mobile-navigation"
+          className="xl:hidden inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
           aria-expanded={mobileMenuOpen}
@@ -260,7 +290,7 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
 
       {/* Mobile Navigation */}
       {mobileMenuOpen && (
-        <nav className="md:hidden border-t bg-background p-4 max-h-[80vh] overflow-y-auto">
+        <nav id="public-mobile-navigation" aria-label="Main navigation" className="xl:hidden border-t bg-background p-4 max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain pb-[max(1rem,env(safe-area-inset-bottom))]">
           <div className="space-y-1">
             <MobileNavLink href="/" onClick={() => setMobileMenuOpen(false)} active={currentPath === "/"}>
               Home
@@ -364,10 +394,10 @@ export function PublicHeader({ activePath }: PublicHeaderProps) {
 
             {/* CTA Buttons */}
             <div className="flex gap-2 pt-4 mt-4 border-t">
-              <Button asChild variant="outline" className="flex-1">
+              <Button asChild variant="outline" className="min-h-11 flex-1">
                 <Link href="/login">Sign In</Link>
               </Button>
-              <Button asChild className="flex-1">
+              <Button asChild className="min-h-11 flex-1">
                 <Link href="/things-to-do/dzaleka-refugee-camp-guided-walking-tour">Book Now</Link>
               </Button>
             </div>
@@ -426,8 +456,9 @@ const MobileNavLink = ({
     <Link
       href={href}
       onClick={onClick}
+      aria-current={active ? "page" : undefined}
       className={cn(
-        "block px-3 py-2 text-sm font-medium rounded-md",
+        "flex min-h-11 items-center px-3 py-2 text-sm font-medium rounded-md",
         active ? "bg-primary/10 text-primary" : "hover:bg-muted"
       )}
     >

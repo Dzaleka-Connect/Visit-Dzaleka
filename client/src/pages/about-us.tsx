@@ -1,3 +1,4 @@
+import { PublicPageIntro } from "@/components/public-page-intro";
 import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -28,25 +29,15 @@ export default function AboutUs() {
             {/* Header */}
             <PublicHeader activePath="/about-us" />
 
-            <main className="flex-1">
+            <main id="main-content" tabIndex={-1} className="flex-1">
                 {/* Hero Section */}
-                <div className="relative py-16 sm:py-24 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
-                    <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full font-semibold flex items-center justify-center w-fit mx-auto">
-                            <Sparkles className="mr-2 h-3.5 w-3.5" />
-                            Refugee-Led Tourism
-                        </Badge>
-                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold mb-6">
-                            About Visit Dzaleka
-                        </h1>
-                        <p className="text-base sm:text-lg md:text-xl text-muted-foreground leading-relaxed max-w-3xl mx-auto">
-                            We connect visitors with authentic cultural experiences, led by refugees who call Dzaleka home. Every tour supports livelihoods and shares the extraordinary stories of resilience within our community.
-                        </p>
-                    </div>
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-primary/5 blur-3xl -z-10" />
-                </div>
+                <PublicPageIntro
+                    eyebrow="Resident-led tourism"
+                    title="About Visit Dzaleka"
+                    description="Resident-led tours, community connections, and a closer look at life in Dzaleka."
+                />
 
-                <div className="container mx-auto px-4 py-8 sm:py-12 space-y-12 sm:space-y-16 max-w-5xl">
+                <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14 space-y-12 sm:space-y-16">
 
                     {/* Our Mission */}
                     <section>

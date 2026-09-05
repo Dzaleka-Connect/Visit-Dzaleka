@@ -70,9 +70,9 @@ describe("isKnownAppPath", () => {
 describe("route manifest stays in sync with the router", () => {
   // shared/routes.ts drives the server 404 and the Netlify redirect table. If a
   // page is added to App.tsx but not here, that page would 404 in production.
-  it("covers every <Route path> declared in App.tsx", () => {
+  it("covers every public and protected route declared in App.tsx", () => {
     const appSource = readFileSync(join(process.cwd(), "client", "src", "App.tsx"), "utf-8");
-    const declared = Array.from(appSource.matchAll(/<Route path="([^"]+)"/g)).map((m) => m[1]);
+    const declared = Array.from(appSource.matchAll(/<(?:ProtectedRoute|Route) path="([^"]+)"/g)).map((m) => m[1]);
 
     expect(declared.length).toBeGreaterThan(20);
 

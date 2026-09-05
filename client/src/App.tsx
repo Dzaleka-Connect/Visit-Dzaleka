@@ -1,6 +1,8 @@
 import { Switch, Route, useLocation, useSearch, Redirect } from "wouter";
 import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
+import { isProtectedRoute } from "@shared/routes";
+import { getPostAuthPath } from "@/lib/authUtils";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { HelmetProvider } from "react-helmet-async";
 import { Toaster } from "@/components/ui/toaster";
@@ -211,6 +213,9 @@ const PUBLIC_ROUTES = [
   "/developers",
   "/privacy",
   "/auth",
+  "/reset-password",
+  "/verify-email",
+  "/accept-invite",
 ];
 
 function isPublicRoute(path: string): boolean {
@@ -230,59 +235,6 @@ function ExternalCommunityRedirect() {
       <p className="text-sm text-muted-foreground">Opening Dzaleka Online Services…</p>
     </div>
   );
-}
-
-function getAuthenticatedHomePath(role?: string | null) {
-  if (role === "transport_partner") return "/transport-partner/dashboard";
-  return "/";
-}
-
-const PROTECTED_ROUTE_PREFIXES = [
-  "/admin",
-  "/analytics",
-  "/audit-logs",
-  "/bookings",
-  "/calendar",
-  "/channel-manager",
-  "/customers",
-  "/developer",
-  "/email-history",
-  "/email-settings",
-  "/favorite-guides",
-  "/getyourguide",
-  "/guide",
-  "/guide-performance",
-  "/guides",
-  "/help-admin",
-  "/itinerary-builder",
-  "/live-ops",
-  "/messages",
-  "/my-availability",
-  "/my-bookings",
-  "/my-earnings",
-  "/my-guide-profile",
-  "/my-tours",
-  "/payments",
-  "/profile",
-  "/recurring-bookings",
-  "/reports",
-  "/resources",
-  "/visitor-resources",
-  "/revenue",
-  "/saved-itineraries",
-  "/security",
-  "/settings",
-  "/share-photos",
-  "/tasks",
-  "/transport-partner",
-  "/users",
-  "/visitors",
-  "/zones",
-];
-
-function isKnownProtectedPath(path: string) {
-  const routePath = path.split(/[?#]/)[0];
-  return PROTECTED_ROUTE_PREFIXES.some((prefix) => routePath === prefix || routePath.startsWith(`${prefix}/`));
 }
 
 function Router() {
@@ -344,9 +296,13 @@ function Router() {
         <Route path="/newsletter" component={Newsletter} />
         <Route path="/visit/feedback" component={VisitFeedback} />
         <Route path="/transport-quote/:token" component={TransportQuote} />
+        <Route path="/reset-password" component={ResetPassword} />
+        <Route path="/verify-email" component={VerifyEmail} />
+        <Route path="/accept-invite" component={AcceptInvite} />
         <Route path="/auth">
-          <Redirect to="/login" replace />
+          <Redirect to={search ? `/login?${search}` : "/login"} replace />
         </Route>
+        <Route component={NotFound} />
       </Switch>
     );
   }
@@ -397,10 +353,10 @@ function Router() {
         <Route path="/visit/feedback" component={VisitFeedback} />
         <Route path="/transport-quote/:token" component={TransportQuote} />
         <Route>
-          {isKnownProtectedPath(location) ? (
+          {isProtectedRoute(location) ? (
             <Redirect to={`/login?next=${encodeURIComponent(currentLocation)}`} />
           ) : (
-            <Landing />
+            <NotFound />
           )}
         </Route>
       </Switch>
@@ -411,7 +367,7 @@ function Router() {
     <AuthenticatedLayout>
       <Switch>
         <Route path="/login">
-          <Redirect to={getAuthenticatedHomePath(user?.role)} replace />
+          <Redirect to={getPostAuthPath(search, user?.role)} replace />
         </Route>
         <Route path="/" component={Dashboard} />
         <ProtectedRoute path="/bookings" component={Bookings} allowedRoles={["admin", "coordinator"]} />

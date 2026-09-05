@@ -1,3 +1,4 @@
+import { PublicPageIntro } from "@/components/public-page-intro";
 
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -477,35 +478,18 @@ export default function ThingsToDo() {
             {/* Header - Reused from Landing */}
             <PublicHeader activePath="/things-to-do" />
 
-            <main className="flex-1">
+            <main id="main-content" tabIndex={-1} className="flex-1">
                 {/* Hero Section */}
-                {/* Hero Section */}
-                <div className="relative py-24 overflow-hidden">
-                    {/* Background Image */}
-                    <div
-                        className="absolute inset-0 bg-cover bg-center"
-                        style={{ backgroundImage: 'url(https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhQC52NEfamRlqaUT7uLWcP8ZKNUDp3_opelPFqoO6E5hyphenhyphen09lp-zxRXXig5aEnaH3PbRsia1ciM8y-vOdzDe9RMvbQApON7rdM0SrBmtVVWAPIzmiId-jvcwSa46-Y-qRApCBTmozhIbWhNZWxcLFY3bp6Q4uNk_LFB5MpYFlXywwX7vYlUQeRoirJWm50/s16000-rw/533061219_1079243081018233_5344782622295089839_n.jpg)' }}
-                    />
-                    <div className="absolute inset-0 bg-black/60" />
+                <PublicPageIntro
+                    eyebrow="Explore Dzaleka"
+                    title="Things to do in Dzaleka"
+                    description="Discover guided walks, community markets, cultural events, and local projects. Plan your visit around the experiences that interest you."
+                />
 
-                    <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-white/30 bg-white/10 text-white rounded-full font-semibold flex items-center justify-center w-fit mx-auto backdrop-blur-sm">
-                            <Globe className="mr-2 h-3.5 w-3.5" />
-                            Explore & Experience
-                        </Badge>
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6 text-white">
-                            Things to do in Dzaleka
-                        </h1>
-                        <p className="text-lg md:text-xl text-white/90 leading-relaxed max-w-2xl mx-auto drop-shadow-sm">
-                            Plan a respectful visit with resident guides, community markets, cultural events, and local projects. Each experience is shaped by availability, consent, and direct community benefit.
-                        </p>
-                    </div>
-                </div>
-
-                <div className="container mx-auto px-4 py-16 space-y-24">
+                <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14 space-y-12 sm:space-y-16">
                     <section className="space-y-8">
                         <div className="max-w-3xl">
-                            <h2 className="text-3xl font-semibold">Explore by category</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Explore by category</h2>
                             <p className="mt-3 text-muted-foreground text-lg">
                                 Use these sections to find the kind of visit you want to plan, from guided cultural routes to food, markets, outdoor spaces, and community connections.
                             </p>
@@ -533,23 +517,23 @@ export default function ThingsToDo() {
                     </section>
 
                     {/* Section 1: Guided Tours */}
-                    <section className="grid md:grid-cols-2 gap-12 items-center">
+                    <section className="grid md:grid-cols-2 gap-6 lg:gap-10 items-center">
                         <div className="order-2 md:order-1 relative">
-                            <div className="aspect-square md:aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl bg-muted">
+                            <div className="aspect-square md:aspect-[4/3] rounded-2xl overflow-hidden shadow-sm bg-muted">
                                 <img
                                     src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhQC52NEfamRlqaUT7uLWcP8ZKNUDp3_opelPFqoO6E5hyphenhyphen09lp-zxRXXig5aEnaH3PbRsia1ciM8y-vOdzDe9RMvbQApON7rdM0SrBmtVVWAPIzmiId-jvcwSa46-Y-qRApCBTmozhIbWhNZWxcLFY3bp6Q4uNk_LFB5MpYFlXywwX7vYlUQeRoirJWm50/s16000-rw/533061219_1079243081018233_5344782622295089839_n.jpg"
                                     alt="Guided Tour in Dzaleka"
                                     className="w-full h-full object-cover"
                                 />
                             </div>
-                            <div className="absolute -bottom-6 -right-6 -z-10 w-full h-full border-2 border-primary/10 rounded-2xl" />
+
                         </div>
                         <div className="order-1 md:order-2 space-y-6">
                             <div className="flex items-center gap-3 text-primary font-semibold">
                                 <MapPin className="h-5 w-5" />
                                 <span>Cultural Exchange</span>
                             </div>
-                            <h2 className="text-3xl font-semibold">Guided Tours & Cultural Exchange</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Guided Tours & Cultural Exchange</h2>
                             <p className="text-muted-foreground text-lg">
                                 The clearest way to visit Dzaleka is with a resident guide who can explain context, coordinate access, and help visitors follow community expectations.
                             </p>
@@ -585,15 +569,15 @@ export default function ThingsToDo() {
                     {/* Tour Options - Explicit Inventory for Google Ads Compliance */}
                     <section className="space-y-12">
                         <div className="text-center max-w-3xl mx-auto">
-                            <h2 className="text-3xl font-semibold mb-4">Tour Options</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold mb-4">Tour Options</h2>
                             <p className="text-muted-foreground text-lg">
                                 Choose the experience that fits your group size and interests. All tours are led by certified local guides.
                             </p>
                         </div>
 
-                        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="grid min-w-0 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                             {/* Individual */}
-                            <Card id="individual" className="flex flex-col h-full border-muted shadow-lg hover:shadow-xl transition-shadow scroll-mt-24">
+                            <Card id="individual" className="flex min-w-0 flex-col h-full scroll-mt-24">
                                 <CardContent className="p-6 flex flex-col h-full">
                                     <Badge className="w-fit mb-4" variant="secondary">Popular</Badge>
                                     <h3 className="text-xl font-semibold mb-2">Individual</h3>
@@ -601,11 +585,11 @@ export default function ThingsToDo() {
                                         A personal, one-on-one cultural immersion tailored to your interests. Connect deeply with your guide at your own pace.
                                     </p>
                                     <div className="mt-auto pt-4 border-t">
-                                        <div className="flex items-baseline gap-1 mb-4">
+                                        <div className="flex flex-wrap items-baseline gap-x-1 gap-y-1 mb-4">
                                             <span className="text-2xl font-semibold">{price("individual")}</span>
                                             <span className="text-muted-foreground text-sm">/ person</span>
                                         </div>
-                                        <Button asChild className="w-full">
+                                        <Button asChild className="h-auto min-h-11 w-full whitespace-normal text-center">
                                             <Link href={guidedTourOptionsPath}>View Individual Option</Link>
                                         </Button>
                                     </div>
@@ -613,7 +597,7 @@ export default function ThingsToDo() {
                             </Card>
 
                             {/* Small Group */}
-                            <Card id="small-group" className="flex flex-col h-full border-muted shadow-lg hover:shadow-xl transition-shadow scroll-mt-24">
+                            <Card id="small-group" className="flex min-w-0 flex-col h-full scroll-mt-24">
                                 <CardContent className="p-6 flex flex-col h-full">
                                     <Badge className="w-fit mb-4 bg-primary/10 text-primary hover:bg-primary/20">Best Value</Badge>
                                     <h3 className="text-xl font-semibold mb-2">Small Group</h3>
@@ -621,11 +605,11 @@ export default function ThingsToDo() {
                                         Perfect for couples or small families (2-5 people) seeking an intimate, interactive experience.
                                     </p>
                                     <div className="mt-auto pt-4 border-t">
-                                        <div className="flex items-baseline gap-1 mb-4">
+                                        <div className="flex flex-wrap items-baseline gap-x-1 gap-y-1 mb-4">
                                             <span className="text-2xl font-semibold">{price("small_group")}</span>
                                             <span className="text-muted-foreground text-sm">/ group</span>
                                         </div>
-                                        <Button asChild className="w-full">
+                                        <Button asChild className="h-auto min-h-11 w-full whitespace-normal text-center">
                                             <Link href={guidedTourOptionsPath}>View Small Group Option</Link>
                                         </Button>
                                     </div>
@@ -633,7 +617,7 @@ export default function ThingsToDo() {
                             </Card>
 
                             {/* Medium Group */}
-                            <Card id="medium-group" className="flex flex-col h-full border-muted shadow-lg hover:shadow-xl transition-shadow scroll-mt-24">
+                            <Card id="medium-group" className="flex min-w-0 flex-col h-full scroll-mt-24">
                                 <CardContent className="p-6 flex flex-col h-full">
                                     <Badge className="w-fit mb-4" variant="outline">Groups</Badge>
                                     <h3 className="text-xl font-semibold mb-2">Medium Group</h3>
@@ -641,11 +625,11 @@ export default function ThingsToDo() {
                                         Ideal for extended families, friend groups, or small teams (6-10 people). A balanced experience ensuring everyone engages.
                                     </p>
                                     <div className="mt-auto pt-4 border-t">
-                                        <div className="flex items-baseline gap-1 mb-4">
+                                        <div className="flex flex-wrap items-baseline gap-x-1 gap-y-1 mb-4">
                                             <span className="text-2xl font-semibold">{price("large_group")}</span>
                                             <span className="text-muted-foreground text-sm">/ group</span>
                                         </div>
-                                        <Button asChild className="w-full">
+                                        <Button asChild className="h-auto min-h-11 w-full whitespace-normal text-center">
                                             <Link href={guidedTourOptionsPath}>View Medium Group Option</Link>
                                         </Button>
                                     </div>
@@ -653,7 +637,7 @@ export default function ThingsToDo() {
                             </Card>
 
                             {/* Large Group */}
-                            <Card id="large-group" className="flex flex-col h-full border-muted shadow-lg hover:shadow-xl transition-shadow scroll-mt-24">
+                            <Card id="large-group" className="flex min-w-0 flex-col h-full scroll-mt-24">
                                 <CardContent className="p-6 flex flex-col h-full">
                                     <Badge className="w-fit mb-4" variant="outline">Educational</Badge>
                                     <h3 className="text-xl font-semibold mb-2">Large Group</h3>
@@ -661,11 +645,11 @@ export default function ThingsToDo() {
                                         Designed for schools, organizations, or delegations (10+ people). Includes dedicated logistics and multiple guides.
                                     </p>
                                     <div className="mt-auto pt-4 border-t">
-                                        <div className="flex items-baseline gap-1 mb-4">
+                                        <div className="flex flex-wrap items-baseline gap-x-1 gap-y-1 mb-4">
                                             <span className="text-2xl font-semibold">{price("custom")}</span>
                                             <span className="text-muted-foreground text-sm">/ group</span>
                                         </div>
-                                        <Button asChild className="w-full">
+                                        <Button asChild className="h-auto min-h-11 w-full whitespace-normal text-center">
                                             <Link href={guidedTourOptionsPath}>View Large Group Option</Link>
                                         </Button>
                                     </div>
@@ -675,13 +659,13 @@ export default function ThingsToDo() {
                     </section>
 
                     {/* Section 2: Arts & Entrepreneurship */}
-                    <section className="grid md:grid-cols-2 gap-12 items-center">
+                    <section className="grid md:grid-cols-2 gap-6 lg:gap-10 items-center">
                         <div className="space-y-6">
                             <div className="flex items-center gap-3 text-primary font-semibold">
                                 <Camera className="h-5 w-5" />
                                 <span>Creativity & Innovation</span>
                             </div>
-                            <h2 className="text-3xl font-semibold">Arts and Entrepreneurship</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Arts and Entrepreneurship</h2>
                             <p className="text-muted-foreground text-lg">
                                 Dzaleka has a thriving arts scene and a micro-economy driven by resilient entrepreneurs.
                             </p>
@@ -710,7 +694,7 @@ export default function ThingsToDo() {
                             </ul>
                         </div>
                         <div className="relative">
-                            <div className="aspect-square md:aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl bg-muted">
+                            <div className="aspect-square md:aspect-[4/3] rounded-2xl overflow-hidden shadow-sm bg-muted">
                                 <img
                                     src="/images/Website-Entrepreneurship-and-innovation-2048x1536.jpg"
                                     alt="Arts and Crafts in Dzaleka"
@@ -728,7 +712,7 @@ export default function ThingsToDo() {
                                 <Music className="h-5 w-5" />
                                 <span>Community Life</span>
                             </div>
-                            <h2 className="text-3xl font-semibold mb-4">Events and Recreation</h2>
+                            <h2 className="text-2xl sm:text-3xl font-semibold mb-4">Events and Recreation</h2>
                         </div>
 
                         <div className="grid md:grid-cols-2 gap-8">
@@ -759,7 +743,7 @@ export default function ThingsToDo() {
 
                     {/* Section 4: Accommodation */}
                     <section className="text-center max-w-4xl mx-auto">
-                        <h2 className="text-3xl font-semibold mb-6">Accommodation</h2>
+                        <h2 className="text-2xl sm:text-3xl font-semibold mb-6">Accommodation</h2>
                         <Card className="bg-primary text-primary-foreground overflow-hidden">
                             <div className="md:flex">
                                 <div className="md:w-1/3 bg-black/20 relative min-h-[200px]">
@@ -777,7 +761,7 @@ export default function ThingsToDo() {
                                     <p className="text-primary-foreground/90 mb-6 text-lg">
                                         For an immersive stay, consider the Tumaini Letu Homestay Program. This allows you to stay with a vetted local family, directly contributing to their income and fostering a deeper cultural exchange.
                                     </p>
-                                    <Button asChild variant="secondary" size="lg">
+                                    <Button asChild variant="secondary" size="lg" className="h-auto min-h-11 max-w-full whitespace-normal text-center">
                                         <a href="https://tumainiletu.org/the-dzaleka-homestay-program/" target="_blank" rel="noopener noreferrer">
                                             Learn More & Book Stay <ArrowRight className="ml-2 h-4 w-4" />
                                         </a>

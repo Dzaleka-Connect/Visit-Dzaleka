@@ -322,7 +322,7 @@ export interface IStorage {
   searchBookings(query: string, filters?: { status?: BookingStatus; paymentStatus?: PaymentStatus }): Promise<Booking[]>;
   getActiveVisits(): Promise<Booking[]>;
   createBooking(booking: Omit<InsertBooking, "id" | "bookingReference" | "createdAt" | "updatedAt"> & { bookingReference?: string }): Promise<Booking>;
-  updateBooking(id: string, updates: Partial<Booking>): Promise<Booking | undefined>;
+  updateBooking(id: string, updates: Partial<Booking>, expectedUpdatedAt?: string | null): Promise<Booking | undefined>;
   updateBookingStatus(id: string, status: BookingStatus, expectedVersion?: number): Promise<Booking | undefined>;
   updateBookingPaymentStatus(id: string, status: PaymentStatus, verifiedBy?: string): Promise<Booking | undefined>;
   assignGuideToBooking(bookingId: string, guideId: string): Promise<Booking | undefined>;
@@ -1321,7 +1321,7 @@ export class SupabaseStorage implements IStorage {
 
 
 
-  async updateBooking(id: string, updates: Partial<Booking>): Promise<Booking | undefined> {
+  async updateBooking(id: string, updates: Partial<Booking>, expectedUpdatedAt?: string | null): Promise<Booking | undefined> {
     const dbUpdates: any = {};
     // Manual mapping for fields we know we need
     if (updates.status) dbUpdates.status = updates.status;
@@ -1343,15 +1343,29 @@ export class SupabaseStorage implements IStorage {
     if (updates.cancelledAt !== undefined) dbUpdates.cancelled_at = updates.cancelledAt;
     if (updates.cancelledBy !== undefined) dbUpdates.cancelled_by = updates.cancelledBy;
 
+    if (updates.visitorName !== undefined) dbUpdates.visitor_name = updates.visitorName;
+    if (updates.visitorEmail !== undefined) dbUpdates.visitor_email = updates.visitorEmail;
+    if (updates.visitorPhone !== undefined) dbUpdates.visitor_phone = updates.visitorPhone;
+    if (updates.visitorOrganization !== undefined) dbUpdates.visitor_organization = updates.visitorOrganization;
+    if (updates.visitorUserId !== undefined) dbUpdates.visitor_user_id = updates.visitorUserId;
+    if (updates.specialRequests !== undefined) dbUpdates.special_requests = updates.specialRequests;
+    if (updates.accessibilityNeeds !== undefined) dbUpdates.accessibility_needs = updates.accessibilityNeeds;
+    if (updates.checkInTime !== undefined) dbUpdates.check_in_time = updates.checkInTime;
+    if (updates.checkOutTime !== undefined) dbUpdates.check_out_time = updates.checkOutTime;
+    if (updates.checkInBy !== undefined) dbUpdates.check_in_by = updates.checkInBy;
+    if (updates.checkOutBy !== undefined) dbUpdates.check_out_by = updates.checkOutBy;
+
     if (Object.keys(dbUpdates).length === 0) return undefined;
 
-    const { data, error } = await this.supabase
-      .from("bookings")
-      .update({ ...dbUpdates, updated_at: new Date() })
-      .eq("id", id)
-      .select()
-      .single();
-
+    let query = this.supabase.from("bookings")
+      .update({ ...dbUpdates, updated_at: new Date() }).eq("id", id);
+    if (expectedUpdatedAt !== undefined) {
+      query = expectedUpdatedAt === null ? query.is("updated_at", null) : query.eq("updated_at", expectedUpdatedAt);
+    }
+    const { data, error } = await query.select().maybeSingle();
+    if (!error && !data && expectedUpdatedAt !== undefined) {
+      throw Object.assign(new Error("This booking changed. Refresh it before saving again."), { code: "VERSION_CONFLICT" });
+    }
     return this.handleOptionalResponse(data, error);
   }
 

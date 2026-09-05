@@ -4,6 +4,8 @@ import express from "express";
 import { createServer, type Server } from "http";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { storage } from "./storage";
+import { bookingRescheduleSchema } from "@shared/booking-management";
+import { bookingManagementHandler } from "./lib/booking-management";
 import {
   clearSessionCookie,
   establishAuthenticatedSession,
@@ -7925,10 +7927,15 @@ export async function registerRoutes(
   });
 
   // Reschedule booking (for calendar drag-and-drop)
+  app.patch("/api/bookings/:id/details", isAuthenticated, requireRole("admin", "coordinator"), bookingManagementHandler(storage, "details"));
+  app.patch("/api/bookings/:id/correction", isAuthenticated, requireRole("admin"), bookingManagementHandler(storage, "correction"));
+
   app.patch("/api/bookings/:id/reschedule", isAuthenticated, requireRole("admin", "coordinator"), async (req: any, res) => {
     try {
       const { id } = req.params;
-      const { visitDate, visitTime } = req.body;
+      const parsedSchedule = bookingRescheduleSchema.safeParse(req.body);
+      if (!parsedSchedule.success) return res.status(400).json({ message: parsedSchedule.error.issues[0].message });
+      const { visitDate, visitTime } = parsedSchedule.data;
 
       if (!visitDate) {
         return res.status(400).json({ message: "Visit date is required" });

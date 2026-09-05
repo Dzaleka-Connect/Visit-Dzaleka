@@ -60,6 +60,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Booking, CommunityListing, Guide, Zone, PointOfInterest, AnalyticsSetting, Itinerary, EmailLog } from "@shared/schema";
 import { useEffect, useState } from "react";
 import { jsPDF } from "jspdf";
+import { BookingManagementControls } from "@/components/booking-management-controls";
 
 interface TransportRequestSummary {
     id: string;
@@ -514,6 +515,8 @@ export default function BookingDetails() {
         queryClient.invalidateQueries({ queryKey: [`/api/bookings/${id}/email-timeline`] });
         queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
         queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/guides"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/transport-partner"] });
     };
 
     const updateStatusMutation = useMutation({
@@ -969,39 +972,6 @@ export default function BookingDetails() {
                 </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end">
-                    {canManageBooking && booking.status === "pending" && (
-                        <Button
-                            className="w-full sm:w-auto"
-                            disabled={updateStatusMutation.isPending}
-                            onClick={() => updateStatusMutation.mutate({ status: "confirmed" })}
-                        >
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                            Confirm
-                        </Button>
-                    )}
-                    {canManageBooking && booking.status !== "cancelled" && (
-                        <Button
-                            variant="destructive"
-                            className="w-full sm:w-auto"
-                            disabled={updateStatusMutation.isPending}
-                            onClick={() => setIsCancelOpen(true)}
-                        >
-                            <XCircle className="mr-2 h-4 w-4" />
-                            Cancel Booking
-                        </Button>
-                    )}
-                    {canManageBooking && (
-                        <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => setIsAssignOpen(true)}>
-                            <UserPlus className="mr-2 h-4 w-4" />
-                            {booking.assignedGuideId ? "Change Guide" : "Assign Guide"}
-                        </Button>
-                    )}
-                    {canManageBooking && (
-                        <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => setIsEmailOpen(true)}>
-                            <Mail className="mr-2 h-4 w-4" />
-                            Email Visitor
-                        </Button>
-                    )}
                     {canManageBooking && (
                         <Button size="sm" variant="outline" className="w-full sm:w-auto" asChild>
                             <Link href={`/itinerary-builder/${booking.id}`}>
@@ -1052,6 +1022,7 @@ export default function BookingDetails() {
                         <CardDescription>Manage confirmation, guide assignment, visitor movement, payment, and follow-up from this record.</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                        <BookingManagementControls key={booking.id} booking={booking} onSaved={invalidateBookingRecord} />
                         {canManageBooking && booking.status === "pending" && (
                             <Button disabled={anyActionPending} onClick={() => updateStatusMutation.mutate({ status: "confirmed" })}>
                                 <CheckCircle className="mr-2 h-4 w-4" />
@@ -1108,7 +1079,7 @@ export default function BookingDetails() {
                                 Email Visitor
                             </Button>
                         )}
-                        {canManageBooking && booking.status !== "cancelled" && (
+                        {canManageBooking && ["pending", "confirmed", "in_progress"].includes(booking.status || "") && (
                             <Button variant="destructive" disabled={updateStatusMutation.isPending} onClick={() => setIsCancelOpen(true)}>
                                 <XCircle className="mr-2 h-4 w-4" />
                                 Cancel Booking

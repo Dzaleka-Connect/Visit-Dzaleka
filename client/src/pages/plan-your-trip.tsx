@@ -1,3 +1,4 @@
+import { PublicPageIntro } from "@/components/public-page-intro";
 import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -85,39 +86,21 @@ export default function PlanYourTrip() {
             {/* Header */}
             <PublicHeader activePath="/plan-your-trip" />
 
-            <main className="flex-1">
+            <main id="main-content" tabIndex={-1} className="flex-1">
                 {/* Hero Section */}
-                <div className="relative py-20 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
-                    <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full font-semibold flex items-center justify-center w-fit mx-auto">
-                            <MapPin className="mr-2 h-3.5 w-3.5" />
-                            Official Travel Guide
-                        </Badge>
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-semibold mb-6">
-                            Plan Your Trip
-                        </h1>
-                        <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
-                            Essential information for visiting Dzaleka Refugee Camp and Malawi. Navigating visas, safety, and logistics for a meaningful experience.
-                        </p>
-                    </div>
-                    {/* Background decoration */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-primary/5 blur-3xl -z-10" />
-                </div>
+                <PublicPageIntro
+                    eyebrow="Before you visit"
+                    title="Plan your trip"
+                    description="Find the essentials for getting to Dzaleka, preparing for your visit, and travelling respectfully."
+                />
 
-                <div className="container mx-auto px-4 py-12 space-y-16 max-w-5xl">
-
-                    {/* Intro Text */}
-                    <div className="prose prose-lg dark:prose-invert mx-auto text-center max-w-3xl">
-                        <p className="lead border-b pb-8">
-                            Visiting Dzaleka is more than tourism; it's a chance to witness resilience in action. This guide ensures your trip is safe, respectful, and well-planned, so you can focus on connecting with the community.
-                        </p>
-                    </div>
+                <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14 space-y-12">
 
                     {/* 1. Pre-Trip Essentials (Visas & Health) */}
                     <section>
                         <div className="flex items-center gap-3 mb-6">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold text-xl">1</div>
-                            <h2 className="text-3xl font-semibold">Pre-Trip Essentials</h2>
+                            <div className="flex items-center justify-center w-10 h-10 shrink-0 rounded-full bg-primary/10 text-primary font-semibold text-xl">1</div>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Pre-Trip Essentials</h2>
                         </div>
                         <div className="grid md:grid-cols-2 gap-8">
                             <Card className="border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/20">
@@ -164,8 +147,8 @@ export default function PlanYourTrip() {
                     {/* 2. Pick Your Timing */}
                     <section>
                         <div className="flex items-center gap-3 mb-6">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold text-xl">2</div>
-                            <h2 className="text-3xl font-semibold">Pick Your Timing</h2>
+                            <div className="flex items-center justify-center w-10 h-10 shrink-0 rounded-full bg-primary/10 text-primary font-semibold text-xl">2</div>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Pick Your Timing</h2>
                         </div>
                         <div className="grid md:grid-cols-3 gap-6">
                             <Card className="bg-primary/5 border-primary/20">
@@ -213,8 +196,8 @@ export default function PlanYourTrip() {
                     {/* 3. Safety & Etiquette */}
                     <section>
                         <div className="flex items-center gap-3 mb-6">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold text-xl">3</div>
-                            <h2 className="text-3xl font-semibold">Safety & Etiquette</h2>
+                            <div className="flex items-center justify-center w-10 h-10 shrink-0 rounded-full bg-primary/10 text-primary font-semibold text-xl">3</div>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Safety & Etiquette</h2>
                         </div>
                         <div className="space-y-6">
                             <div className="flex gap-4 items-start">
@@ -256,8 +239,8 @@ export default function PlanYourTrip() {
                     {/* 4. Logistics (Money & Transport) */}
                     <section>
                         <div className="flex items-center gap-3 mb-6">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold text-xl">4</div>
-                            <h2 className="text-3xl font-semibold">Logistics: Money & Transport</h2>
+                            <div className="flex items-center justify-center w-10 h-10 shrink-0 rounded-full bg-primary/10 text-primary font-semibold text-xl">4</div>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Logistics: Money & Transport</h2>
                         </div>
                         <div className="grid md:grid-cols-2 gap-6">
                             <Card className="bg-muted/30">
@@ -302,8 +285,8 @@ export default function PlanYourTrip() {
                     {/* 5. Packing Smart */}
                     <section>
                         <div className="flex items-center gap-3 mb-6">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold text-xl">5</div>
-                            <h2 className="text-3xl font-semibold">Packing Smart</h2>
+                            <div className="flex items-center justify-center w-10 h-10 shrink-0 rounded-full bg-primary/10 text-primary font-semibold text-xl">5</div>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Packing Smart</h2>
                         </div>
                         <div className="grid md:grid-cols-2 gap-8">
                             <Card>
@@ -344,8 +327,8 @@ export default function PlanYourTrip() {
                     {/* 6. Contact & Booking Links */}
                     <section className="bg-primary/5 rounded-2xl p-8 md:p-12 text-center mt-12">
                         <div className="flex items-center justify-center gap-3 mb-6">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary text-primary-foreground font-semibold text-xl">6</div>
-                            <h2 className="text-3xl font-semibold">Ready to Visit?</h2>
+                            <div className="flex items-center justify-center w-10 h-10 shrink-0 rounded-full bg-primary text-primary-foreground font-semibold text-xl">6</div>
+                            <h2 className="text-2xl sm:text-3xl font-semibold">Ready to Visit?</h2>
                         </div>
                         <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
                             <Button asChild size="lg" className="h-auto py-4 flex flex-col gap-1">

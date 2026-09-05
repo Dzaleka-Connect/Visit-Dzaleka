@@ -154,6 +154,32 @@ GET /api/bookings/:id
 
 ---
 
+### Staff editing and corrections
+
+These controls use an authenticated browser session and a CSRF token. API-key scopes do not grant access to them.
+
+| Endpoint | Roles | Purpose |
+|---|---|---|
+| `PATCH /api/bookings/:id/details` | Admin, coordinator | Edit visitor contact details, organization, special requests, and accessibility needs |
+| `PATCH /api/bookings/:id/correction` | Admin | Reopen a booking whose status was recorded incorrectly |
+| `PATCH /api/bookings/:id/reschedule` | Admin, coordinator | Change a valid visit date and optional visit time |
+
+The details endpoint accepts `visitorName`, `visitorEmail`, `visitorPhone`, `visitorCountry`, `visitorOrganization`, `specialRequests`, `accessibilityNeeds`, and `expectedUpdatedAt`. Send every field; optional text fields can be empty strings. Changing the email updates the associated visitor-account link, and contact changes also update linked transport requests.
+
+The correction endpoint accepts:
+
+```json
+{
+  "status": "confirmed",
+  "reason": "The tour was marked complete before the visit happened.",
+  "expectedUpdatedAt": "2026-09-06T10:00:00.000Z"
+}
+```
+
+Allowed correction targets are `pending`, `confirmed`, and `in_progress`. Corrections clear check-out and cancellation fields; pending and confirmed also clear check-in fields. Reopening a completed booking reverses its contribution to stored guide totals. Payment records and previously sent emails remain recorded. Staff changes are added to the booking activity and audit logs.
+
+For details and corrections, copy `expectedUpdatedAt` from the booking's latest `updatedAt` value (or `null` for a legacy record without one). A concurrent change returns `409 VERSION_CONFLICT`; reload the record before trying again.
+
 ### Create Booking
 
 ```http

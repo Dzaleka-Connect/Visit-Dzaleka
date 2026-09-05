@@ -7,9 +7,16 @@ let csrfTokenPromise: Promise<string> | null = null;
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
+    let message = text;
+    try {
+      const payload = JSON.parse(text);
+      if (typeof payload.message === "string") message = payload.message;
+    } catch {
+      // Some proxies return plain-text errors.
+    }
     const requestId = res.headers.get("X-Request-Id");
 
-    const error = new Error(`${res.status}: ${text}`);
+    const error = new Error(`${res.status}: ${message}`);
     (error as any).requestId = requestId;
     throw error;
   }
@@ -50,18 +57,31 @@ export async function apiRequest(
   data?: unknown | undefined,
 ): Promise<Response> {
   const normalizedMethod = method.toUpperCase();
-  const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
+  const headers: Record<string, string> = data !== undefined ? { "Content-Type": "application/json" } : {};
+  const needsCsrf = isInternalApiUrl(url) && UNSAFE_METHODS.has(normalizedMethod);
 
-  if (isInternalApiUrl(url) && UNSAFE_METHODS.has(normalizedMethod)) {
+  if (needsCsrf) {
     headers["X-CSRF-Token"] = await fetchCsrfToken();
   }
 
-  const res = await fetch(url, {
+  const send = () => fetch(url, {
     method: normalizedMethod,
     headers,
-    body: data ? JSON.stringify(data) : undefined,
+    body: data !== undefined ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
+  let res = await send();
+
+  // Another tab can replace the session after login/logout. Retry only an
+  // explicit CSRF rejection: the middleware has not executed the mutation.
+  if (needsCsrf && res.status === 403) {
+    const error = await res.clone().json().catch(() => null);
+    if (error?.code === "CSRF_INVALID_TOKEN" || error?.message === "Forbidden: Invalid CSRF token") {
+      if (csrfToken === headers["X-CSRF-Token"]) csrfToken = null;
+      headers["X-CSRF-Token"] = await fetchCsrfToken();
+      res = await send();
+    }
+  }
 
   await throwIfResNotOk(res);
   const responseToken = res.headers.get("X-CSRF-Token");
@@ -79,9 +99,10 @@ export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
-    async ({ queryKey }) => {
+    async ({ queryKey, signal }) => {
       const res = await fetch(queryKey.join("/") as string, {
         credentials: "include",
+        signal,
       });
 
       if (unauthorizedBehavior === "returnNull" && res.status === 401) {
@@ -95,8 +116,8 @@ export const getQueryFn: <T>(options: {
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Use returnNull on 401 to prevent noisy console errors when session expires
-      queryFn: getQueryFn({ on401: "returnNull" }),
+      // Protected data must enter an error state when the session expires.
+      queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: true,
       staleTime: 0,

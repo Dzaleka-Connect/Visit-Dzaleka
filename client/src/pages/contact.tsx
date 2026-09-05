@@ -1,3 +1,4 @@
+import { PublicPageIntro } from "@/components/public-page-intro";
 import { useState } from "react";
 import { Link } from "wouter";
 import { SEO } from "@/components/seo";
@@ -109,25 +110,17 @@ export default function ContactUs() {
 
             <PublicHeader activePath="/contact" />
 
-            <main className="flex-1">
-                <section className="relative py-16 sm:py-20 overflow-hidden bg-gradient-to-b from-primary/5 to-background">
-                    <div className="container mx-auto px-4 text-center max-w-4xl relative z-10">
-                        <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm border-primary/20 bg-primary/5 text-primary rounded-full font-semibold">
-                            <MessageCircle className="mr-2 h-3.5 w-3.5" />
-                            Get In Touch
-                        </Badge>
-                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold mb-6">
-                            Contact Us
-                        </h1>
-                        <p className="text-base sm:text-lg md:text-xl text-muted-foreground leading-relaxed max-w-3xl mx-auto">
-                            Have a question about our tours? Want to partner with us? We'd love to hear from you.
-                        </p>
-                    </div>
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-primary/5 blur-3xl -z-10" />
-                </section>
+            <main id="main-content" tabIndex={-1} className="flex-1">
+                <PublicPageIntro
+                    eyebrow="Talk to our team"
+                    title="Contact us"
+                    description="Ask about a tour, plan a group visit, or explore a partnership. Choose the contact option that works for you."
+                />
 
-                <section className="py-16 bg-background">
-                    <div className="container mx-auto px-4">
+
+
+                <section className="py-10 sm:py-14 bg-background">
+                    <div className="mx-auto max-w-6xl px-4 sm:px-6">
                         <div className="grid lg:grid-cols-2 gap-12 items-start max-w-6xl mx-auto">
                             <div>
                                 <h2 className="text-2xl font-semibold mb-6">Contact Information</h2>
@@ -195,7 +188,7 @@ export default function ContactUs() {
                                         <input type="hidden" name="_subject" value="Contact Form - Visit Dzaleka" />
                                         <input type="hidden" name="form_type" value="contact" />
 
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div className="space-y-2">
                                                 <label htmlFor="firstName" className="text-sm font-medium">First Name</label>
                                                 <Input id="firstName" name="firstName" placeholder="Your first name" required />

@@ -14,9 +14,9 @@ const socialLinks = [
 export function SiteFooter() {
     return (
         <footer className="border-t bg-background py-12">
-            <div className="container mx-auto px-4">
-                <div className="grid gap-8 md:grid-cols-5 mb-8">
-                    <div className="col-span-1 md:col-span-2">
+            <div className="mx-auto max-w-7xl px-4 sm:px-6">
+                <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-5 mb-8">
+                    <div className="sm:col-span-2">
                         <div className="flex items-center gap-2 mb-4">
                             <MapPin className="h-5 w-5 text-primary" />
                             <span className="font-semibold text-lg">Visit Dzaleka</span>
@@ -32,7 +32,7 @@ export function SiteFooter() {
                                     href={social.href}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground"
+                                    className="h-11 w-11 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground"
                                     aria-label={social.label}
                                 >
                                     <social.icon className="h-4 w-4" />

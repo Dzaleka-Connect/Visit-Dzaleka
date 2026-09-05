@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,10 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { apiRequest } from "@/lib/queryClient";
-import { Calendar, Users, CheckCircle } from "lucide-react";
+import { Calendar, Loader2, CheckCircle } from "lucide-react";
 import { SEO } from "@/components/seo";
 import { GROUP_SIZES } from "@/lib/constants";
+import { bookingToday, embedBookingFieldsSchema } from "@/lib/embed-booking";
 import { TransportRequestFields } from "@/components/transport-request-fields";
 import { buildTransportSpecialRequests, createTransportRequestFromSearch } from "@/lib/transport";
 
@@ -35,14 +36,16 @@ interface PointOfInterest {
 }
 
 export default function EmbedBooking() {
-    const [, navigate] = useLocation();
+    const formRef = useRef<HTMLFormElement>(null);
+    const [errors, setErrors] = useState<Record<string, string>>({});
+    const [bookingReference, setBookingReference] = useState("");
     const { toast } = useToast();
 
     // Parse URL params for customization
     const params = new URLSearchParams(window.location.search);
     const theme = params.get("theme") || "light";
     const primaryColor = params.get("primaryColor") || "#f97316";
-    const defaultTourType = params.get("defaultTourType") || "individual";
+    const defaultGroup = GROUP_SIZES.find((group) => group.id === params.get("defaultTourType")) || GROUP_SIZES[0];
     const showBranding = params.get("showBranding") !== "false";
     const initialTransportRequest = createTransportRequestFromSearch(window.location.search);
 
@@ -54,8 +57,8 @@ export default function EmbedBooking() {
         visitorCountry: "",
         visitDate: "",
         visitTime: "10:00",
-        groupSize: defaultTourType,
-        numberOfPeople: 1,
+        groupSize: defaultGroup.id as string,
+        numberOfPeople: String(defaultGroup.min),
         meetingPointId: "",
         paymentMethod: "cash",
         referralSource: "",
@@ -70,6 +73,12 @@ export default function EmbedBooking() {
         transportNotes: initialTransportRequest.transportNotes || "",
     });
     const [submitted, setSubmitted] = useState(false);
+    const initialFormData = useRef(formData);
+    const confirmationRef = useRef<HTMLHeadingElement>(null);
+    useUnsavedChanges(!submitted && JSON.stringify(formData) !== JSON.stringify(initialFormData.current));
+    useEffect(() => {
+        if (submitted) confirmationRef.current?.focus();
+    }, [submitted]);
 
     // Fetch meeting points from API (public endpoint for embed forms)
     const { data: meetingPoints } = useQuery<MeetingPoint[]>({
@@ -98,6 +107,7 @@ export default function EmbedBooking() {
             } = data;
             const res = await apiRequest("POST", "/api/bookings", {
                 ...bookingFields,
+                ...embedBookingFieldsSchema.parse(data),
                 transportRequested,
                 transportRoute,
                 transportPartnerId,
@@ -116,10 +126,12 @@ export default function EmbedBooking() {
             });
             return res.json();
         },
-        onSuccess: () => {
+        onSuccess: (booking) => {
+            setBookingReference(booking.bookingReference || "");
             setSubmitted(true);
         },
-        onError: () => {
+        onError: (error: Error) => {
+            setErrors({ submit: error.message || "Please try again or contact us directly." });
             toast({
                 title: "Booking Failed",
                 description: "Please try again or contact us directly.",
@@ -130,16 +142,31 @@ export default function EmbedBooking() {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.visitorName || !formData.visitorEmail || !formData.visitDate) {
-            toast({
-                title: "Missing Information",
-                description: "Please fill in all required fields.",
-                variant: "destructive",
-            });
+        if (bookingMutation.isPending) return;
+        const result = embedBookingFieldsSchema.safeParse(formData);
+        if (!result.success) {
+            const nextErrors: Record<string, string> = {};
+            for (const issue of result.error.issues) {
+                const field = String(issue.path[0]);
+                nextErrors[field] ??= issue.message;
+            }
+            setErrors(nextErrors);
+            formRef.current?.querySelector<HTMLElement>(`[name="${result.error.issues[0].path[0]}"]`)?.focus();
             return;
         }
+        setErrors({});
         bookingMutation.mutate(formData);
     };
+
+    const fieldError = (name: string) => errors[name] ? (
+        <p id={`${name}-error`} className="text-sm text-destructive" aria-live="polite">{errors[name]}</p>
+    ) : null;
+    const fieldAccessibility = (name: string) => ({
+        id: name,
+        name,
+        "aria-invalid": Boolean(errors[name]),
+        "aria-describedby": errors[name] ? `${name}-error` : undefined,
+    });
 
     const isDark = theme === "dark";
     const bgClass = isDark ? "bg-gray-900 text-white" : "bg-white";
@@ -148,10 +175,12 @@ export default function EmbedBooking() {
     if (submitted) {
         return (
             <div className={`min-h-screen flex items-center justify-center p-4 ${bgClass}`}>
+                <SEO title="Booking submitted" description="Your booking request has been received." robots="noindex" />
                 <Card className={isDark ? "bg-gray-800 border-gray-700" : ""}>
                     <CardContent className="pt-6 text-center">
                         <CheckCircle className="h-16 w-16 mx-auto mb-4" style={{ color: primaryColor }} />
-                        <h2 className="text-2xl font-semibold mb-2">Booking Submitted!</h2>
+                        <h1 ref={confirmationRef} tabIndex={-1} className="text-2xl font-semibold mb-2">Booking submitted</h1>
+                        {bookingReference && <p className="mb-3 break-words font-medium">Reference: {bookingReference}</p>}
                         <p className={isDark ? "text-gray-300" : "text-muted-foreground"}>
                             We'll confirm your visit shortly via email.
                         </p>
@@ -189,76 +218,98 @@ export default function EmbedBooking() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form ref={formRef} noValidate onSubmit={handleSubmit} onKeyDown={(event) => {
+                        if (event.target instanceof HTMLTextAreaElement && event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                            event.preventDefault();
+                            event.currentTarget.requestSubmit();
+                        }
+                    }} className="space-y-4">
                         <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-2">
-                                <Label className={isDark ? "text-gray-200" : ""}>Full Name *</Label>
+                                <Label htmlFor="visitorName" className={isDark ? "text-gray-200" : ""}>Full Name *</Label>
                                 <Input
                                     required
-                                    placeholder="Your name"
+                                    autoComplete="name"
+                                    placeholder="Your name…"
+                                    {...fieldAccessibility("visitorName")}
                                     value={formData.visitorName}
                                     onChange={(e) => setFormData({ ...formData, visitorName: e.target.value })}
                                     className={inputClass}
                                 />
+                                {fieldError("visitorName")}
                             </div>
                             <div className="space-y-2">
-                                <Label className={isDark ? "text-gray-200" : ""}>Email *</Label>
+                                <Label htmlFor="visitorEmail" className={isDark ? "text-gray-200" : ""}>Email *</Label>
                                 <Input
                                     type="email"
                                     required
-                                    placeholder="your@email.com"
+                                    autoComplete="email"
+                                    spellCheck={false}
+                                    placeholder="you@example.com…"
+                                    {...fieldAccessibility("visitorEmail")}
                                     value={formData.visitorEmail}
                                     onChange={(e) => setFormData({ ...formData, visitorEmail: e.target.value })}
                                     className={inputClass}
                                 />
+                                {fieldError("visitorEmail")}
                             </div>
                         </div>
 
                         <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-2">
-                                <Label className={isDark ? "text-gray-200" : ""}>Phone</Label>
+                                <Label htmlFor="visitorPhone" className={isDark ? "text-gray-200" : ""}>Phone</Label>
                                 <Input
+                                    type="tel"
+                                    autoComplete="tel"
                                     placeholder="+265…"
+                                    {...fieldAccessibility("visitorPhone")}
                                     value={formData.visitorPhone}
                                     onChange={(e) => setFormData({ ...formData, visitorPhone: e.target.value })}
                                     className={inputClass}
                                 />
+                                {fieldError("visitorPhone")}
                             </div>
                             <div className="space-y-2">
-                                <Label className={isDark ? "text-gray-200" : ""}>Country / region</Label>
+                                <Label htmlFor="visitorCountry" className={isDark ? "text-gray-200" : ""}>Country / region</Label>
                                 <Input
-                                    name="country"
                                     autoComplete="country-name"
                                     placeholder="Country or region…"
+                                    {...fieldAccessibility("visitorCountry")}
                                     value={formData.visitorCountry}
                                     onChange={(e) => setFormData({ ...formData, visitorCountry: e.target.value })}
                                     className={inputClass}
                                 />
+                                {fieldError("visitorCountry")}
                             </div>
                         </div>
 
                         <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-2">
-                                <Label className={isDark ? "text-gray-200" : ""}>Visit Date *</Label>
+                                <Label htmlFor="visitDate" className={isDark ? "text-gray-200" : ""}>Visit Date *</Label>
                                 <Input
                                     type="date"
+                                    min={bookingToday()}
                                     required
+                                    {...fieldAccessibility("visitDate")}
                                     value={formData.visitDate}
                                     onChange={(e) => setFormData({ ...formData, visitDate: e.target.value })}
                                     className={inputClass}
                                 />
+                                {fieldError("visitDate")}
                             </div>
                         </div>
 
                         <div className="space-y-2">
-                            <Label className={isDark ? "text-gray-200" : ""}>Preferred Start Time *</Label>
+                            <Label htmlFor="visitTime" className={isDark ? "text-gray-200" : ""}>Preferred Start Time *</Label>
                             <Input
                                 type="time"
                                 required
+                                {...fieldAccessibility("visitTime")}
                                 value={formData.visitTime}
                                 onChange={(e) => setFormData({ ...formData, visitTime: e.target.value })}
                                 className={inputClass}
                             />
+                            {fieldError("visitTime")}
                             <p className={`text-xs ${isDark ? "text-gray-400" : "text-muted-foreground"}`}>
                                 💡 Standard start times: 10:00 AM and 2:00 PM. Standard tours are 2 hours.
                             </p>
@@ -266,12 +317,17 @@ export default function EmbedBooking() {
 
                         <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-2">
-                                <Label className={isDark ? "text-gray-200" : ""}>Group Size</Label>
+                                <Label htmlFor="groupSize" className={isDark ? "text-gray-200" : ""}>Group Size</Label>
                                 <Select
                                     value={formData.groupSize}
-                                    onValueChange={(value) => setFormData({ ...formData, groupSize: value })}
+                                    onValueChange={(value) => {
+                                        const group = GROUP_SIZES.find((item) => item.id === value)!;
+                                        const count = Number(formData.numberOfPeople);
+                                        const fits = count >= group.min && (group.max === null || count <= group.max);
+                                        setFormData({ ...formData, groupSize: value, numberOfPeople: fits ? formData.numberOfPeople : String(group.min) });
+                                    }}
                                 >
-                                    <SelectTrigger className={inputClass}>
+                                    <SelectTrigger id="groupSize" name="groupSize" className={inputClass}>
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -284,25 +340,27 @@ export default function EmbedBooking() {
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <Label className={isDark ? "text-gray-200" : ""}>Number of People</Label>
+                                <Label htmlFor="numberOfPeople" className={isDark ? "text-gray-200" : ""}>Number of People</Label>
                                 <Input
                                     type="number"
                                     min="1"
+                                    {...fieldAccessibility("numberOfPeople")}
                                     value={formData.numberOfPeople}
-                                    onChange={(e) => setFormData({ ...formData, numberOfPeople: parseInt(e.target.value) || 1 })}
+                                    onChange={(e) => setFormData({ ...formData, numberOfPeople: e.target.value })}
                                     className={inputClass}
                                 />
+                                {fieldError("numberOfPeople")}
                             </div>
                         </div>
 
                         <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-2">
-                                <Label className={isDark ? "text-gray-200" : ""}>Meeting Point</Label>
+                                <Label htmlFor="meetingPointId" className={isDark ? "text-gray-200" : ""}>Meeting Point</Label>
                                 <Select
                                     value={formData.meetingPointId}
                                     onValueChange={(value) => setFormData({ ...formData, meetingPointId: value })}
                                 >
-                                    <SelectTrigger className={inputClass}>
+                                    <SelectTrigger id="meetingPointId" className={inputClass}>
                                         <SelectValue placeholder="Select meeting point" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -410,13 +468,15 @@ export default function EmbedBooking() {
                         )}
 
                         <div className="space-y-2">
-                            <Label className={isDark ? "text-gray-200" : ""}>Special Requests</Label>
+                            <Label htmlFor="specialRequests" className={isDark ? "text-gray-200" : ""}>Special Requests</Label>
                             <Textarea
                                 placeholder="Any dietary requirements, accessibility needs, or questions…"
+                                {...fieldAccessibility("specialRequests")}
                                 value={formData.specialRequests}
                                 onChange={(e) => setFormData({ ...formData, specialRequests: e.target.value })}
                                 className={inputClass}
                             />
+                            {fieldError("specialRequests")}
                         </div>
 
                         <TransportRequestFields
@@ -433,13 +493,15 @@ export default function EmbedBooking() {
                             onChange={(updates) => setFormData({ ...formData, ...updates })}
                         />
 
+                        {fieldError("submit")}
                         <Button
                             type="submit"
                             className="w-full"
                             style={{ backgroundColor: primaryColor }}
                             disabled={bookingMutation.isPending}
                         >
-                            {bookingMutation.isPending ? "Submitting…" : "Book Now"}
+                            {bookingMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+                            Book Now
                         </Button>
 
                         {showBranding && (
