@@ -154,6 +154,13 @@ GET /api/bookings/:id
 
 ---
 
+### Get Booking Itinerary
+
+`GET /api/bookings/:id/itinerary` requires a signed-in booking owner, admin, or coordinator.
+Returns the latest saved itinerary, or `200` with JSON `null` when the booking exists but no itinerary has been saved yet.
+Missing bookings return `404`, denied access returns `403`, and storage failures return `500`.
+Responses use `Cache-Control: no-store`.
+
 ### Staff editing and corrections
 
 These controls use an authenticated browser session and a CSRF token. API-key scopes do not grant access to them.

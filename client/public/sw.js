@@ -1,117 +1,77 @@
-// Version updated on each deploy - change this when deploying!
-// Or use a build step to inject a timestamp
-const CACHE_VERSION = '2026-01-26-v1';
-const CACHE_NAME = `dzaleka-visit-${CACHE_VERSION}`;
+// Bump when cache policy changes so older cached documents are removed.
+const CACHE_NAME = 'dzaleka-visit-2026-09-06-v2';
+const STATIC_ASSETS = ['/manifest.json'];
 
-const STATIC_ASSETS = [
-    '/manifest.json'
-];
+const offlineResponse = () => new Response(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connection unavailable | Visit Dzaleka</title>
+<style>body{font:1rem/1.6 system-ui,sans-serif;margin:0;padding:24px;background:#f8fafc;color:#172033}main{max-width:36rem;margin:12vh auto}h1{line-height:1.2}a{display:inline-flex;align-items:center;min-height:44px;color:#174ea6}a:focus-visible{outline:3px solid #174ea6;outline-offset:4px}</style>
+</head><body><main><h1>We couldn’t connect</h1><p>Check your internet connection, then try again to load this page.</p><a href="">Try again</a></main></body></html>`, {
+    status: 503,
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+});
 
-// Install event - cache static assets
+const unavailableResponse = () => new Response('Connection unavailable. Please try again.', {
+    status: 503,
+    headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+});
+
+async function cacheResponse(request, response) {
+    if (!response.ok || response.type !== 'basic' || response.redirected ||
+        /no-store|private/i.test(response.headers.get('Cache-Control') || '')) return;
+    // Cache failures (including quota/private browsing restrictions) must not
+    // turn an otherwise successful network response into a failed request.
+    try {
+        const copy = response.clone();
+        const cache = await caches.open(CACHE_NAME);
+        await cache.put(request, copy);
+    } catch { /* Caching is optional. */ }
+}
+
 self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(STATIC_ASSETS);
-        })
-    );
-    // Force the waiting service worker to become active
-    self.skipWaiting();
+    event.waitUntil((async () => {
+        try {
+            const cache = await caches.open(CACHE_NAME);
+            await cache.addAll(STATIC_ASSETS);
+        } catch { /* Installation also works offline or without cache storage. */ }
+        await self.skipWaiting();
+    })());
 });
 
-// Activate event - cleanup old caches
 self.addEventListener('activate', (event) => {
-    event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cache) => {
-                    // Delete all caches that don't match current version
-                    if (cache !== CACHE_NAME && cache.startsWith('dzaleka-visit-')) {
-                        console.log('SW: Deleting old cache:', cache);
-                        return caches.delete(cache);
-                    }
-                })
-            );
-        })
-    );
-    // Take control of all pages immediately
-    self.clients.claim();
+    event.waitUntil((async () => {
+        try {
+            const names = await caches.keys();
+            await Promise.all(names.filter(name => name.startsWith('dzaleka-visit-') && name !== CACHE_NAME)
+                .map(name => caches.delete(name)));
+        } catch { /* A storage failure must not prevent taking control. */ }
+        await self.clients.claim();
+    })());
 });
 
-// Fetch event - handle requests
 self.addEventListener('fetch', (event) => {
-    const url = new URL(event.request.url);
+    const { request } = event;
+    const url = new URL(request.url);
+    if (url.origin !== self.location.origin || request.method !== 'GET') return;
 
-    // Skip cross-origin requests
-    if (!event.request.url.startsWith(self.location.origin)) {
+    // Let the browser and query client handle APIs directly, including errors.
+    if (url.pathname === '/api' || url.pathname.startsWith('/api/')) return;
+
+    if (request.mode === 'navigate' || request.destination === 'document' ||
+        url.pathname === '/' || url.pathname.endsWith('.html')) {
+        // Never persist HTML: protected pages and old deployment shells must
+        // not be replayed from the service worker cache.
+        event.respondWith(fetch(request).catch(offlineResponse));
         return;
     }
 
-    // Skip non-GET requests
-    if (event.request.method !== 'GET') {
-        return;
-    }
+    // Do not cache arbitrary authenticated endpoints or partial media requests.
+    if (request.headers.has('range') ||
+        (!['script', 'style', 'image', 'font'].includes(request.destination) &&
+            !STATIC_ASSETS.includes(url.pathname))) return;
 
-    // Handle API requests (Network Only - don't cache API responses)
-    if (url.pathname.startsWith('/api/')) {
-        event.respondWith(fetch(event.request));
-        return;
-    }
-
-    // Handle HTML requests (Network First - CRITICAL for avoiding stale HTML)
-    // This includes the root / and any navigation requests
-    if (event.request.mode === 'navigate' ||
-        url.pathname === '/' ||
-        url.pathname.endsWith('.html')) {
-        event.respondWith(
-            fetch(event.request)
-                .then((response) => {
-                    // Cache the fresh response
-                    const responseToCache = response.clone();
-                    caches.open(CACHE_NAME).then((cache) => {
-                        cache.put(event.request, responseToCache);
-                    });
-                    return response;
-                })
-                .catch(() => {
-                    // Fallback to cache only if offline
-                    return caches.match(event.request);
-                })
-        );
-        return;
-    }
-
-    // Handle static assets (CSS, JS, images) - Stale While Revalidate
-    event.respondWith(
-        caches.match(event.request).then((cachedResponse) => {
-            const fetchPromise = fetch(event.request)
-                .then((networkResponse) => {
-                    // Only cache valid responses
-                    if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-                        return networkResponse;
-                    }
-
-                    // Don't try to clone if body is already used
-                    if (networkResponse.bodyUsed) {
-                        return networkResponse;
-                    }
-
-                    // Clone and cache the response
-                    const responseToCache = networkResponse.clone();
-                    caches.open(CACHE_NAME).then((cache) => {
-                        cache.put(event.request, responseToCache);
-                    });
-
-                    return networkResponse;
-                })
-                .catch((error) => {
-                    // Silently fail for background updates if offline
-                    console.log('SW: Background fetch failed (offline?):', error.message);
-                    return cachedResponse;
-                });
-
-            // Return cached immediately, update in background
-            return cachedResponse || fetchPromise;
-        })
-    );
+    const cached = caches.open(CACHE_NAME).then(cache => cache.match(request)).catch(() => undefined);
+    const network = fetch(request).catch(() => null);
+    event.waitUntil(network.then(response => response ? cacheResponse(request, response) : undefined));
+    event.respondWith(cached.then(async response => response || await network || unavailableResponse()));
 });
-

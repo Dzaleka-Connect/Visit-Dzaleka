@@ -480,10 +480,10 @@ export default function BookingDetails() {
         enabled: isAdminOrCoordinator,
     });
 
-    const { data: itinerary } = useQuery<Itinerary>({
+    const { data: itinerary, error: itineraryError, refetch: refetchItinerary, isFetching: isFetchingItinerary } = useQuery<Itinerary | null>({
         queryKey: [`/api/bookings/${id}/itinerary`],
         retry: false,
-        enabled: !!id
+        enabled: !!booking && (isAdminOrCoordinator || user?.role === "visitor")
     });
 
     const { data: meetingPoints } = useQuery<{ id: string, name: string }[]>({
@@ -985,6 +985,14 @@ export default function BookingDetails() {
                                 <FileDown className="mr-2 h-4 w-4" /> View Itinerary
                             </Link>
                         </Button>
+                    )}
+                    {itineraryError && (
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                            <span role="status">Itinerary unavailable.</span>
+                            <Button size="sm" variant="outline" onClick={() => refetchItinerary()} disabled={isFetchingItinerary}>
+                                {isFetchingItinerary && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />} Retry itinerary
+                            </Button>
+                        </div>
                     )}
                     <Button size="sm" className="w-full sm:w-auto" onClick={() => generateBookingPDF(booking, getMeetingPointName(booking.meetingPointId))}>
                         <FileDown className="mr-2 h-4 w-4" /> Export PDF

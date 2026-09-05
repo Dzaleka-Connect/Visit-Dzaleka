@@ -4,7 +4,7 @@ import { useLocation, useRoute } from "wouter";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
     Clock,
@@ -208,7 +208,7 @@ export default function ItineraryBuilder() {
         queryKey: ["/api/bookings"]
     });
 
-    const { data: existingItinerary } = useQuery<Itinerary>({
+    const { data: existingItinerary, error: itineraryError, isLoading: isLoadingItinerary } = useQuery<Itinerary | null>({
         queryKey: [`/api/bookings/${bookingId}/itinerary`],
         enabled: !!bookingId,
         retry: false,
@@ -411,7 +411,11 @@ export default function ItineraryBuilder() {
         mutationFn: async (values: FormValues) => {
             await apiRequest("POST", "/api/itinerary/send", values);
         },
-        onSuccess: () => {
+        onSuccess: (_data, values) => {
+            if (values.bookingId) {
+                queryClient.invalidateQueries({ queryKey: [`/api/bookings/${values.bookingId}/itinerary`] });
+            }
+            queryClient.invalidateQueries({ queryKey: ["/api/my-itineraries"] });
             toast({
                 title: "Itinerary Sent",
                 description: "The itinerary has been successfully emailed to the visitor.",
@@ -446,7 +450,9 @@ export default function ItineraryBuilder() {
                         <p className="text-muted-foreground">Create, preview, save, and send a visitor itinerary.</p>
                         {bookingId && (
                             <p className="mt-1 text-sm text-muted-foreground">
-                                {existingVersion > 0
+                                {isLoadingItinerary ? "Loading saved itinerary…" : itineraryError
+                                    ? "Couldn’t load the saved itinerary. Refresh the page to try again."
+                                    : existingVersion > 0
                                     ? `Latest saved itinerary: version ${existingVersion}. Sending again creates version ${existingVersion + 1}.`
                                     : "No saved itinerary version found for this booking yet."}
                             </p>

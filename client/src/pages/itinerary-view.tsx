@@ -45,7 +45,7 @@ export default function ItineraryView() {
             ? "Back to My Tour"
             : "Back to Booking";
 
-    const { data: itinerary, isLoading, error } = useQuery<Itinerary>({
+    const { data: itinerary, isLoading, error, refetch, isFetching } = useQuery<Itinerary | null>({
         queryKey: [`/api/bookings/${bookingId}/itinerary`],
         enabled: Boolean(bookingId),
     });
@@ -55,6 +55,7 @@ export default function ItineraryView() {
     if (error || !itinerary) {
         return (
             <div className="container mx-auto p-6 max-w-3xl">
+                <SEO title={error ? "Unable to load itinerary" : "Itinerary not ready"} robots="noindex, nofollow" />
                 <Button variant="ghost" asChild className="mb-4">
                     <Link href={backHref}>
                         <ArrowLeft className="mr-2 h-4 w-4" /> {backLabel}
@@ -62,7 +63,13 @@ export default function ItineraryView() {
                 </Button>
                 <Card>
                     <CardContent className="pt-6 text-center">
-                        <p className="text-muted-foreground">No itinerary found for this booking yet.</p>
+                        <h1 className="text-xl font-semibold mb-2">{error ? "Unable to load itinerary" : "Itinerary not ready"}</h1>
+                        <p className="text-muted-foreground" role="status">
+                            {error ? "We couldn’t load this itinerary. Check your connection and try again, or return to the booking." : "No itinerary has been saved for this booking yet. Return to the booking for the latest visit details."}
+                        </p>
+                        {error && <Button className="mt-4" onClick={() => refetch()} disabled={isFetching}>
+                            {isFetching && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />} Try again
+                        </Button>}
                     </CardContent>
                 </Card>
             </div>

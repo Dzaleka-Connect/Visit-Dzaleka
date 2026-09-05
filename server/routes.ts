@@ -6,6 +6,7 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { storage } from "./storage";
 import { bookingRescheduleSchema } from "@shared/booking-management";
 import { bookingManagementHandler } from "./lib/booking-management";
+import { bookingItineraryHandler } from "./lib/booking-itinerary";
 import {
   clearSessionCookie,
   establishAuthenticatedSession,
@@ -6177,35 +6178,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/bookings/:id/itinerary", isAuthenticated, async (req, res) => {
-    try {
-      const bookingId = req.params.id;
-      const booking = await storage.getBooking(bookingId);
-
-      if (!booking) {
-        return res.status(404).json({ message: "Booking not found" });
-      }
-
-      // Check ownership or admin role
-      const user = await storage.getUser(req.session?.userId || "");
-      const isOwner = visitorOwnsBooking(booking, user);
-      const isAdmin = user && (user.role === "admin" || user.role === "coordinator");
-
-      if (!isOwner && !isAdmin) {
-        return res.status(403).json({ message: "Unauthorized" });
-      }
-
-      const itinerary = await storage.getItineraryByBookingId(bookingId);
-      if (!itinerary) {
-        return res.status(404).json({ message: "Itinerary not found" });
-      }
-
-      res.json(itinerary);
-    } catch (error) {
-      logError("Error fetching itinerary", error, req.requestId);
-      res.status(500).json({ message: "Failed to fetch itinerary" });
-    }
-  });
+  app.get("/api/bookings/:id/itinerary", isAuthenticated, bookingItineraryHandler(storage, visitorOwnsBooking));
 
   app.get("/api/my-itineraries", isAuthenticated, async (req, res) => {
     try {
