@@ -130,10 +130,11 @@ export async function notifyAvailabilityBatch(
                 'Authorization': getAuthHeader(),
             },
             body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(15000),
         });
         const responseBody = await parseResponseBody(response);
 
-        if (!response.ok) {
+        if (!response.ok || (responseBody && typeof responseBody === "object" && "errorCode" in responseBody)) {
             throw new Error(`GetYourGuide API error: ${response.status} - ${formatGygApiError(response.status, responseBody)}`);
         }
 

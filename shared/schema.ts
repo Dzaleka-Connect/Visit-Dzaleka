@@ -8,6 +8,8 @@ import {
   varchar,
   text,
   integer,
+  bigint,
+  check,
   boolean,
   doublePrecision,
   date,
@@ -387,6 +389,31 @@ export const bookings = pgTable("bookings", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Private GetYourGuide state shared by all server instances (see migration 0026).
+export const getyourguideReservations = pgTable("getyourguide_reservations", {
+  reservationReference: text("reservation_reference").primaryKey(),
+  gygBookingReference: text("gyg_booking_reference").notNull(),
+  payload: jsonb("payload").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  status: text("status").notNull(),
+  bookingId: varchar("booking_id").references(() => bookings.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index("getyourguide_reservations_reference").on(table.gygBookingReference),
+  index("getyourguide_reservations_active").on(table.expiresAt).where(sql`${table.status} = 'reserved'`),
+  check("getyourguide_reservations_status_check", sql`${table.status} IN ('reserved', 'booked', 'cancelled')`),
+]).enableRLS();
+
+export const getyourguideActivity = pgTable("getyourguide_activity", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  endpoint: text("endpoint").notNull(),
+  productId: text("product_id"),
+  success: boolean("success").notNull(),
+  errorCode: text("error_code"),
+  diagnostic: boolean("diagnostic").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [index("getyourguide_activity_recent").on(table.createdAt.desc())]).enableRLS();
 
 export const guideTourReports = pgTable(
   "guide_tour_reports",

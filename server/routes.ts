@@ -7,6 +7,7 @@ import { storage } from "./storage";
 import { bookingRescheduleSchema } from "@shared/booking-management";
 import { bookingManagementHandler } from "./lib/booking-management";
 import { bookingItineraryHandler } from "./lib/booking-itinerary";
+import { getGygStore, type GygReservationState } from "./lib/getyourguide-store";
 import {
   clearSessionCookie,
   establishAuthenticatedSession,
@@ -3181,23 +3182,6 @@ interface GygProductConfig {
   availabilityMode: GygAvailabilityMode;
 }
 
-interface GygReservationState {
-  reservationReference: string;
-  gygBookingReference: string;
-  productId: string;
-  dateTime: string;
-  visitDate: string;
-  visitTime: string;
-  pricingMode: GygPricingMode;
-  timeMode: GygTimeMode;
-  participantCount: number;
-  unitCount: number;
-  bookingItems: any[];
-  expiresAt: Date;
-  status: "reserved" | "booked" | "cancelled";
-}
-
-const gygReservations = new Map<string, GygReservationState>();
 const GYG_TIMEZONE_OFFSET = "+02:00";
 const GYG_PRODUCT_TITLE = "Dzaleka Refugee Camp Guided Walking Tour";
 const GYG_SUPPLIER_ID = process.env.GETYOURGUIDE_SUPPLIER_ID || "visit-dzaleka";
@@ -3233,10 +3217,6 @@ function getGygAvailabilityPushProductId() {
     || process.env.GETYOURGUIDE_NOTIFY_PRODUCT_ID
     || process.env.GETYOURGUIDE_CONNECTED_PRODUCT_ID
     || "";
-}
-
-function isLikelyPublicGygActivityId(productId: string) {
-  return /^\d+$/.test(productId.trim());
 }
 
 function getGygSelfTestProductIds() {
@@ -3292,7 +3272,17 @@ function gygError(errorCode: string, errorMessage: string, extra: Record<string,
   return { errorCode, errorMessage, ...extra };
 }
 
-function sendGygResponse(res: Response, payload: unknown) {
+async function sendGygResponse(res: Response, payload: any) {
+  if (res.locals.gygAuthenticated) {
+    try {
+      await getGygStore().recordActivity(
+        `${res.req.path.replace(/\/$/, "")}/`,
+        res.req.body?.data?.productId || res.req.query.productId || res.req.params.productId || null,
+        !payload?.errorCode && res.req.body?.data?.notificationType !== "PRODUCT_DEACTIVATION", payload?.errorCode || (res.req.body?.data?.notificationType === "PRODUCT_DEACTIVATION" ? "PRODUCT_DEACTIVATION" : null),
+        res.req.get("X-Dzaleka-Diagnostic") === "true" || Object.values(getGygSelfTestProductIds()).includes(String(res.req.body?.data?.productId || res.req.query.productId || res.req.params.productId || "")),
+      );
+    } catch (error) { logError("GetYourGuide activity recording failed", error); }
+  }
   return res.status(200).type("application/json").json(payload);
 }
 
@@ -3318,7 +3308,7 @@ function isGygAuthorized(req: Request) {
 }
 
 function requireGygAuth(req: Request, res: Response) {
-  if (isGygAuthorized(req)) return true;
+  if (isGygAuthorized(req)) { res.locals.gygAuthenticated = true; return true; }
   sendGygResponse(res, gygError("AUTHORIZATION_FAILURE", "The provided authentication credentials are not valid."));
   return false;
 }
@@ -3326,7 +3316,10 @@ function requireGygAuth(req: Request, res: Response) {
 function gygDateParts(dateTime?: string) {
   const value = (dateTime || "").trim().replace(" ", "+");
   const match = value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
-  if (!match) return null;
+  if (!match || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?\+02:00$/.test(value)
+    || !Number.isFinite(Date.parse(value))
+    || new Date(`${match[1]}T00:00:00Z`).toISOString().slice(0, 10) !== match[1]
+    || Number(match[2].slice(0, 2)) > 23 || Number(match[2].slice(3)) > 59) return null;
   return { date: match[1], time: match[2], normalized: value };
 }
 
@@ -3356,7 +3349,7 @@ function getGygLocalDate(date = new Date()) {
 function getGygDateRange(fromDateTime?: string, toDateTime?: string) {
   const from = gygDateParts(fromDateTime);
   const to = gygDateParts(toDateTime);
-  if (!from || !to) return null;
+  if (!from || !to || from.normalized > to.normalized || (Date.parse(to.normalized) - Date.parse(from.normalized)) / 86400000 > 366) return null;
 
   const dates: string[] = [];
   let cursor = from.date;
@@ -3367,19 +3360,6 @@ function getGygDateRange(fromDateTime?: string, toDateTime?: string) {
     guard += 1;
   }
   return dates;
-}
-
-function activeGygReservations() {
-  const now = Date.now();
-  for (const [reference, reservation] of Array.from(gygReservations.entries())) {
-    if (reservation.expiresAt.getTime() <= now && reservation.status === "reserved") {
-      gygReservations.delete(reference);
-    }
-  }
-
-  return Array.from(gygReservations.values()).filter(
-    (reservation) => reservation.status === "reserved" && reservation.expiresAt.getTime() > now
-  );
 }
 
 function getGygParticipantCount(bookingItems: any[] = []) {
@@ -3406,8 +3386,9 @@ function validateGygBookingItems(config: GygProductConfig, bookingItems: any[] =
   }
 
   const allowedCategories = config.pricingMode === "group" ? ["GROUP"] : GYG_SUPPORTED_INDIVIDUAL_CATEGORIES;
-  const invalidCategory = bookingItems.find((item) => !allowedCategories.includes(String(item?.category || "").toUpperCase()));
-  if (invalidCategory) {
+  const invalidCategoryIndex = bookingItems.findIndex((item) => !allowedCategories.includes(String(item?.category || "")));
+  if (invalidCategoryIndex !== -1) {
+    const invalidCategory = bookingItems[invalidCategoryIndex] || {};
     return gygError(
       "INVALID_TICKET_CATEGORY",
       `The ticket category ${invalidCategory.category} is not sellable for this product.`,
@@ -3415,12 +3396,16 @@ function validateGygBookingItems(config: GygProductConfig, bookingItems: any[] =
     );
   }
 
+  if (bookingItems.some(item => !Number.isInteger(item.count) || item.count < 1
+    || (item.category === "GROUP" && (!Number.isInteger(item.groupSize) || item.groupSize < 1)))) {
+    return gygError("VALIDATION_FAILURE", "Ticket counts and group sizes must be positive integers.");
+  }
   const participantCount = getGygParticipantCount(bookingItems);
   if (participantCount < 1 || participantCount > GYG_MAX_PEOPLE_PER_SLOT) {
     return gygError(
       "INVALID_PARTICIPANTS_CONFIGURATION",
       `The activity requires between 1 and ${GYG_MAX_PEOPLE_PER_SLOT} participants.`,
-      { participantsConfiguration: { min: 1, max: GYG_MAX_PEOPLE_PER_SLOT } }
+      { participantsConfiguration: { min: 1, max: GYG_MAX_PEOPLE_PER_SLOT }, ...(config.pricingMode === "group" ? { groupConfiguration: { max: GYG_MAX_GROUPS_PER_SLOT } } : {}) }
     );
   }
 
@@ -3471,28 +3456,41 @@ async function getGygRetailPrices(config: GygProductConfig) {
   }));
 }
 
-async function getGygAvailabilityUnits(config: GygProductConfig, visitDate: string, visitTime: string) {
-  if (GYG_BLOCKED_DATES.has(visitDate)) {
+function isGygDateBlocked(config: GygProductConfig, date: string) {
+  return GYG_BLOCKED_DATES.has(date) || (Object.values(getGygSelfTestProductIds()).includes(config.productId)
+    && date === addDaysToDateString(getGygLocalDate(), 28));
+}
+
+type GygInventory = { bookings: Pick<Booking, "visitDate" | "visitTime" | "numberOfPeople" | "status">[]; reservations: GygReservationState[] };
+async function getGygInventory(): Promise<GygInventory> {
+  const [bookings, reservations] = await Promise.all([getGygStore().inventoryBookings(), getGygStore().activeReservations()]);
+  return { bookings, reservations };
+}
+async function getGygAvailabilityUnits(config: GygProductConfig, visitDate: string, visitTime: string, inventory: GygInventory) {
+  if (isGygDateBlocked(config, visitDate)) {
     return 0;
   }
 
-  const bookings = await storage.getBookings();
-  const matchingBookings = bookings.filter((booking) => {
+  const matchingBookings = inventory.bookings.filter((booking) => {
     if (booking.status === "cancelled" || booking.status === "no_show") return false;
     if (booking.visitDate !== visitDate) return false;
     if (config.timeMode === "time_period") return true;
     return String(booking.visitTime || "").slice(0, 5) === visitTime;
   });
 
-  const matchingReservations = activeGygReservations().filter((reservation) => {
+  const matchingReservations = inventory.reservations.filter((reservation) => {
     if (reservation.visitDate !== visitDate) return false;
-    if (config.timeMode === "time_period") return true;
+    if (config.timeMode === "time_period" || reservation.timeMode === "time_period") return true;
     return reservation.visitTime === visitTime;
   });
 
   if (config.pricingMode === "group") {
-    const reservedGroups = matchingReservations.reduce((total, reservation) => total + reservation.unitCount, 0);
-    return Math.max(0, GYG_MAX_GROUPS_PER_SLOT - matchingBookings.length - reservedGroups);
+    const reservedGroups = matchingReservations.reduce((total, reservation) => total + (reservation.pricingMode === "group" ? reservation.unitCount : 1), 0);
+    const peopleUsed = matchingBookings.reduce((total, booking) => total + (booking.numberOfPeople || 1), 0)
+      + matchingReservations.reduce((total, reservation) => total + reservation.participantCount, 0);
+    // Only advertise groups whose maximum configured size can be accommodated.
+    return Math.max(0, Math.min(GYG_MAX_GROUPS_PER_SLOT - matchingBookings.length - reservedGroups,
+      Math.floor((GYG_MAX_PEOPLE_PER_SLOT - peopleUsed) / GYG_MAX_PEOPLE_PER_SLOT)));
   }
 
   const bookedPeople = matchingBookings.reduce((total, booking) => total + (booking.numberOfPeople || 1), 0);
@@ -3500,8 +3498,8 @@ async function getGygAvailabilityUnits(config: GygProductConfig, visitDate: stri
   return Math.max(0, GYG_MAX_PEOPLE_PER_SLOT - bookedPeople - reservedPeople);
 }
 
-async function buildGygAvailability(config: GygProductConfig, visitDate: string, visitTime: string) {
-  const vacancies = await getGygAvailabilityUnits(config, visitDate, visitTime);
+async function buildGygAvailability(config: GygProductConfig, visitDate: string, visitTime: string, inventory: GygInventory) {
+  const vacancies = await getGygAvailabilityUnits(config, visitDate, visitTime, inventory);
   const availability: Record<string, unknown> = {
     dateTime: config.timeMode === "time_period"
       ? formatGygDateTime(visitDate, "00:00")
@@ -3542,7 +3540,7 @@ function buildGygTickets(bookingReference: string, bookingItems: any[] = []) {
   const tickets: Array<{ category: string; ticketCode: string; ticketCodeType: "QR_CODE" }> = [];
   let index = 1;
 
-  bookingItems.forEach((item) => {
+  [...bookingItems].sort((a, b) => String(a.category).localeCompare(String(b.category))).forEach((item) => {
     const count = Math.max(1, Number(item?.count || 1));
     for (let i = 0; i < count; i += 1) {
       tickets.push({
@@ -3561,12 +3559,53 @@ function buildGygTickets(bookingReference: string, bookingItems: any[] = []) {
   }];
 }
 
-function gygBookingMatches(booking: Booking, data: any) {
-  const parts = gygDateParts(data?.dateTime);
-  if (!parts) return false;
-  return booking.visitDate === parts.date
-    && String(booking.visitTime || "").slice(0, 5) === (parts.time === "00:00" ? "09:00" : parts.time)
-    && (booking.numberOfPeople || 1) === getGygParticipantCount(data?.bookingItems || []);
+async function pushGygAvailability(product: GygProductConfig, options: { days?: number; fromDate?: string; useSandbox?: boolean }) {
+  const requestedDays = Number(options.days || 30);
+  const days = Number.isFinite(requestedDays) ? Math.min(60, Math.max(1, requestedDays)) : 30;
+  const startDate = /^\d{4}-\d{2}-\d{2}$/.test(String(options.fromDate || ""))
+    ? String(options.fromDate)
+    : getGygLocalDate();
+  const useSandbox = typeof options.useSandbox === "boolean"
+    ? options.useSandbox
+    : process.env.GETYOURGUIDE_SYNC_USE_SANDBOX === "true";
+
+  const inventory = await getGygInventory();
+  const availabilities: Record<string, unknown>[] = [];
+  for (let day = 0; day < days; day += 1) {
+    const visitDate = addDaysToDateString(startDate, day);
+    if (product.timeMode === "time_period") {
+      availabilities.push(await buildGygAvailability(product, visitDate, "09:00", inventory));
+    } else {
+      for (const visitTime of GYG_DEFAULT_START_TIMES) {
+        availabilities.push(await buildGygAvailability(product, visitDate, visitTime, inventory));
+      }
+    }
+  }
+
+  const { notifyAvailabilityBatch } = await import("./lib/getyourguide");
+  const result = await notifyAvailabilityBatch(product.productId, availabilities as any, useSandbox);
+  await getGygStore().recordActivity("availability-push", product.productId, true, null, useSandbox);
+  logger.info("GetYourGuide availability sync completed", {
+    productId: product.productId,
+    availabilityCount: availabilities.length,
+    useSandbox,
+  });
+
+  return { ...result, useSandbox };
+}
+
+// Scheduled pushes start only after a successful production push for this exact product.
+export async function syncConfiguredGygAvailability() {
+  const productId = getGygAvailabilityPushProductId();
+  if (process.env.GETYOURGUIDE_AUTO_SYNC_ENABLED === "false" || !productId
+    || !process.env.GETYOURGUIDE_API_USERNAME || !process.env.GETYOURGUIDE_API_PASSWORD) return { skipped: true, reason: "Configuration incomplete or automatic sync disabled" };
+  const product = resolveGygProduct(productId);
+  if (!product || !(await getGygStore().activity(productId)).lastSuccessfulPush) return { skipped: true, reason: "A successful production push is required first" };
+  try { return await pushGygAvailability(product, { days: 30, useSandbox: false }); }
+  catch (error) {
+    await getGygStore().recordActivity("availability-push", productId, false, "SYNC_FAILED");
+    throw error;
+  }
 }
 
 function registerGetYourGuideSupplierApiRoutes(app: Express) {
@@ -3590,21 +3629,27 @@ function registerGetYourGuideSupplierApiRoutes(app: Express) {
         return sendGygResponse(res, gygError("VALIDATION_FAILURE", "fromDateTime and toDateTime must be valid ISO 8601 datetime values."));
       }
 
+      const inventory = await getGygInventory();
       const availabilities = [];
       for (const date of dates) {
         if (config.timeMode === "time_period") {
-          availabilities.push(await buildGygAvailability(config, date, "09:00"));
+          availabilities.push(await buildGygAvailability(config, date, "09:00", inventory));
         } else {
           for (const time of GYG_DEFAULT_START_TIMES) {
-            availabilities.push(await buildGygAvailability(config, date, time));
+            availabilities.push(await buildGygAvailability(config, date, time, inventory));
           }
         }
       }
 
-      return sendGygResponse(res, { data: { availabilities } });
+      const from = Date.parse(String(req.query.fromDateTime).replace(" ", "+"));
+      const to = Date.parse(String(req.query.toDateTime).replace(" ", "+"));
+      return sendGygResponse(res, { data: { availabilities: availabilities.filter(slot => {
+        const timestamp = Date.parse(String(slot.dateTime));
+        return timestamp >= from && timestamp <= to;
+      }) } });
     } catch (error: any) {
       logError("GetYourGuide availability endpoint failed", error, req.requestId);
-      return sendGygResponse(res, gygError("INTERNAL_SYSTEM_FAILURE", error.message || "Failed to fetch availability."));
+      return sendGygResponse(res, gygError(error.errorCode || "INTERNAL_SYSTEM_FAILURE", error.message || "Failed to fetch availability."));
     }
   });
 
@@ -3634,14 +3679,15 @@ function registerGetYourGuideSupplierApiRoutes(app: Express) {
 
       const visitTime = config.timeMode === "time_period" ? "09:00" : parts.time;
       const requestedUnits = getGygUnitCount(config, data.bookingItems);
-      const availableUnits = await getGygAvailabilityUnits(config, parts.date, visitTime);
-      if (requestedUnits > availableUnits) {
-        return sendGygResponse(res, gygError("NO_AVAILABILITY", `This activity is sold out; requested ${requestedUnits}; available ${availableUnits}.`));
+      if (isGygDateBlocked(config, parts.date)
+        || (config.timeMode === "time_point" && !GYG_DEFAULT_START_TIMES.includes(visitTime))
+        || Date.parse(formatGygDateTime(parts.date, visitTime)) <= Date.now() + GYG_CUTOFF_SECONDS * 1000) {
+        return sendGygResponse(res, gygError("NO_AVAILABILITY", "This departure is unavailable or past its booking cutoff."));
       }
 
       const reservationReference = makeGygReservationReference();
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
-      gygReservations.set(reservationReference, {
+      const reservation = await getGygStore().reserve({
         reservationReference,
         gygBookingReference: data.gygBookingReference,
         productId: config.productId,
@@ -3655,17 +3701,17 @@ function registerGetYourGuideSupplierApiRoutes(app: Express) {
         bookingItems: data.bookingItems,
         expiresAt,
         status: "reserved",
-      });
+      }, GYG_MAX_PEOPLE_PER_SLOT, GYG_MAX_GROUPS_PER_SLOT);
 
       return sendGygResponse(res, {
         data: {
-          reservationReference,
-          reservationExpiration: expiresAt.toISOString(),
+          reservationReference: reservation.reservationReference,
+          reservationExpiration: reservation.expiresAt.toISOString(),
         },
       });
     } catch (error: any) {
       logError("GetYourGuide reserve endpoint failed", error, req.requestId);
-      return sendGygResponse(res, gygError("INTERNAL_SYSTEM_FAILURE", error.message || "Failed to reserve availability."));
+      return sendGygResponse(res, gygError(error.errorCode || "INTERNAL_SYSTEM_FAILURE", error.message || "Failed to reserve availability."));
     }
   });
 
@@ -3678,17 +3724,14 @@ function registerGetYourGuideSupplierApiRoutes(app: Express) {
         reservationReference: data.reservationReference,
         gygBookingReference: data.gygBookingReference,
       });
-      const reservation = gygReservations.get(data.reservationReference);
-      if (!reservation || reservation.gygBookingReference !== data.gygBookingReference || reservation.status !== "reserved") {
-        return sendGygResponse(res, gygError("INVALID_RESERVATION", "Reservation does not exist or is not in a valid state."));
+      if (!data.reservationReference || !data.gygBookingReference) {
+        return sendGygResponse(res, gygError("VALIDATION_FAILURE", "Reservation and GetYourGuide references are required."));
       }
-
-      reservation.status = "cancelled";
-      gygReservations.delete(data.reservationReference);
+      await getGygStore().cancelReservation(data.reservationReference, data.gygBookingReference);
       return sendGygResponse(res, { data: {} });
     } catch (error: any) {
       logError("GetYourGuide cancel-reservation endpoint failed", error, req.requestId);
-      return sendGygResponse(res, gygError("INTERNAL_SYSTEM_FAILURE", error.message || "Failed to cancel reservation."));
+      return sendGygResponse(res, gygError(error.errorCode || "INTERNAL_SYSTEM_FAILURE", error.message || "Failed to cancel reservation."));
     }
   });
 
@@ -3714,38 +3757,16 @@ function registerGetYourGuideSupplierApiRoutes(app: Express) {
         return sendGygResponse(res, itemError || gygError("VALIDATION_FAILURE", "A valid dateTime and bookingItems are required."));
       }
 
-      const existingBookings = await storage.getBookings();
-      const existingBooking = existingBookings.find((booking) =>
-        booking.source === "getyourguide"
-        && booking.externalReferenceId === data.gygBookingReference
-        && booking.status !== "cancelled"
-        && gygBookingMatches(booking, data)
-      );
-      if (existingBooking) {
-        return sendGygResponse(res, {
-          data: {
-            bookingReference: existingBooking.bookingReference,
-            tickets: buildGygTickets(existingBooking.bookingReference, data.bookingItems),
-          },
-        });
-      }
-
-      const reservation = gygReservations.get(data.reservationReference);
-      if (!reservation || reservation.status !== "reserved" || reservation.expiresAt.getTime() <= Date.now()) {
-        return sendGygResponse(res, gygError("INVALID_RESERVATION", "Expired or missing reservation."));
-      }
-
       const traveler = data.travelers?.[0] || {};
       const visitorName = [traveler.firstName, traveler.lastName].filter(Boolean).join(" ").trim() || "GetYourGuide Traveler";
       const participantCount = getGygParticipantCount(data.bookingItems);
       const visitTime = config.timeMode === "time_period" ? "09:00" : parts.time;
-      const totalAmount = (data.bookingItems || []).reduce(
-        (total: number, item: any) => total + Math.max(0, Number(item.retailPrice || 0)) * Math.max(1, Number(item.count || 1)),
-        0
-      ) || await getGygRetailPrice(config);
+      const retailPrices = await getGygRetailPrices(config);
+      const totalAmount = data.bookingItems.reduce((total: number, item: any) => total
+        + (Number.isInteger(item.retailPrice) && item.retailPrice >= 0 ? item.retailPrice : retailPrices.find(price => price.category === item.category)?.price || 0) * item.count, 0);
       const bookingReference = makeGygBookingReference();
 
-      const booking = await storage.createBooking({
+      const booking = await getGygStore().confirm(data, {
         bookingReference,
         source: "getyourguide",
         externalReferenceId: data.gygBookingReference,
@@ -3772,14 +3793,6 @@ function registerGetYourGuideSupplierApiRoutes(app: Express) {
         ].filter(Boolean).join("\n"),
       });
 
-      reservation.status = "booked";
-      await storage.createBookingActivityLog({
-        bookingId: booking.id,
-        action: "getyourguide_booking_created",
-        description: `GetYourGuide booking confirmed (${data.gygBookingReference}).`,
-        newStatus: "confirmed",
-      });
-
       return sendGygResponse(res, {
         data: {
           bookingReference: booking.bookingReference,
@@ -3788,7 +3801,7 @@ function registerGetYourGuideSupplierApiRoutes(app: Express) {
       });
     } catch (error: any) {
       logError("GetYourGuide book endpoint failed", error, req.requestId);
-      return sendGygResponse(res, gygError("INTERNAL_SYSTEM_FAILURE", error.message || "Failed to create booking."));
+      return sendGygResponse(res, gygError(error.errorCode || "INTERNAL_SYSTEM_FAILURE", error.message || "Failed to create booking."));
     }
   });
 
@@ -3807,52 +3820,17 @@ function registerGetYourGuideSupplierApiRoutes(app: Express) {
         return sendGygResponse(res, gygError("INVALID_PRODUCT", "This activity should be deactivated; not sellable."));
       }
 
-      const bookings = await storage.getBookings();
-      const booking = bookings.find((item) =>
-        item.bookingReference === data.bookingReference
-        || (item.source === "getyourguide" && item.externalReferenceId === data.gygBookingReference)
-      );
-
-      if (!booking) {
-        return sendGygResponse(res, gygError("INVALID_BOOKING", "The booking does not exist."));
+      if (!data.bookingReference || !data.gygBookingReference) {
+        return sendGygResponse(res, gygError("VALIDATION_FAILURE", "Booking and GetYourGuide references are required."));
       }
-
-      if (booking.status === "cancelled") {
-        return sendGygResponse(res, gygError("BOOKING_ALREADY_CANCELED", "The booking has been cancelled already."));
-      }
-
-      const nowDate = new Date().toISOString().slice(0, 10);
-      if (booking.status === "completed" || booking.status === "in_progress") {
-        return sendGygResponse(res, gygError("BOOKING_REDEEMED", "The booking has already been used."));
-      }
-      if (booking.visitDate < nowDate) {
-        return sendGygResponse(res, gygError("BOOKING_IN_PAST", "The booking is in the past and cannot be cancelled."));
-      }
-
-      await storage.updateBookingStatus(booking.id, "cancelled");
-      await storage.updateBooking(booking.id, {
-        cancellationCategory: "getyourguide",
-        cancellationReason: "Cancelled by GetYourGuide",
-        cancellationNote: typeof data.cancellationReason === "string"
-          ? data.cancellationReason
-          : typeof data.reason === "string"
-            ? data.reason
-            : null,
-        cancelledAt: new Date(),
-        cancelledBy: null,
-      });
-      await storage.createBookingActivityLog({
-        bookingId: booking.id,
-        action: "getyourguide_booking_cancelled",
-        description: `GetYourGuide cancelled booking ${data.gygBookingReference}.`,
-        oldStatus: booking.status,
-        newStatus: "cancelled",
-      });
+      await getGygStore().cancelBooking(data.bookingReference, data.gygBookingReference,
+        typeof data.cancellationReason === "string" ? data.cancellationReason : typeof data.reason === "string" ? data.reason : null,
+        getGygLocalDate());
 
       return sendGygResponse(res, { data: {} });
     } catch (error: any) {
       logError("GetYourGuide cancel-booking endpoint failed", error, req.requestId);
-      return sendGygResponse(res, gygError("INTERNAL_SYSTEM_FAILURE", error.message || "Failed to cancel booking."));
+      return sendGygResponse(res, gygError(error.errorCode || "INTERNAL_SYSTEM_FAILURE", error.message || "Failed to cancel booking."));
     }
   });
 
@@ -15855,12 +15833,17 @@ export async function registerRoutes(
       const selfTestProductIds = getGygSelfTestProductIds();
       const availabilityPushProductId = getGygAvailabilityPushProductId();
 
-      const individualPrice = await calculateTotalAmount("individual", "standard");
-      const groupPrice = await calculateTotalAmount("large_group", "standard");
+      const individualPrice = await getGygRetailPrice({ productId, pricingMode: "individual", timeMode: "time_point", availabilityMode: "total" });
+      const groupPrice = await getGygRetailPrice({ productId, pricingMode: "group", timeMode: "time_point", availabilityMode: "total" });
+      let activity = null;
+      let persistenceReady = true;
+      try { activity = await getGygStore().activity(availabilityPushProductId || null); } catch { persistenceReady = false; }
 
       res.json({
         productId,
         activityId,
+        activity,
+        persistenceReady,
         listingUrl: "https://www.getyourguide.com/mbalame-l265219/dzaleka-refugee-camp-guided-walking-tour-t1188868/",
         publicBaseUrl: PUBLIC_APP_URL,
         webhookEndpoint: `${PUBLIC_APP_URL}/api/webhooks/getyourguide`,
@@ -15994,19 +15977,11 @@ export async function registerRoutes(
   // Sync availability to GetYourGuide
   app.post("/api/getyourguide/sync-availability", isAuthenticated, requireRole("admin", "coordinator"), async (req, res) => {
     try {
-      const { notifyAvailabilityBatch } = await import("./lib/getyourguide");
       const requestedProductId = String(req.body?.productId || getGygAvailabilityPushProductId()).trim();
       if (!requestedProductId) {
         return res.status(400).json({
           message: "GetYourGuide availability push product is not configured",
           detail: "The public listing id 1188868 is valid for the live listing and self-test, but the outbound notify endpoint needs the connected product id GetYourGuide maps as active. Set GETYOURGUIDE_AVAILABILITY_PRODUCT_ID after GetYourGuide provides or confirms it.",
-        });
-      }
-
-      if (isLikelyPublicGygActivityId(requestedProductId) && !process.env.GETYOURGUIDE_ALLOW_PUBLIC_ID_AVAILABILITY_PUSH) {
-        return res.status(400).json({
-          message: "GetYourGuide availability push is using a public listing ID",
-          detail: `${requestedProductId} looks like the public GetYourGuide activity id. The notify-availability endpoint rejected that id. Set GETYOURGUIDE_AVAILABILITY_PRODUCT_ID to the mapped connected product id, or set GETYOURGUIDE_ALLOW_PUBLIC_ID_AVAILABILITY_PUSH=true only if GetYourGuide confirms this exact id is active for API notifications.`,
         });
       }
 
@@ -16025,43 +16000,21 @@ export async function registerRoutes(
         });
       }
 
-      const requestedDays = Number(req.body?.days || 30);
-      const days = Number.isFinite(requestedDays) ? Math.min(60, Math.max(1, requestedDays)) : 30;
-      const startDate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.fromDate || ""))
-        ? String(req.body.fromDate)
-        : getGygLocalDate();
-      const useSandbox = typeof req.body?.useSandbox === "boolean"
-        ? req.body.useSandbox
-        : process.env.GETYOURGUIDE_SYNC_USE_SANDBOX === "true";
-
-      const availabilities: Record<string, unknown>[] = [];
-      for (let day = 0; day < days; day += 1) {
-        const visitDate = addDaysToDateString(startDate, day);
-        if (product.timeMode === "time_period") {
-          availabilities.push(await buildGygAvailability(product, visitDate, "09:00"));
-        } else {
-          for (const visitTime of GYG_DEFAULT_START_TIMES) {
-            availabilities.push(await buildGygAvailability(product, visitDate, visitTime));
-          }
-        }
-      }
-
-      const result = await notifyAvailabilityBatch(product.productId, availabilities as any, useSandbox);
-      logger.info("GetYourGuide availability sync completed", {
-        productId: product.productId,
-        availabilityCount: availabilities.length,
-        useSandbox,
+      const result = await pushGygAvailability(product, {
+        days: req.body?.days, fromDate: req.body?.fromDate, useSandbox: req.body?.useSandbox,
       });
+      const { availabilityCount, useSandbox } = result;
 
       res.json({
         success: true,
         message: "Availability synced successfully",
         productId: product.productId,
-        availabilityCount: availabilities.length,
+        availabilityCount,
         useSandbox,
         response: result.response,
       });
     } catch (error: any) {
+      try { await getGygStore().recordActivity("availability-push", getGygAvailabilityPushProductId() || null, false, "SYNC_FAILED", req.body?.useSandbox === true || process.env.GETYOURGUIDE_SYNC_USE_SANDBOX === "true"); } catch { /* Keep original sync error. */ }
       logError("Failed to sync GetYourGuide availability", error, req.requestId);
       res.status(502).json({
         message: "Failed to sync GetYourGuide availability",

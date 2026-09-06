@@ -6,6 +6,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CalendarDays, CheckCircle2, ClipboardCheck, Clock, ExternalLink, Globe, RefreshCw, XCircle } from "lucide-react";
 import { useState } from "react";
+import { Link } from "wouter";
+import { SEO } from "@/components/seo";
 import { formatDistanceToNow } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -13,7 +15,8 @@ interface GetYourGuideBooking {
     id: string;
     bookingReference: string;
     numberOfPeople: number;
-    tourDate: string;
+    visitDate: string;
+    externalReferenceId: string | null;
     tourType: string;
     status: string;
     createdAt: string;
@@ -41,6 +44,13 @@ interface MandatoryEndpoint {
 
 interface GetYourGuideSelfTestReadiness {
     productId: string;
+    persistenceReady: boolean;
+    activity: {
+        lastAvailabilityRequest: string | null;
+        lastBookingRequest: string | null;
+        lastSuccessfulPush: string | null;
+        recent: Array<{ endpoint: string; productId: string | null; success: boolean; errorCode: string | null; diagnostic: boolean; createdAt: string }>;
+    } | null;
     activityId: string;
     listingUrl: string;
     publicBaseUrl: string;
@@ -97,12 +107,13 @@ export default function GetYourGuidePage() {
     const [syncing, setSyncing] = useState(false);
 
     // Fetch GetYourGuide bookings
-    const { data: bookings, isLoading } = useQuery<GetYourGuideBooking[]>({
+    const { data: bookings, isLoading, isError: bookingsError, refetch: reloadBookings } = useQuery<GetYourGuideBooking[]>({
         queryKey: ["/api/bookings/channel/getyourguide"],
     });
 
-    const { data: readiness, isLoading: readinessLoading } = useQuery<GetYourGuideSelfTestReadiness>({
+    const { data: readiness, isLoading: readinessLoading, isError: readinessError, refetch: reloadReadiness } = useQuery<GetYourGuideSelfTestReadiness>({
         queryKey: ["/api/getyourguide/self-test-readiness"],
+        refetchInterval: 60000,
     });
 
     // Sync availability mutation
@@ -112,10 +123,11 @@ export default function GetYourGuidePage() {
             return response.json();
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/getyourguide/self-test-readiness"] });
             setSyncing(false);
         },
         onError: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/getyourguide/self-test-readiness"] });
             setSyncing(false);
         },
     });
@@ -125,12 +137,16 @@ export default function GetYourGuidePage() {
         syncMutation.mutate();
     };
 
-    const integrationStatus = bookings !== undefined ? "active" : "pending";
+    const requestsObserved = Boolean(readiness?.activity?.lastAvailabilityRequest || readiness?.activity?.lastBookingRequest);
+    const integrationLabel = readinessLoading ? "Checking…"
+        : readinessError ? "Status unavailable"
+        : !readiness?.credentialsConfigured || !readiness?.persistenceReady ? "Setup required"
+        : requestsObserved ? "API requests observed" : "Awaiting API requests";
     const syncError = syncMutation.error?.message || "Failed to sync availability.";
     const syncResult = syncMutation.data;
     const syncDisabled = syncing
         || syncMutation.isPending
-        || (readiness ? !readiness.outboundCredentialsConfigured || !readiness.availabilityPushConfigured : false);
+        || !readiness?.persistenceReady || !readiness?.outboundCredentialsConfigured || !readiness?.availabilityPushConfigured;
     const setupChecklist = readiness
         ? [
             {
@@ -139,20 +155,20 @@ export default function GetYourGuidePage() {
                 detail: readiness.credentialsConfigured ? "Basic Auth is configured for self-testing." : "Set Supplier API Basic Auth credentials.",
             },
             {
-                label: "Endpoint prefix",
-                ready: Boolean(readiness.supplierApiBaseUrl),
-                detail: readiness.supplierApiBaseUrl || "Use the public /1/ Supplier API prefix.",
+                label: "Reservation storage",
+                ready: readiness.persistenceReady,
+                detail: readiness.persistenceReady ? "Database storage is available across server instances." : "Apply the GetYourGuide database migration and configure DATABASE_URL.",
             },
             {
-                label: "Product mapping",
-                ready: Boolean(readiness.productId),
-                detail: `Self-test product ID: ${readiness.productId}`,
+                label: "Availability requests",
+                ready: Boolean(readiness.activity?.lastAvailabilityRequest),
+                detail: readiness.activity?.lastAvailabilityRequest ? `Last request: ${new Date(readiness.activity.lastAvailabilityRequest).toLocaleString()}` : `No recorded requests. Complete certification, then connect product ${readiness.productId} in the supplier portal.`,
             },
             {
                 label: "Availability push",
-                ready: readiness.outboundCredentialsConfigured && readiness.availabilityPushConfigured,
+                ready: Boolean(readiness.activity?.lastSuccessfulPush),
                 detail: readiness.availabilityPushConfigured
-                    ? `Push product: ${readiness.availabilityPushProductId}`
+                    ? readiness.activity?.lastSuccessfulPush ? `Last accepted push: ${new Date(readiness.activity.lastSuccessfulPush).toLocaleString()}` : `Product ${readiness.availabilityPushProductId} is configured; no accepted production push recorded.`
                     : "Set GETYOURGUIDE_AVAILABILITY_PRODUCT_ID after GYG maps the connected product.",
             },
         ]
@@ -161,6 +177,7 @@ export default function GetYourGuidePage() {
 
     return (
         <div className="min-h-screen bg-background p-4 sm:p-6 space-y-6">
+            <SEO title="GetYourGuide Integration" description="Manage GetYourGuide bookings, availability, and integration activity." />
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                     <h1 className="text-2xl font-bold text-foreground sm:text-3xl">GetYourGuide Integration</h1>
@@ -168,18 +185,9 @@ export default function GetYourGuidePage() {
                         Manage GetYourGuide bookings and sync availability
                     </p>
                 </div>
-                <Badge variant={integrationStatus === "active" ? "default" : "secondary"} className="flex w-fit items-center gap-1">
-                    {integrationStatus === "active" ? (
-                        <>
-                            <CheckCircle2 className="h-3 w-3" />
-                            Active
-                        </>
-                    ) : (
-                        <>
-                            <XCircle className="h-3 w-3" />
-                            Pending
-                        </>
-                    )}
+                <Badge variant={requestsObserved ? "default" : "secondary"} className="flex w-fit items-center gap-1" aria-live="polite">
+                    {requestsObserved ? <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> : <Clock className="h-3 w-3" aria-hidden="true" />}
+                    {integrationLabel}
                 </Badge>
             </div>
 
@@ -234,20 +242,20 @@ export default function GetYourGuidePage() {
                         Integration Status
                     </CardTitle>
                     <CardDescription>
-                        Real-time sync with GetYourGuide booking platform
+                        GetYourGuide requests availability and sends reservations to your Supplier API. Existing supplier bookings are not automatically imported.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-3">
                         <div className="space-y-1">
-                            <p className="text-sm font-medium text-muted-foreground">Webhook Endpoint</p>
-                            <p className="break-all rounded bg-muted p-2 font-mono text-sm">/api/webhooks/getyourguide</p>
+                            <p className="text-sm font-medium text-muted-foreground">Supplier API</p>
+                            <p className="break-all rounded bg-muted p-2 font-mono text-sm">/1/</p>
                         </div>
                         <div className="space-y-1">
                             <p className="text-sm font-medium text-muted-foreground">Authentication</p>
                             <div className="flex items-center gap-2">
                                 <Badge variant="outline" className="text-xs">Basic Auth</Badge>
-                                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                {readiness?.credentialsConfigured ? <CheckCircle2 className="h-4 w-4 text-green-600" aria-label="Configured" /> : <XCircle className="h-4 w-4 text-amber-600" aria-label="Not configured" />}
                             </div>
                         </div>
                         <div className="space-y-1">
@@ -256,6 +264,19 @@ export default function GetYourGuidePage() {
                         </div>
                     </div>
 
+                    <div className="rounded-lg border p-4 space-y-2 text-sm">
+                        <h2 className="font-semibold">Recent API activity</h2>
+                        <p className="text-muted-foreground">Authenticated requests are recorded here. Diagnostic and sandbox calls are labeled separately; traffic alone does not verify the supplier portal’s production mapping.</p>
+                        {!readiness?.persistenceReady ? <p role="status">Activity history is unavailable until database setup is complete.</p>
+                            : !readiness.activity?.recent.length ? <p>No activity recorded yet. Complete the connection tests in the integrator portal.</p>
+                            : <ul className="divide-y">
+                                {readiness.activity.recent.slice(0, 8).map((event, index) => <li key={`${event.createdAt}-${index}`} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                                    <div className="min-w-0 break-words"><span className="font-mono">{event.endpoint}</span>{event.diagnostic && <span className="ml-2 text-muted-foreground">Diagnostic / sandbox</span>}<p className="text-xs text-muted-foreground">{new Date(event.createdAt).toLocaleString()}</p></div>
+                                    <Badge variant={event.success ? "outline" : "destructive"}>{event.success ? "Succeeded" : event.errorCode || "Failed"}</Badge>
+                                </li>)}
+                            </ul>}
+                        {readinessError && <Button variant="outline" onClick={() => reloadReadiness()}>Retry status check</Button>}
+                    </div>
                     <div className="pt-4 border-t">
                         <Button
                             onClick={handleSyncAvailability}
@@ -264,14 +285,14 @@ export default function GetYourGuidePage() {
                             aria-label="Sync current availability to GetYourGuide"
                         >
                             <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-                            {syncing ? "Syncing…" : "Sync Availability to GetYourGuide"}
+                            Sync Availability to GetYourGuide
                         </Button>
                         <p className="text-xs text-muted-foreground mt-2">
                             {readiness?.outboundCredentialsConfigured === false
                                 ? "Add GetYourGuide outbound API credentials before pushing availability."
                                 : readiness?.availabilityPushConfigured === false
                                     ? "Add the mapped GetYourGuide availability product ID before pushing availability."
-                                : "Manually push current availability for the configured GetYourGuide product"}
+                                : "After the first successful production push, availability refreshes automatically every 15 minutes."}
                         </p>
                     </div>
 
@@ -475,7 +496,7 @@ export default function GetYourGuidePage() {
                 <CardHeader>
                     <CardTitle>Recent GetYourGuide Bookings</CardTitle>
                     <CardDescription>
-                        Bookings received directly from GetYourGuide platform
+                        Latest 50 bookings attributed to GetYourGuide, including manually linked reservations
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -483,7 +504,7 @@ export default function GetYourGuidePage() {
                         <div className="flex items-center justify-center py-8">
                             <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
                         </div>
-                    ) : bookings && bookings.length > 0 ? (
+                    ) : bookingsError ? <Alert variant="destructive"><AlertDescription>Bookings could not be loaded. <Button variant="outline" onClick={() => reloadBookings()}>Try again</Button></AlertDescription></Alert> : bookings && bookings.length > 0 ? (
                         <div className="rounded-md border overflow-x-auto">
                             <Table>
                                 <TableHeader>
@@ -498,10 +519,11 @@ export default function GetYourGuidePage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {bookings.map((booking) => (
+                                    {bookings.slice(0, 50).map((booking) => (
                                         <TableRow key={booking.id}>
                                             <TableCell className="font-mono text-sm">
-                                                {booking.bookingReference}
+                                                <Link href={`/bookings/${booking.id}`} className="underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring">{booking.bookingReference}</Link>
+                                                <p className="text-xs text-muted-foreground">{booking.externalReferenceId || "No channel reference"}</p>
                                             </TableCell>
                                             <TableCell className="text-sm">
                                                 {booking.visitorEmail || "Not available"}
@@ -511,7 +533,7 @@ export default function GetYourGuidePage() {
                                             </TableCell>
                                             <TableCell>{booking.numberOfPeople}</TableCell>
                                             <TableCell className="text-sm">
-                                                {new Date(booking.tourDate).toLocaleDateString()}
+                                                {new Date(`${booking.visitDate}T12:00:00+02:00`).toLocaleDateString(undefined, { timeZone: "Africa/Blantyre" })}
                                             </TableCell>
                                             <TableCell>
                                                 <Badge
