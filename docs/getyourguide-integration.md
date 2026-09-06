@@ -13,7 +13,7 @@ Set `GETYOURGUIDE_AVAILABILITY_PRODUCT_ID` to the supplier product ID mapped to 
 ## Certification and activation
 
 1. Configure the testing base URL as `https://visit.dzaleka.com` (host `visit.dzaleka.com`, port `443`, path `/`; the portal adds `/1/`) and the inbound credentials in the integrator portal.
-2. Complete supplier self-testing for the supported product combinations shown on the admin GetYourGuide page. Product timezone: `Africa/Blantyre`. Fixed departures default to 09:00 and 14:00. Self-test product variants reserve the dates 28–29 days from today as unavailable; use the page's suggested windows.
+2. Complete supplier self-testing for the supported product combinations shown on the admin GetYourGuide page. Product timezone: `Africa/Blantyre`. Fixed departures default to 10:00 and 14:00, matching the existing supplier schedule. Default USD retail prices are 4900 minor units for adults and 1500 for children, matching the supplier option inspected on September 6, 2026. Self-test product variants reserve the dates 28–29 days from today as unavailable; use the page's suggested windows.
 3. Complete the unlocked production configuration and production tests. Connect the supplier product ID to the correct tour option in the supplier portal. Confirm departure times and price configuration before enabling price import.
 4. Make one successful production availability push from the admin page. The scheduled Netlify function then refreshes the next 30 days every 15 minutes for that exact product. Set `GETYOURGUIDE_AUTO_SYNC_ENABLED=false` to disable automatic pushes. Sandbox successes never activate the production schedule.
 

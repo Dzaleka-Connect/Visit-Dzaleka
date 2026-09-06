@@ -3187,7 +3187,7 @@ const GYG_TIMEZONE_OFFSET = "+02:00";
 const GYG_PRODUCT_TITLE = "Dzaleka Refugee Camp Guided Walking Tour";
 const GYG_SUPPLIER_ID = process.env.GETYOURGUIDE_SUPPLIER_ID || "visit-dzaleka";
 const GYG_SUPPLIER_NAME = process.env.GETYOURGUIDE_SUPPLIER_NAME || "Visit Dzaleka";
-const GYG_DEFAULT_START_TIMES = (process.env.GETYOURGUIDE_START_TIMES || "09:00,14:00")
+const GYG_DEFAULT_START_TIMES = (process.env.GETYOURGUIDE_START_TIMES || "10:00,14:00")
   .split(",")
   .map((time) => time.trim())
   .filter(Boolean);
@@ -3415,7 +3415,7 @@ async function getGygRetailPrice(config: GygProductConfig) {
   }
 
   if (GYG_CURRENCY === "USD") {
-    return config.pricingMode === "group" ? 8000 : 1500;
+    return config.pricingMode === "group" ? 8000 : 4900;
   }
 
   const groupSize = config.pricingMode === "group" ? "large_group" : "individual";
@@ -3431,7 +3431,7 @@ async function getGygRetailPrices(config: GygProductConfig) {
   return GYG_SUPPORTED_INDIVIDUAL_CATEGORIES.map((category) => ({
     category,
     price: category === "CHILD"
-      ? Number(process.env.GETYOURGUIDE_CHILD_PRICE || process.env.GETYOURGUIDE_PRICE || basePrice)
+      ? Number(process.env.GETYOURGUIDE_CHILD_PRICE || process.env.GETYOURGUIDE_PRICE || (GYG_CURRENCY === "USD" ? 1500 : basePrice))
       : basePrice,
   }));
 }
@@ -15847,7 +15847,7 @@ export async function registerRoutes(
             status: "Ready to configure",
             timeAvailable: "At fixed starting times (Time point)",
             priceSetup: "Price per individual",
-            sampleTimes: ["09:00", "14:00"],
+            sampleTimes: GYG_DEFAULT_START_TIMES,
             samplePrice: individualPrice,
             currency: GYG_CURRENCY,
           },
@@ -15858,7 +15858,7 @@ export async function registerRoutes(
             status: "Ready to configure",
             timeAvailable: "At fixed starting times (Time point)",
             priceSetup: "Price per group",
-            sampleTimes: ["09:00", "14:00"],
+            sampleTimes: GYG_DEFAULT_START_TIMES,
             samplePrice: groupPrice,
             currency: GYG_CURRENCY,
           },
