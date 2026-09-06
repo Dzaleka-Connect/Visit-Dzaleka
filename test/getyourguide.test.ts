@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { reservationMatches, type GygReservationState } from "../server/lib/getyourguide-store";
+import { getGygInboundCredentials, isGygAuthorizationValid } from "../server/lib/getyourguide-auth";
 import { notifyAvailabilityBatch } from "../server/lib/getyourguide";
 
 const reservation = { gygBookingReference: "GYG-TEST", productId: "tour", dateTime: "2030-01-10T09:00:00+02:00", bookingItems: [{ category: "ADULT", count: 2 }] } as GygReservationState;
@@ -29,5 +30,23 @@ describe("GetYourGuide push response", () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: {} }), { status: 200 })); vi.stubGlobal("fetch", fetch);
     await expect(notifyAvailabilityBatch("tour", [{ dateTime: reservation.dateTime, vacancies: 10 }], true)).resolves.toMatchObject({ status: 200, availabilityCount: 1 });
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/sandbox/"), expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  });
+});
+
+
+describe("GetYourGuide inbound credentials", () => {
+  const env = { GETYOURGUIDE_WEBHOOK_USERNAME: "supplier", GETYOURGUIDE_WEBHOOK_PASSWORD: "inbound", GETYOURGUIDE_API_USERNAME: "supplier", GETYOURGUIDE_API_PASSWORD: "outbound" };
+  const basic = (password: string) => `Basic ${Buffer.from(`supplier:${password}`).toString("base64")}`;
+  it("accepts the existing portal webhook password independently of outbound credentials", () => {
+    expect(isGygAuthorizationValid(basic("inbound"), env)).toBe(true);
+    expect(isGygAuthorizationValid(basic("outbound"), env)).toBe(true);
+    expect(isGygAuthorizationValid(basic("wrong"), env)).toBe(false);
+    expect(isGygAuthorizationValid("Bearer token", env)).toBe(false);
+  });
+  it("gives explicit inbound credentials precedence and rejects partial configuration", () => {
+    const explicit = { ...env, GETYOURGUIDE_SUPPLIER_API_USERNAME: "supplier", GETYOURGUIDE_SUPPLIER_API_PASSWORD: "dedicated" };
+    expect(isGygAuthorizationValid(basic("dedicated"), explicit)).toBe(true);
+    expect(isGygAuthorizationValid(basic("inbound"), explicit)).toBe(false);
+    expect(getGygInboundCredentials({ ...explicit, GETYOURGUIDE_SUPPLIER_API_PASSWORD: undefined })).toEqual([]);
   });
 });

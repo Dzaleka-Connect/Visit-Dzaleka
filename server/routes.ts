@@ -8,6 +8,7 @@ import { bookingRescheduleSchema } from "@shared/booking-management";
 import { bookingManagementHandler } from "./lib/booking-management";
 import { bookingItineraryHandler } from "./lib/booking-itinerary";
 import { getGygStore, type GygReservationState } from "./lib/getyourguide-store";
+import { getGygInboundCredentials, isGygAuthorizationValid } from "./lib/getyourguide-auth";
 import {
   clearSessionCookie,
   establishAuthenticatedSession,
@@ -3286,29 +3287,8 @@ async function sendGygResponse(res: Response, payload: any) {
   return res.status(200).type("application/json").json(payload);
 }
 
-function isGygAuthorized(req: Request) {
-  const expectedUsername = process.env.GETYOURGUIDE_SUPPLIER_API_USERNAME || process.env.GETYOURGUIDE_API_USERNAME;
-  const expectedPassword = process.env.GETYOURGUIDE_SUPPLIER_API_PASSWORD || process.env.GETYOURGUIDE_API_PASSWORD;
-  if (!expectedUsername || !expectedPassword) return false;
-
-  const authHeader = req.get("authorization") || "";
-  if (!authHeader.toLowerCase().startsWith("basic ")) return false;
-
-  try {
-    const decoded = Buffer.from(authHeader.slice(6), "base64").toString("utf8");
-    const separatorIndex = decoded.indexOf(":");
-    if (separatorIndex === -1) return false;
-
-    const username = decoded.slice(0, separatorIndex);
-    const password = decoded.slice(separatorIndex + 1);
-    return username === expectedUsername && password === expectedPassword;
-  } catch {
-    return false;
-  }
-}
-
 function requireGygAuth(req: Request, res: Response) {
-  if (isGygAuthorized(req)) { res.locals.gygAuthenticated = true; return true; }
+  if (isGygAuthorizationValid(req.get("authorization") || "")) { res.locals.gygAuthenticated = true; return true; }
   sendGygResponse(res, gygError("AUTHORIZATION_FAILURE", "The provided authentication credentials are not valid."));
   return false;
 }
@@ -15851,10 +15831,7 @@ export async function registerRoutes(
         testingConfigurationBaseUrl: PUBLIC_APP_URL,
         supplierApiBaseUrl: `${PUBLIC_APP_URL}/1`,
         supplierId: GYG_SUPPLIER_ID,
-        credentialsConfigured: Boolean(
-          (process.env.GETYOURGUIDE_SUPPLIER_API_USERNAME || process.env.GETYOURGUIDE_API_USERNAME)
-          && (process.env.GETYOURGUIDE_SUPPLIER_API_PASSWORD || process.env.GETYOURGUIDE_API_PASSWORD)
-        ),
+        credentialsConfigured: getGygInboundCredentials().length > 0,
         availabilityPushProductId: availabilityPushProductId || null,
         outboundCredentialsConfigured: Boolean(
           process.env.GETYOURGUIDE_API_USERNAME && process.env.GETYOURGUIDE_API_PASSWORD
