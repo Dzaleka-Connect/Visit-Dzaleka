@@ -20,6 +20,8 @@ try {
   await admin.unsafe(`CREATE TABLE ${schema}.booking_activity_logs (LIKE public.booking_activity_logs INCLUDING ALL)`);
   const migration = (await readFile("migrations/0026_getyourguide_persistence.sql", "utf8")).replaceAll("public.", `${schema}.`);
   await a.unsafe(migration);
+  const reserveMigration = (await readFile("migrations/0027_getyourguide_reserve.sql", "utf8")).replaceAll("public.", `${schema}.`).replace("SET search_path = public", `SET search_path = ${schema}`);
+  await a.unsafe(reserveMigration);
   const reservation = await first.reserve(hold("ONE", 2), 20, 2);
   assert.equal((await second.activeReservations()).length, 1, "another instance reads the hold");
   assert.equal((await second.reserve(hold("ONE", 2), 20, 2)).reservationReference, reservation.reservationReference, "reserve retry reuses hold");
@@ -55,6 +57,15 @@ try {
   assert.equal((await a`SELECT status FROM bookings WHERE id = ${changedBooking.id}`)[0].status, "confirmed", "cancelling the original does not cancel the amendment");
   await assert.rejects(first.cancelBooking(changedBooking.bookingReference, "WRONG", null, "2029-01-01"), /does not exist/);
   await assert.rejects(first.cancelBooking(one.bookingReference, "ONE", null, "2029-01-01"), /already been cancelled/);
+  const group = { ...hold("GROUP", 4), visitDate: "2030-01-12", dateTime: "2030-01-12T09:00:00+02:00", pricingMode: "group" as const, unitCount: 1, bookingItems: [{ category: "GROUP", count: 1, groupSize: 4 }] };
+  await first.reserve(group, 20, 1);
+  await assert.rejects(second.reserve({ ...group, reservationReference: "res_GROUP_2", gygBookingReference: "GROUP_2" }, 20, 1), /enough availability/, "group capacity is enforced independently of people capacity");
+  const period = { ...hold("PERIOD", 2), visitDate: "2030-01-13", dateTime: "2030-01-13T09:00:00+02:00", timeMode: "time_period" as const };
+  await first.reserve(period, 2, 2);
+  await assert.rejects(second.reserve({ ...hold("FIXED"), visitDate: period.visitDate, dateTime: "2030-01-13T14:00:00+02:00", visitTime: "14:00" }, 2, 2), /enough availability/, "operation-hour holds consume later fixed slots");
+  const mixed = { ...hold("MIXED", 2), visitDate: "2030-01-14", dateTime: "2030-01-14T09:00:00+02:00", bookingItems: [{ category: "ADULT", count: 1 }, { category: "CHILD", count: 1 }] };
+  await first.reserve(mixed, 20, 2);
+  assert.equal((await second.reserve({ ...mixed, reservationReference: "res_RETRY", bookingItems: [...mixed.bookingItems].reverse().map(item => ({ ...item, retailPrice: 4900 })) }, 20, 2)).reservationReference, mixed.reservationReference, "SQL retry binding ignores category order and enriched retail prices");
   console.log("PASS: booking change and exact cancellation; cross-instance holds, idempotent reserve/book/cancel, inventory race, expiry, reservation binding, atomic activity log, diagnostic separation");
 } finally {
   await a.end(); await b.end();

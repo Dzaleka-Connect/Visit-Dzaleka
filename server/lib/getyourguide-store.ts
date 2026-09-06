@@ -57,35 +57,9 @@ export function createGygStore(sql: postgres.Sql) {
       return rows.map(row => row.payload as GygReservationState);
     },
     async reserve(reservation: GygReservationState, peopleCapacity: number, groupCapacity: number): Promise<GygReservationState> {
-      return await sql.begin(async tx => {
-        await lock(tx);
-        const [snapshot] = await tx`SELECT
-          (SELECT coalesce(jsonb_agg(to_jsonb(r) || jsonb_build_object('booking_status', b.status) ORDER BY r.created_at DESC), '[]'::jsonb) FROM getyourguide_reservations r LEFT JOIN bookings b ON b.id = r.booking_id WHERE r.gyg_booking_reference = ${reservation.gygBookingReference}) AS existing,
-          (SELECT coalesce(jsonb_agg(jsonb_build_object('number_of_people', number_of_people, 'visit_time', visit_time)), '[]'::jsonb) FROM bookings WHERE visit_date = ${reservation.visitDate} AND status NOT IN ('cancelled', 'no_show')) AS bookings,
-          (SELECT coalesce(jsonb_agg(payload), '[]'::jsonb) FROM getyourguide_reservations WHERE status = 'reserved' AND expires_at > now() AND payload->>'visitDate' = ${reservation.visitDate}) AS holds`;
-        const existing = snapshot.existing as Array<{ payload: GygReservationState; status: string; booking_status: string; expires_at: string }>;
-        const retry = existing.find(row => reservationMatches(row.payload, reservation)
-          && ((row.status === "reserved" && new Date(row.expires_at).getTime() > Date.now())
-            || (row.status === "booked" && row.booking_status !== "cancelled")));
-        if (retry) return { ...retry.payload, expiresAt: new Date(retry.expires_at) } as GygReservationState;
-        // A booking change uses the same GYG reference with a new reservation.
-        const bookings = snapshot.bookings as Array<{ number_of_people: number; visit_time: string }>;
-        const holds = snapshot.holds as GygReservationState[];
-        const sameSlot = (time: string, mode = "time_point") => reservation.timeMode === "time_period" || mode === "time_period" || time.slice(0, 5) === reservation.visitTime;
-        const booked = bookings.filter(row => sameSlot(row.visit_time));
-        const reserved = holds.filter(row => sameSlot(row.visitTime, row.timeMode));
-        const people = booked.reduce((n, row) => n + (row.number_of_people || 1), 0) + reserved.reduce((n, row) => n + row.participantCount, 0);
-        const groups = booked.length + reserved.reduce((n, row) => n + (row.pricingMode === "group" ? row.unitCount : 1), 0);
-        if (people + reservation.participantCount > peopleCapacity || (reservation.pricingMode === "group" && groups + reservation.unitCount > groupCapacity)) {
-          throw new GygError("NO_AVAILABILITY", "This timeslot no longer has enough availability.");
-        }
-        await tx`INSERT INTO getyourguide_reservations ${tx({
-          reservation_reference: reservation.reservationReference,
-          gyg_booking_reference: reservation.gygBookingReference,
-          payload: tx.json(reservation as any), expires_at: reservation.expiresAt, status: "reserved",
-        })}`;
-        return reservation;
-      }) as GygReservationState;
+      const [row] = await sql`SELECT reserve_getyourguide(${sql.json(reservation as any)}, ${peopleCapacity}, ${groupCapacity}) AS result`;
+      if (row.result.errorCode) throw new GygError(row.result.errorCode, row.result.errorMessage);
+      return { ...row.result, expiresAt: new Date(row.result.expiresAt) } as GygReservationState;
     },
     async cancelReservation(reference: string, gygReference: string) {
       await sql.begin(async tx => {
@@ -108,8 +82,8 @@ export function createGygStore(sql: postgres.Sql) {
         if (row.status !== "reserved" || new Date(row.expires_at).getTime() <= Date.now()) throw new GygError("INVALID_RESERVATION", "Expired or missing reservation.");
         const values = Object.fromEntries(Object.entries(booking).map(([key, value]) => [key.replace(/[A-Z]/g, c => `_${c.toLowerCase()}`), value]));
         const [created] = await tx`INSERT INTO bookings ${tx(values)} RETURNING *`;
-        await tx`UPDATE getyourguide_reservations SET status = 'booked', booking_id = ${created.id} WHERE reservation_reference = ${row.reservation_reference}`;
-        await tx`INSERT INTO booking_activity_logs (booking_id, action, description, new_status) VALUES (${created.id}, 'getyourguide_booking_created', ${`GetYourGuide booking confirmed (${data.gygBookingReference}).`}, 'confirmed')`;
+        await tx`WITH reserved AS (UPDATE getyourguide_reservations SET status = 'booked', booking_id = ${created.id} WHERE reservation_reference = ${row.reservation_reference})
+          INSERT INTO booking_activity_logs (booking_id, action, description, new_status) VALUES (${created.id}, 'getyourguide_booking_created', ${`GetYourGuide booking confirmed (${data.gygBookingReference}).`}, 'confirmed')`;
         return camelBooking(created);
       }) as Booking;
     },
