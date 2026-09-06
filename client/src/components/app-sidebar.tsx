@@ -551,7 +551,7 @@ export function AppSidebar() {
       <SidebarHeader className="border-b border-sidebar-border px-4 py-4">
         <Link href="/" className="flex items-center gap-3">
           <img
-            src="https://services.dzaleka.com/images/dzaleka-digital-heritage.png"
+            src="/favicon.png"
             alt="Dzaleka Logo"
             className="h-9 w-9 rounded-lg object-contain bg-white p-0.5"
           />

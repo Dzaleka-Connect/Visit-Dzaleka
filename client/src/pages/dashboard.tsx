@@ -1,7 +1,11 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { Link, Redirect } from "wouter";
+import { Link, Redirect, useLocation, useSearch } from "wouter";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { VisitorDashboardOverview, VisitorDashboardSkeleton } from "@/components/visitor-dashboard-overview";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
+import { getVisitorBookingGroups, needsVisitorPayment, visitorPaymentLabel } from "@/lib/visitor-dashboard";
 import { useState } from "react";
 import {
   CalendarDays,
@@ -57,11 +61,13 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -342,14 +348,12 @@ function getBookingTimestamp(booking: RecentBooking) {
 function buildVisitorActionItems({
   bookings,
   supportTickets,
-  unreadNotifications,
 }: {
   bookings: RecentBooking[];
   supportTickets: SupportTicket[];
-  unreadNotifications: number;
 }): DashboardActionItem[] {
   const activeBookings = bookings.filter((booking) => booking.status !== "cancelled" && booking.status !== "completed");
-  const paymentBooking = activeBookings.find((booking) => booking.paymentStatus !== "paid" && !booking.paymentReference);
+  const paymentBooking = activeBookings.find(needsVisitorPayment);
   const pendingPaymentVerification = activeBookings.find((booking) => booking.paymentStatus !== "paid" && !!booking.paymentReference);
   const quoteBooking = activeBookings.find((booking) => isTransportQuoteAwaitingVisitor(booking.transportRequest));
   const latestTicket = [...supportTickets]
@@ -392,15 +396,6 @@ function buildVisitorActionItems({
       href: `/my-bookings/${quoteBooking.id}`,
       icon: Car,
     },
-    unreadNotifications > 0 && {
-      id: "unread-notifications",
-      severity: "warning" as const,
-      title: "Unread notifications",
-      description: "Open notifications to review booking, payment, guide, or system updates.",
-      href: "/messages",
-      icon: Bell,
-      count: unreadNotifications,
-    },
     latestTicket && {
       id: `support-${latestTicket.id}`,
       severity: latestTicket.priority === "urgent" ? "critical" as const : "info" as const,
@@ -414,7 +409,7 @@ function buildVisitorActionItems({
       severity: "info" as const,
       title: "Rate your guide",
       description: `Share feedback for your ${formatTourType(ratingBooking.tourType)} tour.`,
-      href: "/my-bookings",
+      href: "/?view=visits",
       icon: Star,
     },
     upcomingBooking && {
@@ -2419,7 +2414,19 @@ function VisitorDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const displayName = user?.firstName || "there";
+  const displayName = user?.firstName?.trim() || "there";
+  const search = useSearch();
+  const [, navigate] = useLocation();
+  const params = new URLSearchParams(search);
+  const requestedView = params.get("view") || "overview";
+  const view = ["overview", "visits", "saved", "support"].includes(requestedView) ? requestedView : "overview";
+  const setParameter = (key: string, value: string) => {
+    const next = new URLSearchParams(search);
+    if (value) next.set(key, value); else next.delete(key);
+    navigate(next.size ? `/?${next}` : "/");
+  };
+  const showAllPastVisits = params.get("history") === "recent";
+  const setShowAllPastVisits = (show: boolean) => setParameter("history", show ? "recent" : "");
 
   const {
     data: myBookings,
@@ -2436,25 +2443,19 @@ function VisitorDashboard() {
     enabled: !!user,
   });
 
-  const { data: savedItinerariesData } = useQuery<SavedItinerarySummary[]>({
+  const { data: savedItinerariesData, isLoading: savedLoading, isError: savedError, refetch: refetchSaved } = useQuery<SavedItinerarySummary[]>({
     queryKey: ["/api/visitors/saved-itineraries"],
     enabled: !!user,
   });
 
-  const { data: favoriteGuidesData } = useQuery<FavoriteGuideSummary[]>({
+  const { data: favoriteGuidesData, isLoading: favoritesLoading, isError: favoritesError, refetch: refetchFavorites } = useQuery<FavoriteGuideSummary[]>({
     queryKey: ["/api/visitors/favorite-guides"],
     enabled: !!user,
   });
 
-  const { data: supportTicketsData } = useQuery<SupportTicket[]>({
+  const { data: supportTicketsData, isLoading: supportLoading, isError: supportError, refetch: refetchSupport } = useQuery<SupportTicket[]>({
     queryKey: ["/api/support/tickets"],
     enabled: !!user,
-  });
-
-  const { data: unreadNotificationsData } = useQuery<{ count: number }>({
-    queryKey: ["/api/notifications/unread-count"],
-    enabled: !!user,
-    refetchInterval: 30000,
   });
 
   const { data: zones } = useQuery<{ id: string; name: string }[]>({
@@ -2471,6 +2472,15 @@ function VisitorDashboard() {
     paymentReference: "",
     note: "",
   });
+
+  const paymentDirty = !!paymentDialogBooking && (
+    paymentReportForm.paymentMethod !== (paymentDialogBooking.paymentMethod || "cash") ||
+    paymentReportForm.paymentReference !== (paymentDialogBooking.paymentReference || "") || !!paymentReportForm.note
+  );
+  useUnsavedChanges(paymentDirty);
+  const closePaymentDialog = () => {
+    if (!updatePaymentMutation.isPending && (!paymentDirty || window.confirm("Discard your unsaved payment report?"))) setPaymentDialogBooking(null);
+  };
 
   const updatePaymentMutation = useMutation({
     mutationFn: async (data: { bookingId: string; paymentMethod: string; paymentReference: string; note: string }) => {
@@ -2503,6 +2513,7 @@ function VisitorDashboard() {
       toast({ title: "Thank you!", description: "Your rating has been submitted." });
     },
     onError: (error: Error) => {
+      setSelectedRating(null);
       toast({ title: "Failed to rate guide", description: error.message, variant: "destructive" });
     },
   });
@@ -2539,12 +2550,7 @@ function VisitorDashboard() {
   };
 
   const [selectedRating, setSelectedRating] = useState<{ bookingId: string; rating: number } | null>(null);
-  const [showAllPastVisits, setShowAllPastVisits] = useState(false);
-  const [showBookingCTA, setShowBookingCTA] = useState(() => {
-    // Initialize from localStorage to prevent flash of content
-    const dismissed = localStorage.getItem('dismiss_booking_cta');
-    return !dismissed;
-  });
+
 
   const handleRateGuide = (bookingId: string, rating: number) => {
     setSelectedRating({ bookingId, rating });
@@ -2552,6 +2558,7 @@ function VisitorDashboard() {
   };
 
   const openPaymentReportDialog = (booking: RecentBooking) => {
+    updatePaymentMutation.reset();
     setPaymentDialogBooking(booking);
     setPaymentReportForm({
       paymentMethod: booking.paymentMethod || "cash",
@@ -2605,35 +2612,12 @@ function VisitorDashboard() {
     return fallbacks[meetingPointId] || "Meeting Point";
   };
 
-  if (isLoading) {
-    return <DashboardSkeleton />;
-  }
-
-  if (myBookingsError) {
-    return (
-      <PageContainer className="page-spacing">
-        <PageHeader
-          title={`Welcome, ${displayName}`}
-          description="Your visitor dashboard could not be loaded."
-        />
-        <DataErrorState
-          title="Visitor dashboard unavailable"
-          description={myBookingsQueryError instanceof Error ? myBookingsQueryError.message : "Could not load your bookings."}
-          onRetry={() => refetchMyBookings()}
-          className="py-16"
-        />
-      </PageContainer>
-    );
-  }
-
-  const upcomingBookings = myBookings?.filter(b =>
-    b.status === "pending" || b.status === "confirmed"
-  ) || [];
-  const completedBookings = myBookings?.filter(b => b.status === "completed") || [];
+  if (isLoading) return <PageContainer size="lg" className="page-spacing"><VisitorDashboardSkeleton /></PageContainer>;
+  if (myBookingsError) return <PageContainer size="lg" className="page-spacing"><SEO title="Visitor dashboard unavailable" robots="noindex, nofollow" /><PageHeader title={`Welcome, ${displayName}`} description="We couldn’t load your visits." /><DataErrorState title="Visitor dashboard unavailable" description={myBookingsQueryError instanceof Error ? myBookingsQueryError.message : "Could not load your bookings."} onRetry={() => refetchMyBookings()} /></PageContainer>;
+  const { upcoming: upcomingBookings, completed: completedBookings, nextVisit, followUp: followUpBookings } = getVisitorBookingGroups(myBookings || []);
   const savedItineraries = savedItinerariesData || [];
   const favoriteGuides = (favoriteGuidesData || []).filter((favorite) => favorite.guide);
   const supportTickets = supportTicketsData || [];
-  const unreadNotifications = unreadNotificationsData?.count || 0;
   const cancellationOrRefundBookings = (myBookings || [])
     .filter((booking) => booking.status === "cancelled" || booking.paymentStatus === "refunded")
     .sort((a, b) => new Date(b.updatedAt || b.visitDate).getTime() - new Date(a.updatedAt || a.visitDate).getTime())
@@ -2662,20 +2646,10 @@ function VisitorDashboard() {
       variant: "outline" as const,
     };
   };
-  const nextVisit = [...upcomingBookings].sort((a, b) => {
-    const aTime = `${a.visitDate}T${a.visitTime || "00:00"}`;
-    const bTime = `${b.visitDate}T${b.visitTime || "00:00"}`;
-    return new Date(aTime).getTime() - new Date(bTime).getTime();
-  })[0];
   const nextVisitMeetingPoint = nextVisit ? getMeetingPointName(nextVisit.meetingPointId) : null;
   const nextVisitMeetingPointAddress = nextVisit?.meetingPointId && meetingPoints
     ? meetingPoints.find((point) => point.id === nextVisit.meetingPointId)?.address
     : null;
-  const nextVisitPaymentLabel = nextVisit?.paymentStatus === "paid"
-    ? "Paid"
-    : nextVisit?.paymentReference
-      ? "Payment verification pending"
-      : "Payment not reported";
   const nextVisitTransport = nextVisit?.transportRequest || null;
   const nextVisitTransportRoute = nextVisitTransport ? getTransportRoute(nextVisitTransport.route) : null;
   const nextVisitTransportQuote = formatTransportQuote(nextVisitTransport);
@@ -2687,406 +2661,40 @@ function VisitorDashboard() {
         nextVisitTransportQuote,
       ].filter(Boolean).join(" • ")
     : "Request transport from your booking form when needed.";
-  const nextVisitItems = [
-    {
-      label: "Next visit",
-      value: nextVisit ? `${formatDate(nextVisit.visitDate)} at ${formatTime(nextVisit.visitTime)}` : "No visit scheduled",
-      detail: nextVisit ? `${formatTourType(nextVisit.tourType)} tour` : "Book a visit when you are ready.",
-    },
-    {
-      label: "Payment",
-      value: nextVisitPaymentLabel,
-      detail: nextVisit?.totalAmount ? formatCurrency(nextVisit.totalAmount) : "No upcoming payment due",
-    },
-    {
-      label: "Transport",
-      value: nextVisitTransport ? getTransportStatusLabel(nextVisitTransport.status) : "Not requested",
-      detail: nextVisitTransportDetail,
-    },
-    {
-      label: "Support",
-      value: cancellationOrRefundBookings.length > 0 ? "Recent cancellation/refund" : "Help available",
-      detail: cancellationOrRefundBookings.length > 0
-        ? "Ask support if you need refund or reschedule help."
-        : "Contact support from the Help Center.",
-    },
-  ];
-  const visitorActionItems = buildVisitorActionItems({
-    bookings: myBookings || [],
-    supportTickets,
-    unreadNotifications,
-  });
-  const latestSupportTicket = [...supportTickets]
-    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0];
-  const latestUpdates = [
-    nextVisit?.assignedGuideId && {
-      id: `guide-${nextVisit.id}`,
-      icon: UserCheck,
-      title: "Guide assigned",
-      detail: getGuideName(nextVisit) || "Your assigned guide is visible in booking details.",
-      href: `/my-bookings/${nextVisit.id}`,
-    },
-    nextVisitTransport && {
-      id: `transport-${nextVisit.id}`,
-      icon: Car,
-      title: `Transport ${getTransportStatusLabel(nextVisitTransport.status)}`,
-      detail: nextVisitTransportDetail,
-      href: `/my-bookings/${nextVisit.id}`,
-    },
-    nextVisit && nextVisit.paymentStatus !== "paid" && {
-      id: `payment-${nextVisit?.id || "next"}`,
-      icon: DollarSign,
-      title: nextVisit?.paymentReference ? "Payment verification pending" : "Payment not reported",
-      detail: nextVisit ? nextVisitPaymentLabel : "No upcoming payment due.",
-      href: nextVisit ? `/my-bookings/${nextVisit.id}` : "/my-bookings",
-    },
-    nextVisit && itineraries?.some((i) => i.bookingId === nextVisit.id) && {
-      id: `itinerary-${nextVisit.id}`,
-      icon: FileDown,
-      title: "Itinerary ready",
-      detail: "Open your generated itinerary before arrival.",
-      href: `/my-bookings/${nextVisit.id}/itinerary`,
-    },
-    latestSupportTicket && {
-      id: `support-${latestSupportTicket.id}`,
-      icon: MessageCircle,
-      title: "Support status",
-      detail: `${latestSupportTicket.subject} is ${latestSupportTicket.status?.replace(/_/g, " ") || "open"}.`,
-      href: "/help?support=true",
-    },
-  ].filter(Boolean) as Array<{ id: string; icon: LucideIcon; title: string; detail: string; href: string }>;
-
+  const visitorActionItems = buildVisitorActionItems({ bookings: upcomingBookings.concat(completedBookings, cancellationOrRefundBookings), supportTickets })
+    .filter(item => !item.id.startsWith("resources-") && !item.id.startsWith("payment-verification-"));
+  if (followUpBookings.length) visitorActionItems.unshift({ id: "overdue", severity: "warning", title: "Check a previous booking", description: "A past visit still has an open status. Contact the team to confirm what happened.", href: "/?view=visits", icon: CalendarDays });
+  const latestSupportTicket = [...supportTickets].sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0];
   return (
-    <PageContainer className="page-spacing overflow-x-hidden">
-      <PageHeader
-        title={`Welcome, ${displayName}`}
-        description="Review your visits, tour details, payments, and support options."
-      />
-
-      <DashboardActionList
-        title="Action Required"
-        description="Payment, transport, support, messages, ratings, and pre-visit tasks that may need your attention."
-        items={visitorActionItems}
-      />
-
-      <div className="flex flex-wrap gap-2">
-        <Link href="/my-bookings?book=true">
-          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
-            <Ticket className={quickActionIconClass} />
-            <span>Book visit</span>
-          </Button>
-        </Link>
-        <Link href={nextVisit ? `/my-bookings/${nextVisit.id}` : "/my-bookings"}>
-          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
-            <Calendar className={quickActionIconClass} />
-            <span>{nextVisit ? "Next booking" : "Bookings"}</span>
-          </Button>
-        </Link>
-        <Button variant="secondary" size="sm" className={quickActionButtonClass} asChild>
-          <a href="#arrival-pass">
-            <ScanLine className={quickActionIconClass} />
-            <span>Arrival pass</span>
-          </a>
-        </Button>
-        <Link href="/messages">
-          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
-            <MessageCircle className={quickActionIconClass} />
-            <span>Messages</span>
-          </Button>
-        </Link>
-        <Link href="/help?support=true">
-          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
-            <Shield className={quickActionIconClass} />
-            <span>Support</span>
-          </Button>
-        </Link>
-        <Link href="/saved-itineraries">
-          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
-            <MapPin className={quickActionIconClass} />
-            <span>Saved plans</span>
-          </Button>
-        </Link>
-        <Link href="/favorite-guides">
-          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
-            <Heart className={quickActionIconClass} />
-            <span>Favorite guides</span>
-          </Button>
-        </Link>
-        <Link href="/resources">
-          <Button variant="secondary" size="sm" className={quickActionButtonClass}>
-            <BookOpen className={quickActionIconClass} />
-            <span>Resources</span>
-          </Button>
-        </Link>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatCard
-          title="Total Bookings"
-          value={myBookings?.length || 0}
-          subtitle="All time"
-          icon={BookOpen}
-        />
-        <StatCard
-          title="Upcoming Visits"
-          value={upcomingBookings.length}
-          subtitle="Scheduled"
-          icon={CalendarDays}
-        />
-        <StatCard
-          title="Completed Tours"
-          value={completedBookings.length}
-          subtitle="Finished"
-          icon={CheckCircle2}
-        />
-      </div>
-
-      <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <CardTitle className="break-words text-lg font-semibold">Next Visit</CardTitle>
-            <CardDescription className="break-words">Date, payment, transport, and support for your next booking.</CardDescription>
-          </div>
-          <Button asChild className="w-full sm:w-auto">
-            <Link href="/my-bookings?book=true">
-              Book a visit
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {nextVisitItems.map((item) => (
-                <div key={item.label} className="rounded-lg border p-4">
-                  <p className="text-xs font-medium text-muted-foreground">{item.label}</p>
-                  <p className="mt-1 break-words text-sm font-semibold">{item.value}</p>
-                  <p className="mt-2 break-words text-xs text-muted-foreground">{item.detail}</p>
-                </div>
-              ))}
-            </div>
-            <div id="arrival-pass" className="rounded-lg border p-4 scroll-mt-24">
-              <p className="text-sm font-semibold">Arrival Pass</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {nextVisit
-                  ? "Keep these arrival details ready for check-in."
-                  : "Your arrival pass will appear when you have a booking."}
-              </p>
-              {nextVisit?.bookingReference && (nextVisit.status === "confirmed" || nextVisit.status === "pending") && (
-                <div className="mt-3 rounded-md border bg-background p-3">
-                  <QRCodeDisplay value={nextVisit.bookingReference} size={128} />
-                </div>
-              )}
-              <div className="mt-3 grid gap-2 text-sm">
-                <div className="rounded-md border bg-muted/30 p-3">
-                  <p className="text-xs font-medium text-muted-foreground">Meeting point</p>
-                  <p className="mt-1 break-words font-medium">{nextVisitMeetingPoint || "Confirm in booking details"}</p>
-                  {nextVisitMeetingPointAddress && (
-                    <p className="mt-1 break-words text-xs text-muted-foreground">{nextVisitMeetingPointAddress}</p>
-                  )}
-                </div>
-                <div className="rounded-md border bg-muted/30 p-3">
-                  <p className="text-xs font-medium text-muted-foreground">Guide</p>
-                  <p className="mt-1 break-words font-medium">{nextVisit ? getGuideName(nextVisit) || "Not assigned yet" : "No upcoming visit"}</p>
-                  {nextVisit && getGuidePhone(nextVisit) && (
-                    <Button variant="link" className="h-auto p-0 text-xs" asChild>
-                      <a href={`tel:${getGuidePhone(nextVisit)}`}>Call guide</a>
-                    </Button>
-                  )}
-                </div>
-              </div>
-              {nextVisitTransport && (
-                <div className="mt-3 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm dark:border-sky-800 dark:bg-sky-950/30">
-                  <div className="flex gap-2">
-                    <Car className="mt-0.5 h-4 w-4 shrink-0 text-sky-700 dark:text-sky-300" aria-hidden="true" />
-                    <div className="min-w-0">
-                      <p className="font-medium text-sky-900 dark:text-sky-100">
-                        Transport {getTransportStatusLabel(nextVisitTransport.status)}
-                      </p>
-                      <p className="mt-1 break-words text-xs text-sky-700 dark:text-sky-300">
-                        {nextVisitTransportDetail}
-                      </p>
-                      {(nextVisitTransport.driverName || nextVisitTransport.driverPhone || nextVisitTransport.vehicleDetails) && (
-                        <p className="mt-2 break-words text-xs text-sky-800 dark:text-sky-200">
-                          {[nextVisitTransport.driverName, nextVisitTransport.driverPhone, nextVisitTransport.vehicleDetails]
-                            .filter(Boolean)
-                            .join(" • ")}
-                        </p>
-                      )}
-                      {nextVisitTransport.driverPhone && (
-                        <Button variant="link" className="mt-2 h-auto p-0 text-xs" asChild>
-                          <a href={`tel:${nextVisitTransport.driverPhone}`}>Call driver</a>
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div className="mt-4 grid gap-2">
-                {nextVisit && itineraries?.some((i) => i.bookingId === nextVisit.id) && (
-                  <Button variant="outline" className="w-full justify-start" asChild>
-                    <Link href={`/my-bookings/${nextVisit.id}/itinerary`}>
-                      <FileDown className="mr-2 h-4 w-4" />
-                      Open itinerary
-                    </Link>
-                  </Button>
-                )}
-                {nextVisit && (
-                  <Button variant="outline" className="w-full justify-start" asChild>
-                    <Link href={`/my-bookings/${nextVisit.id}`}>
-                      <ScanLine className="mr-2 h-4 w-4" />
-                      Open full pass
-                    </Link>
-                  </Button>
-                )}
-                {nextVisitTransport && (
-                  <Button variant="outline" className="w-full justify-start" asChild>
-                    <Link href={nextVisit ? `/my-bookings/${nextVisit.id}` : "/my-bookings"}>
-                      <Car className="mr-2 h-4 w-4" />
-                      View transport details
-                    </Link>
-                  </Button>
-                )}
-                {nextVisit && nextVisit.paymentStatus !== "paid" && (
-                  <Button type="button" variant="outline" className="w-full justify-start" onClick={() => openPaymentReportDialog(nextVisit)}>
-                    <DollarSign className="mr-2 h-4 w-4" />
-                    Report payment
-                  </Button>
-                )}
-                <Button variant="outline" className="w-full justify-start" asChild>
-                  <Link href="/help?support=true">
-                    <MessageCircle className="mr-2 h-4 w-4" />
-                    Contact support
-                  </Link>
-                </Button>
-                <Button variant="outline" className="w-full justify-start" asChild>
-                  <a href="tel:+61498956715">
-                    <Phone className="mr-2 h-4 w-4" />
-                    Emergency contact
-                  </a>
-                </Button>
-                <Button variant="outline" className="w-full justify-start" asChild>
-                  <Link href="/resources">
-                    <BookOpen className="mr-2 h-4 w-4" />
-                    Before you visit
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle className="text-lg font-semibold">Latest Updates</CardTitle>
-            <CardDescription>Recent booking, transport, payment, itinerary, and support signals.</CardDescription>
-          </div>
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/my-bookings">
-              View bookings
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {latestUpdates.length === 0 ? (
-            <EmptyState
-              icon={Bell}
-              title="No updates yet"
-              description="Your booking and support updates will appear here."
-              className="py-8"
-            />
-          ) : (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {latestUpdates.slice(0, 6).map((update) => {
-                const Icon = update.icon;
-                return (
-                  <Button key={update.id} variant="outline" className="h-auto justify-start p-0 text-left" asChild>
-                    <Link href={update.href}>
-                      <span className="flex w-full items-start gap-3 p-4">
-                        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                          <Icon className="h-4 w-4" aria-hidden="true" />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block break-words text-sm font-semibold">{update.title}</span>
-                          <span className="mt-1 block break-words text-xs text-muted-foreground">{update.detail}</span>
-                        </span>
-                      </span>
-                    </Link>
-                  </Button>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Book Your Tour CTA - Show prominently if no upcoming bookings and not dismissed */}
-      {upcomingBookings.length === 0 && showBookingCTA && (
-        <Card className="relative">
-          <button
-            onClick={() => {
-              localStorage.setItem('dismiss_booking_cta', 'true');
-              setShowBookingCTA(false);
-            }}
-            className="absolute top-3 right-3 p-1 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-            aria-label="Dismiss"
-          >
-            <X className="h-4 w-4" />
-          </button>
-
-          <CardContent className="p-6">
-            <div className="flex flex-col sm:flex-row items-center gap-6">
-              <div className="shrink-0">
-                <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <CalendarDays className="h-6 w-6 text-primary" />
-                </div>
-              </div>
-
-              <div className="flex-1 text-center sm:text-left space-y-1">
-                <h3 className="font-semibold text-lg">Ready to book your tour?</h3>
-                <p className="text-sm text-muted-foreground">
-                  Choose a date, group size, and tour type. A local guide will confirm the details with you.
-                </p>
-              </div>
-
-              <Button asChild size="default" className="shrink-0 w-full sm:w-auto">
-                <Link href="/my-bookings?book=true">
-                  Book now <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Dzaleka Online Services promotion */}
-      <Card>
-        <CardContent className="flex flex-col items-center justify-between gap-4 p-6 sm:flex-row">
-          <div className="flex min-w-0 flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
-            <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <Globe className="h-6 w-6 text-primary" />
-            </div>
-            <div className="min-w-0 space-y-1">
-              <h3 className="break-words text-base font-semibold">Dzaleka Online Services</h3>
-              <p className="max-w-lg break-words text-sm text-muted-foreground">
-                Find local services, news, events, and community-led projects in one place.
-              </p>
-            </div>
-          </div>
-          <Button asChild size="default" className="shrink-0 w-full sm:w-auto">
-            <a href="https://services.dzaleka.com" target="_blank" rel="noopener noreferrer">
-              Open services <ExternalLink className="ml-2 h-4 w-4" />
-            </a>
-          </Button>
-        </CardContent>
-      </Card>
-
+    <PageContainer size="lg" className="page-spacing">
+      <SEO title="Your visitor dashboard" description="Your Dzaleka visits, arrival pass, saved plans, and support." robots="noindex, nofollow" />
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-2">
+          <p className="text-xs font-medium uppercase tracking-widest text-primary">Your Dzaleka visit</p>
+          <h1 className="break-words text-3xl font-semibold tracking-tight">Welcome, {displayName}</h1>
+          <p className="text-sm text-muted-foreground">{upcomingBookings.length ? "Everything you need for your next visit, close at hand." : "Plan a visit, meet the community, and make yourself at home."}</p>
+        </div>
+        <Button asChild className="min-h-11 shrink-0"><Link href="/my-bookings?book=true"><Plus data-icon="inline-start" aria-hidden="true" />Book a visit</Link></Button>
+      </header>
+      <Tabs value={view} onValueChange={value => setParameter("view", value === "overview" ? "" : value)} className="flex min-w-0 flex-col gap-5">
+        <TabsList aria-label="Visitor dashboard sections" className="grid h-auto w-full grid-cols-4 sm:w-fit">
+          <TabsTrigger value="overview" className="min-h-11 px-2 sm:px-5">Overview</TabsTrigger>
+          <TabsTrigger value="visits" className="min-h-11 gap-2 px-2 sm:px-5">Visits<span className="hidden tabular-nums sm:inline">{myBookings?.length || 0}</span></TabsTrigger>
+          <TabsTrigger value="saved" className="min-h-11 px-2 sm:px-5">Saved plans</TabsTrigger>
+          <TabsTrigger value="support" className="min-h-11 px-2 sm:px-5">Support</TabsTrigger>
+        </TabsList>
+        <TabsContent value="overview">
+          <VisitorDashboardOverview booking={nextVisit} meetingPoint={nextVisitMeetingPoint} meetingPointAddress={nextVisitMeetingPointAddress}
+            guideName={nextVisit ? getGuideName(nextVisit) : null} guidePhone={nextVisit ? getGuidePhone(nextVisit) : null}
+            transportLabel={nextVisitTransport ? getTransportStatusLabel(nextVisitTransport.status) : null} transportDetail={nextVisitTransport ? nextVisitTransportDetail : undefined}
+            hasItinerary={!!nextVisit && !!itineraries?.some(item => item.bookingId === nextVisit.id)}
+            onReportPayment={() => nextVisit && openPaymentReportDialog(nextVisit)} actions={visitorActionItems} />
+        </TabsContent>
+        <TabsContent value="visits" className="flex flex-col gap-5 data-[state=inactive]:hidden">
+          {followUpBookings.length > 0 && <Card><CardHeader><CardTitle>Previous bookings to check</CardTitle><CardDescription>These dates have passed, but their status has not been updated. The team can help confirm the outcome.</CardDescription></CardHeader><CardContent><ul className="divide-y">{followUpBookings.slice(0, 5).map(booking => <li key={booking.id}><Link href={`/my-bookings/${booking.id}`} className="flex min-h-14 items-center justify-between gap-3 py-3 text-sm hover:underline"><span className="min-w-0 break-words">{formatDate(booking.visitDate)} · {booking.bookingReference}</span><ArrowRight className="size-4 shrink-0" aria-hidden="true" /></Link></li>)}</ul><Button variant="outline" asChild className="mt-4 min-h-11"><Link href="/my-bookings">All bookings</Link></Button></CardContent></Card>}
       <Card>
         <CardHeader className="flex flex-col items-start justify-between gap-4 space-y-0 pb-4 sm:flex-row sm:items-center">
-          <CardTitle className="text-lg font-semibold">Your Upcoming Visits</CardTitle>
+          <CardTitle className="text-lg font-semibold">Upcoming & active visits</CardTitle>
           <Button asChild className="w-full sm:w-auto" data-testid="button-book-visit">
             <Link href="/my-bookings?book=true">
               Book a visit
@@ -3112,17 +2720,13 @@ function VisitorDashboard() {
             />
           ) : (
             <div className="space-y-4">
-              {upcomingBookings.map((booking) => {
+              {upcomingBookings.slice(0, 5).map((booking) => {
                 const guideName = getGuideName(booking);
                 const guidePhone = getGuidePhone(booking);
                 const zoneNames = getZoneNames(booking.selectedZones as string[]);
                 const meetingPointName = getMeetingPointName(booking.meetingPointId);
                 const isConfirmed = booking.status === "confirmed";
-                const paymentLabel = booking.paymentStatus === "paid"
-                  ? "Paid"
-                  : booking.paymentReference
-                    ? "Verification pending"
-                    : "Payment pending";
+                const paymentLabel = visitorPaymentLabel(booking);
 
                 return (
                   <div key={booking.id} className="rounded-lg border p-4 space-y-3">
@@ -3179,7 +2783,7 @@ function VisitorDashboard() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 shrink-0 hover:bg-green-100 dark:hover:bg-green-950/40 text-green-700 dark:text-green-400"
+                            className="size-11 shrink-0 hover:bg-green-100 dark:hover:bg-green-950/40 text-green-700 dark:text-green-400"
                             onClick={() => {
                               const isFav = isGuideFavorite(booking.assignedGuideId);
                               toggleFavoriteMutation.mutate({ guideId: booking.assignedGuideId!, isFavorite: isFav });
@@ -3244,7 +2848,7 @@ function VisitorDashboard() {
                     )}
 
                     {/* Payment Toggle */}
-                    {booking.paymentStatus !== "paid" && (
+                    {booking.paymentStatus !== "paid" && booking.paymentStatus !== "refunded" && (
                       <div className="flex flex-wrap justify-end pt-2 border-t gap-2">
                         {itineraries?.some((i) => i.bookingId === booking.id) && (
                           <Button size="sm" variant="default" asChild>
@@ -3265,8 +2869,8 @@ function VisitorDashboard() {
                           size="sm"
                           variant="outline"
                           className="text-destructive border-destructive hover:bg-destructive/10"
-                          onClick={() => cancelBookingMutation.mutate(booking.id)}
-                          disabled={cancelBookingMutation.isPending}
+                          onClick={() => { if (window.confirm("Cancel this booking? Contact support if you need help rescheduling or with a refund.")) cancelBookingMutation.mutate(booking.id); }}
+                          disabled={cancelBookingMutation.isPending || booking.status === "in_progress"}
                         >
                           <XCircle className="mr-2 h-4 w-4" />
                           Cancel
@@ -3286,8 +2890,8 @@ function VisitorDashboard() {
                           size="sm"
                           variant="outline"
                           className="text-destructive border-destructive hover:bg-destructive/10"
-                          onClick={() => cancelBookingMutation.mutate(booking.id)}
-                          disabled={cancelBookingMutation.isPending}
+                          onClick={() => { if (window.confirm("Cancel this booking? Contact support if you need help rescheduling or with a refund.")) cancelBookingMutation.mutate(booking.id); }}
+                          disabled={cancelBookingMutation.isPending || booking.status === "in_progress"}
                         >
                           <XCircle className="mr-2 h-4 w-4" />
                           Cancel booking
@@ -3302,6 +2906,214 @@ function VisitorDashboard() {
         </CardContent>
       </Card>
 
+      <Button variant="outline" asChild className="min-h-11 self-start"><Link href="/my-bookings">Manage all bookings<ArrowRight data-icon="inline-end" aria-hidden="true" /></Link></Button>
+      {completedBookings.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-col gap-4 pb-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-lg font-semibold">Past Visits</CardTitle>
+              <Badge variant="secondary" className="rounded-full">{completedBookings.length}</Badge>
+            </div>
+            {completedBookings.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      const res = await apiRequest("GET", "/api/visitors/export-history");
+                      const data = await res.json();
+
+                      // Convert JSON to formatted string for download
+                      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                      const url = window.URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `visit-history-${formatDate(new Date())}.json`;
+                      document.body.appendChild(a);
+                      a.click();
+                      window.URL.revokeObjectURL(url);
+                      document.body.removeChild(a);
+
+                      toast({ title: "History exported", description: "Your visit history has been downloaded." });
+                    } catch (error) {
+                      toast({ title: "Export failed", description: "Could not export visit history.", variant: "destructive" });
+                    }
+                  }}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Export history
+                </Button>
+                {completedBookings.length > 2 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAllPastVisits(!showAllPastVisits)}
+                  >
+                    {showAllPastVisits ? "Show less" : "Show recent"}
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            )}
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {(completedBookings.slice(0, showAllPastVisits ? 10 : 2)).map((booking) => (
+                <div key={booking.id} className="rounded-lg border p-4 space-y-3">
+
+                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                      {/* Main Info */}
+                      <div className="flex-1 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h4 className="font-medium">
+                              {formatTourType(booking.tourType)} Tour
+                            </h4>
+                            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mt-1">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {formatDate(booking.visitDate)}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {formatTime(booking.visitTime)}
+                              </span>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="shrink-0">
+                            Completed
+                          </Badge>
+                        </div>
+
+                        {getGuideName(booking) && (
+                          <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <UserCheck className="h-4 w-4 shrink-0" />
+                              <span>
+                                Guided by <span className="font-medium text-foreground">{getGuideName(booking)}</span>
+                              </span>
+                            </div>
+                            {booking.assignedGuideId && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-11 shrink-0 hover:bg-muted"
+                                onClick={() => {
+                                  const isFav = isGuideFavorite(booking.assignedGuideId);
+                                  toggleFavoriteMutation.mutate({ guideId: booking.assignedGuideId!, isFavorite: isFav });
+                                }}
+                                disabled={toggleFavoriteMutation.isPending}
+                                aria-label={isGuideFavorite(booking.assignedGuideId) ? "Remove guide from favorites" : "Add guide to favorites"}
+                              >
+                                <Heart
+                                  className={`h-4 w-4 ${
+                                    isGuideFavorite(booking.assignedGuideId)
+                                      ? "fill-current text-red-500"
+                                      : "text-muted-foreground"
+                                  }`}
+                                />
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2 pt-3 border-t">
+                        {itineraries?.some((i) => i.bookingId === booking.id) && (
+                          <Button size="sm" variant="outline" asChild>
+                            <Link href={`/my-bookings/${booking.id}/itinerary`}>
+                              <FileDown className="mr-2 h-4 w-4" /> Itinerary
+                            </Link>
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href="/my-bookings?book=true">
+                            Book again
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Rating Section */}
+                    {booking.assignedGuideId && (
+                      <div className="pt-3 border-t">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                          <div className="text-sm text-muted-foreground">
+                            Rate your guide
+                          </div>
+                          <div className="flex gap-1">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <button
+                                key={star}
+                                onClick={() => handleRateGuide(booking.id, star)}
+                                disabled={rateGuideMutation.isPending}
+                                className="flex size-11 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                title={`Rate ${star} stars`}
+                                aria-label={`Rate ${star} ${star === 1 ? "star" : "stars"}`}
+                              >
+                                <Star
+                                  className={`h-5 w-5 transition-colors ${star <= (selectedRating?.bookingId === booking.id ? selectedRating.rating : booking.visitorRating || 0)
+                                    ? "fill-yellow-400 text-yellow-400"
+                                    : "text-muted-foreground hover:text-yellow-400"
+                                    }`}
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+
+      {cancellationOrRefundBookings.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Cancellation & Refund Status</CardTitle>
+            <CardDescription>Recent cancelled visits and payment resolution status.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {cancellationOrRefundBookings.map((booking) => {
+                const resolution = getCancellationResolution(booking);
+
+                return (
+                  <div key={booking.id} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                      <XCircle className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="break-words font-medium">{formatTourType(booking.tourType)} Tour</span>
+                        <Badge variant={resolution.variant}>{resolution.label}</Badge>
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {formatDate(booking.visitDate)} at {formatTime(booking.visitTime)} · Ref: {booking.bookingReference}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">{resolution.detail}</p>
+                    </div>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href="/help?support=true&subject=Question%20about%20a%20cancelled%20booking">
+                        Ask support
+                      </Link>
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+        </TabsContent>
+        <TabsContent value="saved">
+          {savedLoading || favoritesLoading ? <VisitorDashboardSkeleton /> : savedError || favoritesError ? <DataErrorState title="Saved plans unavailable" description="We couldn’t load your saved itineraries and guides." onRetry={() => { refetchSaved(); refetchFavorites(); }} /> : <>
       <Card>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -3388,286 +3200,10 @@ function VisitorDashboard() {
         </CardContent>
       </Card>
 
-      {cancellationOrRefundBookings.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Cancellation & Refund Status</CardTitle>
-            <CardDescription>Recent cancelled visits and payment resolution status.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {cancellationOrRefundBookings.map((booking) => {
-                const resolution = getCancellationResolution(booking);
-
-                return (
-                  <div key={booking.id} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                      <XCircle className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="break-words font-medium">{formatTourType(booking.tourType)} Tour</span>
-                        <Badge variant={resolution.variant}>{resolution.label}</Badge>
-                      </div>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {formatDate(booking.visitDate)} at {formatTime(booking.visitTime)} · Ref: {booking.bookingReference}
-                      </p>
-                      <p className="mt-1 text-sm text-muted-foreground">{resolution.detail}</p>
-                    </div>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href="/help?support=true&subject=Question%20about%20a%20cancelled%20booking">
-                        Ask support
-                      </Link>
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Dialog open={!!paymentDialogBooking} onOpenChange={(open) => !open && setPaymentDialogBooking(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Report Payment Made</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Staff will verify this payment before your booking is marked as paid.
-            </p>
-            <div className="space-y-2">
-              <Label htmlFor="payment-method">Payment method</Label>
-              <Select
-                value={paymentReportForm.paymentMethod}
-                onValueChange={(value) => setPaymentReportForm((current) => ({ ...current, paymentMethod: value }))}
-              >
-                <SelectTrigger id="payment-method">
-                  <SelectValue placeholder="Select method" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="airtel_money">Airtel Money</SelectItem>
-                  <SelectItem value="tnm_mpamba">TNM Mpamba</SelectItem>
-                  <SelectItem value="card">Card</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="payment-reference">Reference or receipt number</Label>
-              <Input
-                id="payment-reference"
-                name="paymentReference"
-                value={paymentReportForm.paymentReference}
-                onChange={(event) => setPaymentReportForm((current) => ({ ...current, paymentReference: event.target.value }))}
-                placeholder="Mobile money or receipt reference…"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="payment-note">Note</Label>
-              <Textarea
-                id="payment-note"
-                name="paymentNote"
-                value={paymentReportForm.note}
-                onChange={(event) => setPaymentReportForm((current) => ({ ...current, note: event.target.value }))}
-                placeholder="Anything staff should know…"
-                rows={3}
-              />
-            </div>
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button type="button" variant="outline" onClick={() => setPaymentDialogBooking(null)}>
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                disabled={updatePaymentMutation.isPending || !paymentDialogBooking}
-                onClick={() => {
-                  if (!paymentDialogBooking) return;
-                  updatePaymentMutation.mutate({
-                    bookingId: paymentDialogBooking.id,
-                    paymentMethod: paymentReportForm.paymentMethod,
-                    paymentReference: paymentReportForm.paymentReference.trim(),
-                    note: paymentReportForm.note.trim(),
-                  });
-                }}
-              >
-                {updatePaymentMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <DollarSign className="mr-2 h-4 w-4" />
-                )}
-                Report payment
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {completedBookings.length > 0 && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-4">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-lg font-semibold">Past Visits</CardTitle>
-              <Badge variant="secondary" className="rounded-full">{completedBookings.length}</Badge>
-            </div>
-            {completedBookings.length > 2 && (
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    try {
-                      const res = await apiRequest("GET", "/api/visitors/export-history");
-                      const data = await res.json();
-
-                      // Convert JSON to formatted string for download
-                      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-                      const url = window.URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = `visit-history-${formatDate(new Date())}.json`;
-                      document.body.appendChild(a);
-                      a.click();
-                      window.URL.revokeObjectURL(url);
-                      document.body.removeChild(a);
-
-                      toast({ title: "History exported", description: "Your visit history has been downloaded." });
-                    } catch (error) {
-                      toast({ title: "Export failed", description: "Could not export visit history.", variant: "destructive" });
-                    }
-                  }}
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Export history
-                </Button>
-                {completedBookings.length > 2 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowAllPastVisits(!showAllPastVisits)}
-                  >
-                    {showAllPastVisits ? "Show less" : "View all"}
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            )}
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {(showAllPastVisits ? completedBookings : completedBookings.slice(0, 2)).map((booking) => (
-                <div key={booking.id} className="rounded-lg border p-4 space-y-3">
-
-                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                      {/* Main Info */}
-                      <div className="flex-1 space-y-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <h4 className="font-medium">
-                              {formatTourType(booking.tourType)} Tour
-                            </h4>
-                            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mt-1">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {formatDate(booking.visitDate)}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {formatTime(booking.visitTime)}
-                              </span>
-                            </div>
-                          </div>
-                          <Badge variant="outline" className="shrink-0">
-                            Completed
-                          </Badge>
-                        </div>
-
-                        {getGuideName(booking) && (
-                          <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                              <UserCheck className="h-4 w-4 shrink-0" />
-                              <span>
-                                Guided by <span className="font-medium text-foreground">{getGuideName(booking)}</span>
-                              </span>
-                            </div>
-                            {booking.assignedGuideId && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 shrink-0 hover:bg-muted"
-                                onClick={() => {
-                                  const isFav = isGuideFavorite(booking.assignedGuideId);
-                                  toggleFavoriteMutation.mutate({ guideId: booking.assignedGuideId!, isFavorite: isFav });
-                                }}
-                                disabled={toggleFavoriteMutation.isPending}
-                                aria-label={isGuideFavorite(booking.assignedGuideId) ? "Remove guide from favorites" : "Add guide to favorites"}
-                              >
-                                <Heart
-                                  className={`h-4 w-4 ${
-                                    isGuideFavorite(booking.assignedGuideId)
-                                      ? "fill-current text-red-500"
-                                      : "text-muted-foreground"
-                                  }`}
-                                />
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex gap-2 pt-3 border-t">
-                        {itineraries?.some((i) => i.bookingId === booking.id) && (
-                          <Button size="sm" variant="outline" asChild>
-                            <Link href={`/my-bookings/${booking.id}/itinerary`}>
-                              <FileDown className="mr-2 h-4 w-4" /> Itinerary
-                            </Link>
-                          </Button>
-                        )}
-                        <Button size="sm" variant="outline" asChild>
-                          <Link href="/my-bookings?book=true">
-                            Book again
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Rating Section */}
-                    {booking.assignedGuideId && (
-                      <div className="pt-3 border-t">
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                          <div className="text-sm text-muted-foreground">
-                            Rate your guide
-                          </div>
-                          <div className="flex gap-1">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <button
-                                key={star}
-                                onClick={() => handleRateGuide(booking.id, star)}
-                                disabled={rateGuideMutation.isPending}
-                                className="rounded-md p-1 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                title={`Rate ${star} stars`}
-                                aria-label={`Rate ${star} ${star === 1 ? "star" : "stars"}`}
-                              >
-                                <Star
-                                  className={`h-5 w-5 transition-colors ${selectedRating?.bookingId === booking.id && star <= selectedRating.rating
-                                    ? "fill-yellow-400 text-yellow-400"
-                                    : "text-muted-foreground hover:text-yellow-400"
-                                    }`}
-                                />
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-
+          </>}
+        </TabsContent>
+        <TabsContent value="support" className="flex flex-col gap-5 data-[state=inactive]:hidden">
+          {supportLoading ? <VisitorDashboardSkeleton /> : supportError ? <DataErrorState title="Support updates unavailable" description="Your support history could not be loaded. You can still contact the team below." onRetry={() => refetchSupport()} /> : null}
       {/* Safety & Support Card */}
       <Card className="mt-6 border-l-4 border-l-orange-500 shadow-sm">
         <CardHeader className="pb-3">
@@ -3760,56 +3296,81 @@ function VisitorDashboard() {
         )
       }
 
-      {/* Explore Dzaleka Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">Plan Your Visit</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-            <Button variant="outline" className={dashboardActionCardClass} asChild>
-              <Link href="/plan-your-trip">
-                <MapPin className="h-5 w-5 text-primary" />
-                <div className="min-w-0">
-                  <div className="font-medium">Travel guide</div>
-                  <div className="text-xs text-muted-foreground">Getting to Dzaleka</div>
-                </div>
-                <ArrowRight className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
-              </Link>
-            </Button>
-            <Button variant="outline" className={dashboardActionCardClass} asChild>
-              <Link href="/plan-your-trip/visitor-essentials">
-                <Shield className="h-5 w-5 text-muted-foreground" />
-                <div className="min-w-0">
-                  <div className="font-medium">Visitor guidelines</div>
-                  <div className="text-xs text-muted-foreground">What to know before you go</div>
-                </div>
-                <ArrowRight className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
-              </Link>
-            </Button>
-            <Button variant="outline" className={dashboardActionCardClass} asChild>
-              <Link href="/life-in-dzaleka">
-                <Clock className="h-5 w-5 text-muted-foreground" />
-                <div className="min-w-0">
-                  <div className="font-medium">Time capsule</div>
-                  <div className="text-xs text-muted-foreground">Dzaleka's history & stories</div>
-                </div>
-                <ArrowRight className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
-              </Link>
-            </Button>
-            <Button variant="outline" className={dashboardActionCardClass} asChild>
-              <a href="https://services.dzaleka.com" target="_blank" rel="noopener noreferrer">
-                <Globe className="h-5 w-5 text-muted-foreground" />
-                <div className="min-w-0">
-                  <div className="font-medium">Dzaleka Online Services</div>
-                  <div className="text-xs text-muted-foreground">Services and community updates</div>
-                </div>
-                <ExternalLink className="h-3 w-3 text-muted-foreground absolute top-2 right-2" />
-              </a>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        </TabsContent>
+      </Tabs>
+      <Dialog open={!!paymentDialogBooking} onOpenChange={(open) => !open && closePaymentDialog()}>
+        <DialogContent className="sm:max-w-md overscroll-contain">
+          <DialogHeader>
+            <DialogTitle>Report payment made</DialogTitle>
+            <DialogDescription>Staff will verify this report before marking your booking as paid.</DialogDescription>
+          </DialogHeader>
+          <form className="flex flex-col gap-4" onSubmit={event => {
+            event.preventDefault();
+            if (!paymentDialogBooking || updatePaymentMutation.isPending) return;
+            updatePaymentMutation.mutate({ bookingId: paymentDialogBooking.id, paymentMethod: paymentReportForm.paymentMethod, paymentReference: paymentReportForm.paymentReference.trim(), note: paymentReportForm.note.trim() });
+          }}>
+            <div className="space-y-2">
+              <Label htmlFor="payment-method">Payment method</Label>
+              <Select
+                value={paymentReportForm.paymentMethod}
+                onValueChange={(value) => setPaymentReportForm((current) => ({ ...current, paymentMethod: value }))}
+              >
+                <SelectTrigger id="payment-method">
+                  <SelectValue placeholder="Select method" />
+                </SelectTrigger>
+                <SelectContent><SelectGroup>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="airtel_money">Airtel Money</SelectItem>
+                  <SelectItem value="tnm_mpamba">TNM Mpamba</SelectItem>
+                  <SelectItem value="card">Card</SelectItem>
+                </SelectGroup></SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="payment-reference">Reference or receipt number</Label>
+              <Input
+                id="payment-reference"
+                className="min-h-11 text-base"
+                autoComplete="off"
+                spellCheck={false}
+                name="paymentReference"
+                value={paymentReportForm.paymentReference}
+                onChange={(event) => setPaymentReportForm((current) => ({ ...current, paymentReference: event.target.value }))}
+                placeholder="Mobile money or receipt reference…"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="payment-note">Note</Label>
+              <Textarea
+                id="payment-note"
+                className="text-base"
+                onKeyDown={event => { if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }}
+                name="paymentNote"
+                value={paymentReportForm.note}
+                onChange={(event) => setPaymentReportForm((current) => ({ ...current, note: event.target.value }))}
+                placeholder="Anything staff should know…"
+                rows={3}
+              />
+            </div>
+            {updatePaymentMutation.isError && <p role="status" className="text-sm text-destructive">{updatePaymentMutation.error.message}</p>}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" className="min-h-11" disabled={updatePaymentMutation.isPending} onClick={closePaymentDialog}>
+                Cancel
+              </Button>
+              <Button type="submit" className="min-h-11" disabled={updatePaymentMutation.isPending || !paymentDialogBooking}
+              >
+                {updatePaymentMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <DollarSign className="mr-2 h-4 w-4" />
+                )}
+                Report payment
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
     </PageContainer>
   );
 }
