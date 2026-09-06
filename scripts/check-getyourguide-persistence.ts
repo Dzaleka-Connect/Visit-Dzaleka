@@ -31,6 +31,9 @@ try {
   assert.equal((await a`SELECT count(*)::int AS count FROM bookings`)[0].count, 1);
   assert.equal((await a`SELECT count(*)::int AS count FROM booking_activity_logs`)[0].count, 1);
   assert.equal((await second.activeReservations()).length, 0, "booked holds stop consuming additional capacity");
+  const inventory = await second.inventory();
+  assert.equal(inventory.bookings.length, 1);
+  assert.equal(inventory.reservations.length, 0);
   const attempts = await Promise.allSettled(Array.from({ length: 24 }, (_, i) => (i % 2 ? first : second).reserve(hold(`RACE-${i}`), 20, 2)));
   assert.equal(attempts.filter(r => r.status === "fulfilled").length, 18, "concurrent holds cannot oversell remaining seats");
   const active = await first.activeReservations();

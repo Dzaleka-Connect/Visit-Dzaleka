@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { reservationMatches, type GygReservationState } from "../server/lib/getyourguide-store";
+import { reservationMatches, formatGygReservationExpiration, type GygReservationState } from "../server/lib/getyourguide-store";
 import { getGygInboundCredentials, isGygAuthorizationValid } from "../server/lib/getyourguide-auth";
 import { notifyAvailabilityBatch } from "../server/lib/getyourguide";
 
@@ -49,4 +49,8 @@ describe("GetYourGuide inbound credentials", () => {
     expect(isGygAuthorizationValid(basic("inbound"), explicit)).toBe(false);
     expect(getGygInboundCredentials({ ...explicit, GETYOURGUIDE_SUPPLIER_API_PASSWORD: undefined })).toEqual([]);
   });
+});
+
+it("formats reservation expiry with the explicit offset required by GYG certification", () => {
+  expect(formatGygReservationExpiration(new Date("2026-09-06T07:21:57.692Z"))).toBe("2026-09-06T07:21:57+00:00");
 });

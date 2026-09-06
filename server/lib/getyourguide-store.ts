@@ -17,6 +17,11 @@ export interface GygReservationState {
   status: "reserved" | "booked" | "cancelled";
 }
 
+// The GYG self-test requires an explicit UTC offset and no fractional seconds.
+export function formatGygReservationExpiration(date: Date) {
+  return date.toISOString().replace(/\.\d{3}Z$/, "+00:00");
+}
+
 export class GygError extends Error {
   constructor(public errorCode: string, message: string) { super(message); }
 }
@@ -40,9 +45,12 @@ function camelBooking(row: Record<string, any>): Booking {
 export function createGygStore(sql: postgres.Sql) {
   const lock = (tx: postgres.TransactionSql) => tx`SELECT pg_advisory_xact_lock(73492601)`;
   return {
-    async inventoryBookings(): Promise<Pick<Booking, "visitDate" | "visitTime" | "numberOfPeople" | "status">[]> {
-      const rows = await sql`SELECT visit_date::text AS "visitDate", visit_time::text AS "visitTime", number_of_people AS "numberOfPeople", status FROM bookings WHERE status NOT IN ('cancelled', 'no_show')`;
-      return rows as unknown as Pick<Booking, "visitDate" | "visitTime" | "numberOfPeople" | "status">[];
+    async inventory(): Promise<{ bookings: Pick<Booking, "visitDate" | "visitTime" | "numberOfPeople" | "status">[]; reservations: GygReservationState[] }> {
+      // One statement gives both sides the same MVCC snapshot and avoids cold-start connections per query.
+      const [row] = await sql`SELECT
+        (SELECT coalesce(jsonb_agg(jsonb_build_object('visitDate', visit_date, 'visitTime', visit_time, 'numberOfPeople', number_of_people, 'status', status)), '[]'::jsonb) FROM bookings WHERE status NOT IN ('cancelled', 'no_show')) AS bookings,
+        (SELECT coalesce(jsonb_agg(payload), '[]'::jsonb) FROM getyourguide_reservations WHERE status = 'reserved' AND expires_at > now()) AS reservations`;
+      return { bookings: row.bookings, reservations: row.reservations };
     },
     async activeReservations(): Promise<GygReservationState[]> {
       const rows = await sql`SELECT payload FROM getyourguide_reservations WHERE status = 'reserved' AND expires_at > now()`;
@@ -51,18 +59,21 @@ export function createGygStore(sql: postgres.Sql) {
     async reserve(reservation: GygReservationState, peopleCapacity: number, groupCapacity: number): Promise<GygReservationState> {
       return await sql.begin(async tx => {
         await lock(tx);
-        const existing = await tx`SELECT r.*, b.status AS booking_status FROM getyourguide_reservations r LEFT JOIN bookings b ON b.id = r.booking_id WHERE r.gyg_booking_reference = ${reservation.gygBookingReference} ORDER BY r.created_at DESC`;
+        const [snapshot] = await tx`SELECT
+          (SELECT coalesce(jsonb_agg(to_jsonb(r) || jsonb_build_object('booking_status', b.status) ORDER BY r.created_at DESC), '[]'::jsonb) FROM getyourguide_reservations r LEFT JOIN bookings b ON b.id = r.booking_id WHERE r.gyg_booking_reference = ${reservation.gygBookingReference}) AS existing,
+          (SELECT coalesce(jsonb_agg(jsonb_build_object('number_of_people', number_of_people, 'visit_time', visit_time)), '[]'::jsonb) FROM bookings WHERE visit_date = ${reservation.visitDate} AND status NOT IN ('cancelled', 'no_show')) AS bookings,
+          (SELECT coalesce(jsonb_agg(payload), '[]'::jsonb) FROM getyourguide_reservations WHERE status = 'reserved' AND expires_at > now() AND payload->>'visitDate' = ${reservation.visitDate}) AS holds`;
+        const existing = snapshot.existing as Array<{ payload: GygReservationState; status: string; booking_status: string; expires_at: string }>;
         const retry = existing.find(row => reservationMatches(row.payload, reservation)
           && ((row.status === "reserved" && new Date(row.expires_at).getTime() > Date.now())
             || (row.status === "booked" && row.booking_status !== "cancelled")));
         if (retry) return { ...retry.payload, expiresAt: new Date(retry.expires_at) } as GygReservationState;
         // A booking change uses the same GYG reference with a new reservation.
-        // Serialize the availability check and hold insert across server instances.
-        const bookings = await tx`SELECT number_of_people, visit_time FROM bookings WHERE visit_date = ${reservation.visitDate} AND status NOT IN ('cancelled', 'no_show')`;
-        const holds = await tx`SELECT payload FROM getyourguide_reservations WHERE status = 'reserved' AND expires_at > now() AND payload->>'visitDate' = ${reservation.visitDate}`;
+        const bookings = snapshot.bookings as Array<{ number_of_people: number; visit_time: string }>;
+        const holds = snapshot.holds as GygReservationState[];
         const sameSlot = (time: string, mode = "time_point") => reservation.timeMode === "time_period" || mode === "time_period" || time.slice(0, 5) === reservation.visitTime;
         const booked = bookings.filter(row => sameSlot(row.visit_time));
-        const reserved = holds.map(row => row.payload as GygReservationState).filter(row => sameSlot(row.visitTime, row.timeMode));
+        const reserved = holds.filter(row => sameSlot(row.visitTime, row.timeMode));
         const people = booked.reduce((n, row) => n + (row.number_of_people || 1), 0) + reserved.reduce((n, row) => n + row.participantCount, 0);
         const groups = booked.length + reserved.reduce((n, row) => n + (row.pricingMode === "group" ? row.unitCount : 1), 0);
         if (people + reservation.participantCount > peopleCapacity || (reservation.pricingMode === "group" && groups + reservation.unitCount > groupCapacity)) {
@@ -115,8 +126,8 @@ export function createGygStore(sql: postgres.Sql) {
       });
     },
     async recordActivity(endpoint: string, productId: string | null, success: boolean, errorCode: string | null = null, diagnostic = false) {
-      await sql`INSERT INTO getyourguide_activity (endpoint, product_id, success, error_code, diagnostic) VALUES (${endpoint}, ${productId}, ${success}, ${errorCode}, ${diagnostic})`;
-      await sql`DELETE FROM getyourguide_activity WHERE created_at < now() - interval '90 days'`;
+      await sql`WITH pruned AS (DELETE FROM getyourguide_activity WHERE created_at < now() - interval '90 days')
+        INSERT INTO getyourguide_activity (endpoint, product_id, success, error_code, diagnostic) VALUES (${endpoint}, ${productId}, ${success}, ${errorCode}, ${diagnostic})`;
     },
     async activity(productId: string | null = null) {
       const rows = await sql`SELECT endpoint, product_id AS "productId", success, error_code AS "errorCode", diagnostic, created_at AS "createdAt" FROM getyourguide_activity ORDER BY created_at DESC LIMIT 20`;

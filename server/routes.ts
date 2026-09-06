@@ -7,7 +7,7 @@ import { storage } from "./storage";
 import { bookingRescheduleSchema } from "@shared/booking-management";
 import { bookingManagementHandler } from "./lib/booking-management";
 import { bookingItineraryHandler } from "./lib/booking-itinerary";
-import { getGygStore, type GygReservationState } from "./lib/getyourguide-store";
+import { getGygStore, formatGygReservationExpiration, type GygReservationState } from "./lib/getyourguide-store";
 import { getGygInboundCredentials, isGygAuthorizationValid } from "./lib/getyourguide-auth";
 import {
   clearSessionCookie,
@@ -3443,8 +3443,7 @@ function isGygDateBlocked(config: GygProductConfig, date: string) {
 
 type GygInventory = { bookings: Pick<Booking, "visitDate" | "visitTime" | "numberOfPeople" | "status">[]; reservations: GygReservationState[] };
 async function getGygInventory(): Promise<GygInventory> {
-  const [bookings, reservations] = await Promise.all([getGygStore().inventoryBookings(), getGygStore().activeReservations()]);
-  return { bookings, reservations };
+  return getGygStore().inventory();
 }
 async function getGygAvailabilityUnits(config: GygProductConfig, visitDate: string, visitTime: string, inventory: GygInventory) {
   if (isGygDateBlocked(config, visitDate)) {
@@ -3686,7 +3685,7 @@ function registerGetYourGuideSupplierApiRoutes(app: Express) {
       return sendGygResponse(res, {
         data: {
           reservationReference: reservation.reservationReference,
-          reservationExpiration: reservation.expiresAt.toISOString(),
+          reservationExpiration: formatGygReservationExpiration(reservation.expiresAt),
         },
       });
     } catch (error: any) {
