@@ -3438,7 +3438,7 @@ async function getGygRetailPrices(config: GygProductConfig) {
 
 function isGygDateBlocked(config: GygProductConfig, date: string) {
   return GYG_BLOCKED_DATES.has(date) || (Object.values(getGygSelfTestProductIds()).includes(config.productId)
-    && date === addDaysToDateString(getGygLocalDate(), 28));
+    && [28, 29].some(day => date === addDaysToDateString(getGygLocalDate(), day)));
 }
 
 type GygInventory = { bookings: Pick<Booking, "visitDate" | "visitTime" | "numberOfPeople" | "status">[]; reservations: GygReservationState[] };
@@ -15893,7 +15893,7 @@ export async function registerRoutes(
         },
         suggestedUnavailableWindow: {
           from: unavailableDate,
-          to: unavailableDate,
+          to: addDaysToDateString(unavailableDate, 1),
           note: "Use a future blocked date after the available range.",
         },
         portalRules: [
