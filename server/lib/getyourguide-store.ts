@@ -45,6 +45,11 @@ function camelBooking(row: Record<string, any>): Booking {
 export function createGygStore(sql: postgres.Sql) {
   const lock = (tx: postgres.TransactionSql) => tx`SELECT pg_advisory_xact_lock(73492601)`;
   return {
+    async standardRetailPrice(groupSize: string): Promise<number> {
+      const rows = await sql`SELECT group_size, base_price FROM pricing_config`;
+      const prices = Object.fromEntries(rows.map(row => [row.group_size, row.base_price]));
+      return prices[groupSize] ?? (groupSize === "large_group" ? 85000 : 20000);
+    },
     async inventory(): Promise<{ bookings: Pick<Booking, "visitDate" | "visitTime" | "numberOfPeople" | "status">[]; reservations: GygReservationState[] }> {
       // One statement gives both sides the same MVCC snapshot and avoids cold-start connections per query.
       const [row] = await sql`SELECT

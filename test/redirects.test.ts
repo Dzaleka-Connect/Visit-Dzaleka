@@ -26,6 +26,12 @@ const parsed = rows(table);
 const find = (from: string) => parsed.find((row) => row.from === from);
 
 describe("buildRedirects", () => {
+  it("keeps both supplier URL forms on the dedicated runtime before the catch-all", () => {
+    for (const from of ["/1/1/*", "/1/*"]) {
+      expect(find(from)).toMatchObject({ to: "/.netlify/functions/getyourguide/1/:splat", status: 200 });
+      expect(parsed.indexOf(find(from)!)).toBeLessThan(parsed.findIndex(row => row.from === "/*"));
+    }
+  });
   it("routes the API to the serverless function first", () => {
     const api = find("/api/*");
     expect(api).toBeTruthy();

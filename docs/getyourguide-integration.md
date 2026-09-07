@@ -29,3 +29,16 @@ The dashboard shows authenticated request history, errors, and diagnostic/sandbo
 Do not use the older `test-getyourguide*.ts` scripts as read-only diagnostics: they send mutations.
 
 Official protocol: https://integrator.getyourguide.com/documentation/supplier_endpoints and https://integrator.getyourguide.com/documentation/overview#section/API-Request-Flows/Booking-Change
+## Supplier API runtime
+
+Netlify routes `/1/*` (and the legacy `/1/1/*` alias) to the dedicated
+`getyourguide` function. It shares the supplier handlers with the local Express
+app but does not load dashboard routes, sessions, email, or reporting modules.
+This avoids the full application's startup cost on GetYourGuide requests.
+Responses remain authenticated, use fresh database inventory and durable
+reservations/activity, and explicitly disable browser/CDN caching.
+
+The `X-Dzaleka-Supplier-Runtime: dedicated` response header identifies the new
+deployment. `test/getyourguide-runtime.test.ts` checks the deployed handler's
+authentication, inventory/hold accounting, reservation body handling, and bundle
+dependencies.

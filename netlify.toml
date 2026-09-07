@@ -17,12 +17,12 @@
 
 [[redirects]]
   from = "/1/1/*"
-  to = "/.netlify/functions/api/1/:splat"
+  to = "/.netlify/functions/getyourguide/1/:splat"
   status = 200
 
 [[redirects]]
   from = "/1/*"
-  to = "/.netlify/functions/api/1/:splat"
+  to = "/.netlify/functions/getyourguide/1/:splat"
   status = 200
 
 [[redirects]]

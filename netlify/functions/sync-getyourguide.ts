@@ -1,4 +1,4 @@
-import { syncConfiguredGygAvailability } from "../../server/routes";
+import { syncConfiguredGygAvailability } from "../../server/lib/getyourguide-supplier";
 
 export const handler = async () => {
   try {
