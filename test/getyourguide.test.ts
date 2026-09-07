@@ -43,6 +43,21 @@ describe("GetYourGuide inbound credentials", () => {
     expect(isGygAuthorizationValid(basic("wrong"), env)).toBe(false);
     expect(isGygAuthorizationValid("Bearer token", env)).toBe(false);
   });
+  it("accepts distinct production credentials without disrupting testing", () => {
+    const both = { ...env, GETYOURGUIDE_PRODUCTION_USERNAME: "supplier-production", GETYOURGUIDE_PRODUCTION_PASSWORD: "production-secret" };
+    const production = (user: string, password: string) => `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`;
+    expect(isGygAuthorizationValid(production("supplier-production", "production-secret"), both)).toBe(true);
+    expect(isGygAuthorizationValid(basic("inbound"), both)).toBe(true);
+    expect(isGygAuthorizationValid(production("supplier-production", "inbound"), both)).toBe(false);
+    expect(isGygAuthorizationValid(basic("production-secret"), both)).toBe(false);
+    expect(isGygAuthorizationValid(production("supplier-production", "production-secret"), { ...both, GETYOURGUIDE_PRODUCTION_PASSWORD: undefined })).toBe(false);
+  });
+  it("keeps explicit testing precedence when production is configured", () => {
+    const both = { ...env, GETYOURGUIDE_SUPPLIER_API_USERNAME: "supplier", GETYOURGUIDE_SUPPLIER_API_PASSWORD: "dedicated", GETYOURGUIDE_PRODUCTION_USERNAME: "production", GETYOURGUIDE_PRODUCTION_PASSWORD: "production-secret" };
+    expect(isGygAuthorizationValid(basic("dedicated"), both)).toBe(true);
+    expect(isGygAuthorizationValid(basic("inbound"), both)).toBe(false);
+    expect(isGygAuthorizationValid(basic("outbound"), both)).toBe(false);
+  });
   it("gives explicit inbound credentials precedence and rejects partial configuration", () => {
     const explicit = { ...env, GETYOURGUIDE_SUPPLIER_API_USERNAME: "supplier", GETYOURGUIDE_SUPPLIER_API_PASSWORD: "dedicated" };
     expect(isGygAuthorizationValid(basic("dedicated"), explicit)).toBe(true);

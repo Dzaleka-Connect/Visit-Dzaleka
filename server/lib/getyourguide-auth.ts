@@ -2,16 +2,18 @@ import { timingSafeEqual } from "node:crypto";
 
 type Environment = Record<string, string | undefined>;
 export function getGygInboundCredentials(env: Environment = process.env) {
-  // Explicit supplier credentials take precedence; partial configuration fails closed.
-  if (env.GETYOURGUIDE_SUPPLIER_API_USERNAME || env.GETYOURGUIDE_SUPPLIER_API_PASSWORD) {
-    return env.GETYOURGUIDE_SUPPLIER_API_USERNAME && env.GETYOURGUIDE_SUPPLIER_API_PASSWORD
-      ? [[env.GETYOURGUIDE_SUPPLIER_API_USERNAME, env.GETYOURGUIDE_SUPPLIER_API_PASSWORD]] : [];
-  }
-  // Existing installations registered webhook credentials in the integrator portal.
-  // Keep the older API-credential fallback until explicit inbound credentials are set.
+  // Testing and production share this API host, but GYG requires different credentials.
+  // Explicit testing credentials suppress legacy fallbacks, even if incomplete.
+  const testing = env.GETYOURGUIDE_SUPPLIER_API_USERNAME || env.GETYOURGUIDE_SUPPLIER_API_PASSWORD
+    ? [[env.GETYOURGUIDE_SUPPLIER_API_USERNAME, env.GETYOURGUIDE_SUPPLIER_API_PASSWORD]]
+    : [
+      [env.GETYOURGUIDE_WEBHOOK_USERNAME, env.GETYOURGUIDE_WEBHOOK_PASSWORD],
+      [env.GETYOURGUIDE_API_USERNAME, env.GETYOURGUIDE_API_PASSWORD],
+    ];
+  // Each pair must be complete; never combine credentials across environments.
   return [
-    [env.GETYOURGUIDE_WEBHOOK_USERNAME, env.GETYOURGUIDE_WEBHOOK_PASSWORD],
-    [env.GETYOURGUIDE_API_USERNAME, env.GETYOURGUIDE_API_PASSWORD],
+    ...testing,
+    [env.GETYOURGUIDE_PRODUCTION_USERNAME, env.GETYOURGUIDE_PRODUCTION_PASSWORD],
   ].filter((pair): pair is [string, string] => Boolean(pair[0] && pair[1]));
 }
 
