@@ -52,7 +52,13 @@ export function getGygAvailabilityPushProductId() {
   return process.env.GETYOURGUIDE_AVAILABILITY_PRODUCT_ID
     || process.env.GETYOURGUIDE_NOTIFY_PRODUCT_ID
     || process.env.GETYOURGUIDE_CONNECTED_PRODUCT_ID
+    || process.env.GETYOURGUIDE_PRODUCT_ID
     || "";
+}
+
+export function gygOutboundErrorCode(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return message.match(/\b(INVALID_PRODUCT|AUTHORIZATION_FAILURE|VALIDATION_FAILURE|INTERNAL_SYSTEM_FAILURE)\b/)?.[1] || "SYNC_FAILED";
 }
 
 export function getGygSelfTestProductIds() {
@@ -424,7 +430,7 @@ export async function syncConfiguredGygAvailability() {
     return await pushGygAvailability(product, { days: 30, useSandbox: false });
   }
   catch (error) {
-    await getGygStore().recordActivity("availability-push", productId, false, "SYNC_FAILED");
+    await getGygStore().recordActivity("availability-push", productId, false, gygOutboundErrorCode(error));
     throw error;
   }
 }

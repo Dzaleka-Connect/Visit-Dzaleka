@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { reservationMatches, formatGygReservationExpiration, type GygReservationState } from "../server/lib/getyourguide-store";
 import { getGygInboundCredentials, isGygAuthorizationValid } from "../server/lib/getyourguide-auth";
+import { gygOutboundErrorCode } from "../server/lib/getyourguide-supplier";
 import { notifyAvailabilityBatch } from "../server/lib/getyourguide";
 
 const reservation = { gygBookingReference: "GYG-TEST", productId: "tour", dateTime: "2030-01-10T09:00:00+02:00", bookingItems: [{ category: "ADULT", count: 2 }] } as GygReservationState;
@@ -68,4 +69,9 @@ describe("GetYourGuide inbound credentials", () => {
 
 it("formats reservation expiry with the explicit offset required by GYG certification", () => {
   expect(formatGygReservationExpiration(new Date("2026-09-06T07:21:57.692Z"))).toBe("2026-09-06T07:21:57+00:00");
+});
+
+it("records GetYourGuide's notify error instead of a generic sync failure", () => {
+  expect(gygOutboundErrorCode(new Error("GetYourGuide API error: 400 - INVALID_PRODUCT: Provided productId did not match an active product in our system : 1188868"))).toBe("INVALID_PRODUCT");
+  expect(gygOutboundErrorCode("network down")).toBe("SYNC_FAILED");
 });

@@ -11,6 +11,9 @@ async function throwIfResNotOk(res: Response) {
     try {
       const payload = JSON.parse(text);
       if (typeof payload.message === "string") message = payload.message;
+      if (typeof payload.detail === "string" && payload.detail && payload.detail !== payload.message) {
+        message = `${message}: ${payload.detail}`;
+      }
     } catch {
       // Some proxies return plain-text errors.
     }

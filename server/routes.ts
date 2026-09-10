@@ -1,5 +1,5 @@
 /// <reference path="./types.d.ts" />
-import { GYG_SUPPLIER_ID, GYG_DEFAULT_START_TIMES, GYG_CURRENCY, GYG_PRODUCT_TIMEZONE, getGygAvailabilityPushProductId, getGygSelfTestProductIds, resolveGygProduct, addDaysToDateString, getGygLocalDate, getGygRetailPrice, pushGygAvailability, registerGetYourGuideSupplierApiRoutes } from "./lib/getyourguide-supplier";
+import { GYG_SUPPLIER_ID, GYG_DEFAULT_START_TIMES, GYG_CURRENCY, GYG_PRODUCT_TIMEZONE, getGygAvailabilityPushProductId, getGygSelfTestProductIds, resolveGygProduct, addDaysToDateString, getGygLocalDate, getGygRetailPrice, pushGygAvailability, registerGetYourGuideSupplierApiRoutes, gygOutboundErrorCode } from "./lib/getyourguide-supplier";
 import type { Express, Request, Response, NextFunction } from "express";
 import express from "express";
 import { createServer, type Server } from "http";
@@ -15257,7 +15257,7 @@ export async function registerRoutes(
         response: result.response,
       });
     } catch (error: any) {
-      try { await getGygStore().recordActivity("availability-push", getGygAvailabilityPushProductId() || null, false, "SYNC_FAILED", req.body?.useSandbox === true || process.env.GETYOURGUIDE_SYNC_USE_SANDBOX === "true"); } catch { /* Keep original sync error. */ }
+      try { await getGygStore().recordActivity("availability-push", getGygAvailabilityPushProductId() || null, false, gygOutboundErrorCode(error), req.body?.useSandbox === true || process.env.GETYOURGUIDE_SYNC_USE_SANDBOX === "true"); } catch { /* Keep original sync error. */ }
       logError("Failed to sync GetYourGuide availability", error, req.requestId);
       res.status(502).json({
         message: "Failed to sync GetYourGuide availability",

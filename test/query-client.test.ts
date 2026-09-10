@@ -29,6 +29,12 @@ describe("API session handling", () => {
     await expect(apiRequest("DELETE", "/api/bookings/1")).rejects.toThrow("403: Access denied");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+  it("includes the server detail on API failures", async () => {
+    fetchMock.mockResolvedValueOnce(json({ csrfToken: "token" }))
+      .mockResolvedValueOnce(json({ message: "Failed to sync GetYourGuide availability", detail: "INVALID_PRODUCT: Provided productId did not match an active product" }, 502));
+    const { apiRequest } = await import("../client/src/lib/queryClient");
+    await expect(apiRequest("POST", "/api/getyourguide/sync-availability", {})).rejects.toThrow(/INVALID_PRODUCT/);
+  });
   it("stops after one CSRF retry", async () => {
     fetchMock.mockResolvedValueOnce(json({ csrfToken: "old" }))
       .mockResolvedValueOnce(json({ code: "CSRF_INVALID_TOKEN" }, 403))

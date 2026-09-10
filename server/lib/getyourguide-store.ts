@@ -123,8 +123,24 @@ export function createGygStore(sql: postgres.Sql) {
     },
     async activity(productId: string | null = null) {
       const rows = await sql`SELECT endpoint, product_id AS "productId", success, error_code AS "errorCode", diagnostic, created_at AS "createdAt" FROM getyourguide_activity ORDER BY created_at DESC LIMIT 20`;
-      const [summary] = await sql`SELECT max(created_at) FILTER (WHERE endpoint = '/1/get-availabilities/' AND success AND NOT diagnostic) AS "lastAvailabilityRequest", max(created_at) FILTER (WHERE endpoint = '/1/book/' AND success AND NOT diagnostic) AS "lastBookingRequest", max(created_at) FILTER (WHERE endpoint = 'availability-push' AND success AND NOT diagnostic AND (${productId}::text IS NULL OR product_id = ${productId})) AS "lastSuccessfulPush" FROM getyourguide_activity`;
-      return { lastAvailabilityRequest: summary?.lastAvailabilityRequest as Date | null, lastBookingRequest: summary?.lastBookingRequest as Date | null, lastSuccessfulPush: summary?.lastSuccessfulPush as Date | null, recent: rows };
+      const [summary] = await sql`SELECT
+        max(created_at) FILTER (WHERE endpoint = '/1/get-availabilities/' AND success AND NOT diagnostic) AS "lastAvailabilityRequest",
+        max(created_at) FILTER (WHERE endpoint = '/1/book/' AND success AND NOT diagnostic) AS "lastBookingRequest",
+        max(created_at) FILTER (WHERE endpoint = 'availability-push' AND success AND NOT diagnostic AND (${productId}::text IS NULL OR product_id = ${productId})) AS "lastSuccessfulPush",
+        max(created_at) FILTER (WHERE endpoint = 'availability-push' AND NOT success AND NOT diagnostic AND (${productId}::text IS NULL OR product_id = ${productId})) AS "lastFailedPush"
+        FROM getyourguide_activity`;
+      const [failed] = await sql`SELECT error_code AS "errorCode" FROM getyourguide_activity
+        WHERE endpoint = 'availability-push' AND NOT success AND NOT diagnostic
+          AND (${productId}::text IS NULL OR product_id = ${productId})
+        ORDER BY created_at DESC LIMIT 1`;
+      return {
+        lastAvailabilityRequest: summary?.lastAvailabilityRequest as Date | null,
+        lastBookingRequest: summary?.lastBookingRequest as Date | null,
+        lastSuccessfulPush: summary?.lastSuccessfulPush as Date | null,
+        lastFailedPush: summary?.lastFailedPush as Date | null,
+        lastFailedPushError: (failed?.errorCode as string | null) || null,
+        recent: rows,
+      };
     },
   };
 }

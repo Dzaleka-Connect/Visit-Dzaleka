@@ -79,6 +79,8 @@ interface GetYourGuideSelfTestReadiness {
     lastAvailabilityRequest: string | null;
     lastBookingRequest: string | null;
     lastSuccessfulPush: string | null;
+    lastFailedPush: string | null;
+    lastFailedPushError: string | null;
     recent: Array<{
       endpoint: string;
       productId: string | null;
@@ -258,6 +260,9 @@ export default function GetYourGuidePage() {
           ? "API requests observed"
           : "Awaiting API requests";
   const pushAccepted = Boolean(readiness?.activity?.lastSuccessfulPush);
+  const lastFailedPush = readiness?.activity?.lastFailedPush;
+  const lastFailedPushError = readiness?.activity?.lastFailedPushError;
+  const pushRejected = !pushAccepted && Boolean(lastFailedPush);
   const syncDisabled =
     readinessError ||
     readinessLoading ||
@@ -273,7 +278,11 @@ export default function GetYourGuidePage() {
         ? "Add the mapped availability product ID after connecting the product in GetYourGuide."
         : pushAccepted
           ? "Automatic refresh runs every 15 minutes after an accepted production push."
-          : "Send the first production sync after GetYourGuide confirms the product mapping.";
+          : lastFailedPushError === "INVALID_PRODUCT"
+            ? `GetYourGuide rejected product ${readiness?.availabilityPushProductId || "ID"}. Connect that supplier product ID to the live tour option in the supplier portal, then sync again. Sandbox accepts any ID; production only accepts a mapped product.`
+            : pushRejected
+              ? "The last production push was not accepted. Review the error, then try again."
+              : "Send the first production sync after GetYourGuide confirms the product mapping.";
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Africa/Blantyre",
     year: "numeric",
@@ -494,11 +503,15 @@ export default function GetYourGuidePage() {
                   ? "—"
                   : pushAccepted
                     ? dateLabel(readiness?.activity?.lastSuccessfulPush)
-                    : "Not yet synced",
+                    : pushRejected
+                      ? "Last sync failed"
+                      : "Not yet synced",
               detail: pushAccepted
                 ? dateLabel(readiness?.activity?.lastSuccessfulPush, true) +
                   " · Malawi time"
-                : "Production availability updates",
+                : pushRejected
+                  ? `${lastFailedPushError || "SYNC_FAILED"} · ${dateLabel(lastFailedPush, true)}`
+                  : "Production availability updates",
             },
           ].map((metric) => (
             <div
@@ -593,7 +606,9 @@ export default function GetYourGuidePage() {
                     <Clock className="h-4 w-4" aria-hidden="true" />
                     {pushAccepted
                       ? "Automatic updates started"
-                      : "First production sync pending"}
+                      : pushRejected
+                        ? "Production sync rejected"
+                        : "First production sync pending"}
                   </div>
                   <p
                     id="sync-help"
@@ -631,6 +646,15 @@ export default function GetYourGuidePage() {
                     <Alert variant="destructive">
                       <AlertDescription>
                         {syncMutation.error.message}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {!syncMutation.isError && pushRejected && (
+                    <Alert variant="destructive">
+                      <AlertDescription>
+                        {lastFailedPushError === "INVALID_PRODUCT"
+                          ? `GetYourGuide does not have an active product mapped to ${readiness?.availabilityPushProductId}.`
+                          : `Last production push failed${lastFailedPushError ? ` (${lastFailedPushError})` : ""}.`}
                       </AlertDescription>
                     </Alert>
                   )}

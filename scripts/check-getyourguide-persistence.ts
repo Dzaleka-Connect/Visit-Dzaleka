@@ -51,6 +51,9 @@ try {
   assert.equal((await second.activity()).lastAvailabilityRequest, null, "diagnostics do not claim live connectivity");
   await first.recordActivity("/1/get-availabilities/", "test-tour", true);
   assert.ok((await second.activity()).lastAvailabilityRequest);
+  await first.recordActivity("availability-push", "test-tour", false, "INVALID_PRODUCT");
+  assert.equal((await second.activity("test-tour")).lastFailedPushError, "INVALID_PRODUCT");
+  assert.equal((await second.activity("test-tour")).lastSuccessfulPush, null);
   const change = { ...hold("ONE", 1), reservationReference: "res_CHANGED", dateTime: "2030-01-11T14:00:00+02:00", visitDate: "2030-01-11", visitTime: "14:00" };
   const newHold = await second.reserve(change, 20, 2);
   const changedBooking = await first.confirm(newHold, { ...booking, bookingReference: "GYG-TEST-CHANGED", visitDate: "2030-01-11", visitTime: "14:00", numberOfPeople: 1 });
