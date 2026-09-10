@@ -115,7 +115,8 @@ function gygError(errorCode: string, errorMessage: string, extra: Record<string,
 }
 
 function sendGygResponse(res: Response, payload: any) {
-  if (res.locals.gygAuthenticated) {
+  // Warmup pings keep the Lambda hot and must not appear as live API activity.
+  if (res.locals.gygAuthenticated && res.req.get("X-Dzaleka-Warmup") !== "true") {
     // Telemetry must not sit on the certification critical path. Availability is
     // measured end-to-end; a second write (and 90-day prune) pushed 1-day calls over 4s.
     void getGygStore().recordActivity(

@@ -311,7 +311,7 @@ export default function GetYourGuidePage() {
     pageCount,
     Math.max(1, Number.parseInt(params.get("page") || "1", 10) || 1),
   );
-  const recent = readiness?.activity?.recent || [];
+  const recent = (readiness?.activity?.recent || []).filter((event) => !event.diagnostic);
   const steps = [
     {
       label: "Receive reservations",
@@ -668,8 +668,8 @@ export default function GetYourGuidePage() {
                 API activity
               </h2>
               <CardDescription>
-                Recent authenticated requests. Diagnostic and sandbox traffic is
-                labeled separately.
+                Live GetYourGuide requests. Warmup, self-test, and diagnostic
+                calls are hidden from this list.
               </CardDescription>
             </CardHeader>
             <CardContent>

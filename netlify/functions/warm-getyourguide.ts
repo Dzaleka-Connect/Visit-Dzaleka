@@ -23,6 +23,7 @@ export async function handler() {
     const response = await fetch(url, {
       headers: {
         authorization: `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`,
+        "x-dzaleka-warmup": "true",
         "x-dzaleka-diagnostic": "true",
       },
     });

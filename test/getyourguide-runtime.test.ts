@@ -56,6 +56,29 @@ describe("dedicated GetYourGuide runtime", () => {
     expect(result.headers["set-cookie"]).toBeUndefined();
   });
 
+  it("does not record warmup availability polls as live activity", async () => {
+    store.inventory.mockResolvedValue({ bookings: [], reservations: [] });
+    const context = { callbackWaitsForEmptyEventLoop: true };
+    vi.stubEnv("GETYOURGUIDE_PRODUCTION_USERNAME", "production-test");
+    vi.stubEnv("GETYOURGUIDE_PRODUCTION_PASSWORD", "test-only");
+    const result = await handler({
+      httpMethod: "GET", path: "/1/get-availabilities/",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Basic ${Buffer.from("production-test:test-only").toString("base64")}`,
+        "x-dzaleka-warmup": "true",
+        "x-dzaleka-diagnostic": "true",
+      },
+      queryStringParameters: {
+        productId: "1188868", fromDateTime: "2030-09-14T00:00:00+02:00", toDateTime: "2030-09-14T23:59:59+02:00",
+      },
+      body: null,
+      requestContext: { identity: { sourceIp: "127.0.0.1" } },
+    }, context as any) as { statusCode: number; body: string };
+    expect(JSON.parse(result.body).data.availabilities).toHaveLength(2);
+    expect(store.recordActivity).not.toHaveBeenCalled();
+  });
+
   it("returns availability without waiting for telemetry", async () => {
     let release = () => {};
     store.inventory.mockResolvedValue({ bookings: [], reservations: [] });
