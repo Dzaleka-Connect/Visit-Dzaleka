@@ -10,6 +10,15 @@
   node_bundler = "esbuild"
   directory = "netlify/functions"
 
+# The Supabase database is in ap-southeast-1. Keep the supplier's database
+# handshakes and transactions in Singapore instead of crossing regions.
+[functions.getyourguide]
+  region = "sin"
+
+[functions."warm-getyourguide"]
+  region = "sin"
+  schedule = "*/5 * * * *"
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"

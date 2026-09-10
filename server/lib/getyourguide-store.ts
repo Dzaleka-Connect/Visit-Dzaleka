@@ -50,11 +50,22 @@ export function createGygStore(sql: postgres.Sql) {
       const prices = Object.fromEntries(rows.map(row => [row.group_size, row.base_price]));
       return prices[groupSize] ?? (groupSize === "large_group" ? 85000 : 20000);
     },
-    async inventory(): Promise<{ bookings: Pick<Booking, "visitDate" | "visitTime" | "numberOfPeople" | "status">[]; reservations: GygReservationState[] }> {
+    async ping() {
+      await sql`SELECT 1`;
+    },
+    async inventory(fromDate?: string, toDate?: string): Promise<{ bookings: Pick<Booking, "visitDate" | "visitTime" | "numberOfPeople" | "status">[]; reservations: GygReservationState[] }> {
       // One statement gives both sides the same MVCC snapshot and avoids cold-start connections per query.
-      const [row] = await sql`SELECT
-        (SELECT coalesce(jsonb_agg(jsonb_build_object('visitDate', visit_date, 'visitTime', visit_time, 'numberOfPeople', number_of_people, 'status', status)), '[]'::jsonb) FROM bookings WHERE status NOT IN ('cancelled', 'no_show')) AS bookings,
-        (SELECT coalesce(jsonb_agg(payload), '[]'::jsonb) FROM getyourguide_reservations WHERE status = 'reserved' AND expires_at > now()) AS reservations`;
+      // Certification availability checks are 1-day windows; do not aggregate the whole bookings table.
+      const [row] = fromDate && toDate
+        ? await sql`SELECT
+            (SELECT coalesce(jsonb_agg(jsonb_build_object('visitDate', visit_date, 'visitTime', visit_time, 'numberOfPeople', number_of_people, 'status', status)), '[]'::jsonb)
+              FROM bookings WHERE status NOT IN ('cancelled', 'no_show') AND visit_date BETWEEN ${fromDate}::date AND ${toDate}::date) AS bookings,
+            (SELECT coalesce(jsonb_agg(payload), '[]'::jsonb)
+              FROM getyourguide_reservations WHERE status = 'reserved' AND expires_at > now()
+              AND payload->>'visitDate' >= ${fromDate} AND payload->>'visitDate' <= ${toDate}) AS reservations`
+        : await sql`SELECT
+            (SELECT coalesce(jsonb_agg(jsonb_build_object('visitDate', visit_date, 'visitTime', visit_time, 'numberOfPeople', number_of_people, 'status', status)), '[]'::jsonb) FROM bookings WHERE status NOT IN ('cancelled', 'no_show')) AS bookings,
+            (SELECT coalesce(jsonb_agg(payload), '[]'::jsonb) FROM getyourguide_reservations WHERE status = 'reserved' AND expires_at > now()) AS reservations`;
       return { bookings: row.bookings, reservations: row.reservations };
     },
     async activeReservations(): Promise<GygReservationState[]> {
@@ -105,8 +116,10 @@ export function createGygStore(sql: postgres.Sql) {
       });
     },
     async recordActivity(endpoint: string, productId: string | null, success: boolean, errorCode: string | null = null, diagnostic = false) {
-      await sql`WITH pruned AS (DELETE FROM getyourguide_activity WHERE created_at < now() - interval '90 days')
-        INSERT INTO getyourguide_activity (endpoint, product_id, success, error_code, diagnostic) VALUES (${endpoint}, ${productId}, ${success}, ${errorCode}, ${diagnostic})`;
+      await sql`INSERT INTO getyourguide_activity (endpoint, product_id, success, error_code, diagnostic) VALUES (${endpoint}, ${productId}, ${success}, ${errorCode}, ${diagnostic})`;
+    },
+    async pruneActivity() {
+      await sql`DELETE FROM getyourguide_activity WHERE created_at < now() - interval '90 days'`;
     },
     async activity(productId: string | null = null) {
       const rows = await sql`SELECT endpoint, product_id AS "productId", success, error_code AS "errorCode", diagnostic, created_at AS "createdAt" FROM getyourguide_activity ORDER BY created_at DESC LIMIT 20`;
@@ -120,7 +133,14 @@ let instance: ReturnType<typeof createGygStore> | undefined;
 export function getGygStore() {
   if (!instance) {
     if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required for persistent GetYourGuide reservations.");
-    instance = createGygStore(postgres(process.env.DATABASE_URL, { max: 2, idle_timeout: 20, connect_timeout: 10, ssl: "require", prepare: false }));
+    instance = createGygStore(postgres(process.env.DATABASE_URL, {
+      max: 1,
+      idle_timeout: 60,
+      connect_timeout: 8,
+      ssl: "require",
+      prepare: false,
+      fetch_types: false,
+    }));
   }
   return instance;
 }

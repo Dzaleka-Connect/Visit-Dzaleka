@@ -108,16 +108,20 @@ function gygError(errorCode: string, errorMessage: string, extra: Record<string,
   return { errorCode, errorMessage, ...extra };
 }
 
-async function sendGygResponse(res: Response, payload: any) {
+function sendGygResponse(res: Response, payload: any) {
   if (res.locals.gygAuthenticated) {
-    try {
-      await getGygStore().recordActivity(
-        `${res.req.path.replace(/\/$/, "")}/`,
-        res.req.body?.data?.productId || res.req.query.productId || res.req.params.productId || null,
-        !payload?.errorCode && res.req.body?.data?.notificationType !== "PRODUCT_DEACTIVATION", payload?.errorCode || (res.req.body?.data?.notificationType === "PRODUCT_DEACTIVATION" ? "PRODUCT_DEACTIVATION" : null),
-        res.req.get("X-Dzaleka-Diagnostic") === "true" || Object.values(getGygSelfTestProductIds()).includes(String(res.req.body?.data?.productId || res.req.query.productId || res.req.params.productId || "")),
-      );
-    } catch (error) { logError("GetYourGuide activity recording failed", error); }
+    // Telemetry must not sit on the certification critical path. Availability is
+    // measured end-to-end; a second write (and 90-day prune) pushed 1-day calls over 4s.
+    void getGygStore().recordActivity(
+      `${res.req.path.replace(/\/$/, "")}/`,
+      res.req.body?.data?.productId || res.req.query.productId || res.req.params.productId || null,
+      !payload?.errorCode && res.req.body?.data?.notificationType !== "PRODUCT_DEACTIVATION", payload?.errorCode || (res.req.body?.data?.notificationType === "PRODUCT_DEACTIVATION" ? "PRODUCT_DEACTIVATION" : null),
+      res.req.get("X-Dzaleka-Diagnostic") === "true" || Object.values(getGygSelfTestProductIds()).includes(String(res.req.body?.data?.productId || res.req.query.productId || res.req.params.productId || "")),
+    ).catch((error) => { logError("GetYourGuide activity recording failed", error); });
+  }
+  const started = (res.req as Request & { gygStartedAt?: number }).gygStartedAt;
+  if (typeof started === "number") {
+    res.set("Server-Timing", `app;dur=${Date.now() - started}`);
   }
   return res.status(200).type("application/json").json(payload);
 }
@@ -277,10 +281,8 @@ function isGygDateBlocked(config: GygProductConfig, date: string) {
 }
 
 type GygInventory = { bookings: Pick<Booking, "visitDate" | "visitTime" | "numberOfPeople" | "status">[]; reservations: GygReservationState[] };
-async function getGygInventory(): Promise<GygInventory> {
-  return getGygStore().inventory();
-}
-async function getGygAvailabilityUnits(config: GygProductConfig, visitDate: string, visitTime: string, inventory: GygInventory) {
+type GygRetailPrice = { category: string; price: number };
+function getGygAvailabilityUnits(config: GygProductConfig, visitDate: string, visitTime: string, inventory: GygInventory) {
   if (isGygDateBlocked(config, visitDate)) {
     return 0;
   }
@@ -312,8 +314,8 @@ async function getGygAvailabilityUnits(config: GygProductConfig, visitDate: stri
   return Math.max(0, GYG_MAX_PEOPLE_PER_SLOT - bookedPeople - reservedPeople);
 }
 
-async function buildGygAvailability(config: GygProductConfig, visitDate: string, visitTime: string, inventory: GygInventory) {
-  const vacancies = await getGygAvailabilityUnits(config, visitDate, visitTime, inventory);
+function buildGygAvailability(config: GygProductConfig, visitDate: string, visitTime: string, inventory: GygInventory, retailPrices: GygRetailPrice[]) {
+  const vacancies = getGygAvailabilityUnits(config, visitDate, visitTime, inventory);
   const availability: Record<string, unknown> = {
     dateTime: config.timeMode === "time_period"
       ? formatGygDateTime(visitDate, "00:00")
@@ -321,9 +323,7 @@ async function buildGygAvailability(config: GygProductConfig, visitDate: string,
     productId: config.productId,
     cutoffSeconds: GYG_CUTOFF_SECONDS,
     currency: GYG_CURRENCY,
-    pricesByCategory: {
-      retailPrices: await getGygRetailPrices(config),
-    },
+    pricesByCategory: { retailPrices },
   };
 
   if (config.pricingMode === "individual" && config.availabilityMode === "by_category") {
@@ -383,15 +383,19 @@ export async function pushGygAvailability(product: GygProductConfig, options: { 
     ? options.useSandbox
     : process.env.GETYOURGUIDE_SYNC_USE_SANDBOX === "true";
 
-  const inventory = await getGygInventory();
+  const endDate = addDaysToDateString(startDate, days - 1);
+  const [inventory, retailPrices] = await Promise.all([
+    getGygStore().inventory(startDate, endDate),
+    getGygRetailPrices(product),
+  ]);
   const availabilities: Record<string, unknown>[] = [];
   for (let day = 0; day < days; day += 1) {
     const visitDate = addDaysToDateString(startDate, day);
     if (product.timeMode === "time_period") {
-      availabilities.push(await buildGygAvailability(product, visitDate, "09:00", inventory));
+      availabilities.push(buildGygAvailability(product, visitDate, "09:00", inventory, retailPrices));
     } else {
       for (const visitTime of GYG_DEFAULT_START_TIMES) {
-        availabilities.push(await buildGygAvailability(product, visitDate, visitTime, inventory));
+        availabilities.push(buildGygAvailability(product, visitDate, visitTime, inventory, retailPrices));
       }
     }
   }
@@ -415,7 +419,10 @@ export async function syncConfiguredGygAvailability() {
     || !process.env.GETYOURGUIDE_API_USERNAME || !process.env.GETYOURGUIDE_API_PASSWORD) return { skipped: true, reason: "Configuration incomplete or automatic sync disabled" };
   const product = resolveGygProduct(productId);
   if (!product || !(await getGygStore().activity(productId)).lastSuccessfulPush) return { skipped: true, reason: "A successful production push is required first" };
-  try { return await pushGygAvailability(product, { days: 30, useSandbox: false }); }
+  try {
+    try { await getGygStore().pruneActivity(); } catch (error) { logError("GetYourGuide activity prune failed", error); }
+    return await pushGygAvailability(product, { days: 30, useSandbox: false });
+  }
   catch (error) {
     await getGygStore().recordActivity("availability-push", productId, false, "SYNC_FAILED");
     throw error;
@@ -428,11 +435,6 @@ export function registerGetYourGuideSupplierApiRoutes(app: Express) {
 
     try {
       const productId = String(req.query.productId || "");
-      logger.info("GetYourGuide get-availabilities request", {
-        productId,
-        fromDateTime: req.query.fromDateTime,
-        toDateTime: req.query.toDateTime,
-      });
       const config = resolveGygProduct(productId);
       if (!config) {
         return sendGygResponse(res, gygError("INVALID_PRODUCT", "This activity should be deactivated; not sellable."));
@@ -443,14 +445,17 @@ export function registerGetYourGuideSupplierApiRoutes(app: Express) {
         return sendGygResponse(res, gygError("VALIDATION_FAILURE", "fromDateTime and toDateTime must be valid ISO 8601 datetime values."));
       }
 
-      const inventory = await getGygInventory();
+      const [inventory, retailPrices] = await Promise.all([
+        getGygStore().inventory(dates[0], dates[dates.length - 1]),
+        getGygRetailPrices(config),
+      ]);
       const availabilities = [];
       for (const date of dates) {
         if (config.timeMode === "time_period") {
-          availabilities.push(await buildGygAvailability(config, date, "09:00", inventory));
+          availabilities.push(buildGygAvailability(config, date, "09:00", inventory, retailPrices));
         } else {
           for (const time of GYG_DEFAULT_START_TIMES) {
-            availabilities.push(await buildGygAvailability(config, date, time, inventory));
+            availabilities.push(buildGygAvailability(config, date, time, inventory, retailPrices));
           }
         }
       }

@@ -36,6 +36,8 @@ try {
   const inventory = await second.inventory();
   assert.equal(inventory.bookings.length, 1);
   assert.equal(inventory.reservations.length, 0);
+  assert.equal((await second.inventory("2030-01-10", "2030-01-10")).bookings.length, 1, "date-scoped inventory includes the visit day");
+  assert.equal((await second.inventory("2031-01-01", "2031-01-01")).bookings.length, 0, "date-scoped inventory excludes other days");
   const attempts = await Promise.allSettled(Array.from({ length: 24 }, (_, i) => (i % 2 ? first : second).reserve(hold(`RACE-${i}`), 20, 2)));
   assert.equal(attempts.filter(r => r.status === "fulfilled").length, 18, "concurrent holds cannot oversell remaining seats");
   const active = await first.activeReservations();
